@@ -42,6 +42,10 @@ final scorecardProvider = FutureProvider.family<Scorecard?, String>((ref, scorec
   return ref.read(matchRepositoryProvider).scorecard(scorecardId);
 });
 
+/// The signed-in player's own career / performance summary — the ONE source
+/// for the Dashboard stats, My Performance and My Profile's Career cells, so
+/// they can never disagree. Keyed by the account (never by the editable
+/// name), so renaming yourself doesn't change your statistics.
 final performanceProvider = FutureProvider<PerformanceSummary>((ref) async {
   ref.watch(currentAccountProvider.select((a) => a?.id));
   return ref.read(matchRepositoryProvider).performance();

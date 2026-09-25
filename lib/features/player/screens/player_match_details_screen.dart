@@ -9,44 +9,28 @@ import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/ce_availability.dart';
 import '../../../shared/widgets/ce_buttons.dart';
-import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
 import '../../../shared/widgets/ce_match_widgets.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
-import '../../../shared/widgets/ce_top_bar.dart';
 import '../player_providers.dart';
 import 'my_matches_screen.dart';
 
-/// Player Match Details (new — revised architecture §3). Read-only, Player
-/// context only: no Club Owner actions.
-class PlayerMatchDetailsScreen extends ConsumerWidget {
-  const PlayerMatchDetailsScreen({super.key, required this.matchId});
-  final String matchId;
+/// Details tab of the Player Match workspace — the former Player Match
+/// Details screen (revised architecture §3). Read-only, Player context only:
+/// no Club Owner actions.
+class MatchDetailsView extends ConsumerWidget {
+  const MatchDetailsView({super.key, required this.match, this.onViewScorecard});
+  final PlayerMatch match;
+
+  /// "View Scorecard" (past matches with a scorecard) → the Scorecard tab.
+  final VoidCallback? onViewScorecard;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final loading = ref.watch(playerMatchesProvider).isLoading;
-    final match = ref.watch(playerMatchProvider(matchId));
-    const bar = CeTopBar(title: 'Match Details', fallbackLocation: Routes.myMatches);
-    if (loading) return const Scaffold(appBar: bar, body: Center(child: CircularProgressIndicator()));
-    if (match == null) {
-      return Scaffold(
-        appBar: bar,
-        body: CeEmptyState(
-          icon: 'search',
-          title: 'Match not found',
-          body: 'This match is no longer available.',
-          primaryLabel: 'Back to My Matches',
-          onPrimary: () => context.go(Routes.myMatches),
-        ),
-      );
-    }
     final m = match;
     final availability = ref.watch(playerAvailabilityProvider);
-    return Scaffold(
-      appBar: bar,
-      body: ListView(padding: const EdgeInsets.only(bottom: 28), children: [
+    return ListView(padding: const EdgeInsets.only(bottom: 28), children: [
         // ---- Header ----
         CeBrandHero(
           margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 0),
@@ -76,7 +60,7 @@ class PlayerMatchDetailsScreen extends ConsumerWidget {
         // ---- Status-specific block ----
         switch (m.status) {
           PlayerMatchStatus.upcoming => _Countdown(startsAt: m.startsAt),
-          PlayerMatchStatus.past => _ResultBlock(match: m),
+          PlayerMatchStatus.past => _ResultBlock(match: m, onViewScorecard: onViewScorecard),
           PlayerMatchStatus.cancelled => _Notice(
               icon: 'x-circle',
               text: 'This match was cancelled. Reason: ${m.cancelReason ?? 'Not specified'}',
@@ -137,8 +121,7 @@ class PlayerMatchDetailsScreen extends ConsumerWidget {
             ]),
           ),
         ],
-      ]),
-    );
+      ]);
   }
 }
 
@@ -177,8 +160,9 @@ class _Countdown extends ConsumerWidget {
 }
 
 class _ResultBlock extends StatelessWidget {
-  const _ResultBlock({required this.match});
+  const _ResultBlock({required this.match, this.onViewScorecard});
   final PlayerMatch match;
+  final VoidCallback? onViewScorecard;
 
   @override
   Widget build(BuildContext context) {
@@ -200,12 +184,12 @@ class _ResultBlock extends StatelessWidget {
                     fontSize: 13.5, fontWeight: FontWeight.w800, color: won ? CeColors.primaryDark : CeColors.red)),
           ),
         ]),
-        if (match.hasScorecard) ...[
+        if (match.hasScorecard && onViewScorecard != null) ...[
           const SizedBox(height: 12),
           CeButton(
             label: 'View Scorecard',
             icon: CeIcons.of('file-text'),
-            onPressed: () => context.go(Routes.matchScorecard(match.id)),
+            onPressed: onViewScorecard,
           ),
         ],
       ]),

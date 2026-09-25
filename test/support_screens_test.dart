@@ -18,6 +18,7 @@ import 'package:criceco/features/tournaments/registration_draft.dart';
 import 'package:criceco/features/tournaments/tournament_demo_actions.dart';
 import 'package:criceco/features/tournaments/tournaments_controller.dart';
 import 'package:criceco/shared/widgets/ce_buttons.dart';
+import 'package:criceco/shared/widgets/ce_rows.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -295,14 +296,23 @@ void main() {
     testWidgets('Privacy toggles and Password & security are real state', (tester) async {
       final c = await _pump(tester);
       await _go(tester, c, Routes.settings);
+      expect(find.text('Show phone number'), findsNothing, reason: 'Privacy starts collapsed');
       await _tap(tester, find.text('Privacy'));
-      expect(_loc(c), Routes.privacySettings);
+      expect(_loc(c), Routes.settings, reason: 'expands in place, no new route');
       await _tap(tester, find.text('Show phone number'));
       expect(c.read(currentAccountProvider)!.settings.showPhone, isTrue);
-      await tester.tap(find.byTooltip('Back'));
-      await tester.pumpAndSettle();
-      expect(_loc(c), Routes.settings);
+      await _tap(tester, find.text('Privacy'));
+      expect(find.text('Show phone number'), findsNothing, reason: 'collapses again');
 
+      // The legacy Privacy route opens Settings with the section expanded,
+      // showing the saved state.
+      await _go(tester, c, Routes.privacySettings);
+      expect(_loc(c), SettingsScreen.privacyLocation);
+      expect(find.text('Settings'), findsOneWidget);
+      final phone = find.ancestor(of: find.text('Show phone number'), matching: find.byType(CeToggleRow));
+      expect(tester.widget<CeToggleRow>(phone).value, isTrue);
+
+      await _go(tester, c, Routes.settings);
       await _tap(tester, find.text('Password & security'));
       await _tap(tester, _button('Update Password'));
       expect(find.text('Enter your current password'), findsOneWidget);
@@ -329,7 +339,7 @@ void main() {
       await _go(tester, c, Routes.playerProfile);
       await tester.tap(find.text('Edit'));
       await tester.pumpAndSettle();
-      expect(_loc(c), Routes.editProfile);
+      expect(_loc(c), Routes.playerProfile, reason: 'inline edit mode, same route');
       await tester.enterText(find.byKey(const Key('edit.name')), '');
       await tester.enterText(find.byKey(const Key('edit.phone')), '12345');
       await _tap(tester, _button('Save Changes'));
@@ -345,6 +355,19 @@ void main() {
       expect(_loc(c), Routes.playerProfile);
       expect(find.text('Profile updated'), findsOneWidget);
       expect(find.text('Aman Ullah'), findsOneWidget);
+      expect(find.byKey(const Key('edit.name')), findsNothing, reason: 'back in view mode');
+    });
+
+    testWidgets('Privacy (inline in Settings): Public profile off hides me from Player Hunt', (tester) async {
+      final c = await _pump(tester);
+      await c.read(playerAvailabilityProvider.notifier).setOpenToOffers(true);
+      expect((await c.read(openPlayersProvider.future)).where((p) => p.isMe), hasLength(1));
+      await _go(tester, c, SettingsScreen.privacyLocation);
+      await _tap(tester, find.text('Public profile'));
+      expect(c.read(currentAccountProvider)!.settings.publicProfile, isFalse);
+      expect((await c.read(openPlayersProvider.future)).where((p) => p.isMe), isEmpty);
+      expect(find.textContaining("Hidden: clubs won't see you"), findsOneWidget);
+      expect(c.read(activeRoleProvider), UserRole.player, reason: 'no role change');
     });
 
     testWidgets('Player Hunt: post a requirement, remove it; browse and invite available players', (tester) async {
@@ -416,14 +439,14 @@ void main() {
         await sweep([
           Routes.notifications,
           Routes.settings,
-          Routes.privacySettings,
+          SettingsScreen.privacyLocation,
           Routes.securitySettings,
           Routes.playerHunt,
           '${Routes.playerHunt}?tab=available',
           '/nowhere',
         ]);
         c.read(roleControllerProvider.notifier).switchTo(UserRole.player);
-        await sweep([Routes.notifications, Routes.settings, Routes.editProfile]);
+        await sweep([Routes.notifications, Routes.settings, SettingsScreen.privacyLocation, '${Routes.playerProfile}?edit=1']);
       });
     }
   });

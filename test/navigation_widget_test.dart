@@ -160,11 +160,22 @@ void main() {
       Routes.continueAs, Routes.chooseOption, Routes.createClub, Routes.clubDetails, Routes.enterClubCode,
       Routes.waitingApproval, Routes.joinApproved,
     ];
+    // Screen consolidation Phase A: pre-consolidation routes still resolve,
+    // opening the workspace that replaced them in the right tab / mode /
+    // section. Every other route stays where it is.
+    final consolidated = <String, String>{
+      Routes.tournamentDashboard('t_1'): '/club/tournaments/hosted/t_1',
+      Routes.tournamentTeamsManage('t_1'): '/club/tournaments/hosted/t_1?tab=teams',
+      Routes.privacySettings: '/settings?section=privacy',
+      Routes.matchScorecard('pm_2'): '/player/matches/pm_2?tab=scorecard',
+      Routes.matchHistory: '/player/performance?tab=history',
+      Routes.editProfile: '/player/profile?edit=1',
+    };
     final router = c.read(routerProvider);
     for (final loc in clubLocations) {
       router.go(loc);
       await tester.pumpAndSettle();
-      expect(_location(c), loc, reason: 'route $loc');
+      expect(_location(c), consolidated[loc] ?? loc, reason: 'route $loc');
       expect(tester.takeException(), isNull, reason: 'route $loc');
       expect(find.text('Not found'), findsNothing, reason: 'route $loc resolved to the error page');
     }
@@ -177,8 +188,11 @@ void main() {
     for (final loc in playerLocations) {
       router.go(loc);
       await tester.pumpAndSettle();
-      expect(_location(c), loc, reason: 'route $loc');
+      expect(_location(c), consolidated[loc] ?? loc, reason: 'route $loc');
+      expect(tester.takeException(), isNull, reason: 'route $loc');
       expect(find.text('Not found'), findsNothing, reason: 'route $loc resolved to the error page');
     }
+    expect(consolidated.keys, everyElement(isIn([...clubLocations, ...playerLocations])),
+        reason: 'every consolidated route is still smoke-tested');
   });
 }

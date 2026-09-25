@@ -36,13 +36,11 @@ import '../../features/membership/enter_club_code_screen.dart';
 import '../../features/membership/join_status_screens.dart';
 import '../../features/notifications/notifications_screen.dart';
 import '../../features/player/screens/availability_screen.dart';
-import '../../features/player/screens/edit_profile_screen.dart';
-import '../../features/player/screens/match_scorecard_screen.dart';
 import '../../features/player/screens/my_matches_screen.dart';
 import '../../features/player/screens/open_matches_screen.dart';
-import '../../features/player/screens/performance_screens.dart';
+import '../../features/player/screens/performance_workspace.dart';
 import '../../features/player/screens/player_dashboard_screen.dart';
-import '../../features/player/screens/player_match_details_screen.dart';
+import '../../features/player/screens/player_match_workspace.dart';
 import '../../features/player/screens/player_profile_screen.dart';
 import '../../features/settings/settings_screens.dart';
 import '../../features/tournaments/screens/browse_screens.dart';
@@ -156,10 +154,15 @@ final List<RouteBase> appRoutes = [
   GoRoute(path: Routes.continueAs, builder: (_, _) => const ContinueAsScreen()),
   GoRoute(path: Routes.roleSetup, builder: (_, _) => const RoleSetupScreen()),
   GoRoute(path: Routes.notifications, builder: (_, _) => const NotificationsScreen()),
-  GoRoute(path: Routes.settings, builder: (_, _) => const SettingsScreen(), routes: [
-    GoRoute(path: 'privacy', builder: (_, _) => const PrivacySettingsScreen()),
-    GoRoute(path: 'security', builder: (_, _) => const SecuritySettingsScreen()),
-  ]),
+  // Settings with the Privacy section inline (`?section=privacy` expands it).
+  GoRoute(
+    path: Routes.settings,
+    builder: (_, s) => SettingsScreen(privacyExpanded: s.uri.queryParameters['section'] == 'privacy'),
+    routes: [
+      _legacy('privacy', (_) => SettingsScreen.privacyLocation),
+      GoRoute(path: 'security', builder: (_, _) => const SecuritySettingsScreen()),
+    ],
+  ),
 
   // ---- Club setup + membership onboarding (Phase 1: migrated) ----
   GoRoute(path: Routes.chooseOption, builder: (_, _) => const ChooseOptionScreen(), routes: [
@@ -191,28 +194,35 @@ final List<RouteBase> appRoutes = [
           path: Routes.myMatches,
           builder: (_, s) => MyMatchesScreen(tab: MyMatchesScreen.parseTab(s.uri.queryParameters['tab'])),
           routes: [
+            // Player Match workspace: Details | Scorecard in `?tab=`.
             GoRoute(
               path: ':matchId',
-              builder: (_, s) => PlayerMatchDetailsScreen(matchId: s.pathParameters['matchId']!),
+              builder: (_, s) => PlayerMatchWorkspace(
+                matchId: s.pathParameters['matchId']!,
+                tab: PlayerMatchView.parse(s.uri.queryParameters['tab']),
+              ),
               routes: [
-                GoRoute(
-                  path: 'scorecard',
-                  builder: (_, s) => MatchScorecardScreen(matchId: s.pathParameters['matchId']!),
-                ),
+                _legacy('scorecard', (s) => PlayerMatchView.scorecard.location(s.pathParameters['matchId']!)),
               ],
             ),
           ],
         ),
       ]),
       StatefulShellBranch(routes: [
-        GoRoute(path: Routes.myPerformance, builder: (_, _) => const MyPerformanceScreen(), routes: [
-          GoRoute(path: 'history', builder: (_, _) => const MatchHistoryScreen()),
-        ]),
+        // Performance workspace: Overview | History in `?tab=`.
+        GoRoute(
+          path: Routes.myPerformance,
+          builder: (_, s) => PerformanceWorkspace(tab: PerformanceView.parse(s.uri.queryParameters['tab'])),
+          routes: [_legacy('history', (_) => PerformanceView.history.location)],
+        ),
       ]),
       StatefulShellBranch(routes: [
-        GoRoute(path: Routes.playerProfile, builder: (_, _) => const PlayerProfileScreen(), routes: [
-          GoRoute(path: 'edit', parentNavigatorKey: rootNavigatorKey, builder: (_, _) => const EditProfileScreen()),
-        ]),
+        // My Profile with inline edit mode (`?edit=1`).
+        GoRoute(
+          path: Routes.playerProfile,
+          builder: (_, s) => PlayerProfileScreen(editing: s.uri.queryParameters['edit'] == '1'),
+          routes: [_legacy('edit', (_) => '${Routes.playerProfile}?edit=1')],
+        ),
       ]),
     ],
   ),
@@ -394,19 +404,35 @@ GoRoute _full(String path, Widget Function(GoRouterState s) build, {List<RouteBa
       routes: routes,
     );
 
+/// A pre-consolidation route kept for compatibility (deep links,
+/// notifications, bookmarks): it builds no page and redirects to the
+/// workspace location that replaced it. Keep it childless: go_router can't
+/// rebuild the location on Back through a page-less intermediate route.
+/// The redirect fires only when this route is the leaf.
+GoRoute _legacy(String path, String Function(GoRouterState s) target) => GoRoute(
+      path: path,
+      redirect: (_, s) => s.uri.path == s.matchedLocation ? target(s) : null,
+    );
+
+/// Host workspace tab: `?tab=`, or Teams while a team request is open on top.
+TournamentTab _hostTab(GoRouterState s) =>
+    s.uri.path.contains('/teams/') ? TournamentTab.teams : TournamentTab.parse(s.uri.queryParameters['tab']);
+
 final List<RouteBase> _tournamentRoutes = [
   _full('tournaments', (_) => const TournamentHubScreen(), routes: [
     _full('new', (_) => const CreateTournamentScreen()),
     _full('hosted', (_) => const MyTournamentsScreen(), routes: [
-      _full(':tournamentId',
-          (s) => TournamentDetailsScreen(tournamentId: _tid(s), tab: TournamentTab.parse(s.uri.queryParameters['tab'])),
-          routes: [
-            _full('dashboard', (s) => TournamentDashboardScreen(tournamentId: _tid(s))),
-            _full('teams', (s) => ManageTeamsScreen(tournamentId: _tid(s)), routes: [
-              _full('requests/:registrationId',
-                  (s) => TeamRequestDetailScreen(tournamentId: _tid(s), registrationId: _rid(s))),
-            ]),
-          ]),
+      // Tournament host workspace: Overview | Teams | Fixtures | Points Table.
+      // Under a request (`…/teams/requests/:rid`, URL unchanged) the
+      // workspace page below shows the Teams tab. The request route sits
+      // beside the legacy `teams` redirect, not under it, so no page-less
+      // route is ever an intermediate match.
+      _full(':tournamentId', (s) => TournamentDetailsScreen(tournamentId: _tid(s), tab: _hostTab(s)), routes: [
+        _legacy('dashboard', (s) => TournamentTab.overview.location(_tid(s))),
+        _legacy('teams', (s) => TournamentTab.teams.location(_tid(s))),
+        _full('teams/requests/:registrationId',
+            (s) => TeamRequestDetailScreen(tournamentId: _tid(s), registrationId: _rid(s))),
+      ]),
     ]),
     _full('browse', (s) => BrowseTournamentsScreen(city: s.uri.queryParameters['city']), routes: [
       _full(':tournamentId', (s) => TournamentRegisterScreen(tournamentId: _tid(s)), routes: [

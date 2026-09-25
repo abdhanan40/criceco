@@ -11,6 +11,7 @@ import '../../core/models/models.dart';
 import '../../core/utils/formatters.dart';
 import '../../shared/widgets/ce_buttons.dart';
 import '../../shared/widgets/ce_feedback.dart';
+import '../../shared/widgets/ce_icons.dart';
 import '../../shared/widgets/ce_inputs.dart';
 import '../../shared/widgets/ce_rows.dart';
 import '../../shared/widgets/ce_surfaces.dart';
@@ -22,18 +23,52 @@ String _roleHome(WidgetRef ref) {
   return role == null ? Routes.continueAs : Routes.home(role);
 }
 
-// ---------------------------------------------------------------------------
-// Settings (prototype `screens.settings`, :8126): shared and role-aware.
-// ---------------------------------------------------------------------------
+/// Settings (prototype `screens.settings`, :8126) — shared and role-aware.
+/// Consolidation Phase A: Privacy is an expandable section here, not a
+/// separate screen. `/settings?section=privacy` (and the legacy
+/// `/settings/privacy`, which redirects here) opens with it expanded.
+class SettingsScreen extends ConsumerStatefulWidget {
+  const SettingsScreen({super.key, this.privacyExpanded = false});
 
-class SettingsScreen extends ConsumerWidget {
-  const SettingsScreen({super.key});
+  /// Open with the Privacy section expanded and scrolled into view.
+  final bool privacyExpanded;
 
   /// "Account" stays inside the active role (prototype `ceGoAccount`):
   /// Player → My Profile, Club Owner → My Club.
   static String accountLocation(UserRole role) => role == UserRole.player ? Routes.playerProfile : Routes.myClub;
 
-  Future<void> _chooseProfile(BuildContext context, WidgetRef ref, UserRole current) async {
+  /// Canonical location with the Privacy section open.
+  static const privacyLocation = '${Routes.settings}?section=privacy';
+
+  @override
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  final _privacyKey = GlobalKey();
+  late bool _privacyOpen = widget.privacyExpanded;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_privacyOpen) _revealPrivacy();
+  }
+
+  @override
+  void didUpdateWidget(covariant SettingsScreen old) {
+    super.didUpdateWidget(old);
+    if (widget.privacyExpanded && !old.privacyExpanded) {
+      setState(() => _privacyOpen = true);
+      _revealPrivacy();
+    }
+  }
+
+  void _revealPrivacy() => WidgetsBinding.instance.addPostFrameCallback((_) {
+        final ctx = _privacyKey.currentContext;
+        if (ctx != null) Scrollable.ensureVisible(ctx, duration: CeMotion.base, alignment: 0.1);
+      });
+
+  Future<void> _chooseProfile(UserRole current) async {
     final hasClub = ref.read(sessionProvider).hasClubOwnerProfile;
     final picked = await showCeActionSheet(context, title: 'Active profile', actions: [
       CeSheetAction(
@@ -49,7 +84,7 @@ class SettingsScreen extends ConsumerWidget {
         id: UserRole.clubOwner.name,
       ),
     ]);
-    if (picked == null || !context.mounted) return;
+    if (picked == null || !mounted) return;
     final role = UserRole.values.byName(picked);
     if (role == current) return;
     // The same switch as the drawer row: the stack is replaced, so Back
@@ -64,7 +99,7 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final role = ref.watch(activeRoleProvider);
     final demo = ref.watch(demoModeProvider);
     final canToggleDemo = ref.read(demoModeProvider.notifier).canToggle;
@@ -77,14 +112,14 @@ class SettingsScreen extends ConsumerWidget {
             icon: 'user',
             title: 'Account',
             subtitle: 'Name, phone and personal details',
-            onTap: role == null ? null : () => context.go(accountLocation(role)),
+            onTap: role == null ? null : () => context.go(SettingsScreen.accountLocation(role)),
           ),
           CeSettingsRow(
             icon: 'repeat',
             title: 'Active profile',
             subtitle: role?.label ?? 'Not chosen',
             showDivider: false,
-            onTap: role == null ? () => context.go(Routes.continueAs) : () => _chooseProfile(context, ref, role),
+            onTap: role == null ? () => context.go(Routes.continueAs) : () => _chooseProfile(role),
           ),
         ]),
         const CeSectionHeader('Preferences'),
@@ -96,11 +131,12 @@ class SettingsScreen extends ConsumerWidget {
             subtitle: 'Match, club and booking alerts',
             onTap: () => context.push(Routes.notifications),
           ),
-          CeSettingsRow(
-            icon: 'lock',
-            title: 'Privacy',
-            subtitle: 'Who can see your profile and stats',
-            onTap: () => context.go(Routes.privacySettings),
+          KeyedSubtree(
+            key: _privacyKey,
+            child: _PrivacySection(
+              open: _privacyOpen,
+              onToggle: () => setState(() => _privacyOpen = !_privacyOpen),
+            ),
           ),
           CeSettingsRow(
             icon: 'key',
@@ -154,51 +190,87 @@ class SettingsScreen extends ConsumerWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Privacy (prototype `screens.privacySettings`, :8198): account preferences.
+// Privacy (prototype `screens.privacySettings`, :8198) — an expandable row
+// inside Settings. The toggles write the account preferences as before.
 // ---------------------------------------------------------------------------
 
-class PrivacySettingsScreen extends ConsumerWidget {
-  const PrivacySettingsScreen({super.key});
+class _PrivacySection extends ConsumerWidget {
+  const _PrivacySection({required this.open, required this.onToggle});
+  final bool open;
+  final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(currentAccountProvider.select((a) => a?.settings)) ?? const AccountSettings();
     final session = ref.read(sessionProvider.notifier);
-    return Scaffold(
-      appBar: const CeTopBar(title: 'Privacy', fallbackLocation: Routes.settings),
-      body: ListView(padding: const EdgeInsets.only(bottom: 28), children: [
-        const CeSectionHeader('Visibility'),
-        CeGroupCard(children: [
-          CeToggleRow(
-            icon: 'eye',
-            title: 'Public profile',
-            subtitle: 'Clubs can find you in Player Hunt',
-            value: s.publicProfile,
-            onChanged: (v) => session.updateSettings((x) => x.copyWith(publicProfile: v)),
-          ),
-          CeToggleRow(
-            icon: 'bar-chart',
-            title: 'Show my stats',
-            subtitle: 'Owners can view your performance',
-            value: s.showStats,
-            onChanged: (v) => session.updateSettings((x) => x.copyWith(showStats: v)),
-          ),
-          CeToggleRow(
-            icon: 'phone',
-            title: 'Show phone number',
-            subtitle: 'Visible to your club members only',
-            value: s.showPhone,
+    return Semantics(
+      container: true,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Semantics(
+          button: true,
+          expanded: open,
+          label: 'Privacy, who can see your profile and stats',
+          excludeSemantics: true,
+          child: CeSettingsRow(
+            icon: 'lock',
+            title: 'Privacy',
+            subtitle: 'Who can see your profile and stats',
             showDivider: false,
-            onChanged: (v) => session.updateSettings((x) => x.copyWith(showPhone: v)),
+            onTap: onToggle,
+            trailing: AnimatedRotation(
+              turns: open ? 0.5 : 0,
+              duration: CeMotion.base,
+              child: Icon(CeIcons.of('chevron-down'), size: 16, color: open ? CeColors.primary : CeColors.muted2),
+            ),
           ),
-        ]),
-        CeInfoNote(
-          margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
-          icon: s.publicProfile ? 'eye' : 'eye-off',
-          text: s.publicProfile
-              ? 'When you list yourself as available, clubs see you under Player Hunt → Available Players.'
-              : 'Hidden: clubs won\'t see you under Player Hunt → Available Players, even when you\'re available.',
         ),
+        AnimatedSize(
+          duration: CeMotion.base,
+          curve: Curves.easeOut,
+          alignment: Alignment.topCenter,
+          child: !open
+              ? const SizedBox(width: double.infinity)
+              : Container(
+                  margin: const EdgeInsets.only(top: 4, bottom: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: CeColors.historySoft,
+                    borderRadius: BorderRadius.circular(CeRadius.md),
+                  ),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    CeToggleRow(
+                      icon: 'eye',
+                      title: 'Public profile',
+                      subtitle: 'Clubs can find you in Player Hunt',
+                      value: s.publicProfile,
+                      onChanged: (v) => session.updateSettings((x) => x.copyWith(publicProfile: v)),
+                    ),
+                    CeToggleRow(
+                      icon: 'bar-chart',
+                      title: 'Show my stats',
+                      subtitle: 'Owners can view your performance',
+                      value: s.showStats,
+                      onChanged: (v) => session.updateSettings((x) => x.copyWith(showStats: v)),
+                    ),
+                    CeToggleRow(
+                      icon: 'phone',
+                      title: 'Show phone number',
+                      subtitle: 'Visible to your club members only',
+                      value: s.showPhone,
+                      showDivider: false,
+                      onChanged: (v) => session.updateSettings((x) => x.copyWith(showPhone: v)),
+                    ),
+                    CeInfoNote(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      icon: s.publicProfile ? 'eye' : 'eye-off',
+                      text: s.publicProfile
+                          ? 'When you list yourself as available, clubs see you under Player Hunt → Available Players.'
+                          : 'Hidden: clubs won\'t see you under Player Hunt → Available Players, even when you\'re available.',
+                    ),
+                  ]),
+                ),
+        ),
+        const Divider(height: 1, color: CeColors.line),
       ]),
     );
   }

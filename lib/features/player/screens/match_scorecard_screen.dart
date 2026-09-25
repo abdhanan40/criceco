@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
-import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
@@ -10,44 +8,32 @@ import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_match_widgets.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
-import '../../../shared/widgets/ce_top_bar.dart';
 import '../player_providers.dart';
 
-/// Scorecard (prototype `screens.matchScorecard`, :3345). Keyed by match id
-/// (revised architecture §3) instead of the opponent's name.
-class MatchScorecardScreen extends ConsumerWidget {
-  const MatchScorecardScreen({super.key, required this.matchId});
-  final String matchId;
+/// Scorecard tab of the Player Match workspace — the former Scorecard screen
+/// (prototype `screens.matchScorecard`, :3345), keyed by match id (revised
+/// architecture §3). Only shown for a past match with a scorecard.
+class MatchScorecardView extends ConsumerWidget {
+  const MatchScorecardView({super.key, required this.match});
+  final PlayerMatch match;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bar = CeTopBar(title: 'Scorecard', fallbackLocation: Routes.playerMatchDetails(matchId));
-    final matchLoading = ref.watch(playerMatchesProvider).isLoading;
-    final match = ref.watch(playerMatchProvider(matchId));
-    final scId = match?.scorecardId;
+    final scId = match.scorecardId;
     final scAsync = scId == null ? null : ref.watch(scorecardProvider(scId));
-    if (matchLoading || (scAsync?.isLoading ?? false)) {
-      return Scaffold(appBar: bar, body: const Center(child: CircularProgressIndicator()));
-    }
+    if (scAsync?.isLoading ?? false) return const Center(child: CircularProgressIndicator());
     final sc = scAsync?.value;
-    if (match == null || sc == null) {
-      return Scaffold(
-        appBar: bar,
-        body: CeEmptyState(
-          icon: 'file-text',
-          title: 'Scorecard not available',
-          body: 'A scorecard has not been published for this match.',
-          primaryLabel: 'Back to My Matches',
-          onPrimary: () => context.go(Routes.myMatches),
-        ),
+    if (sc == null) {
+      return const CeEmptyState(
+        icon: 'file-text',
+        title: 'Scorecard not available',
+        body: 'A scorecard has not been published for this match.',
       );
     }
     final top = sc.topScorer;
     final wk = sc.topWicketTaker;
     final white85 = Colors.white.withValues(alpha: 0.85);
-    return Scaffold(
-      appBar: bar,
-      body: ListView(padding: const EdgeInsets.only(bottom: 28), children: [
+    return ListView(padding: const EdgeInsets.only(bottom: 28), children: [
         CeBrandHero(
           margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 0),
           radius: 18,
@@ -93,8 +79,7 @@ class MatchScorecardScreen extends ConsumerWidget {
           child: _StatBox(label: 'Player of the Match', value: sc.playerOfMatch, icon: 'award'),
         ),
         for (final inn in sc.innings) _InningsCard(innings: inn),
-      ]),
-    );
+      ]);
   }
 }
 

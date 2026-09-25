@@ -262,6 +262,10 @@ class PerformanceSummary {
   final List<FormEntry> recentForm;
   final List<MatchLogEntry> matchLog;
 
+  /// Batting average as shown in the snapshot ("32.00"); `—` if absent.
+  String get battingAverage =>
+      snapshot.where((t) => t.label == 'Average').firstOrNull?.value ?? '—';
+
   int get recentWins =>
       recentForm.where((f) => f.result == MatchResult.won).length;
   int get recentLosses => recentForm.length - recentWins;

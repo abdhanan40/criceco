@@ -10,10 +10,12 @@ import 'package:criceco/core/models/models.dart';
 import 'package:criceco/features/club/teams/teams_controller.dart';
 import 'package:criceco/features/matches/lineup_controller.dart';
 import 'package:criceco/features/tournaments/registration_draft.dart';
+import 'package:criceco/features/tournaments/screens/hosted_screens.dart';
 import 'package:criceco/features/tournaments/screens/registration_screens.dart';
 import 'package:criceco/features/tournaments/tournament_demo_actions.dart';
 import 'package:criceco/features/tournaments/tournaments_controller.dart';
 import 'package:criceco/shared/widgets/ce_buttons.dart';
+import 'package:criceco/shared/widgets/ce_workspace_tabs.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -129,6 +131,9 @@ Future<void> _clearToast(WidgetTester tester) async {
 }
 
 Finder _button(String label) => find.widgetWithText(CeButton, label);
+
+/// Text inside the tournament host workspace (not the shell page beneath).
+Finder _inHost(String text) => find.descendant(of: find.byType(TournamentDetailsScreen), matching: find.text(text));
 
 void main() {
   group('Create Tournament', () {
@@ -441,14 +446,19 @@ void main() {
       await _go(tester, c, Routes.tournamentPublished(t.id));
       await _tap(tester, _button('View Tournament'));
       expect(_loc(c), Routes.tournamentDetails(t.id));
+      // Overview carries the former Dashboard sections.
+      await tester.scrollUntilVisible(_inHost('Upcoming Matches'), 200, scrollable: find.byType(Scrollable).first);
+      await tester.scrollUntilVisible(_inHost('Tournament Awards'), 200, scrollable: find.byType(Scrollable).first);
       await _tap(tester, _button('Manage Teams (3 pending)'));
-      expect(_loc(c), Routes.tournamentTeamsManage(t.id));
+      expect(_loc(c), TournamentTab.teams.location(t.id), reason: 'Teams tab of the same tournament');
+      expect(find.text('Clubs Requesting Registration · 3'), findsOneWidget);
       await _tap(tester, find.text('Karachi Kings CC'));
       final first = c.read(pendingRequestsProvider(t.id)).first;
       expect(_loc(c), Routes.teamRequestDetail(t.id, first.id));
       await _tap(tester, _button('Accept'));
       expect(find.text('Karachi Kings CC accepted'), findsOneWidget);
-      expect(_loc(c), Routes.tournamentTeamsManage(t.id));
+      expect(_loc(c), TournamentTab.teams.location(t.id));
+      expect(find.text('Clubs Requesting Registration · 2'), findsOneWidget);
       await _clearToast(tester);
       await c.read(tournamentRegistrationsProvider.notifier)
           .decide(c.read(pendingRequestsProvider(t.id)).first.id, approve: true);
@@ -463,11 +473,59 @@ void main() {
       expect(c.read(routerProvider).state.uri.path, Routes.myTournaments);
     });
 
+    testWidgets('legacy Dashboard / Manage Teams routes open the host workspace tabs', (tester) async {
+      final c = await _pumpOwner(tester);
+      final t = await c.read(tournamentsProvider.notifier).create(_input());
+
+      await _go(tester, c, Routes.tournamentDashboard(t.id));
+      expect(_loc(c), Routes.tournamentDetails(t.id), reason: 'Dashboard → Overview');
+      await tester.scrollUntilVisible(_inHost('Tournament Awards'), 200, scrollable: find.byType(Scrollable).first);
+      expect(find.text(t.name, skipOffstage: false), findsWidgets);
+
+      await _go(tester, c, Routes.tournamentTeamsManage(t.id));
+      expect(_loc(c), TournamentTab.teams.location(t.id), reason: 'Manage Teams → Teams tab');
+      expect(find.text('Clubs Requesting Registration · 3'), findsOneWidget);
+      expect(find.text('Confirmed Teams · 0'), findsOneWidget);
+
+      // Tab switches replace the location: one Back leaves the workspace.
+      await tester.fling(find.byType(Scrollable).first, const Offset(0, 3000), 4000);
+      await tester.pumpAndSettle();
+      Future<void> tapTab(TournamentTab tab) async {
+        final chip = find.descendant(of: find.byType(CeWorkspaceTabs<TournamentTab>), matching: find.text(tab.label));
+        await tester.ensureVisible(chip); // the tab row scrolls sideways on narrow phones
+        await tester.pumpAndSettle();
+        await tester.tap(chip);
+        await tester.pumpAndSettle();
+        expect(_loc(c), tab.location(t.id));
+      }
+
+      for (final tab in TournamentTab.values.reversed) {
+        await tapTab(tab);
+      }
+      await tapTab(TournamentTab.teams);
+      expect(_loc(c), TournamentTab.teams.location(t.id));
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pumpAndSettle();
+      expect(c.read(routerProvider).state.uri.path, Routes.myTournaments);
+
+      // A request deep link (notification) keeps the Teams tab underneath.
+      final req = c.read(pendingRequestsProvider(t.id)).first;
+      await _go(tester, c, Routes.teamRequestDetail(t.id, req.id));
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pumpAndSettle();
+      expect(_loc(c), TournamentTab.teams.location(t.id));
+      expect(find.text('Clubs Requesting Registration · 3', skipOffstage: false), findsOneWidget, reason: 'Back → Teams tab');
+      expect(c.read(activeRoleProvider), UserRole.clubOwner);
+    });
+
     testWidgets('a participant never lands in the host tools, and a host never registers', (tester) async {
       final c = await _pumpOwner(tester);
       await _go(tester, c, Routes.tournamentDetails('t_1'));
       expect(find.text('Hosted by another club'), findsOneWidget);
       await _go(tester, c, Routes.tournamentTeamsManage('t_1'));
+      expect(_loc(c), TournamentTab.teams.location('t_1'));
+      expect(find.text('Hosted by another club'), findsOneWidget);
+      await _go(tester, c, Routes.tournamentDashboard('t_1'));
       expect(find.text('Hosted by another club'), findsOneWidget);
       final own = await c.read(tournamentsProvider.notifier).create(_input());
       await _go(tester, c, Routes.tournamentRegister(own.id));
@@ -507,8 +565,8 @@ void main() {
           '${Routes.tournamentDetails(hosted.id)}?tab=teams',
           '${Routes.tournamentDetails(hosted.id)}?tab=fixtures',
           '${Routes.tournamentDetails(hosted.id)}?tab=points',
-          Routes.tournamentDashboard(hosted.id),
-          Routes.tournamentTeamsManage(hosted.id),
+          Routes.tournamentDashboard(hosted.id), // legacy → Overview
+          Routes.tournamentTeamsManage(hosted.id), // legacy → Teams tab
           Routes.teamRequestDetail(hosted.id, requests[2].id),
           '${Routes.myRegistrations}?tab=approved',
           Routes.registrationDetails(reg.id),

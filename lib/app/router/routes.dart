@@ -15,6 +15,7 @@ abstract final class Routes {
   static const roleSetup = '/role-setup';
   static const notifications = '/notifications';
   static const settings = '/settings';
+  /// Legacy (consolidation Phase A) → Settings with Privacy expanded.
   static const privacySettings = '/settings/privacy';
   static const securitySettings = '/settings/security';
 
@@ -32,10 +33,13 @@ abstract final class Routes {
   static const openMatches = '/player/open-matches';
   static const myMatches = '/player/matches';
   static String playerMatchDetails(String matchId) => '/player/matches/$matchId';
+  /// Legacy (consolidation Phase A) → Match workspace, Scorecard tab.
   static String matchScorecard(String matchId) => '/player/matches/$matchId/scorecard';
   static const myPerformance = '/player/performance';
+  /// Legacy (consolidation Phase A) → Performance workspace, History tab.
   static const matchHistory = '/player/performance/history';
   static const playerProfile = '/player/profile';
+  /// Legacy (consolidation Phase A) → My Profile in edit mode.
   static const editProfile = '/player/profile/edit';
 
   // Club Owner
@@ -75,7 +79,9 @@ abstract final class Routes {
   static String tournamentPublished(String id) => '/club/tournaments/$id/published';
   static const myTournaments = '/club/tournaments/hosted';
   static String tournamentDetails(String id) => '/club/tournaments/hosted/$id';
+  /// Legacy (consolidation Phase A) → host workspace, Overview tab.
   static String tournamentDashboard(String id) => '/club/tournaments/hosted/$id/dashboard';
+  /// Legacy (consolidation Phase A) → host workspace, Teams tab.
   static String tournamentTeamsManage(String id) => '/club/tournaments/hosted/$id/teams';
   static String teamRequestDetail(String id, String registrationId) =>
       '/club/tournaments/hosted/$id/teams/requests/$registrationId';
