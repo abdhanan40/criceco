@@ -5,6 +5,7 @@ import '../../app/session/session_controller.dart';
 import '../../core/models/models.dart';
 import '../../core/utils/ranked_search.dart';
 import '../../demo/seed_data.dart';
+import '../../shared/state/selection_controller.dart';
 
 // ---------------------------------------------------------------------------
 // Matches, scorecards, performance (read models)
@@ -195,16 +196,6 @@ enum HistoryFilter {
         HistoryFilter.won => r == MatchResult.won,
         HistoryFilter.lost => r == MatchResult.lost,
       };
-}
-
-class SelectionController<T> extends Notifier<T> {
-  SelectionController(this._initial);
-  final T _initial;
-
-  @override
-  T build() => _initial;
-
-  void select(T value) => state = value;
 }
 
 final performanceTabProvider =

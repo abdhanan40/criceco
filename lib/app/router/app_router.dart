@@ -10,6 +10,12 @@ import '../../features/auth/login_screen.dart';
 import '../../features/auth/playing_style_screen.dart';
 import '../../features/auth/role_setup_screen.dart';
 import '../../features/auth/signup_screen.dart';
+import '../../features/club/screens/add_team_players_screen.dart';
+import '../../features/club/screens/club_dashboard_screen.dart';
+import '../../features/club/screens/members_screen.dart';
+import '../../features/club/screens/my_club_screen.dart';
+import '../../features/club/screens/team_squad_screen.dart';
+import '../../features/club/screens/teams_screen.dart';
 import '../../features/club_setup/choose_option_screen.dart';
 import '../../features/club_setup/club_details_screen.dart';
 import '../../features/club_setup/create_club_screen.dart';
@@ -230,32 +236,31 @@ final List<RouteBase> appRoutes = [
       StatefulShellBranch(routes: [
         GoRoute(
           path: Routes.clubHome,
-          pageBuilder: (_, s) => _fade(
-            const PlaceholderScreen(title: 'Club Owner Dashboard', screenKey: 'clubHome', showMenu: true, links: [
-              PlaceholderLink('Requests', Routes.joinRequests),
-              PlaceholderLink('Challenges', Routes.challenges),
-              PlaceholderLink('Player Hunt', Routes.playerHunt),
-              PlaceholderLink('Match Management', '/club/matches'),
-              PlaceholderLink('Tournament', Routes.tournamentHub),
-            ]),
-            s,
-          ),
+          pageBuilder: (_, s) => _fade(const ClubDashboardScreen(), s),
           routes: _clubFullRoutes,
         ),
       ]),
       StatefulShellBranch(routes: [
-        _ph(Routes.teams, 'My Teams', 'teams', fallback: Routes.clubHome, routes: [
+        GoRoute(path: Routes.teams, builder: (_, _) => const TeamsScreen(), routes: [
           GoRoute(path: 'new', redirect: (_, _) => Routes.teams), // legacy createTeam (P17)
-          _ph(':teamId', 'Team Squad', 'teamSquad', fallback: Routes.teams, routes: [
-            _ph('add-players', 'Add Players', 'addTeamPlayers', root: true, fallback: Routes.teams),
-          ]),
+          GoRoute(
+            path: ':teamId',
+            builder: (_, s) => TeamSquadScreen(teamId: s.pathParameters['teamId']!),
+            routes: [
+              GoRoute(
+                path: 'add-players',
+                parentNavigatorKey: rootNavigatorKey,
+                builder: (_, s) => AddTeamPlayersScreen(teamId: s.pathParameters['teamId']!),
+              ),
+            ],
+          ),
         ]),
       ]),
       StatefulShellBranch(routes: [
-        _ph(Routes.members, 'Members', 'members', fallback: Routes.clubHome),
+        GoRoute(path: Routes.members, builder: (_, _) => const MembersScreen()),
       ]),
       StatefulShellBranch(routes: [
-        _ph(Routes.myClub, 'My Club', 'myClub', fallback: Routes.clubHome),
+        GoRoute(path: Routes.myClub, builder: (_, _) => const MyClubScreen()),
       ]),
     ],
   ),

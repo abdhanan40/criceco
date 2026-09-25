@@ -7,6 +7,7 @@ import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../shared/widgets/ce_availability.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_calendar.dart';
 import '../../../shared/widgets/ce_feedback.dart';
@@ -15,15 +16,6 @@ import '../../../shared/widgets/ce_inputs.dart';
 import '../../../shared/widgets/ce_match_widgets.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
 import '../player_providers.dart';
-
-/// Colour + icon per status (prototype `availStatusMeta`).
-(Color, String) availabilityStyle(PlayerAvailability s) => switch (s) {
-      PlayerAvailability.available => (CeColors.primary, 'check'),
-      PlayerAvailability.limited => (CeColors.amber, 'timer'),
-      PlayerAvailability.unavailable => (CeColors.red, 'x'),
-      PlayerAvailability.injured => (CeColors.blue, 'activity'),
-      PlayerAvailability.other => (CeColors.muted, 'more-horizontal'),
-    };
 
 /// Resolves a quick "Unavailable Until" option to a date (prototype
 /// `availUntilResolvedDate`). "This Weekend" = the coming Saturday (a week

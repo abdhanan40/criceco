@@ -6,13 +6,13 @@ import '../../../app/providers/core_providers.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/session/session_controller.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../shared/widgets/ce_availability.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
 import '../player_providers.dart';
-import 'player_match_details_screen.dart' show availabilityTone;
 
 /// Player Profile (prototype `screens.playerProfile`, :8052).
 class PlayerProfileScreen extends ConsumerWidget {

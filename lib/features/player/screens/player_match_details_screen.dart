@@ -7,6 +7,7 @@ import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../shared/widgets/ce_availability.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
@@ -140,13 +141,6 @@ class PlayerMatchDetailsScreen extends ConsumerWidget {
     );
   }
 }
-
-/// Chip tone for an availability status (shared with Profile / Availability).
-CeTone availabilityTone(PlayerAvailability s) => switch (s) {
-      PlayerAvailability.available => CeTone.green,
-      PlayerAvailability.limited || PlayerAvailability.other => CeTone.amber,
-      PlayerAvailability.unavailable || PlayerAvailability.injured => CeTone.red,
-    };
 
 class _Countdown extends ConsumerWidget {
   const _Countdown({required this.startsAt});

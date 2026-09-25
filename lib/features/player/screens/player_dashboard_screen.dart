@@ -12,6 +12,7 @@ import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
 import '../../../shared/widgets/ce_match_widgets.dart';
+import '../../../shared/widgets/ce_quick_actions.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
 import '../player_providers.dart';
@@ -48,7 +49,7 @@ class PlayerDashboardScreen extends ConsumerWidget {
     }
 
     return Scaffold(
-      body: _StatusBarScrim(
+      body: CeStatusBarScrim(
         child: ListView(padding: const EdgeInsets.only(bottom: 24), children: [
           // ---- Hero ----
           AnnotatedRegion<SystemUiOverlayStyle>(
@@ -132,39 +133,12 @@ class PlayerDashboardScreen extends ConsumerWidget {
               actionLabel: 'View All',
               onAction: () => CeTopBar.openDrawer(context),
               padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 8)),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: CeSpace.gutter),
-            // 2 × 2 grid whose rows size to content (no fixed aspect ratio, so
-            // large text scales never clip).
-            child: Column(children: [
-              IntrinsicHeight(
-                child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  Expanded(
-                    child: _QuickAction(icon: 'calendar', label: 'My Matches', onTap: () => context.go(Routes.myMatches)),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _QuickAction(
-                        icon: 'check-circle', label: 'Availability', onTap: () => context.go(Routes.availability)),
-                  ),
-                ]),
-              ),
-              const SizedBox(height: 12),
-              IntrinsicHeight(
-                child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  Expanded(
-                    child: _QuickAction(
-                        icon: 'trending-up', label: 'My Performance', onTap: () => context.go(Routes.myPerformance)),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _QuickAction(
-                        icon: 'circle-dot', label: 'Open Matches', onTap: () => context.go(Routes.openMatches)),
-                  ),
-                ]),
-              ),
-            ]),
-          ),
+          CeQuickActionGrid(actions: [
+            CeQuickAction(icon: 'calendar', label: 'My Matches', onTap: () => context.go(Routes.myMatches)),
+            CeQuickAction(icon: 'check-circle', label: 'Availability', onTap: () => context.go(Routes.availability)),
+            CeQuickAction(icon: 'trending-up', label: 'My Performance', onTap: () => context.go(Routes.myPerformance)),
+            CeQuickAction(icon: 'circle-dot', label: 'Open Matches', onTap: () => context.go(Routes.openMatches)),
+          ]),
 
           // ---- Next match ----
           const CeSectionHeader('Next Match', padding: EdgeInsets.fromLTRB(CeSpace.gutter, 18, CeSpace.gutter, 8)),
@@ -192,48 +166,6 @@ class PlayerDashboardScreen extends ConsumerWidget {
         ]),
       ),
     );
-  }
-}
-
-/// The dashboard hero draws under the transparent status bar. Once it scrolls
-/// away, a deep-green strip keeps the light status-bar icons readable.
-class _StatusBarScrim extends StatefulWidget {
-  const _StatusBarScrim({required this.child});
-  final Widget child;
-
-  @override
-  State<_StatusBarScrim> createState() => _StatusBarScrimState();
-}
-
-class _StatusBarScrimState extends State<_StatusBarScrim> {
-  bool _visible = false;
-
-  bool _onScroll(ScrollNotification n) {
-    if (n.depth != 0) return false;
-    final visible = n.metrics.pixels > 24;
-    if (visible != _visible) setState(() => _visible = visible);
-    return false;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final top = MediaQuery.paddingOf(context).top;
-    return Stack(children: [
-      NotificationListener<ScrollNotification>(onNotification: _onScroll, child: widget.child),
-      Positioned(
-        top: 0,
-        left: 0,
-        right: 0,
-        height: top,
-        child: IgnorePointer(
-          child: AnimatedOpacity(
-            opacity: _visible ? 1 : 0,
-            duration: CeMotion.fast,
-            child: const ColoredBox(color: CeColors.primaryDark),
-          ),
-        ),
-      ),
-    ]);
   }
 }
 
@@ -361,32 +293,6 @@ class _ClubCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text('EST. $established', style: TextStyle(fontSize: 9, color: Colors.white.withValues(alpha: 0.72))),
         ]),
-      );
-}
-
-class _QuickAction extends StatelessWidget {
-  const _QuickAction({required this.icon, required this.label, required this.onTap});
-  final String icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-        button: true,
-        label: label,
-        excludeSemantics: true,
-        child: CeCard(
-          onTap: onTap,
-          padding: const EdgeInsets.all(14),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-            CeIconWell(icon, size: 44, iconSize: 21),
-            const SizedBox(height: 14),
-            Text(label,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1E2B24))),
-          ]),
-        ),
       );
 }
 

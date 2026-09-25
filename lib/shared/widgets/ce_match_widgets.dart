@@ -115,6 +115,7 @@ class CeMatchCard extends StatelessWidget {
     this.homeColor = CeColors.primaryDark,
     this.awayColor = CeColors.red,
     this.ground,
+    this.groundDirections = true,
     this.playingTeam,
     this.footer,
     this.onTap,
@@ -129,6 +130,9 @@ class CeMatchCard extends StatelessWidget {
   final Widget status;
   final List<CeInfoChip> infoChips;
   final String? ground;
+
+  /// Show "Directions" on the ground row (off when the ground is unknown).
+  final bool groundDirections;
   final String? playingTeam;
   final Widget? footer;
   final VoidCallback? onTap;
@@ -172,7 +176,7 @@ class CeMatchCard extends StatelessWidget {
                   style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, letterSpacing: -0.2)),
               const SizedBox(height: 10),
               Wrap(spacing: 8, runSpacing: 8, children: infoChips),
-              if (ground != null) ...[const SizedBox(height: 10), CeGroundRow(ground: ground!)],
+              if (ground != null) ...[const SizedBox(height: 10), CeGroundRow(ground: ground!, directions: groundDirections)],
               if (playingTeam != null) ...[
                 const SizedBox(height: 8),
                 Row(children: [
