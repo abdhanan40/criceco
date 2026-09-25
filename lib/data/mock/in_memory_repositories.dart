@@ -416,6 +416,16 @@ class InMemoryHuntRepository implements HuntRepository {
     _open.removeWhere((p) => p.isMe);
     if (listed) _open.insert(0, me);
   }
+
+  /// clubId → invited player ids (session memory only; nothing is sent).
+  final Map<String, Set<String>> _invites = {};
+
+  @override
+  Set<String> invitedPlayerIds(String clubId) => {...?_invites[clubId]};
+
+  @override
+  Future<void> invite(String clubId, String playerId) async =>
+      (_invites[clubId] ??= <String>{}).add(playerId);
 }
 
 class InMemoryTournamentRepository implements TournamentRepository {

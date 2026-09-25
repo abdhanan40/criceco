@@ -413,6 +413,12 @@ void main() {
       expect(find.text('Registration approved by organizer!'), findsOneWidget);
       await _clearToast(tester);
       expect(find.text('Fixtures / Schedule', skipOffstage: false), findsOneWidget);
+      // Each fixture is listed once (by round) — no separate Upcoming / Results copies.
+      Finder inDetails(String s) => find.descendant(
+          of: find.byType(RegistrationDetailsScreen), matching: find.text(s, skipOffstage: false), skipOffstage: false);
+      expect(inDetails('Upcoming Matches'), findsNothing);
+      expect(inDetails('Results'), findsNothing);
+      expect(find.textContaining(RegExp(r'^\d+ played · \d+ to play$'), skipOffstage: false), findsOneWidget);
       final simulate = find.text('Tap to simulate result');
       for (var i = 0; i < 20 && simulate.evaluate().isEmpty; i++) {
         await tester.drag(find.byType(Scrollable).first, const Offset(0, -300));

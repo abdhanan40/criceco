@@ -216,11 +216,16 @@ void main() {
       expect((await c.read(huntPostsProvider.future)).any((p) => p.id == 'hunt_1002'), isTrue);
     });
 
-    test('an invite is sent once', () async {
+    test('an invite is sent once, is recorded for the club and survives a rebuild', () async {
       final c = await _signedIn(club: true);
       final inv = c.read(invitedPlayersProvider.notifier);
       expect(inv.invite('op_1'), isTrue);
       expect(inv.invite('op_1'), isFalse);
+      final clubId = c.read(currentClubProvider)!.id;
+      expect(c.read(huntRepositoryProvider).invitedPlayerIds(clubId), {'op_1'}, reason: 'stored in the repository');
+      c.invalidate(invitedPlayersProvider);
+      expect(c.read(invitedPlayersProvider), {'op_1'}, reason: 'not lost when the provider rebuilds');
+      expect(c.read(invitedPlayersProvider.notifier).invite('op_1'), isFalse);
     });
   });
 
@@ -399,6 +404,8 @@ void main() {
       await _tap(tester, find.widgetWithText(FilledButton, 'Invite'));
       expect(find.text('Invite sent to Ali Hassan'), findsOneWidget);
       expect(find.text('INVITED'), findsOneWidget);
+      // Demo Mode says plainly that nothing is delivered yet.
+      expect(find.textContaining('the player is not messaged yet', skipOffstage: false), findsOneWidget);
     });
 
     testWidgets('an unknown location shows Not found with a way home', (tester) async {

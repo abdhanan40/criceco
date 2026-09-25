@@ -42,8 +42,8 @@ class _SendButtonState extends ConsumerState<_SendButton> {
       onPressed: _busy
           ? null
           : () async {
-              setState(() => _busy = true);
-              await sendChallenge(context, ref, widget.club, format: widget.format);
+              await sendChallenge(context, ref, widget.club,
+                  format: widget.format, onSending: () => setState(() => _busy = true));
               if (mounted) setState(() => _busy = false);
             },
     );

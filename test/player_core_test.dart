@@ -274,6 +274,25 @@ void main() {
       expect(_loc(c), Routes.playerHome);
     });
 
+    testWidgets('Overview and History agree: matches, runs and wickets come from the same season log',
+        (tester) async {
+      final c = await _pumpPlayer(tester);
+      final p = c.read(performanceProvider).value!;
+      final log = p.matchLog;
+      expect(log.length, p.matches, reason: 'History total = Overview matches');
+      expect(log.fold<int>(0, (s, m) => s + m.runs), p.runs);
+      expect(log.fold<int>(0, (s, m) => s + m.wickets), p.wickets);
+      expect([for (final m in log.take(p.recentForm.length)) (m.opponentAbbr, m.runs, m.result)],
+          [for (final f in p.recentForm) (f.opponentAbbr, f.runs, f.result)],
+          reason: 'Recent Form = the latest log entries');
+
+      await _go(tester, c, Routes.myPerformance);
+      expect(find.text('${p.matches}'), findsWidgets);
+      await _go(tester, c, PerformanceView.history.location);
+      expect(find.text('${log.length}'), findsWidgets);
+      expect(find.text('TOTAL'), findsOneWidget);
+    });
+
     testWidgets('legacy history route opens the Performance workspace on History', (tester) async {
       final c = await _pumpPlayer(tester);
       await _go(tester, c, Routes.matchHistory);

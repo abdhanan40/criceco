@@ -78,6 +78,9 @@ Future<void> _clearToast(WidgetTester tester) async {
 
 Finder _button(String label) => find.widgetWithText(CeButton, label);
 
+/// The format sheet's send button, e.g. "Send T20 Challenge".
+final _sendInSheet = find.byWidgetPredicate((w) => w is CeButton && w.label.startsWith('Send ') && w.label.endsWith(' Challenge'));
+
 /// Scrolls to the top, then down until [text] is visible (lazy lists).
 Future<void> _expectVisible(WidgetTester tester, String text) async {
   await tester.fling(find.byType(Scrollable).first, const Offset(0, 3000), 4000);
@@ -168,8 +171,20 @@ void main() {
       expect(find.text('Islamabad United XI'), findsOneWidget);
       expect(find.textContaining('Create Availability Slot', findRichText: true), findsOneWidget);
 
+      // Challenge → format sheet; Cancel sends nothing.
+      final before = c.read(challengesProvider).value!.length;
       await _tap(tester, _button('Challenge').first);
+      expect(find.text('Challenge Karachi Kings CC'), findsOneWidget);
+      await _tap(tester, _button('Cancel'));
+      expect(c.read(challengesProvider).value!.length, before, reason: 'cancelled: nothing sent');
+      expect(_loc(c), Routes.challenges);
+
+      await _tap(tester, _button('Challenge').first);
+      await tester.tap(find.text('ODI').last);
+      await tester.pumpAndSettle();
+      await _tap(tester, _button('Send ODI Challenge'));
       final ch = c.read(challengesProvider).value!.last;
+      expect(ch.format, MatchFormat.odi, reason: 'the chosen format is sent');
       expect(_loc(c), Routes.challengeAccepted(ch.id));
       expect(find.text('Challenge Accepted!'), findsOneWidget);
       expect(find.text('Challenge sent to Karachi Kings CC!'), findsOneWidget);
@@ -234,6 +249,7 @@ void main() {
       await tester.scrollUntilVisible(find.textContaining('Key Players'), 200, scrollable: find.byType(Scrollable).first);
       expect(find.text('Club Captain', skipOffstage: false), findsOneWidget);
       await _tap(tester, _button('Challenge This Club'));
+      await _tap(tester, _sendInSheet);
       expect(find.text('Challenge Accepted!'), findsOneWidget);
       expect(find.text('Faisalabad Wolves'), findsWidgets);
     });
@@ -285,6 +301,7 @@ void main() {
       final c = await _pumpOwner(tester, demo: false);
       await _go(tester, c, Routes.challenges);
       await _tap(tester, _button('Challenge').first);
+      await _tap(tester, _sendInSheet);
       expect(find.text('Challenge sent to Karachi Kings CC — awaiting their reply'), findsOneWidget);
       expect(_loc(c), Routes.myChallenges);
       expect(find.text('Sent'), findsOneWidget);

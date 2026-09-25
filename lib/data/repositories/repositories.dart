@@ -127,6 +127,15 @@ abstract interface class HuntRepository {
   Future<void> remove(String postId);
   Future<List<OpenPlayer>> openPlayers();
   Future<void> setListed(OpenPlayer me, {required bool listed});
+
+  /// Players [clubId] has invited from Available Players. Synchronous so the
+  /// "Invited" state is known on first build.
+  Set<String> invitedPlayerIds(String clubId);
+
+  /// Records an invite. FRONTEND-ONLY in this build: the mock repository just
+  /// remembers it for the session — no message reaches the player until a
+  /// backend (push / SMS / in-app inbox) implements this.
+  Future<void> invite(String clubId, String playerId);
 }
 
 abstract interface class TournamentRepository {

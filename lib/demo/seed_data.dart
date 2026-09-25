@@ -345,6 +345,11 @@ class SeedData {
         t('Matches Played', '8'), t('Catches Taken', '5'), t('Run Outs', '1'), t('Stumpings', '0'), t('Direct Hits', '2'),
       ],
       recentForm: [fe('FC', W, 45, 1), fe('SC', W, 12, 2), fe('IU', L, 78, 0), fe('KK', W, 8, 1), fe('RR', L, 23, 0)],
+      // The season's 8 matches — the log IS the season, so it adds up to the
+      // summary above (8 matches, 256 runs, 6 wickets). The prototype listed
+      // 12 entries (390 runs, 11 wickets) against the same summary, which made
+      // My Performance say 8 while Match History said 12. The first five are
+      // the Recent Form entries.
       matchLog: [
         ml('FC', 'Falcons CC', DateTime(2026, 7, 28), W, 45, 32, 1, '3.0'),
         ml('SC', 'Shalimar CC', DateTime(2026, 7, 20), W, 12, 18, 2, '4.0'),
@@ -352,12 +357,8 @@ class SeedData {
         ml('KK', 'Karachi Kings CC', DateTime(2026, 7, 5), W, 8, 9, 1, '3.4'),
         ml('RR', 'Rawalpindi Rams', DateTime(2026, 6, 28), L, 23, 19, 0, '2.2'),
         ml('FW', 'Faisalabad Wolves', DateTime(2026, 6, 21), W, 34, 28, 2, '4.0'),
-        ml('DB', 'Defence Blasters', DateTime(2026, 6, 14), W, 56, 40, 0, '0.0'),
-        ml('GC', 'Gymkhana CC', DateTime(2026, 6, 7), L, 5, 11, 1, '3.0'),
-        ml('GT', 'Green Town Titans', DateTime(2026, 5, 31), W, 29, 22, 3, '4.0'),
-        ml('IU', 'Islamabad United', DateTime(2026, 5, 24), W, 61, 47, 0, '1.0'),
-        ml('KK', 'Karachi Kings CC', DateTime(2026, 5, 17), L, 2, 6, 0, '2.0'),
-        ml('RR', 'Rawalpindi Rams', DateTime(2026, 5, 10), W, 37, 29, 1, '3.2'),
+        ml('DB', 'Defence Blasters', DateTime(2026, 6, 14), W, 51, 37, 0, '0.0'),
+        ml('GC', 'Gymkhana CC', DateTime(2026, 6, 7), L, 5, 11, 0, '3.0'),
       ],
     );
 

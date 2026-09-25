@@ -327,6 +327,14 @@ void main() {
         await tester.tap(find.text('Cancel'));
         await _settle(tester);
 
+        // Challenge format sheet (long club name, all four format chips).
+        await _go(tester, c, Routes.challenges);
+        await _tap(tester, _button('Challenge').first);
+        expect(find.text('Match Format'), findsOneWidget);
+        expect(tester.takeException(), isNull, reason: 'challenge format sheet @ $width');
+        await tester.tap(find.text('Cancel'));
+        await _settle(tester);
+
         // Player side: History chart on Wickets, Availability explainer sheet.
         c.read(roleControllerProvider.notifier).switchTo(UserRole.player);
         c.read(trendMetricProvider.notifier).select(TrendMetric.wickets);

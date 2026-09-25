@@ -299,20 +299,18 @@ class _RegistrationDetailsScreenState extends ConsumerState<RegistrationDetailsS
       const CeSectionHeader('Fixtures / Schedule'),
       if (t.fixtures == null)
         TournamentEmptyNote(fixturesPendingNote(t))
-      else
+      else ...[
+        // Every match appears once, by round (results included); the old
+        // separate Upcoming / Results lists repeated the same cards.
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: CeSpace.gutter),
+          child: Text('${completed.length} played · ${upcoming.length} to play',
+              style: const TextStyle(fontSize: 12, color: CeColors.muted)),
+        ),
         FixtureRounds(tournament: t),
+      ],
       const CeSectionHeader('Points Table'),
       PointsTable(tournament: t),
-      const CeSectionHeader('Upcoming Matches'),
-      if (upcoming.isEmpty)
-        const TournamentEmptyNote('No upcoming matches')
-      else
-        for (final f in upcoming) FixtureCard(tournament: t, fixture: f),
-      const CeSectionHeader('Results'),
-      if (completed.isEmpty)
-        const TournamentEmptyNote('No results yet')
-      else
-        for (final f in completed) FixtureCard(tournament: t, fixture: f),
     ];
   }
 }

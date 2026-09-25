@@ -6,6 +6,7 @@ import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
@@ -47,8 +48,20 @@ class ChallengesTabs extends ConsumerWidget {
 /// Sends a challenge and routes by the resulting state: Demo Mode accepts it
 /// instantly → Challenge Accepted; otherwise it stays pending → My Challenges
 /// ("Sent", approved P9).
-Future<void> sendChallenge(BuildContext context, WidgetRef ref, ClubSummary club, {MatchFormat? format}) async {
-  final c = await ref.read(challengesProvider.notifier).send(club.id, format: format);
+///
+/// Without a [format] (Challenges list, Club Profile) the user first picks
+/// one in a sheet; a Find Match listing already fixes its format.
+Future<void> sendChallenge(
+  BuildContext context,
+  WidgetRef ref,
+  ClubSummary club, {
+  MatchFormat? format,
+  VoidCallback? onSending, // called once a format is chosen, before sending
+}) async {
+  final chosen = format ?? await pickChallengeFormat(context, club);
+  if (chosen == null || !context.mounted) return; // cancelled: nothing is sent
+  onSending?.call();
+  final c = await ref.read(challengesProvider.notifier).send(club.id, format: chosen);
   if (!context.mounted) return;
   if (c.status == ChallengeStatus.accepted) {
     showCeToast(context, 'Challenge sent to ${club.name}!');
@@ -57,6 +70,45 @@ Future<void> sendChallenge(BuildContext context, WidgetRef ref, ClubSummary club
     showCeToast(context, 'Challenge sent to ${club.name} — awaiting their reply');
     context.go(Routes.myChallenges);
   }
+}
+
+/// Formats a challenge can propose (Custom needs an overs count, which a
+/// challenge doesn't carry; it is set later in Match Setup).
+const challengeFormats = [MatchFormat.t20, MatchFormat.odi, MatchFormat.t10, MatchFormat.test];
+
+/// Format sheet before sending a challenge. Preselects the opponent's
+/// preferred format; resolves to `null` on Cancel.
+Future<MatchFormat?> pickChallengeFormat(BuildContext context, ClubSummary club) {
+  var selected = challengeFormats.contains(club.preferredFormat) ? club.preferredFormat! : MatchFormat.t20;
+  return showCeSheet<MatchFormat>(
+    context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setState) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Text('Challenge ${club.name}', style: Theme.of(ctx).textTheme.titleLarge),
+        const SizedBox(height: 4),
+        Text(
+            'Choose the match format. ${club.name} plays '
+            '${club.formats.trim().toLowerCase() == 'any' ? 'any format' : club.formats}.',
+            style: const TextStyle(fontSize: 12.5, color: CeColors.muted)),
+        const SizedBox(height: 14),
+        const Text('Match Format',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: CeColors.ink2)),
+        const SizedBox(height: 8),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          for (final f in challengeFormats)
+            CeChip(label: f.label, selected: f == selected, onTap: () => setState(() => selected = f)),
+        ]),
+        const SizedBox(height: 20),
+        CeButton(
+          label: 'Send ${selected.label} Challenge',
+          icon: CeIcons.of('swords'),
+          onPressed: () => Navigator.of(ctx).pop(selected),
+        ),
+        const SizedBox(height: 10),
+        CeButton.soft(label: 'Cancel', onPressed: () => Navigator.of(ctx).pop()),
+      ]),
+    ),
+  );
 }
 
 /// `.avail-box`: dashed mint call-to-action for Create Availability Slot.

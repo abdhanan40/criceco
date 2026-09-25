@@ -207,8 +207,7 @@ class _ClubProfileScreenState extends ConsumerState<ClubProfileScreen> {
                   onPressed: _busy
                       ? null
                       : () async {
-                          setState(() => _busy = true);
-                          await sendChallenge(context, ref, c);
+                          await sendChallenge(context, ref, c, onSending: () => setState(() => _busy = true));
                           if (mounted) setState(() => _busy = false);
                         },
                 ),

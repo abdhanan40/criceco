@@ -17,6 +17,7 @@ import '../../../shared/widgets/ce_indicators.dart';
 import '../../../shared/widgets/ce_inputs.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
+import '../../../shared/widgets/demo_widgets.dart';
 import '../hunt/player_hunt_controller.dart';
 
 enum HuntTab {
@@ -553,7 +554,7 @@ class _AvailablePlayersTab extends ConsumerWidget {
             title: 'No ${role.label} available',
             body: 'No players in $city have listed themselves as available for this role right now.',
           )
-        else
+        else ...[
           for (final p in players)
             _OpenPlayerRow(
               player: p,
@@ -564,6 +565,16 @@ class _AvailablePlayersTab extends ConsumerWidget {
                 }
               },
             ),
+          // Same honesty as the simulated-payments note: invites are only
+          // recorded in the app until a messaging backend exists.
+          const DemoOnly(
+            child: CeInfoNote(
+              margin: EdgeInsets.only(top: 12),
+              icon: 'flask-conical',
+              text: 'Prototype: invites are recorded in the app only — the player is not messaged yet.',
+            ),
+          ),
+        ],
       ]),
     );
   }

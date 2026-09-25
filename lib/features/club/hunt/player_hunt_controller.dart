@@ -149,18 +149,23 @@ final openPlayersCityProvider = NotifierProvider<SelectionController<String?>, S
 final openPlayersRoleProvider =
     NotifierProvider<SelectionController<HuntRole?>, HuntRole?>(() => SelectionController(null));
 
-/// Players invited this session ("Invite" → "Invited", never sent twice).
+/// Players the current club has invited ("Invite" → "Invited", never sent
+/// twice). Stored through [HuntRepository] so the state belongs to the club
+/// and survives rebuilds; delivery to the player is a backend concern — the
+/// mock repository only records it (see [HuntRepository.invite]).
 class InvitedPlayersController extends Notifier<Set<String>> {
   @override
   Set<String> build() {
-    ref.watch(currentAccountProvider.select((a) => a?.id));
-    return const {};
+    final clubId = ref.watch(currentClubProvider.select((c) => c?.id));
+    return clubId == null ? const {} : ref.read(huntRepositoryProvider).invitedPlayerIds(clubId);
   }
 
-  /// `false` when already invited.
+  /// `false` when already invited (or there is no club to invite from).
   bool invite(String playerId) {
-    if (state.contains(playerId)) return false;
+    final clubId = ref.read(currentClubProvider)?.id;
+    if (clubId == null || state.contains(playerId)) return false;
     state = {...state, playerId};
+    ref.read(huntRepositoryProvider).invite(clubId, playerId);
     return true;
   }
 }
