@@ -10,6 +10,9 @@ import '../../features/auth/login_screen.dart';
 import '../../features/auth/playing_style_screen.dart';
 import '../../features/auth/role_setup_screen.dart';
 import '../../features/auth/signup_screen.dart';
+import '../../features/booking/screens/payment_screens.dart';
+import '../../features/booking/screens/schedule_screens.dart';
+import '../../features/booking/screens/setup_screens.dart';
 import '../../features/challenges/screens/challenge_status_screen.dart';
 import '../../features/challenges/screens/challenges_hub_screen.dart';
 import '../../features/challenges/screens/club_profile_screen.dart';
@@ -26,6 +29,7 @@ import '../../features/club/screens/teams_screen.dart';
 import '../../features/club_setup/choose_option_screen.dart';
 import '../../features/club_setup/club_details_screen.dart';
 import '../../features/club_setup/create_club_screen.dart';
+import '../../features/matches/screens/match_management_screen.dart';
 import '../../features/membership/enter_club_code_screen.dart';
 import '../../features/membership/join_status_screens.dart';
 import '../../features/player/screens/availability_screen.dart';
@@ -309,25 +313,73 @@ final List<RouteBase> _clubFullRoutes = [
     parentNavigatorKey: rootNavigatorKey,
     builder: (_, s) => ClubProfileScreen(clubId: s.pathParameters['clubId']!),
   ),
-  _ph('matches', 'Upcoming Matches', 'upcomingMatches', root: true, fallback: Routes.clubHome, links: const [
-    PlaceholderLink('Pending match → Match Setup', '/club/matches/m_3/setup'),
-  ], routes: [
-    _ph(':matchId/setup', 'Match Setup', 'matchSetup', root: true, fallback: '/club/matches', routes: [
-      _ph('ground', 'Book a Ground', 'bookGround', root: true, fallback: '/club/matches', routes: [
-        _ph(':groundId', 'Ground Details', 'groundDetails', root: true, fallback: '/club/matches', routes: [
-          _ph('schedule', 'Select Date & Time', 'selectDate', root: true, fallback: '/club/matches', routes: [
-            _ph('summary', 'Booking Summary', 'bookingSummary', root: true, fallback: '/club/matches'),
-          ]),
-        ]),
-      ]),
-    ]),
-    _ph(':matchId/payment', 'Pay Your Share', 'payment', root: true, fallback: '/club/matches'),
-    _ph(':matchId/waiting', 'Waiting for Opponent', 'waitingForOpponent', root: true, terminal: '/club/matches'),
-    _ph(':matchId/opponent-payment', 'Opponent Payment', 'opponentPayment', root: true, terminal: '/club/matches'),
-    _ph(':matchId/confirmed', 'Booking Confirmed', 'bookingConfirmed',
-        root: true, terminal: '/club/matches?tab=scheduled'),
-    _ph(':matchId/expired', 'Reservation Expired', 'reservationExpired',
-        root: true, terminal: '/club/matches?tab=waiting'),
+  GoRoute(
+    path: 'matches',
+    parentNavigatorKey: rootNavigatorKey,
+    builder: (_, s) => MatchManagementScreen(tab: MatchManagementScreen.parseTab(s.uri.queryParameters['tab'])),
+    routes: [
+      GoRoute(
+        path: ':matchId/setup',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, s) => MatchSetupScreen(matchId: s.pathParameters['matchId']!),
+        routes: [
+          GoRoute(
+            path: 'ground',
+            parentNavigatorKey: rootNavigatorKey,
+            builder: (_, s) => BookGroundScreen(matchId: s.pathParameters['matchId']!),
+            routes: [
+              GoRoute(
+                path: ':groundId',
+                parentNavigatorKey: rootNavigatorKey,
+                builder: (_, s) =>
+                    GroundDetailsScreen(matchId: s.pathParameters['matchId']!, groundId: s.pathParameters['groundId']!),
+                routes: [
+                  GoRoute(
+                    path: 'schedule',
+                    parentNavigatorKey: rootNavigatorKey,
+                    builder: (_, s) =>
+                        SelectDateScreen(matchId: s.pathParameters['matchId']!, groundId: s.pathParameters['groundId']!),
+                    routes: [
+                      GoRoute(
+                        path: 'summary',
+                        parentNavigatorKey: rootNavigatorKey,
+                        builder: (_, s) => BookingSummaryScreen(
+                            matchId: s.pathParameters['matchId']!, groundId: s.pathParameters['groundId']!),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+      GoRoute(
+        path: ':matchId/payment',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, s) => PaymentScreen(matchId: s.pathParameters['matchId']!),
+      ),
+      GoRoute(
+        path: ':matchId/waiting',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, s) => WaitingForOpponentScreen(matchId: s.pathParameters['matchId']!),
+      ),
+      GoRoute(
+        path: ':matchId/opponent-payment',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, s) => OpponentPaymentScreen(matchId: s.pathParameters['matchId']!),
+      ),
+      GoRoute(
+        path: ':matchId/confirmed',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, s) => BookingConfirmedScreen(matchId: s.pathParameters['matchId']!),
+      ),
+      GoRoute(
+        path: ':matchId/expired',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, s) => ReservationExpiredScreen(matchId: s.pathParameters['matchId']!),
+      ),
+      // Match-day line-up (Select Team / Build / Pick) is migrated later.
     _ph(':matchId/lineup', 'Select Team', 'selectTeam', root: true, fallback: '/club/matches', routes: [
       _ph('build', 'Build Your Team', 'teamBuilder', root: true, fallback: '/club/matches'),
       _ph('pick', 'Select Existing Team', 'teamPicker', root: true, fallback: '/club/matches'),

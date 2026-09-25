@@ -10,6 +10,9 @@ import 'payment_gateway.dart';
 /// Result of an expiry, so the UI can pick the right follow-up (P13).
 enum ExpiryOutcome { needsResolution, returnedToPending }
 
+/// Result of paying your share (Payment screen states).
+enum PaymentOutcome { success, insufficientFunds, failed, holdExpired }
+
 /// All bookings, keyed by match id. Application state — independent of which
 /// screen is open (approved decision 8). `bookingProvider(matchId)` selects one.
 class BookingsController extends Notifier<Map<String, Booking>> {
@@ -87,13 +90,29 @@ class BookingsController extends Notifier<Map<String, Booking>> {
   }
 
   /// Pay your 50 % share. Returns false if the wallet balance is insufficient.
-  Future<bool> payMyShare(String matchId, PaymentMethodType method) async {
+  Future<bool> payMyShare(String matchId, PaymentMethodType method) async =>
+      await pay(matchId, method) == PaymentOutcome.success;
+
+  /// Pay your 50 % share and report exactly what happened, so the Payment
+  /// screen can show success / insufficient funds / failure / expired hold.
+  Future<PaymentOutcome> pay(String matchId, PaymentMethodType method) async {
     final b = state[matchId]!;
-    if (method == PaymentMethodType.wallet && _wallet.clubWalletBalance < b.shareAmount) return false;
+    if (b.hold?.status != HoldStatus.active) return PaymentOutcome.holdExpired;
+    if (method == PaymentMethodType.wallet && _wallet.clubWalletBalance < b.shareAmount) {
+      return PaymentOutcome.insufficientFunds;
+    }
     _put(b.copyWith(myPayment: PaymentRecord(method: method, amount: b.shareAmount, status: PaymentStatus.processing)));
     final ok = await ref.read(paymentGatewayProvider).charge(method: method, amount: b.shareAmount);
     final current = state[matchId]!;
-    if (!ok || current.hold?.status != HoldStatus.active) return false;
+    if (current.hold?.status != HoldStatus.active) {
+      // The hold ran out while the gateway was processing: nothing was taken.
+      _put(current.copyWith(myPayment: current.myPayment?.copyWith(status: PaymentStatus.failed)));
+      return PaymentOutcome.holdExpired;
+    }
+    if (!ok) {
+      _put(current.copyWith(myPayment: current.myPayment?.copyWith(status: PaymentStatus.failed, at: _now)));
+      return PaymentOutcome.failed;
+    }
     if (method == PaymentMethodType.wallet) _wallet.adjustClubWallet(-b.shareAmount);
     _wallet.log(
       LedgerEntry(type: LedgerType.clubPayment, matchId: matchId, amount: b.shareAmount, at: _now, method: method),
@@ -103,7 +122,7 @@ class BookingsController extends Notifier<Map<String, Booking>> {
       myPayment: PaymentRecord(method: method, amount: b.shareAmount, status: PaymentStatus.paid, at: _now),
       status: BookingStatus.awaitingOpponent,
     ));
-    return true;
+    return PaymentOutcome.success;
   }
 
   /// Opponent's share arrives (Demo action or, later, a backend event).

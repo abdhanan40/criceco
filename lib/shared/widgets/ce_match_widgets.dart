@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/theme/tokens.dart';
+import '../../core/enums/enums.dart';
 import 'ce_feedback.dart';
 import 'ce_icons.dart';
 
@@ -358,4 +359,29 @@ Color clubBadgeColor(String abbr) => switch (abbr) {
       'RR' || 'FW' || 'DB' => CeColors.red,
       'GT' => CeColors.primary,
       _ => CeColors.primaryDark,
+    };
+
+/// Badge initials for a club name: "Shalimar CC" → "SC" (prototype badges).
+String clubAbbr(String name) {
+  final words = name.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+  if (words.isEmpty) return '?';
+  if (words.length == 1) return words.first.substring(0, words.first.length.clamp(0, 2)).toUpperCase();
+  return words.take(2).map((w) => w[0].toUpperCase()).join();
+}
+
+/// Format icon (prototype `formatMeta`).
+String formatIcon(MatchFormat f) => switch (f) {
+      MatchFormat.test => 'hourglass',
+      MatchFormat.t20 || MatchFormat.t10 => 'circle-dot',
+      MatchFormat.odi => 'sun',
+      MatchFormat.custom => 'sliders',
+    };
+
+/// Format description line (prototype `formatMeta[f].label`).
+String formatBlurb(MatchFormat f) => switch (f) {
+      MatchFormat.test => 'Traditional format · longer innings',
+      MatchFormat.t20 => '20 overs · the classic format',
+      MatchFormat.t10 => '10 overs · quick fire',
+      MatchFormat.odi => '50 overs · full day match',
+      MatchFormat.custom => 'Set your own number of overs',
     };

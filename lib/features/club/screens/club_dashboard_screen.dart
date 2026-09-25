@@ -196,7 +196,7 @@ class _NextMatch extends ConsumerWidget {
     final startsAt = match.startsAt;
     final groundLabel = ground == null ? 'Ground TBD' : '${ground.name}, ${ground.city}';
     return CeMatchCard(
-      homeAbbr: _abbr(clubShortName),
+      homeAbbr: clubAbbr(clubShortName),
       awayAbbr: opponent?.abbr ?? '?',
       awayColor: opponent?.color ?? CeColors.primary,
       title: '$clubShortName vs ${opponent?.name ?? 'Opponent'}',
@@ -211,11 +211,4 @@ class _NextMatch extends ConsumerWidget {
       playingTeam: match.lineup?.name,
     );
   }
-}
-
-/// "Shalimar CC" → "SC" (prototype badge).
-String _abbr(String name) {
-  final words = name.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-  if (words.length == 1) return words.first.substring(0, words.first.length.clamp(0, 2)).toUpperCase();
-  return words.take(2).map((w) => w[0].toUpperCase()).join();
 }

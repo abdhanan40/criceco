@@ -236,7 +236,7 @@ enum PaymentMethodType {
   final String subtitle;
 }
 
-enum PaymentStatus { pending, processing, paid, refunded, movedToWallet }
+enum PaymentStatus { pending, processing, paid, failed, refunded, movedToWallet }
 
 enum BookingStatus {
   draft,

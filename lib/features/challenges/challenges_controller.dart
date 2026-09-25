@@ -8,13 +8,6 @@ import '../../demo/demo_challenge_responder.dart';
 import '../club/club_providers.dart';
 import '../matches/club_matches_controller.dart';
 
-/// Every city in the prototype's `pakistanCities` (Create Availability Slot).
-const kPakistanCities = [
-  'Karachi', 'Lahore', 'Islamabad', 'Rawalpindi', 'Faisalabad', 'Multan', 'Peshawar', 'Quetta', 'Sialkot',
-  'Hyderabad', 'Gujranwala', 'Sargodha', 'Bahawalpur', 'Sukkur', 'Larkana', 'Abbottabad', 'Mardan', 'Sahiwal',
-  'Gujrat', 'Rahim Yar Khan',
-];
-
 /// Challenges (sent and received), keyed by id. Status is fully modelled:
 /// pending → accepted / declined / expired (revised architecture §11).
 class ChallengesController extends AsyncNotifier<List<Challenge>> {

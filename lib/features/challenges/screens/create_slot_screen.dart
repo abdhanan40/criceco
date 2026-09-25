@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/providers/core_providers.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../core/constants/cities.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/ce_buttons.dart';
@@ -14,17 +15,10 @@ import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
 import '../../../shared/widgets/ce_inputs.dart';
+import '../../../shared/widgets/ce_match_widgets.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
 import '../../club/club_providers.dart';
 import '../challenges_controller.dart';
-
-/// Format chip icons (prototype `formatMeta`).
-String formatIcon(MatchFormat f) => switch (f) {
-      MatchFormat.test => 'hourglass',
-      MatchFormat.t20 || MatchFormat.t10 => 'circle-dot',
-      MatchFormat.odi => 'sun',
-      MatchFormat.custom => 'sliders',
-    };
 
 /// Create Availability Slot (prototype `screens.createAvailabilitySlot`,
 /// :7188). The prototype's toast-only validation becomes inline errors.

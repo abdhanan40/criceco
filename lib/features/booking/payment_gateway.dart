@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/models/models.dart';
+import '../../demo/demo_payment_tools.dart';
 
 /// Payment gateway seam (prototype: "replace runSimulatedPayment() with
 /// JazzCash / EasyPaisa / Stripe / PayFast"). Screens never know which one
@@ -21,4 +22,11 @@ class SimulatedPaymentGateway implements PaymentGateway {
   }
 }
 
-final paymentGatewayProvider = Provider<PaymentGateway>((ref) => const SimulatedPaymentGateway());
+/// The actual gateway (simulated until a real one is plugged in).
+final realPaymentGatewayProvider = Provider<PaymentGateway>((ref) => const SimulatedPaymentGateway());
+
+/// What the booking flow charges through. In Demo Mode it can be armed to
+/// fail once ("Simulate a failed payment"); otherwise it is the real gateway.
+final paymentGatewayProvider = Provider<PaymentGateway>(
+  (ref) => DemoAwarePaymentGateway(ref, ref.watch(realPaymentGatewayProvider)),
+);
