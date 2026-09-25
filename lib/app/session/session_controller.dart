@@ -84,6 +84,21 @@ class SessionController extends Notifier<SessionState> {
     state = state.copyWith(account: saved);
   }
 
+  /// Privacy / sign-in toggles (Settings).
+  Future<void> updateSettings(AccountSettings Function(AccountSettings s) change) =>
+      updateAccount((a) => a.copyWith(settings: change(a.settings)));
+
+  /// Password & security → Update Password. `false` when [current] is wrong.
+  Future<bool> changePassword({required String current, required String next}) async {
+    final account = state.account;
+    if (account == null) return false;
+    final ok = await ref.read(accountRepositoryProvider).changePassword(account.id, current: current, next: next);
+    if (!ok) return false;
+    final at = ref.read(clockProvider).now();
+    await updateSettings((s) => s.copyWith(passwordChangedAt: at));
+    return true;
+  }
+
   /// Save Profile or Skip on onboarding.
   Future<void> completeOnboarding() async {
     await updateAccount((a) => a.copyWith(onboardingComplete: true));

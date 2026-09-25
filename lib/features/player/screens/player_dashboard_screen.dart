@@ -15,12 +15,8 @@ import '../../../shared/widgets/ce_match_widgets.dart';
 import '../../../shared/widgets/ce_quick_actions.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
+import '../../notifications/notifications_controller.dart';
 import '../player_providers.dart';
-
-final _playerNotificationCountProvider = FutureProvider<int>((ref) async {
-  ref.watch(currentAccountProvider.select((a) => a?.id));
-  return (await ref.read(notificationRepositoryProvider).forRole(UserRole.player)).length;
-});
 
 /// Player Dashboard (prototype `screens.playerDashboard`, :3961).
 class PlayerDashboardScreen extends ConsumerWidget {
@@ -34,7 +30,7 @@ class PlayerDashboardScreen extends ConsumerWidget {
     final perf = ref.watch(performanceProvider).value;
     final upcoming = ref.watch(playerMatchesByStatusProvider(PlayerMatchStatus.upcoming));
     final next = ref.watch(nextPlayerMatchProvider);
-    final notifCount = ref.watch(_playerNotificationCountProvider).value ?? 0;
+    final notifCount = ref.watch(unreadNotificationCountProvider(UserRole.player));
     final name = account?.fullName ?? 'Player';
     final available = availability.status == PlayerAvailability.available;
     final top = MediaQuery.paddingOf(context).top;

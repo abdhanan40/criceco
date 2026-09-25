@@ -22,7 +22,9 @@ class PlayerProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final account = ref.watch(currentAccountProvider);
     final name = account?.fullName ?? 'Player';
-    final s = ref.watch(playerStatsProvider(name));
+    // Keyed by the account, not the name: editing the name must not re-roll
+    // the (demo-generated) career stats.
+    final s = ref.watch(playerStatsProvider(account?.id ?? name));
     final club = ref.watch(playerClubProvider);
     final availability = ref.watch(playerAvailabilityProvider.select((a) => a.status));
     final position = account?.playerProfile.role?.label ?? s.position;

@@ -16,6 +16,19 @@ abstract final class CeFormat {
   static String monthYear(DateTime d) => _monthYear.format(d);
   static String time(DateTime d) => _time.format(d);
 
+  /// "Sun 3:00 PM" (notification subtitles).
+  static String weekdayTime(DateTime d) => '${DateFormat('EEE').format(d)} ${_time.format(d)}';
+
+  /// Notification age: "Just now" / "30m ago" / "2h ago" / "3d ago", then a date.
+  static String timeAgo(DateTime at, DateTime now) {
+    final d = now.difference(at);
+    if (d.inMinutes < 1) return 'Just now';
+    if (d.inHours < 1) return '${d.inMinutes}m ago';
+    if (d.inDays < 1) return '${d.inHours}h ago';
+    if (d.inDays < 7) return '${d.inDays}d ago';
+    return dayMonth(at);
+  }
+
   /// "Rs 8,000"
   static String rupees(int amount) => 'Rs ${_amount.format(amount)}';
 

@@ -10,10 +10,30 @@ class InMemoryAccountRepository implements AccountRepository {
   InMemoryAccountRepository(SeedData seed) : _accounts = {seed.account.id: seed.account};
   final Map<String, UserAccount> _accounts;
 
+  /// Last password used or set per account (mock credential store).
+  final Map<String, String> _passwords = {};
+
+  /// Accounts whose password was changed in Settings: from then on sign-in
+  /// requires that password.
+  final Set<String> _changed = {};
+
   @override
   Future<UserAccount?> signIn({required String identifier, required String password}) async {
-    // Prototype parity: any credentials sign in to the demo account.
-    return _accounts[SeedData.ownAccountId];
+    // Prototype parity: any credentials sign in to the demo account — until
+    // its password has been changed in Password & security.
+    const id = SeedData.ownAccountId;
+    if (_changed.contains(id)) return _passwords[id] == password ? _accounts[id] : null;
+    if (password.isNotEmpty) _passwords[id] = password;
+    return _accounts[id];
+  }
+
+  @override
+  Future<bool> changePassword(String accountId, {required String current, required String next}) async {
+    final known = _passwords[accountId];
+    if (known != null && known != current) return false;
+    _passwords[accountId] = next;
+    _changed.add(accountId);
+    return true;
   }
 
   @override
@@ -31,6 +51,7 @@ class InMemoryAccountRepository implements AccountRepository {
       email: method == ContactMethod.email ? identifier : null,
       onboardingComplete: false,
     );
+    _passwords[account.id] = password;
     return _accounts[account.id] = account;
   }
 

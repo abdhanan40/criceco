@@ -28,6 +28,9 @@ class _RejectingAccounts implements AccountRepository {
   Future<UserAccount?> byId(String accountId) => inner.byId(accountId);
   @override
   Future<UserAccount> update(UserAccount account) => inner.update(account);
+  @override
+  Future<bool> changePassword(String accountId, {required String current, required String next}) =>
+      inner.changePassword(accountId, current: current, next: next);
 }
 
 Future<ProviderContainer> _pump(WidgetTester tester, {double width = 375, List<dynamic> overrides = const []}) async {

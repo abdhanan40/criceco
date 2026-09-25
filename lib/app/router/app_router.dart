@@ -24,6 +24,7 @@ import '../../features/club/screens/join_request_profile_screen.dart';
 import '../../features/club/screens/join_requests_screen.dart';
 import '../../features/club/screens/members_screen.dart';
 import '../../features/club/screens/my_club_screen.dart';
+import '../../features/club/screens/player_hunt_screen.dart';
 import '../../features/club/screens/team_squad_screen.dart';
 import '../../features/club/screens/teams_screen.dart';
 import '../../features/club_setup/choose_option_screen.dart';
@@ -33,7 +34,9 @@ import '../../features/matches/screens/lineup_screens.dart';
 import '../../features/matches/screens/match_management_screen.dart';
 import '../../features/membership/enter_club_code_screen.dart';
 import '../../features/membership/join_status_screens.dart';
+import '../../features/notifications/notifications_screen.dart';
 import '../../features/player/screens/availability_screen.dart';
+import '../../features/player/screens/edit_profile_screen.dart';
 import '../../features/player/screens/match_scorecard_screen.dart';
 import '../../features/player/screens/my_matches_screen.dart';
 import '../../features/player/screens/open_matches_screen.dart';
@@ -41,12 +44,13 @@ import '../../features/player/screens/performance_screens.dart';
 import '../../features/player/screens/player_dashboard_screen.dart';
 import '../../features/player/screens/player_match_details_screen.dart';
 import '../../features/player/screens/player_profile_screen.dart';
+import '../../features/settings/settings_screens.dart';
 import '../../features/tournaments/screens/browse_screens.dart';
 import '../../features/tournaments/screens/create_tournament_screen.dart';
 import '../../features/tournaments/screens/hosted_screens.dart';
 import '../../features/tournaments/screens/registration_screens.dart';
 import '../../features/tournaments/screens/tournament_hub_screen.dart';
-import '../../shared/navigation/placeholder_screen.dart';
+import '../../shared/navigation/not_found_screen.dart';
 import '../../shared/navigation/role_shells.dart';
 import '../session/role_controller.dart';
 import '../session/session_controller.dart';
@@ -112,11 +116,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       activeRole: ref.read(activeRoleProvider),
     ),
     routes: appRoutes,
-    errorBuilder: (context, state) => const PlaceholderScreen(
-      title: 'Not found',
-      screenKey: 'ceNotFound',
-      fallbackLocation: Routes.continueAs,
-    ),
+    errorBuilder: (context, state) => const NotFoundScreen(),
   );
   // Remember each role's last top-level destination (prototype ceLastScreen).
   void record() => ref
@@ -134,31 +134,6 @@ final routerProvider = Provider<GoRouter>((ref) {
 // ---------------------------------------------------------------------------
 // Route table
 // ---------------------------------------------------------------------------
-
-GoRoute _ph(
-  String path,
-  String title,
-  String key, {
-  String? fallback,
-  String? terminal,
-  bool root = false,
-  bool menu = false,
-  List<PlaceholderLink> links = const [],
-  List<RouteBase> routes = const [],
-}) =>
-    GoRoute(
-      path: path,
-      parentNavigatorKey: root ? rootNavigatorKey : null,
-      builder: (_, _) => PlaceholderScreen(
-        title: title,
-        screenKey: key,
-        showMenu: menu,
-        fallbackLocation: fallback,
-        terminalRedirect: terminal,
-        links: links,
-      ),
-      routes: routes,
-    );
 
 /// Role homes fade in (prototype 160 ms role-switch fade).
 Page<void> _fade(Widget child, GoRouterState state) => CustomTransitionPage<void>(
@@ -180,13 +155,10 @@ final List<RouteBase> appRoutes = [
   // ---- Shared ----
   GoRoute(path: Routes.continueAs, builder: (_, _) => const ContinueAsScreen()),
   GoRoute(path: Routes.roleSetup, builder: (_, _) => const RoleSetupScreen()),
-  _ph(Routes.notifications, 'Notifications', 'notifications', fallback: Routes.continueAs),
-  _ph(Routes.settings, 'Settings', 'settings', fallback: Routes.continueAs, links: const [
-    PlaceholderLink('Privacy', Routes.privacySettings),
-    PlaceholderLink('Password & security', Routes.securitySettings),
-  ], routes: [
-    _ph('privacy', 'Privacy', 'privacySettings', fallback: Routes.settings),
-    _ph('security', 'Password & security', 'securitySettings', fallback: Routes.settings),
+  GoRoute(path: Routes.notifications, builder: (_, _) => const NotificationsScreen()),
+  GoRoute(path: Routes.settings, builder: (_, _) => const SettingsScreen(), routes: [
+    GoRoute(path: 'privacy', builder: (_, _) => const PrivacySettingsScreen()),
+    GoRoute(path: 'security', builder: (_, _) => const SecuritySettingsScreen()),
   ]),
 
   // ---- Club setup + membership onboarding (Phase 1: migrated) ----
@@ -239,8 +211,7 @@ final List<RouteBase> appRoutes = [
       ]),
       StatefulShellBranch(routes: [
         GoRoute(path: Routes.playerProfile, builder: (_, _) => const PlayerProfileScreen(), routes: [
-          // Edit Profile is migrated with Profile & Settings (Phase 8).
-          _ph('edit', 'Edit profile', 'editProfile', root: true, fallback: Routes.playerProfile),
+          GoRoute(path: 'edit', parentNavigatorKey: rootNavigatorKey, builder: (_, _) => const EditProfileScreen()),
         ]),
       ]),
     ],
@@ -298,7 +269,11 @@ final List<RouteBase> _clubFullRoutes = [
       ),
     ],
   ),
-  _ph('player-hunt', 'Open Players', 'openPlayers', root: true, fallback: Routes.clubHome),
+  GoRoute(
+    path: 'player-hunt',
+    parentNavigatorKey: rootNavigatorKey,
+    builder: (_, s) => PlayerHuntScreen(tab: HuntTab.parse(s.uri.queryParameters['tab'])),
+  ),
   GoRoute(
     path: 'challenges',
     parentNavigatorKey: rootNavigatorKey,

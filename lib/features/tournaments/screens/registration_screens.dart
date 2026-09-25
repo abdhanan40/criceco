@@ -89,7 +89,7 @@ class MyRegistrationsScreen extends ConsumerStatefulWidget {
 
   static RegistrationStatus? parseTab(String? raw) => RegistrationStatus.values.where((t) => t.name == raw).firstOrNull;
 
-  static String location(RegistrationStatus tab) => '${Routes.myRegistrations}?tab=${tab.name}';
+  static String location(RegistrationStatus tab) => Routes.myRegistrationsIn(tab);
 
   @override
   ConsumerState<MyRegistrationsScreen> createState() => _MyRegistrationsScreenState();

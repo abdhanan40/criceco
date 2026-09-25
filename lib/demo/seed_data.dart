@@ -14,10 +14,13 @@ import '../core/utils/formatters.dart';
 /// * Approved seed fixes: IU no longer appears twice in the T10 Bash; the Find
 ///   Match "Rawalpindi Riders" row is the Rawalpindi Rams club it links to.
 class SeedData {
-  SeedData(DateTime now) : _today = CeFormat.dateOnly(now) {
+  SeedData(DateTime now)
+      : _now = now,
+        _today = CeFormat.dateOnly(now) {
     _build();
   }
 
+  final DateTime _now;
   final DateTime _today;
   DateTime _day(int offset, [int hour = 0, int minute = 0]) =>
       DateTime(_today.year, _today.month, _today.day + offset, hour, minute);
@@ -444,30 +447,41 @@ class SeedData {
           ]),
     ];
 
-    notifications = const [
-      NotificationItem(id: 'n_p1', role: UserRole.player, icon: 'swords', title: 'Match request from Shalimar CC',
-          subtitle: 'Sunday 3:00 PM · Pindi Cricket Ground', timeAgo: '2h ago', tone: NotificationTone.green,
-          location: '/player/matches'),
+    // Every row points at a real seeded entity (typed target). Approved seed
+    // fixes: the received challenge and the confirmed booking rows now name
+    // the entities they open (the prototype said "Karachi Kings CC" /
+    // "Pindi Cricket Ground", which match nothing in the seed).
+    DateTime ago(Duration d) => _now.subtract(d);
+    final nextMatch = playerMatches.firstWhere((m) => m.status == PlayerMatchStatus.upcoming);
+    final received = challenges.firstWhere((c) => c.direction == ChallengeDirection.received);
+    final confirmed = clubMatches.firstWhere((m) => m.status == MatchStatus.confirmed);
+    final confirmedGround = grounds.firstWhere((g) => g.id == confirmed.groundId);
+    notifications = [
+      NotificationItem(id: 'n_p1', role: UserRole.player, icon: 'swords', title: 'Match request from ${nextMatch.ownTeamName}',
+          subtitle: '${CeFormat.weekdayTime(nextMatch.startsAt)} · ${nextMatch.ground}', createdAt: ago(const Duration(hours: 2)),
+          tone: NotificationTone.green, target: PlayerMatchTarget(nextMatch.id)),
       NotificationItem(id: 'n_p2', role: UserRole.player, icon: 'check-circle', title: 'Club approved your join request',
-          subtitle: 'You are now part of Club KRC001', timeAgo: '1d ago', tone: NotificationTone.green,
-          location: '/player/profile'),
+          subtitle: 'You are now part of Club $demoJoinCode', createdAt: ago(const Duration(days: 1)),
+          tone: NotificationTone.green, target: const PlayerProfileTarget()),
       NotificationItem(id: 'n_p3', role: UserRole.player, icon: 'calendar', title: 'Availability needed for next match',
-          subtitle: 'Confirm before Friday', timeAgo: '2d ago', tone: NotificationTone.amber,
-          location: '/player/availability'),
+          subtitle: 'Confirm before Friday', createdAt: ago(const Duration(days: 2)),
+          tone: NotificationTone.amber, target: const AvailabilityTarget()),
       // P16: no Player tournament screen exists → non-navigating.
       NotificationItem(id: 'n_p4', role: UserRole.player, icon: 'trophy', title: 'Tournament update: Spring Cup',
-          subtitle: 'Fixtures published', timeAgo: '4d ago', tone: NotificationTone.blue),
+          subtitle: 'Fixtures published', createdAt: ago(const Duration(days: 4)), tone: NotificationTone.blue),
       NotificationItem(id: 'n_c1', role: UserRole.clubOwner, icon: 'user', title: 'New join request from Bilal Ahmed',
-          subtitle: 'Batsman · Rawalpindi', timeAgo: '30m ago', tone: NotificationTone.amber, location: '/club/requests'),
-      NotificationItem(id: 'n_c2', role: UserRole.clubOwner, icon: 'swords', title: 'Challenge received from Karachi Kings CC',
-          subtitle: 'T20 · next Saturday', timeAgo: '3h ago', tone: NotificationTone.green,
-          location: '/club/challenges/mine'),
+          subtitle: 'Batsman · Rawalpindi', createdAt: ago(const Duration(minutes: 30)),
+          tone: NotificationTone.amber, target: const JoinRequestTarget('jr_1')),
+      NotificationItem(id: 'n_c2', role: UserRole.clubOwner, icon: 'swords',
+          title: 'Challenge received from ${clubs[received.opponentClubId]!.name}',
+          subtitle: '${received.format?.label ?? 'Match'} · ${CeFormat.dayMonth(received.proposedAt!)}',
+          createdAt: ago(const Duration(hours: 3)), tone: NotificationTone.green, target: const MyChallengesTarget()),
       NotificationItem(id: 'n_c3', role: UserRole.clubOwner, icon: 'credit-card', title: 'Opponent completed their payment share',
-          subtitle: 'Pindi Cricket Ground booking confirmed', timeAgo: '1d ago', tone: NotificationTone.green,
-          location: '/club/matches?tab=scheduled'),
+          subtitle: '${confirmedGround.name} booking confirmed', createdAt: ago(const Duration(days: 1)),
+          tone: NotificationTone.green, target: const ClubMatchesTarget(MatchTab.scheduled)),
       NotificationItem(id: 'n_c4', role: UserRole.clubOwner, icon: 'trophy', title: 'Tournament registration approved',
-          subtitle: 'Spring Cup · 8 teams', timeAgo: '3d ago', tone: NotificationTone.blue,
-          location: '/club/tournaments/registrations?tab=approved'),
+          subtitle: 'Spring Cup · 8 teams', createdAt: ago(const Duration(days: 3)),
+          tone: NotificationTone.blue, target: const MyRegistrationsTarget(RegistrationStatus.approved)),
     ];
   }
 }

@@ -43,6 +43,9 @@ enum HuntRole {
 
   const HuntRole(this.label);
   final String label;
+
+  /// "2 Batsmen", "3 Bowlers" (the prototype appended "s": "Batsmans").
+  String countLabel(int n) => n == 1 ? label : (this == batsman ? 'Batsmen' : '${label}s');
 }
 
 /// Category derived from free-text squad positions (prototype `squadCategory`).

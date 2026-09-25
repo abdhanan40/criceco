@@ -163,7 +163,7 @@ class _HuntCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = post;
-    final roleWord = '${p.role.label}${p.playersNeeded > 1 ? 's' : ''}';
+    final roleWord = p.role.countLabel(p.playersNeeded);
     return Container(
       margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 0),
       padding: const EdgeInsets.all(14),

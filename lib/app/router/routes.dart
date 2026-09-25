@@ -88,6 +88,7 @@ abstract final class Routes {
   static String tournamentTeamPick(String id) => '/club/tournaments/browse/$id/team/pick';
   static String registrationSummary(String id) => '/club/tournaments/browse/$id/team/summary';
   static const myRegistrations = '/club/tournaments/registrations';
+  static String myRegistrationsIn(RegistrationStatus tab) => '$myRegistrations?tab=${tab.name}';
   static String registrationDetails(String registrationId) => '/club/tournaments/registrations/$registrationId';
   static String registrationSuccess(String registrationId) =>
       '/club/tournaments/registrations/$registrationId/success';

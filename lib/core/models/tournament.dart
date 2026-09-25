@@ -224,27 +224,3 @@ class TournamentAwards {
   final TournamentAward bestKeeper;
   final TournamentAward bestFielder;
 }
-
-/// Destination of a notification row (a route location, resolved per role).
-class NotificationItem {
-  const NotificationItem({
-    required this.id,
-    required this.role,
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.timeAgo,
-    required this.tone,
-    this.location,
-  });
-  final String id;
-  final UserRole role;
-  final String icon; // icon key, mapped by CeIcons
-  final String title;
-  final String subtitle;
-  final String timeAgo;
-  final NotificationTone tone;
-
-  /// `null` = non-navigating (approved default P16).
-  final String? location;
-}

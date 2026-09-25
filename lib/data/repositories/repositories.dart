@@ -13,6 +13,9 @@ abstract interface class AccountRepository {
   });
   Future<UserAccount?> byId(String accountId);
   Future<UserAccount> update(UserAccount account);
+
+  /// `false` when [current] doesn't match the account's password.
+  Future<bool> changePassword(String accountId, {required String current, required String next});
 }
 
 abstract interface class ClubRepository {

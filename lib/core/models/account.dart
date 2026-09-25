@@ -15,6 +15,7 @@ class UserAccount {
     this.ownedClubId,
     this.memberships = const [],
     this.onboardingComplete = false,
+    this.settings = const AccountSettings(),
   });
 
   final String id;
@@ -35,6 +36,9 @@ class UserAccount {
   final List<ClubMembership> memberships;
   final bool onboardingComplete;
 
+  /// Privacy and sign-in preferences (Settings → Privacy / Password & security).
+  final AccountSettings settings;
+
   String get initial => fullName.isEmpty ? 'A' : fullName[0].toUpperCase();
 
   UserAccount copyWith({
@@ -49,6 +53,7 @@ class UserAccount {
     String? ownedClubId,
     List<ClubMembership>? memberships,
     bool? onboardingComplete,
+    AccountSettings? settings,
   }) =>
       UserAccount(
         id: id,
@@ -63,6 +68,44 @@ class UserAccount {
         ownedClubId: ownedClubId ?? this.ownedClubId,
         memberships: memberships ?? this.memberships,
         onboardingComplete: onboardingComplete ?? this.onboardingComplete,
+        settings: settings ?? this.settings,
+      );
+}
+
+/// Account preferences (prototype `cePrefs`), stored on the account.
+class AccountSettings {
+  const AccountSettings({
+    this.publicProfile = true,
+    this.showStats = true,
+    this.showPhone = false,
+    this.twoStep = false,
+    this.loginAlerts = true,
+    this.passwordChangedAt,
+  });
+
+  /// Clubs can find the player in Player Hunt → Available Players.
+  final bool publicProfile;
+  final bool showStats;
+  final bool showPhone;
+  final bool twoStep;
+  final bool loginAlerts;
+  final DateTime? passwordChangedAt;
+
+  AccountSettings copyWith({
+    bool? publicProfile,
+    bool? showStats,
+    bool? showPhone,
+    bool? twoStep,
+    bool? loginAlerts,
+    DateTime? passwordChangedAt,
+  }) =>
+      AccountSettings(
+        publicProfile: publicProfile ?? this.publicProfile,
+        showStats: showStats ?? this.showStats,
+        showPhone: showPhone ?? this.showPhone,
+        twoStep: twoStep ?? this.twoStep,
+        loginAlerts: loginAlerts ?? this.loginAlerts,
+        passwordChangedAt: passwordChangedAt ?? this.passwordChangedAt,
       );
 }
 
