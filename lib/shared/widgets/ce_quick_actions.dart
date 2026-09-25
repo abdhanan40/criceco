@@ -55,7 +55,7 @@ class _Tile extends StatelessWidget {
             Text(action.label,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1E2B24))),
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: CeColors.ink2)),
           ]),
         ),
       );

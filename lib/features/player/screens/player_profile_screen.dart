@@ -383,7 +383,7 @@ class _DetailRow extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         constraints: const BoxConstraints(minHeight: 46),
         decoration: BoxDecoration(
-          border: last ? null : const Border(bottom: BorderSide(color: Color(0xFFF1F5F2))),
+          border: last ? null : const Border(bottom: BorderSide(color: CeColors.hairline)),
         ),
         child: Row(children: [
           CeIconWell(icon, size: 30, iconSize: 15),

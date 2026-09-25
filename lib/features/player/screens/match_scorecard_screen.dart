@@ -135,7 +135,7 @@ class _InningsCard extends StatelessWidget {
         decoration: BoxDecoration(
           border: last
               ? null
-              : Border(bottom: BorderSide(color: header ? const Color(0xFFF1F5F2) : CeColors.bg)),
+              : Border(bottom: BorderSide(color: header ? CeColors.hairline : CeColors.bg)),
         ),
         child: Row(children: [
           Expanded(flex: 23, child: cells.first),

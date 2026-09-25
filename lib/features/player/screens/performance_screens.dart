@@ -389,7 +389,7 @@ class MatchLogCard extends StatelessWidget {
           const SizedBox(width: 8),
           CeResultPill(won: m.result == MatchResult.won),
         ]),
-        const Padding(padding: EdgeInsets.only(top: 10), child: Divider(height: 1, color: Color(0xFFF1F5F2))),
+        const Padding(padding: EdgeInsets.only(top: 10), child: Divider(height: 1, color: CeColors.hairline)),
         const SizedBox(height: 10),
         Wrap(spacing: 14, runSpacing: 4, children: [
           _Stat(icon: 'circle-dot', strong: '${m.runs}', rest: ' (${m.balls}b)'),

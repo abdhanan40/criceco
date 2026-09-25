@@ -47,7 +47,7 @@ class TournamentHubScreen extends ConsumerWidget {
             const Text.rich(
               TextSpan(children: [
                 TextSpan(text: 'Tournament '),
-                TextSpan(text: 'Center', style: TextStyle(color: Color(0xFF8FE3B0))),
+                TextSpan(text: 'Center', style: TextStyle(color: CeColors.sage)),
               ]),
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
@@ -66,7 +66,7 @@ class TournamentHubScreen extends ConsumerWidget {
           child: Row(children: [
             _Stat(icon: 'trophy', color: CeColors.primary, value: stats.hosted, label: 'Hosted'),
             _Stat(icon: 'users', color: CeColors.blue, value: stats.open, label: 'Open'),
-            _Stat(icon: 'clipboard-list', color: const Color(0xFF7C4DBA), value: stats.registered, label: 'Registered'),
+            _Stat(icon: 'clipboard-list', color: CeColors.violet, value: stats.registered, label: 'Registered'),
             _Stat(icon: 'shield', color: CeColors.amber, value: stats.approved, label: 'Approved'),
           ]),
         ),
@@ -105,7 +105,7 @@ class TournamentHubScreen extends ConsumerWidget {
                 Expanded(
                   child: _HubCard(
                     icon: 'shield',
-                    color: const Color(0xFF7C4DBA),
+                    color: CeColors.violet,
                     title: 'My Tournaments',
                     body: 'View and manage tournaments created by your club.',
                     onTap: () => context.go(Routes.myTournaments),

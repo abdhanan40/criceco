@@ -361,11 +361,11 @@ class _GroundCard extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 const _photoGradients = [
-  [Color(0xFF105C38), Color(0xFF28A85F)],
-  [Color(0xFF0B3324), Color(0xFF105C38)],
-  [Color(0xFF28A85F), Color(0xFF7FCFA6)],
-  [Color(0xFF07261B), Color(0xFF0B3324)],
-  [Color(0xFF28A85F), Color(0xFF105C38)],
+  [CeColors.primary600, CeColors.fresh],
+  [CeColors.paletteTeal, CeColors.primary600],
+  [CeColors.fresh, CeColors.sage],
+  [CeColors.paletteDeep, CeColors.paletteTeal],
+  [CeColors.primary, CeColors.paletteTeal],
 ];
 
 const _amenityIcons = {

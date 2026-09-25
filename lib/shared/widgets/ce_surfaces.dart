@@ -78,9 +78,10 @@ class CeBrandHero extends StatelessWidget {
                 height: 260,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.12), width: 1.5),
+                  // Boundary-arc motif in the palette's sage.
+                  border: Border.all(color: CeColors.sage.withValues(alpha: 0.32), width: 1.5),
                   boxShadow: [
-                    BoxShadow(color: Colors.white.withValues(alpha: 0.035), spreadRadius: 20),
+                    BoxShadow(color: CeColors.sage.withValues(alpha: 0.06), spreadRadius: 20),
                   ],
                 ),
               ),

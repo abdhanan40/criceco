@@ -201,7 +201,7 @@ class _PulseBadgeState extends State<_PulseBadge> with SingleTickerProviderState
           decoration: const BoxDecoration(
             shape: BoxShape.circle,
             gradient: LinearGradient(colors: [Color(0xFFD9962A), CeColors.amber]),
-            boxShadow: [BoxShadow(color: Color(0x401B4332), blurRadius: 14, offset: Offset(0, 4))],
+            boxShadow: [BoxShadow(color: Color(0x40092328), blurRadius: 14, offset: Offset(0, 4))],
           ),
           child: Icon(CeIcons.of('hourglass'), color: Colors.white, size: 26),
         ),

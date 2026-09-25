@@ -170,8 +170,8 @@ class _HuntCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(CeRadius.lg),
-        border: Border.all(color: const Color(0xFFF1F5F2)),
-        boxShadow: const [BoxShadow(color: Color(0x0F1B4332), blurRadius: 10, offset: Offset(0, 2))],
+        border: Border.all(color: CeColors.hairline),
+        boxShadow: const [BoxShadow(color: Color(0x0F092328), blurRadius: 10, offset: Offset(0, 2))],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
@@ -213,7 +213,7 @@ class _HuntCard extends StatelessWidget {
             ]),
           ),
         ),
-        const Padding(padding: EdgeInsets.only(top: 11), child: Divider(height: 1, color: Color(0xFFF1F5F2))),
+        const Padding(padding: EdgeInsets.only(top: 11), child: Divider(height: 1, color: CeColors.hairline)),
         const SizedBox(height: 11),
         Wrap(spacing: 14, runSpacing: 6, children: [
           _Info(icon: 'calendar', text: p.date == null ? 'Flexible' : CeFormat.date(p.date!)),
@@ -228,11 +228,11 @@ class _HuntCard extends StatelessWidget {
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Padding(
                 padding: const EdgeInsets.only(top: 1),
-                child: Icon(CeIcons.of('file-text'), size: 13, color: const Color(0xFF4E5A53)),
+                child: Icon(CeIcons.of('file-text'), size: 13, color: CeColors.inkSoft),
               ),
               const SizedBox(width: 6),
               Expanded(
-                child: Text(p.notes, style: const TextStyle(fontSize: 11.5, color: Color(0xFF4E5A53), height: 1.4)),
+                child: Text(p.notes, style: const TextStyle(fontSize: 11.5, color: CeColors.inkSoft, height: 1.4)),
               ),
             ]),
           ),

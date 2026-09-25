@@ -179,7 +179,7 @@ class _OptionCard extends StatelessWidget {
                   width: 46,
                   height: 46,
                   decoration: BoxDecoration(
-                    color: primary ? Colors.white.withValues(alpha: 0.18) : const Color(0xFFC2E4D2),
+                    color: primary ? Colors.white.withValues(alpha: 0.18) : CeColors.mint2,
                     borderRadius: BorderRadius.circular(13),
                   ),
                   child: Icon(CeIcons.of(icon), size: 22, color: primary ? Colors.white : CeColors.primaryDark),

@@ -207,7 +207,7 @@ class _Bell extends StatelessWidget {
                 width: 16,
                 height: 16,
                 alignment: Alignment.center,
-                decoration: const BoxDecoration(color: Color(0xFFD9534A), shape: BoxShape.circle),
+                decoration: const BoxDecoration(color: CeColors.red, shape: BoxShape.circle),
                 child: Text(count > 9 ? '9+' : '$count',
                     style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.white)),
               ),
@@ -329,7 +329,7 @@ class _NextMatchCard extends ConsumerWidget {
       margin: const EdgeInsets.symmetric(horizontal: CeSpace.gutter),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
-        boxShadow: const [BoxShadow(color: Color(0x261B4332), blurRadius: 14, offset: Offset(0, 4))],
+        boxShadow: const [BoxShadow(color: Color(0x26092328), blurRadius: 14, offset: Offset(0, 4))],
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [

@@ -247,8 +247,8 @@ class SquadPickRow extends ConsumerWidget {
     final (bg, border) = locked
         ? (CeColors.historySoft, CeColors.line)
         : switch (role) {
-            SelectionRole.playing => (CeColors.mint2, const Color(0xFF9FD9BB)),
-            SelectionRole.sub => (CeColors.amberSoft, const Color(0xFFF0D9A8)),
+            SelectionRole.playing => (CeColors.mint2, CeColors.sage),
+            SelectionRole.sub => (CeColors.amberSoft, CeColors.countdownBorder),
             null => (Colors.white, CeColors.line),
           };
     final state = locked

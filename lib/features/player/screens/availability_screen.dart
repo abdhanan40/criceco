@@ -166,7 +166,7 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
                           style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: curColor)),
                       const SizedBox(height: 3),
                       Text(record.status.description,
-                          style: const TextStyle(fontSize: 12, color: Color(0xFF4E5A53))),
+                          style: const TextStyle(fontSize: 12, color: CeColors.inkSoft)),
                       if (record.reason != null || record.untilDate != null) ...[
                         const SizedBox(height: 3),
                         Text(
@@ -174,7 +174,7 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
                             if (record.reason != null) record.reason!.label,
                             if (record.untilDate != null) 'Until ${CeFormat.date(record.untilDate!)}',
                           ].join(' · '),
-                          style: const TextStyle(fontSize: 11.5, color: Color(0xFF4E5A53), fontWeight: FontWeight.w600),
+                          style: const TextStyle(fontSize: 11.5, color: CeColors.inkSoft, fontWeight: FontWeight.w600),
                         ),
                       ],
                       const SizedBox(height: 6),

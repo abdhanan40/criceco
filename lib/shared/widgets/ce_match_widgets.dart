@@ -60,7 +60,7 @@ class CeInfoChip extends StatelessWidget {
           Flexible(
             child: Text(label,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF1E2B24))),
+                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: CeColors.ink2)),
           ),
         ]),
       );
@@ -82,13 +82,13 @@ class CeGroundRow extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(children: [
-              Icon(CeIcons.of('flag'), size: 14, color: const Color(0xFF1E2B24)),
+              Icon(CeIcons.of('flag'), size: 14, color: CeColors.ink2),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(ground,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Color(0xFF1E2B24))),
+                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: CeColors.ink2)),
               ),
               if (directions) ...[
                 const SizedBox(width: 8),
@@ -145,7 +145,7 @@ class CeMatchCard extends StatelessWidget {
       margin: margin,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
-        boxShadow: const [BoxShadow(color: Color(0x0F1B4332), blurRadius: 10, offset: Offset(0, 2))],
+        boxShadow: const [BoxShadow(color: Color(0x0F092328), blurRadius: 10, offset: Offset(0, 2))],
       ),
       child: Material(
         color: Colors.white,
@@ -268,7 +268,7 @@ class CeSummaryStrip extends StatelessWidget {
         child: IntrinsicHeight(
           child: Row(children: [
             for (var i = 0; i < items.length; i++) ...[
-              if (i > 0) const VerticalDivider(width: 1, color: Color(0xFFF1F5F2)),
+              if (i > 0) const VerticalDivider(width: 1, color: CeColors.hairline),
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
