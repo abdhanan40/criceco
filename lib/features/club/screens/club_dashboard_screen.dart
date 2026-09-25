@@ -16,6 +16,7 @@ import '../../../shared/widgets/ce_quick_actions.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
 import '../club_providers.dart';
+import '../requests/join_requests_controller.dart';
 import '../teams/teams_controller.dart';
 
 /// Club Owner Dashboard (prototype `screens.clubHome`, :4199).
@@ -33,7 +34,7 @@ class ClubDashboardScreen extends ConsumerWidget {
     final club = ref.watch(currentClubProvider);
     final members = ref.watch(clubMembersProvider).value?.length;
     final teams = ref.watch(teamsProvider).value?.length;
-    final requests = ref.watch(clubJoinRequestsProvider).value?.length;
+    final requests = ref.watch(pendingJoinRequestCountProvider);
     final next = ref.watch(nextClubMatchProvider);
     final top = MediaQuery.paddingOf(context).top;
     String n(int? v) => v == null ? '–' : '$v';

@@ -28,14 +28,6 @@ final clubMembersProvider = FutureProvider<List<ClubMember>>((ref) async {
   ];
 });
 
-/// Pending requests to join the club (dashboard count; the Requests screen
-/// itself is migrated later).
-final clubJoinRequestsProvider = FutureProvider<List<JoinRequest>>((ref) async {
-  final clubId = ref.watch(currentClubProvider.select((c) => c?.id));
-  if (clubId == null) return const [];
-  return ref.read(clubRepositoryProvider).joinRequests(clubId);
-});
-
 /// Other clubs by id (opponent names, badges).
 final clubDirectoryProvider = FutureProvider<Map<String, ClubSummary>>((ref) async {
   final clubs = await ref.read(clubRepositoryProvider).otherClubs();

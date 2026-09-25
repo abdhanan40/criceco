@@ -110,8 +110,28 @@ class InMemoryClubRepository implements ClubRepository {
   Future<List<JoinRequest>> joinRequests(String clubId) async => [...?_requests[clubId]];
 
   @override
-  Future<void> removeJoinRequest(String clubId, String requestId) async =>
-      _requests[clubId]?.removeWhere((r) => r.id == requestId);
+  Future<JoinRequest> decideJoinRequest(
+    String clubId,
+    String requestId, {
+    required bool approve,
+    MemberRole role = MemberRole.player,
+    required DateTime at,
+  }) async {
+    final list = _requests[clubId] ?? const <JoinRequest>[];
+    final i = list.indexWhere((r) => r.id == requestId);
+    if (i == -1) throw StateError('Join request $requestId not found');
+    final current = list[i];
+    if (!current.isPending) return current;
+    if (approve && role == MemberRole.owner) {
+      throw ArgumentError.value(role, 'role', 'A join request can never grant club ownership');
+    }
+    final decided = approve
+        ? current.decided(JoinRequestReview.approved, role: role, at: at)
+        : current.decided(JoinRequestReview.declined, at: at);
+    list[i] = decided;
+    if (approve) await addMember(clubId, name: current.name, phone: current.phone, role: role);
+    return decided;
+  }
 
   @override
   Future<List<SquadPlayer>> playerPool(String clubId) async => [...?_pool[clubId]];

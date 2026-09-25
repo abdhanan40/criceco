@@ -141,6 +141,9 @@ class JoinRequest {
     required this.phone,
     required this.appliedLabel,
     this.performance,
+    this.review = JoinRequestReview.pending,
+    this.assignedRole,
+    this.decidedAt,
   });
 
   final String id;
@@ -153,4 +156,31 @@ class JoinRequest {
   final String phone;
   final String appliedLabel; // "Applied 2 days ago"
   final JoinRequestPerformance? performance;
+
+  /// Kept after review (the prototype deleted decided requests) so the
+  /// Approved / Declined tabs have history.
+  final JoinRequestReview review;
+
+  /// Club role given on approval (Player / Coach / Manager). A club
+  /// membership only - never the account-level Club Owner role (fix C).
+  final MemberRole? assignedRole;
+  final DateTime? decidedAt;
+
+  bool get isPending => review == JoinRequestReview.pending;
+
+  JoinRequest decided(JoinRequestReview review, {MemberRole? role, required DateTime at}) => JoinRequest(
+        id: id,
+        name: name,
+        age: age,
+        city: city,
+        battingStyle: battingStyle,
+        bowlingStyle: bowlingStyle,
+        role: this.role,
+        phone: phone,
+        appliedLabel: appliedLabel,
+        performance: performance,
+        review: review,
+        assignedRole: role,
+        decidedAt: at,
+      );
 }

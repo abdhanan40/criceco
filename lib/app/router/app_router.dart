@@ -12,6 +12,8 @@ import '../../features/auth/role_setup_screen.dart';
 import '../../features/auth/signup_screen.dart';
 import '../../features/club/screens/add_team_players_screen.dart';
 import '../../features/club/screens/club_dashboard_screen.dart';
+import '../../features/club/screens/join_request_profile_screen.dart';
+import '../../features/club/screens/join_requests_screen.dart';
 import '../../features/club/screens/members_screen.dart';
 import '../../features/club/screens/my_club_screen.dart';
 import '../../features/club/screens/team_squad_screen.dart';
@@ -269,9 +271,18 @@ final List<RouteBase> appRoutes = [
 /// Club Owner routes shown full-screen (no bottom nav), stacked on the
 /// dashboard so Back always returns along the path hierarchy.
 final List<RouteBase> _clubFullRoutes = [
-  _ph('requests', 'Requests', 'joinRequests', root: true, fallback: Routes.clubHome, routes: [
-    _ph(':requestId', 'Player Profile', 'joinRequestProfile', root: true, fallback: Routes.joinRequests),
-  ]),
+  GoRoute(
+    path: 'requests',
+    parentNavigatorKey: rootNavigatorKey,
+    builder: (_, s) => JoinRequestsScreen(tab: JoinRequestsScreen.parseTab(s.uri.queryParameters['tab'])),
+    routes: [
+      GoRoute(
+        path: ':requestId',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, s) => JoinRequestProfileScreen(requestId: s.pathParameters['requestId']!),
+      ),
+    ],
+  ),
   _ph('player-hunt', 'Open Players', 'openPlayers', root: true, fallback: Routes.clubHome),
   _ph('challenges', 'Challenges', 'challenges', root: true, fallback: Routes.clubHome, links: const [
     PlaceholderLink('My Challenges', Routes.myChallenges),

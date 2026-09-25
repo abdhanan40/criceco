@@ -33,7 +33,17 @@ abstract interface class ClubRepository {
   Future<List<ClubMember>> members(String clubId);
   Future<ClubMember> addMember(String clubId, {required String name, required String phone, required MemberRole role});
   Future<List<JoinRequest>> joinRequests(String clubId);
-  Future<void> removeJoinRequest(String clubId, String requestId);
+  /// Approve (with a club role) or decline a pending request. Approval adds
+  /// a [ClubMember] with that role - a club membership only; it never grants
+  /// the account-level Club Owner role. Deciding an already-decided request
+  /// returns it unchanged (no duplicate member).
+  Future<JoinRequest> decideJoinRequest(
+    String clubId,
+    String requestId, {
+    required bool approve,
+    MemberRole role = MemberRole.player,
+    required DateTime at,
+  });
   Future<List<SquadPlayer>> playerPool(String clubId);
 
   /// Outgoing join-by-code (membership onboarding).

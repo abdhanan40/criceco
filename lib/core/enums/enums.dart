@@ -278,6 +278,16 @@ enum RegistrationStatus {
 
 enum JoinRequestStatus { pending, approved, cancelled }
 
+/// Review state of an INCOMING request to join the owner's club (Requests tabs).
+enum JoinRequestReview {
+  pending('Pending'),
+  approved('Approved'),
+  declined('Declined');
+
+  const JoinRequestReview(this.label);
+  final String label;
+}
+
 enum ChallengeStatus { pending, accepted, declined, expired }
 
 enum ChallengeDirection { sent, received }
