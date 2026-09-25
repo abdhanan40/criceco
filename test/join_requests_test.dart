@@ -9,7 +9,9 @@ import 'package:criceco/core/models/models.dart';
 import 'package:criceco/demo/seed_data.dart';
 import 'package:criceco/features/club/club_providers.dart';
 import 'package:criceco/features/club/requests/join_requests_controller.dart';
+import 'package:criceco/features/club/screens/members_screen.dart';
 import 'package:criceco/shared/widgets/ce_buttons.dart';
+import 'package:criceco/shared/widgets/ce_indicators.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -146,7 +148,9 @@ void main() {
 
       await _go(tester, c, Routes.members);
       expect(find.text('Bilal Ahmed'), findsOneWidget);
-      expect(find.text('Player'), findsOneWidget); // role tag
+      expect(find.descendant(of: find.byType(MemberRow), matching: find.text('Player')), findsOneWidget); // role tag
+      // Two roles now: the role filter chips appear (All · Owner · Player).
+      expect(find.widgetWithText(CeChip, 'Player'), findsOneWidget);
       expect(find.bySemanticsLabel('2 members'), findsOneWidget);
 
       await _go(tester, c, Routes.clubHome);
@@ -161,6 +165,7 @@ void main() {
       for (final name in ['Usman Tariq', 'Hamza Sheikh', 'Bilal Ahmed']) {
         await tester.tap(find.byTooltip('Decline $name'));
         await tester.pumpAndSettle();
+        await _tap(tester, _button('Decline Request')); // confirm sheet
         expect(find.text('Request from $name declined'), findsOneWidget);
       }
       expect(find.text('No pending requests'), findsOneWidget);
@@ -201,7 +206,7 @@ void main() {
       await tester.pumpAndSettle();
       await _tap(tester, _button('View Members'));
       expect(_loc(c), Routes.members);
-      expect(find.text('Coach'), findsOneWidget);
+      expect(find.descendant(of: find.byType(MemberRow), matching: find.text('Coach')), findsOneWidget);
     });
 
     testWidgets('Reject from profile; no-performance and not-found states', (tester) async {

@@ -10,6 +10,7 @@ import '../../core/models/models.dart';
 import '../../core/utils/formatters.dart';
 import '../../shared/widgets/ce_feedback.dart';
 import '../../shared/widgets/ce_icons.dart';
+import '../../shared/widgets/ce_surfaces.dart';
 import '../../shared/widgets/ce_top_bar.dart';
 import 'notifications_controller.dart';
 
@@ -56,31 +57,49 @@ class NotificationsScreen extends ConsumerWidget {
       ),
       body: async.isLoading && items.isEmpty
           ? const Center(child: CircularProgressIndicator())
-          : items.isEmpty
+          : async.hasError && items.isEmpty
               ? ListView(children: [
-                  CeEmptyState(
-                    icon: 'bell',
-                    title: 'No notifications yet',
-                    body: 'Match requests, approvals and booking updates will appear here.',
-                    primaryLabel: 'Back to dashboard',
-                    onPrimary: () => context.go(home),
+                  CeErrorState(
+                    title: 'Couldn\'t load notifications',
+                    onRetry: () => ref.invalidate(roleNotificationsProvider(role)),
                   ),
                 ])
-              : ListView(padding: const EdgeInsets.fromLTRB(0, 12, 0, 24), children: [
-                  for (final n in items)
-                    NotificationRow(
-                      item: n,
-                      unread: !read.contains(n.id),
-                      timeLabel: CeFormat.timeAgo(n.createdAt, now),
-                      onTap: () {
-                        ref.read(notificationReadProvider.notifier).markRead(n.id);
-                        final location = notificationLocation(n.target);
-                        if (location != null) context.go(location);
-                      },
-                    ),
-                ]),
+              : items.isEmpty
+                  ? ListView(children: [
+                      CeEmptyState(
+                        icon: 'bell',
+                        title: 'No notifications yet',
+                        body: 'Match requests, approvals and booking updates will appear here.',
+                        primaryLabel: 'Back to dashboard',
+                        onPrimary: () => context.go(home),
+                      ),
+                    ])
+                  : ListView(padding: const EdgeInsets.only(bottom: 24), children: [
+                      // Newest first, grouped by day: Today, then Earlier.
+                      for (final (label, group) in [
+                        ('Today', [for (final n in items) if (_sameDay(n.createdAt, now)) n]),
+                        ('Earlier', [for (final n in items) if (!_sameDay(n.createdAt, now)) n]),
+                      ])
+                        if (group.isNotEmpty) ...[
+                          CeSectionHeader(label,
+                              padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 8)),
+                          for (final n in group)
+                            NotificationRow(
+                              item: n,
+                              unread: !read.contains(n.id),
+                              timeLabel: CeFormat.timeAgo(n.createdAt, now),
+                              onTap: () {
+                                ref.read(notificationReadProvider.notifier).markRead(n.id);
+                                final location = notificationLocation(n.target);
+                                if (location != null) context.go(location);
+                              },
+                            ),
+                        ],
+                    ]),
     );
   }
+
+  static bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
 }
 
 /// `.ce-notif`: tone icon, title, subtitle, age; unread rows are marked.

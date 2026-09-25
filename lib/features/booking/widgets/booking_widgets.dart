@@ -94,12 +94,37 @@ class WorkflowProgress extends StatelessWidget {
   final int step;
   final int total;
 
+  /// Visible name of each booking step (1-based).
+  static const stepNames = [
+    'Match Setup',
+    'Ground',
+    'Ground Details',
+    'Date & Time',
+    'Summary',
+    'Payment',
+    'Opponent Payment',
+  ];
+
+  String get _name => step >= 1 && step <= stepNames.length ? stepNames[step - 1] : '';
+
   @override
   Widget build(BuildContext context) => Semantics(
-        label: 'Step $step of $total',
+        label: 'Step $step of $total${_name.isEmpty ? '' : ', $_name'}',
+        excludeSemantics: true,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
-          child: Row(children: [
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text.rich(
+              TextSpan(children: [
+                TextSpan(
+                    text: 'Step $step of $total',
+                    style: const TextStyle(fontWeight: FontWeight.w800, color: CeColors.primaryDark)),
+                if (_name.isNotEmpty) TextSpan(text: ' · $_name'),
+              ]),
+              style: const TextStyle(fontSize: 11.5, color: CeColors.muted),
+            ),
+            const SizedBox(height: 6),
+            Row(children: [
             for (var i = 1; i <= total; i++) ...[
               if (i > 1) const SizedBox(width: 5),
               Expanded(
@@ -113,6 +138,7 @@ class WorkflowProgress extends StatelessWidget {
                 ),
               ),
             ],
+            ]),
           ]),
         ),
       );
@@ -221,9 +247,14 @@ class PaymentSplitRow extends StatelessWidget {
     return Padding(
       padding: margin ?? const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
       child: Row(children: [
-        cell(paid: myPaid, value: CeFormat.rupees(b?.shareAmount ?? 0), label: 'You'),
+        // Unpaid share says "due" in words — paid/unpaid is not colour-only.
+        cell(paid: myPaid, value: CeFormat.rupees(b?.shareAmount ?? 0), label: myPaid ? 'You' : 'You · due'),
         const SizedBox(width: 10),
-        cell(paid: oppPaid, value: 'Pending', label: opponentName),
+        cell(
+          paid: oppPaid,
+          value: b?.opponentPayment?.status == PaymentStatus.failed ? 'Failed' : 'Pending',
+          label: opponentName,
+        ),
       ]),
     );
   }

@@ -215,17 +215,8 @@ class TournamentDetailsScreen extends ConsumerWidget {
             labelOf: (x) => x.label,
             onSelected: (x) => context.go(x.location(t.id)),
           ),
-          CeSummaryCard(margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0), rows: [
-            ('Tournament Name', CeSummaryCard.value(context, t.name)),
-            ('Organizer Club', CeSummaryCard.value(context, organizerName(ref, t))),
-            ('Ground', CeSummaryCard.value(context, t.ground)),
-            ('Prize', CeSummaryCard.value(context, rupeesOrDash(t.prize))),
-            ('Entry Fee', CeSummaryCard.value(context, rupeesOrDash(t.entryFee))),
-            ('Registered Teams', CeSummaryCard.value(context, '${t.joined.length}/${t.maxTeams}')),
-            ('Available Slots', CeSummaryCard.value(context, '${t.availableSlots}')),
-            ('Registration Deadline', CeSummaryCard.value(context, CeFormat.date(t.registrationDeadline))),
-            ('Status', TournamentStatusChip(t)),
-          ]),
+          // Phase B: the tournament summary lives on Overview only, so Teams,
+          // Fixtures and Points Table start right under the tabs.
           ...switch (tab) {
             TournamentTab.overview => _overview(context, ref, t, pending),
             TournamentTab.teams => _teams(context, ref, t),
@@ -245,6 +236,17 @@ class TournamentDetailsScreen extends ConsumerWidget {
     final awards = ref.watch(tournamentAwardsProvider(t.id));
     final joined = t.joined.length;
     return [
+      // The hero already shows the name; the summary starts at the organizer.
+      CeSummaryCard(margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0), rows: [
+        ('Organizer Club', CeSummaryCard.value(context, organizerName(ref, t))),
+        ('Ground', CeSummaryCard.value(context, t.ground)),
+        ('Prize', CeSummaryCard.value(context, rupeesOrDash(t.prize))),
+        ('Entry Fee', CeSummaryCard.value(context, rupeesOrDash(t.entryFee))),
+        ('Registered Teams', CeSummaryCard.value(context, '$joined/${t.maxTeams}')),
+        ('Available Slots', CeSummaryCard.value(context, '${t.availableSlots}')),
+        ('Registration Deadline', CeSummaryCard.value(context, CeFormat.date(t.registrationDeadline))),
+        ('Status', TournamentStatusChip(t)),
+      ]),
       const SizedBox(height: 14),
       CeStatsRow(children: [
         CeStatCard(value: '$joined/${t.maxTeams}', label: 'Teams'),

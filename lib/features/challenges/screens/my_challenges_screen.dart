@@ -32,6 +32,18 @@ class _MyChallengesScreenState extends ConsumerState<MyChallengesScreen> {
 
   Future<void> _respond(Challenge c, {required bool accept}) async {
     if (_busy.contains(c.id)) return;
+    if (!accept) {
+      final name = ref.read(clubDirectoryProvider).value?[c.opponentClubId]?.name ?? 'this club';
+      final ok = await showCeConfirmSheet(
+        context,
+        title: 'Decline this challenge?',
+        body: '$name will be told you declined. You can still challenge them later.',
+        confirmLabel: 'Decline Challenge',
+        destructive: true,
+        icon: 'x-circle',
+      );
+      if (!ok || !mounted) return;
+    }
     setState(() => _busy.add(c.id));
     final ctrl = ref.read(challengesProvider.notifier);
     final result = accept ? await ctrl.accept(c.id) : await ctrl.decline(c.id);
@@ -74,6 +86,8 @@ class _MyChallengesScreenState extends ConsumerState<MyChallengesScreen> {
         const ChallengesTabs(active: ChallengesSection.mine),
         if (async.isLoading)
           const Padding(padding: EdgeInsets.all(30), child: Center(child: CircularProgressIndicator()))
+        else if (async.hasError)
+          CeErrorState(title: 'Couldn\'t load your challenges', onRetry: () => ref.invalidate(challengesProvider))
         else ...[
           // ---- Received, awaiting a decision ----
           const CeSectionHeader('Awaiting your Decision',

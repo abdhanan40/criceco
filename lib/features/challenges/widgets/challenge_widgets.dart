@@ -23,20 +23,25 @@ enum ChallengesSection {
   final String location;
 }
 
-/// `challengesTabRow`: sibling screens, switched with `go` (replaces).
-class ChallengesTabs extends StatelessWidget {
+/// `challengesTabRow`: sibling screens, switched with `go` (replaces). My
+/// Challenges carries the number of challenges awaiting your decision.
+class ChallengesTabs extends ConsumerWidget {
   const ChallengesTabs({super.key, required this.active});
   final ChallengesSection active;
 
   @override
-  Widget build(BuildContext context) => CeChipRow<ChallengesSection>(
-        values: ChallengesSection.values,
-        selected: active,
-        labelOf: (s) => s.label,
-        onSelected: (s) {
-          if (s != active) context.go(s.location);
-        },
-      );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final awaiting = ref.watch(myChallengeSectionsProvider).awaitingDecision.length;
+    return CeChipRow<ChallengesSection>(
+      values: ChallengesSection.values,
+      selected: active,
+      labelOf: (s) => s.label,
+      countOf: (s) => s == ChallengesSection.mine && awaiting > 0 ? awaiting : null,
+      onSelected: (s) {
+        if (s != active) context.go(s.location);
+      },
+    );
+  }
 }
 
 /// Sends a challenge and routes by the resulting state: Demo Mode accepts it
@@ -127,6 +132,15 @@ class MySlotsList extends ConsumerWidget {
                   textStyle: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
                 ),
                 onPressed: () async {
+                  final ok = await showCeConfirmSheet(
+                    context,
+                    title: 'Remove this slot?',
+                    body: 'Clubs will no longer see your ${CeFormat.dayDate(s.date)} slot in Find Match.',
+                    confirmLabel: 'Remove Slot',
+                    destructive: true,
+                    icon: 'x-circle',
+                  );
+                  if (!ok) return;
                   await ref.read(availabilitySlotsProvider.notifier).remove(s.id);
                   if (context.mounted) showCeToast(context, 'Availability slot removed');
                 },

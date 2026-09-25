@@ -479,11 +479,13 @@ void main() {
 
       await _go(tester, c, Routes.tournamentDashboard(t.id));
       expect(_loc(c), Routes.tournamentDetails(t.id), reason: 'Dashboard → Overview');
+      expect(_inHost(t.name), findsWidgets, reason: 'same tournament');
+      expect(_inHost('Organizer Club'), findsOneWidget, reason: 'summary on Overview');
       await tester.scrollUntilVisible(_inHost('Tournament Awards'), 200, scrollable: find.byType(Scrollable).first);
-      expect(find.text(t.name, skipOffstage: false), findsWidgets);
 
       await _go(tester, c, Routes.tournamentTeamsManage(t.id));
       expect(_loc(c), TournamentTab.teams.location(t.id), reason: 'Manage Teams → Teams tab');
+      expect(find.text('Organizer Club'), findsNothing, reason: 'Teams starts under the tabs, no repeated summary');
       expect(find.text('Clubs Requesting Registration · 3'), findsOneWidget);
       expect(find.text('Confirmed Teams · 0'), findsOneWidget);
 

@@ -99,11 +99,14 @@ class ClubDashboardScreen extends ConsumerWidget {
           Transform.translate(
             offset: const Offset(0, -6),
             child: CeStatsRow(children: [
-              CeStatCard(value: n(members), label: 'Members'),
-              CeStatCard(value: n(teams), label: 'Teams'),
-              CeStatCard(value: n(requests), label: 'Requests'),
+              CeStatCard(value: n(members), label: 'Members', onTap: () => context.go(Routes.members)),
+              CeStatCard(value: n(teams), label: 'Teams', onTap: () => context.go(Routes.teams)),
+              CeStatCard(value: n(requests), label: 'Requests', onTap: () => context.go(Routes.joinRequests)),
             ]),
           ),
+
+          // ---- Pending join requests: the one thing waiting on the owner ----
+          if ((requests ?? 0) > 0) _PendingRequestsBanner(count: requests!),
 
           // ---- Quick actions (out-of-phase destinations keep their routes) ----
           const CeSectionHeader('Quick Actions',
@@ -128,6 +131,59 @@ class ClubDashboardScreen extends ConsumerWidget {
             _NextMatch(match: next, clubShortName: club?.displayShortName ?? 'My Club'),
           ],
         ]),
+      ),
+    );
+  }
+}
+
+/// "N join requests waiting · Review" — shown only while requests are pending.
+class _PendingRequestsBanner extends StatelessWidget {
+  const _PendingRequestsBanner({required this.count});
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = count == 1 ? '1 join request waiting' : '$count join requests waiting';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 8, CeSpace.gutter, 0),
+      child: Semantics(
+        button: true,
+        label: '$label. Review',
+        excludeSemantics: true,
+        child: Material(
+          color: CeColors.amberSoft,
+          borderRadius: BorderRadius.circular(CeRadius.row),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(CeRadius.row),
+            onTap: () => context.go(Routes.joinRequests),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: CeSize.touchTarget + 8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                child: Row(children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(CeRadius.sm)),
+                    child: Icon(CeIcons.of('user-plus'), size: 16, color: CeColors.amberInk),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(label,
+                          style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: CeColors.ink)),
+                      const Text('Players are waiting to join your club',
+                          style: TextStyle(fontSize: 11.5, color: CeColors.muted)),
+                    ]),
+                  ),
+                  const Text('Review',
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: CeColors.amberInk)),
+                  Icon(CeIcons.of('chevron-right'), size: 16, color: CeColors.amberInk),
+                ]),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -209,6 +265,7 @@ class _NextMatch extends ConsumerWidget {
       ground: groundLabel,
       groundDirections: ground != null,
       playingTeam: match.lineup?.name,
+      onTap: () => context.go(Routes.matchManagement(MatchTab.scheduled)),
     );
   }
 }

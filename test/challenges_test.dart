@@ -190,7 +190,10 @@ void main() {
       expect(find.text('NEW'), findsNWidgets(2));
       expect(find.text('ACCEPTED'), findsOneWidget); // Gulberg Tigers, resolved
 
+      expect(find.text('2'), findsWidgets, reason: 'My Challenges tab counts decisions awaiting');
       await _tap(tester, _button('Decline').last); // GOR Challengers
+      expect(find.text('Decline this challenge?'), findsOneWidget, reason: 'confirms first');
+      await _tap(tester, _button('Decline Challenge'));
       expect(find.text('Challenge declined'), findsOneWidget);
       expect(find.text('DECLINED'), findsOneWidget);
       expect(find.text('NEW'), findsOneWidget);
@@ -271,6 +274,7 @@ void main() {
 
       await _clearToast(tester);
       await _tap(tester, find.text('Remove'));
+      await _tap(tester, find.widgetWithText(CeButton, 'Remove Slot'));
       expect(find.text('Availability slot removed'), findsOneWidget);
       expect(find.text('Your Open Slot'), findsNothing);
     });

@@ -470,6 +470,15 @@ class _PublishedSlot extends ConsumerWidget {
         CeButton.danger(
           label: 'Remove Slot',
           onPressed: () async {
+            final ok = await showCeConfirmSheet(
+              context,
+              title: 'Remove this slot?',
+              body: 'Players will no longer see your ${p.role.label} requirement in Open Matches.',
+              confirmLabel: 'Remove Slot',
+              destructive: true,
+              icon: 'x-circle',
+            );
+            if (!ok) return;
             await ref.read(playerHuntProvider.notifier).remove(p.id);
             if (context.mounted) showCeToast(context, 'Slot removed');
           },

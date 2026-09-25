@@ -235,23 +235,69 @@ class _CeSelectFieldState<T> extends State<CeSelectField<T>> {
       );
 }
 
-/// Search input (prototype `.search-input` / `.om-search-wrap`).
-class CeSearchField extends StatelessWidget {
+/// Search input (prototype `.search-input` / `.om-search-wrap`). A clear (✕)
+/// button appears once there is text; Search on the keyboard closes it.
+class CeSearchField extends StatefulWidget {
   const CeSearchField({super.key, required this.hint, required this.onChanged, this.controller});
   final String hint;
   final ValueChanged<String> onChanged;
   final TextEditingController? controller;
 
   @override
+  State<CeSearchField> createState() => _CeSearchFieldState();
+}
+
+class _CeSearchFieldState extends State<CeSearchField> {
+  TextEditingController? _own;
+  TextEditingController get _controller => widget.controller ?? (_own ??= TextEditingController());
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_changed);
+  }
+
+  @override
+  void didUpdateWidget(covariant CeSearchField old) {
+    super.didUpdateWidget(old);
+    if (old.controller != widget.controller) {
+      (old.controller ?? _own)?.removeListener(_changed);
+      _controller.addListener(_changed);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_changed);
+    _own?.dispose();
+    super.dispose();
+  }
+
+  void _changed() => setState(() {});
+
+  void _clear() {
+    _controller.clear();
+    widget.onChanged('');
+  }
+
+  @override
   Widget build(BuildContext context) => TextField(
-        controller: controller,
-        onChanged: onChanged,
+        controller: _controller,
+        onChanged: widget.onChanged,
+        onSubmitted: (_) => FocusScope.of(context).unfocus(),
         textInputAction: TextInputAction.search,
         style: Theme.of(context).textTheme.bodyLarge,
         decoration: InputDecoration(
-          hintText: hint,
+          hintText: widget.hint,
           constraints: const BoxConstraints(minHeight: CeSize.searchMinHeight),
           prefixIcon: Icon(CeIcons.of('search'), size: 17),
+          suffixIcon: _controller.text.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: 'Clear search',
+                  icon: Icon(CeIcons.of('x'), size: 17),
+                  onPressed: _clear,
+                ),
         ),
       );
 }

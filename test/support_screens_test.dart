@@ -382,6 +382,8 @@ void main() {
       await _clearToast(tester);
       expect(find.text('Looking for 2 Wicket-Keepers', skipOffstage: false), findsOneWidget);
       await _tap(tester, _button('Remove Slot').first);
+      expect(find.text('Remove this slot?'), findsOneWidget, reason: 'destructive action confirms first');
+      await _tap(tester, _button('Remove Slot').last);
       expect(find.text('Looking for 2 Wicket-Keepers', skipOffstage: false), findsNothing);
       await _clearToast(tester);
 

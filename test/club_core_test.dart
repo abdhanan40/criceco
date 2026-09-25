@@ -6,6 +6,7 @@ import 'package:criceco/app/router/routes.dart';
 import 'package:criceco/app/session/role_controller.dart';
 import 'package:criceco/app/session/session_controller.dart';
 import 'package:criceco/core/models/models.dart';
+import 'package:criceco/features/club/requests/join_requests_controller.dart';
 import 'package:criceco/features/club/teams/teams_controller.dart';
 import 'package:criceco/shared/widgets/ce_buttons.dart';
 import 'package:flutter/material.dart';
@@ -90,6 +91,36 @@ void main() {
       expect(find.text('Club code copied!'), findsOneWidget);
     });
 
+    testWidgets('pending requests banner and tappable stats open their lists', (tester) async {
+      final c = await _pumpOwner(tester);
+      expect(find.bySemanticsLabel('3 join requests waiting. Review'), findsOneWidget);
+      await _tap(tester, find.bySemanticsLabel('3 join requests waiting. Review'));
+      expect(_loc(c), Routes.joinRequests);
+      for (final (label, route) in [('TEAMS', Routes.teams), ('MEMBERS', Routes.members)]) {
+        await _go(tester, c, Routes.clubHome);
+        await tester.fling(find.byType(Scrollable).first, const Offset(0, 3000), 4000); // branch keeps its offset
+        await tester.pumpAndSettle();
+        await _tap(tester, find.text(label));
+        expect(_loc(c), route, reason: label);
+      }
+    });
+
+    testWidgets('join request Decline confirms first; Cancel keeps it pending', (tester) async {
+      final c = await _pumpOwner(tester);
+      await _go(tester, c, Routes.joinRequests);
+      final declines = find.byTooltip(RegExp('^Decline'));
+      expect(declines, findsWidgets);
+      await tester.tap(declines.first);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Decline Bilal Ahmed?'), findsOneWidget);
+      await _tap(tester, _button('Cancel'));
+      expect(c.read(pendingJoinRequestCountProvider), 3, reason: 'nothing declined');
+      await tester.tap(declines.first);
+      await tester.pumpAndSettle();
+      await _tap(tester, _button('Decline Request'));
+      expect(c.read(pendingJoinRequestCountProvider), 2);
+    });
+
     testWidgets('quick actions reach real routes and stay in Club context', (tester) async {
       final c = await _pumpOwner(tester);
       for (final (label, route) in [
@@ -110,9 +141,20 @@ void main() {
   });
 
   group('Teams', () {
-    testWidgets('Create Team validates inline and stores format + custom overs', (tester) async {
+    testWidgets('Create Team (bottom sheet) validates inline and stores format + custom overs', (tester) async {
       final c = await _pumpOwner(tester);
       await _go(tester, c, Routes.teams);
+      // The team list comes first; the form opens in a sheet.
+      expect(find.text('BS CS XI'), findsOneWidget);
+      expect(find.byKey(const Key('teams.name')), findsNothing);
+      await _tap(tester, find.bySemanticsLabel(RegExp('^New Team')));
+      expect(find.byKey(const Key('teams.name')), findsOneWidget);
+      // Cancel closes without creating anything.
+      final before = c.read(teamsProvider).value!.length;
+      await _tap(tester, _button('Cancel'));
+      expect(find.byKey(const Key('teams.name')), findsNothing);
+      expect(c.read(teamsProvider).value!.length, before);
+      await _tap(tester, find.bySemanticsLabel(RegExp('^New Team')));
       await _tap(tester, _button('Create Team'));
       expect(find.text('Please enter a team name'), findsOneWidget);
       expect(find.text('Please select a format'), findsOneWidget);
@@ -135,6 +177,8 @@ void main() {
       expect(created.format, MatchFormat.custom);
       expect(created.customOvers, 15);
       expect(find.text('Team created!'), findsOneWidget);
+      expect(find.byKey(const Key('teams.name')), findsNothing, reason: 'sheet closes on success');
+      expect(_loc(c), Routes.teams);
       await tester.scrollUntilVisible(find.text('Team A (First XI)'), 150, scrollable: find.byType(Scrollable).first);
       expect(find.text('0 players · Custom · 15 overs'), findsOneWidget);
     });
@@ -147,11 +191,11 @@ void main() {
       await _tap(tester, find.text('BS CS XI'));
       expect(_loc(c), Routes.teamSquad('team_cs'));
       expect(find.text('0 players in squad'), findsOneWidget);
-      expect(find.text('No players in this squad yet.'), findsOneWidget);
+      expect(find.text('No players in this squad yet'), findsOneWidget);
 
-      await _tap(tester, _button('Add Players'));
+      await _tap(tester, _button('Add Players').first);
       expect(_loc(c), Routes.addTeamPlayers('team_cs'));
-      expect(find.text('0/11', skipOffstage: false), findsOneWidget);
+      expect(find.text('0/11'), findsOneWidget);
 
       await _tap(tester, find.bySemanticsLabel(RegExp('^Ali Raza, ')));
       expect(c.read(squadEditorProvider('team_cs')).playing, 1);
@@ -170,7 +214,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(_loc(c), Routes.teamSquad('team_cs'));
       expect(find.text('0 players in squad'), findsOneWidget);
-      await _tap(tester, _button('Add Players'));
+      await _tap(tester, _button('Add Players').first);
       expect(find.text('1/11', skipOffstage: false), findsOneWidget, reason: 'unsaved draft restored');
 
       // Tapping again cycles Playing → Sub.
@@ -188,7 +232,42 @@ void main() {
       // Filter chips.
       await tester.tap(find.text('Bowler'));
       await tester.pumpAndSettle();
-      expect(find.text('No Bowler in this squad.'), findsOneWidget);
+      expect(find.text('No Bowler in this squad'), findsOneWidget);
+    });
+
+    testWidgets('Squad: XI/Sub counters, row opens stats; Add Players search, pinned Save, unsaved flag',
+        (tester) async {
+      final c = await _pumpOwner(tester);
+      final pool = await c.read(clubPlayerPoolProvider.future);
+      final editor = c.read(squadEditorProvider('team_cs').notifier);
+      final open = pool.where((p) => !p.locked).toList();
+      editor.cycle(open[0]); // Playing
+      editor.cycle(open[1]); // Playing
+      await editor.save();
+
+      await _go(tester, c, Routes.teamSquad('team_cs'));
+      expect(find.text('2/11'), findsOneWidget);
+      expect(find.text('0/4'), findsOneWidget);
+      await _tap(tester, find.bySemanticsLabel(RegExp('^${open[0].name}, .*View stats')));
+      expect(find.text('BATTING'), findsOneWidget, reason: 'stats sheet, no extra screen');
+      expect(_loc(c), Routes.teamSquad('team_cs'));
+      await _tap(tester, _button('Close'));
+
+      await _tap(tester, _button('Add Players').first);
+      expect(find.text('Unsaved changes'), findsNothing);
+      // Save Squad is pinned: visible without scrolling the pool.
+      expect(tester.getRect(_button('Save Squad')).bottom, lessThanOrEqualTo(812));
+      await tester.enterText(find.byType(TextField), open[2].name.split(' ').first);
+      await tester.pumpAndSettle();
+      expect(find.textContaining(RegExp(r'^\d+ of \d+ players$')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('^${open[2].name}, ')), findsOneWidget);
+      await tester.tap(find.byTooltip('Clear search'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining(RegExp(r'of \d+ players$')), findsNothing, reason: 'cleared');
+      await _tap(tester, find.bySemanticsLabel(RegExp('^${open[2].name}, ')));
+      expect(find.text('Unsaved changes'), findsOneWidget);
+      await _tap(tester, _button('Save Squad'));
+      expect(c.read(teamProvider('team_cs'))!.members, hasLength(3));
     });
 
     testWidgets('caps: 12th pick becomes a sub; 16th is refused', (tester) async {
@@ -269,12 +348,15 @@ void main() {
           }
           expect(tester.takeException(), isNull, reason: '$loc @ $width');
         }
-        // Custom format field + validation errors on Teams.
+        // Create Team sheet: Custom format field + validation errors.
         await _go(tester, c, Routes.teams);
+        await _tap(tester, find.bySemanticsLabel(RegExp('^New Team')));
         await tester.tap(find.text('Custom'));
         await tester.pump();
         await _tap(tester, _button('Create Team'));
         expect(tester.takeException(), isNull, reason: 'teams errors @ $width');
+        await tester.tapAt(const Offset(10, 10)); // dismiss the sheet
+        await tester.pumpAndSettle();
         // Stats sheet.
         await _go(tester, c, Routes.addTeamPlayers('team_cs'));
         await _tap(tester, find.bySemanticsLabel('Stats for Ali Raza'));

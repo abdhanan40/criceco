@@ -189,12 +189,14 @@ class Scorecard {
   final String playerOfMatch;
   final List<Innings> innings;
 
-  BattingEntry get topScorer => innings
+  /// Null when no batting / bowling was recorded (never throws on an empty
+  /// or partial scorecard).
+  BattingEntry? get topScorer => innings
       .expand((i) => i.batting)
-      .reduce((a, b) => b.runs > a.runs ? b : a);
-  BowlingEntry get topWicketTaker => innings
+      .fold<BattingEntry?>(null, (best, e) => best == null || e.runs > best.runs ? e : best);
+  BowlingEntry? get topWicketTaker => innings
       .expand((i) => i.bowling)
-      .reduce((a, b) => b.wickets > a.wickets ? b : a);
+      .fold<BowlingEntry?>(null, (best, e) => best == null || e.wickets > best.wickets ? e : best);
 }
 
 class StatTile {

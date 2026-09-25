@@ -471,12 +471,23 @@ class PointsTable extends ConsumerWidget {
     final demo = ref.watch(demoModeProvider);
     const head = TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: CeColors.muted, letterSpacing: 0.3);
     const cell = TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: CeColors.ink);
-    Widget num(String v, TextStyle s) => SizedBox(width: 34, child: Text(v, textAlign: TextAlign.center, style: s));
-    Widget row(String team, List<String> values, TextStyle s, {bool last = false}) => Container(
+    final ownClubId = ref.watch(currentClubProvider.select((c) => c?.id));
+    Widget num(String v, TextStyle s) => SizedBox(width: 32, child: Text(v, textAlign: TextAlign.center, style: s));
+    Widget row(String rank, String team, List<String> values, TextStyle s, {bool last = false, bool mine = false}) =>
+        Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(border: last ? null : const Border(bottom: BorderSide(color: CeColors.mint2))),
+          decoration: BoxDecoration(
+            color: mine ? CeColors.mint : null,
+            border: last ? null : const Border(bottom: BorderSide(color: CeColors.mint2)),
+          ),
           child: Row(children: [
-            Expanded(child: Text(team, maxLines: 2, overflow: TextOverflow.ellipsis, style: s)),
+            SizedBox(width: 22, child: Text(rank, style: s.copyWith(color: CeColors.muted))),
+            Expanded(
+              child: Text(mine ? '$team (You)' : team,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: mine ? s.copyWith(fontWeight: FontWeight.w800, color: CeColors.primaryDark) : s),
+            ),
             for (final v in values) num(v, s),
           ]),
         );
@@ -486,9 +497,10 @@ class PointsTable extends ConsumerWidget {
         margin: const EdgeInsets.symmetric(horizontal: CeSpace.gutter),
         padding: EdgeInsets.zero,
         child: Column(children: [
-          row('TEAM', const ['P', 'W', 'L', 'PTS'], head),
+          row('#', 'TEAM', const ['P', 'W', 'L', 'PTS'], head),
           for (final (i, (e, s)) in rows.indexed)
-            row(e.displayName, ['${s.played}', '${s.won}', '${s.lost}', '${s.points}'], cell, last: i == rows.length - 1),
+            row('${i + 1}', e.displayName, ['${s.played}', '${s.won}', '${s.lost}', '${s.points}'], cell,
+                last: i == rows.length - 1, mine: ownClubId != null && e.clubId == ownClubId),
         ]),
       ),
       Padding(

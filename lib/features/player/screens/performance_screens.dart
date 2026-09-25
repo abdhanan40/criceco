@@ -8,6 +8,7 @@ import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
 import '../../../shared/widgets/ce_match_widgets.dart';
+import '../../../shared/widgets/ce_segmented.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
 import '../player_providers.dart';
 
@@ -133,7 +134,7 @@ class MatchHistoryView extends ConsumerWidget {
       final filtered = log.where((m) => filter.matches(m.result)).toList();
       return ListView(padding: const EdgeInsets.only(bottom: 24), children: [
         CeSummaryStrip(items: [('${log.length}', 'Total'), ('$wins', 'Won'), ('${log.length - wins}', 'Lost')]),
-        if (log.isNotEmpty) RunsPerMatchChart(entries: log),
+        if (log.isNotEmpty) PerMatchChart(entries: log),
         CeChipRow<HistoryFilter>(
           values: HistoryFilter.values,
           selected: filter,
@@ -149,46 +150,69 @@ class MatchHistoryView extends ConsumerWidget {
   }
 }
 
-/// Runs per match, oldest → newest: one bar per logged match, coloured by
-/// the result (won green, lost red), with the runs above and the opponent
-/// below. Existing match-log data only; the cards below keep every number.
-class RunsPerMatchChart extends StatelessWidget {
-  const RunsPerMatchChart({super.key, required this.entries});
+/// Runs or wickets per match, oldest → newest: one bar per logged match,
+/// coloured by the result (won green, lost red), with the value above and the
+/// opponent below. Existing match-log data only; the cards below keep every
+/// number. The metric is a session choice ([trendMetricProvider]).
+class PerMatchChart extends ConsumerWidget {
+  const PerMatchChart({super.key, required this.entries});
 
   /// Newest first (match-log order); drawn oldest → newest.
   final List<MatchLogEntry> entries;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final metric = ref.watch(trendMetricProvider);
     final chrono = entries.reversed.toList();
-    final best = chrono.reduce((a, b) => b.runs > a.runs ? b : a);
+    final best = chrono.reduce((a, b) => metric.of(b) > metric.of(a) ? b : a);
+    final total = chrono.fold<int>(0, (s, m) => s + metric.of(m));
+    final unit = metric.label.toLowerCase();
     final spoken = chrono
-        .map((m) => '${m.runs} against ${m.opponentAbbr}, ${m.result == MatchResult.won ? 'won' : 'lost'}')
+        .map((m) => '${metric.of(m)} against ${m.opponentAbbr}, ${m.result == MatchResult.won ? 'won' : 'lost'}')
         .join('; ');
     return CeCard(
       margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 0),
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        const Row(children: [
+        Row(children: [
           Expanded(
-            child: Text('Runs per match',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: CeColors.ink)),
+            child: Text('${metric.label} per match',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: CeColors.ink)),
           ),
-          _LegendDot(color: CeColors.fresh, label: 'Won'),
-          SizedBox(width: 10),
-          _LegendDot(color: CeColors.red, label: 'Lost'),
+          const SizedBox(width: 8),
+          CeSegmented<TrendMetric>(
+            values: TrendMetric.values,
+            selected: metric,
+            labelOf: (m) => m.label,
+            onSelected: ref.read(trendMetricProvider.notifier).select,
+          ),
         ]),
-        const SizedBox(height: 2),
-        Text('Last ${chrono.length} matches · best ${best.runs} vs ${best.opponentAbbr}',
-            style: const TextStyle(fontSize: 11, color: CeColors.muted)),
+        const SizedBox(height: 4),
+        Row(children: [
+          Expanded(
+            child: Text('Last ${chrono.length} · $total $unit · best ${metric.of(best)} vs ${best.opponentAbbr}',
+                style: const TextStyle(fontSize: 11, color: CeColors.muted)),
+          ),
+          const _LegendDot(color: CeColors.fresh, label: 'Won'),
+          const SizedBox(width: 8),
+          const _LegendDot(color: CeColors.red, label: 'Lost'),
+        ]),
         const SizedBox(height: 12),
         Semantics(
-          label: 'Runs per match for the last ${chrono.length} matches, oldest to newest: $spoken',
+          label: '${metric.label} per match for the last ${chrono.length} matches, oldest to newest: $spoken',
           excludeSemantics: true,
           child: SizedBox(
             height: 132,
             width: double.infinity,
-            child: CustomPaint(painter: _RunsBarsPainter(chrono)),
+            child: TweenAnimationBuilder<double>(
+              key: ValueKey(metric),
+              tween: Tween(begin: 0, end: 1),
+              duration: CeMotion.base,
+              curve: Curves.easeOut,
+              builder: (_, grow, _) => CustomPaint(painter: _BarsPainter(chrono, metric, grow)),
+            ),
           ),
         ),
       ]),
@@ -209,9 +233,13 @@ class _LegendDot extends StatelessWidget {
       ]);
 }
 
-class _RunsBarsPainter extends CustomPainter {
-  _RunsBarsPainter(this.matches);
+class _BarsPainter extends CustomPainter {
+  _BarsPainter(this.matches, this.metric, this.grow);
   final List<MatchLogEntry> matches;
+  final TrendMetric metric;
+
+  /// 0 → 1 entrance (bars rise when the metric changes).
+  final double grow;
 
   static const _valueStyle = TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: CeColors.ink);
   static const _axisStyle = TextStyle(fontSize: 8.5, color: CeColors.muted);
@@ -225,7 +253,7 @@ class _RunsBarsPainter extends CustomPainter {
     const top = 14.0; // room for the value labels
     const bottom = 16.0; // room for the opponent labels
     final chartH = size.height - top - bottom;
-    final maxRuns = matches.map((m) => m.runs).reduce((a, b) => a > b ? a : b);
+    final maxValue = matches.map(metric.of).reduce((a, b) => a > b ? a : b);
     final slot = size.width / matches.length;
     final barW = (slot * 0.62).clamp(4.0, 26.0);
     final baseY = top + chartH;
@@ -240,14 +268,14 @@ class _RunsBarsPainter extends CustomPainter {
 
     for (final (i, m) in matches.indexed) {
       final cx = slot * i + slot / 2;
-      final h = maxRuns <= 0 ? 0.0 : chartH * (m.runs / maxRuns);
+      final h = maxValue <= 0 ? 0.0 : chartH * (metric.of(m) / maxValue) * grow;
       final bar = RRect.fromRectAndCorners(
         Rect.fromLTWH(cx - barW / 2, baseY - h, barW, h),
         topLeft: const Radius.circular(3),
         topRight: const Radius.circular(3),
       );
       canvas.drawRRect(bar, Paint()..color = m.result == MatchResult.won ? CeColors.fresh : CeColors.red);
-      final value = _text('${m.runs}', _valueStyle);
+      final value = _text('${metric.of(m)}', _valueStyle);
       value.paint(canvas, Offset(cx - value.width / 2, baseY - h - value.height - 1));
       final abbr = _text(m.opponentAbbr, _axisStyle);
       if (abbr.width <= slot) abbr.paint(canvas, Offset(cx - abbr.width / 2, baseY + 3));
@@ -255,7 +283,8 @@ class _RunsBarsPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _RunsBarsPainter old) => old.matches != matches;
+  bool shouldRepaint(covariant _BarsPainter old) =>
+      old.matches != matches || old.metric != metric || old.grow != grow;
 }
 
 class _FormChip extends StatelessWidget {

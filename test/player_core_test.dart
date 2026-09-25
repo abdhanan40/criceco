@@ -243,7 +243,7 @@ void main() {
 
       await _tap(tester, find.text('View All'));
       expect(_loc(c), PerformanceView.history.location);
-      expect(find.byType(RunsPerMatchChart), findsOneWidget);
+      expect(find.byType(PerMatchChart), findsOneWidget);
       final log = c.read(performanceProvider).value!.matchLog;
       final losses = log.where((m) => m.result == MatchResult.lost).length;
       await tester.tap(find.text('Lost').last);
@@ -278,7 +278,7 @@ void main() {
       final c = await _pumpPlayer(tester);
       await _go(tester, c, Routes.matchHistory);
       expect(_loc(c), PerformanceView.history.location);
-      expect(find.byType(RunsPerMatchChart), findsOneWidget);
+      expect(find.byType(PerMatchChart), findsOneWidget);
       expect(find.byType(MatchLogCard), findsWidgets);
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
@@ -376,7 +376,9 @@ void main() {
       await _go(tester, c, Routes.availability);
       await tester.tap(find.byTooltip('About availability'));
       await tester.pump();
+      await tester.pumpAndSettle();
       expect(find.text('Set your status so your coach can plan squads around you'), findsOneWidget);
+      await _tap(tester, _button('Got it'));
       await tester.pumpAndSettle();
       await _tap(tester, _button('Change Status'));
       expect(tester.getTopLeft(find.text('Choose your Status')).dy, lessThan(300));

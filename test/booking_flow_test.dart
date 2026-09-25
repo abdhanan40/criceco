@@ -360,6 +360,8 @@ void main() {
 
       final before = c.read(walletRepositoryProvider).clubWalletBalance;
       await _tap(tester, find.text('Move to CricEco Wallet'));
+      expect(c.read(walletRepositoryProvider).clubWalletBalance, before, reason: 'nothing moves before confirming');
+      await _tap(tester, find.widgetWithText(CeButton, 'Move Rs 6,200'));
       expect(find.text('Rs 6,200 added to your CricEco Wallet'), findsOneWidget);
       expect(c.read(walletRepositoryProvider).clubWalletBalance, before + 6200);
       expect(_loc(c), Routes.matchManagement(MatchTab.waiting));

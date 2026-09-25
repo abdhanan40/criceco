@@ -133,12 +133,20 @@ class TournamentBrowseCard extends ConsumerWidget {
           ('Reg. Deadline', CeFormat.date(t.registrationDeadline)),
         ]),
         const SizedBox(height: 12),
-        if (reg != null)
+        if (reg != null) ...[
+          // Your registration's status, right on the card.
+          Row(children: [
+            const Text('Your registration', style: TextStyle(fontSize: 12, color: CeColors.muted)),
+            const SizedBox(width: 8),
+            // Flexible: a long status ellipsizes instead of overflowing.
+            Expanded(child: Align(alignment: Alignment.centerRight, child: RegistrationStatusChip(reg.status))),
+          ]),
+          const SizedBox(height: 10),
           CeButton.soft(
             label: 'View Registration',
             onPressed: () => context.go(Routes.registrationDetails(reg.id)),
-          )
-        else
+          ),
+        ] else
           CeButton(
             label: open ? 'Register Team' : 'View Tournament',
             onPressed: () => context.go(Routes.tournamentRegister(t.id)),

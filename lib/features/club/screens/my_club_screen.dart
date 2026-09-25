@@ -6,6 +6,7 @@ import '../../../app/router/routes.dart';
 import '../../../app/session/session_controller.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
+import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
@@ -65,18 +66,40 @@ class MyClubScreen extends ConsumerWidget {
         ),
         const SizedBox(height: 14),
         CeStatsRow(children: [
-          CeStatCard(icon: 'users', label: 'Members', value: membersAsync.hasValue ? '${members.length}' : '–'),
-          CeStatCard(icon: 'trophy', label: 'Teams', value: teams == null ? '–' : '$teams'),
-          CeStatCard(icon: 'calendar', label: 'Upcoming', value: '$upcoming'),
+          CeStatCard(
+            icon: 'users',
+            label: 'Members',
+            value: membersAsync.hasValue ? '${members.length}' : '–',
+            onTap: () => context.go(Routes.members),
+          ),
+          CeStatCard(
+            icon: 'trophy',
+            label: 'Teams',
+            value: teams == null ? '–' : '$teams',
+            onTap: () => context.go(Routes.teams),
+          ),
+          CeStatCard(
+            icon: 'calendar',
+            label: 'Upcoming',
+            value: '$upcoming',
+            onTap: () => context.go(Routes.matchManagement(MatchTab.scheduled)),
+          ),
         ]),
-        const CeSectionHeader('Members'),
+        // The preview shows the first 8; "View All" opens the full list.
+        CeSectionHeader(
+          'Members',
+          actionLabel: members.length > _previewCount ? 'View All (${members.length})' : 'View All',
+          onAction: () => context.go(Routes.members),
+        ),
         if (membersAsync.isLoading)
           const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()))
+        else if (membersAsync.hasError)
+          CeErrorState(title: 'Couldn\'t load members', onRetry: () => ref.invalidate(clubMembersProvider))
         else if (members.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: CeSpace.gutter, vertical: 16),
-            child: Text('No members listed yet.',
-                textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: CeColors.muted)),
+          const CeEmptyState(
+            icon: 'users',
+            title: 'No members listed yet',
+            body: 'Share your club code so players can request to join.',
           )
         else
           for (final m in members.take(_previewCount)) MemberRow(member: m, compact: true),

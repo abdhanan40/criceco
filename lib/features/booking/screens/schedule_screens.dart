@@ -285,6 +285,11 @@ class _BookingSummaryScreenState extends ConsumerState<BookingSummaryScreen> {
       setState(() => _busy = false);
       showCeToast(context, 'That slot was just taken by another club — pick another time');
       context.go(Routes.selectDate(widget.matchId, widget.groundId));
+    } catch (_) {
+      // Any other failure: never leave Reserve spinning; nothing was held.
+      if (!mounted) return;
+      setState(() => _busy = false);
+      showCeToast(context, "Couldn't reserve the ground — please try again");
     }
   }
 

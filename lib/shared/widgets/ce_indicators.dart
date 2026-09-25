@@ -103,7 +103,7 @@ class CeChipRow<T> extends StatelessWidget {
   final T? selected;
   final String Function(T) labelOf;
   final ValueChanged<T> onSelected;
-  final int Function(T)? countOf;
+  final int? Function(T)? countOf;
   final bool wrap;
   final EdgeInsetsGeometry padding;
 
@@ -179,23 +179,43 @@ class CeFormDots extends StatelessWidget {
 
 /// Stat tile (`.stat-card`, `.pd-stat-card`, `.mp-stat-card`).
 class CeStatCard extends StatelessWidget {
-  const CeStatCard({super.key, required this.value, required this.label, this.icon, this.sub});
+  const CeStatCard({super.key, required this.value, required this.label, this.icon, this.sub, this.onTap});
   final String value;
   final String label;
   final String? icon;
   final String? sub;
 
+  /// Opens the list behind the number (e.g. Requests → Join Requests).
+  final VoidCallback? onTap;
+
+  static final _decoration = BoxDecoration(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(CeRadius.row),
+    border: Border.all(color: CeColors.line),
+    boxShadow: CeShadows.card,
+  );
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(CeRadius.row),
-        border: Border.all(color: CeColors.line),
-        boxShadow: CeShadows.card,
+    final body = _body(context);
+    if (onTap == null) {
+      return Container(padding: const EdgeInsets.all(12), decoration: _decoration, child: body);
+    }
+    return Semantics(
+      button: true,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(CeRadius.row),
+          child: Ink(padding: const EdgeInsets.all(12), decoration: _decoration, child: body),
+        ),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+    );
+  }
+
+  Widget _body(BuildContext context) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         if (icon != null) ...[
           Container(
             width: 36,
@@ -223,8 +243,7 @@ class CeStatCard extends StatelessWidget {
           const SizedBox(height: 2),
           Text(sub!, style: Theme.of(context).textTheme.bodySmall!.copyWith(color: CeColors.muted2, fontSize: 11)),
         ],
-      ]),
-    );
+      ]);
   }
 }
 

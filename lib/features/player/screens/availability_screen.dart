@@ -127,7 +127,7 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
           IconButton(
             tooltip: 'About availability',
             icon: Icon(CeIcons.of('info'), size: 19),
-            onPressed: () => showCeToast(context, 'Set your status so your coach can plan squads around you'),
+            onPressed: () => showCeSheet<void>(context, builder: (ctx) => const _AboutAvailability()),
           ),
         ],
       ),
@@ -500,5 +500,34 @@ class _QuickButton extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// "About availability" sheet (was a toast): what the status does and who
+/// sees it.
+class _AboutAvailability extends StatelessWidget {
+  const _AboutAvailability();
+
+  @override
+  Widget build(BuildContext context) {
+    Widget point(String icon, String text) => Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(CeIcons.of(icon), size: 16, color: CeColors.primaryDark),
+            const SizedBox(width: 10),
+            Expanded(child: Text(text, style: const TextStyle(fontSize: 13, color: CeColors.ink2, height: 1.4))),
+          ]),
+        );
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Text('About availability', style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 4),
+      const Text('Set your status so your coach can plan squads around you',
+          style: TextStyle(fontSize: 12.5, color: CeColors.muted)),
+      point('users', 'Your club sees it when picking the Playing XI; injured or unavailable players can\'t be selected.'),
+      point('calendar', 'For any status other than Available, set how long it applies with Unavailable Until.'),
+      point('eye', 'Clubs outside yours only see you under Player Hunt when you list yourself and your profile is public.'),
+      const SizedBox(height: 18),
+      CeButton(label: 'Got it', onPressed: () => Navigator.of(context).pop()),
+    ]);
   }
 }

@@ -267,7 +267,15 @@ class _LineupBuilderViewState extends ConsumerState<LineupBuilderView> {
     final visible = filter == null ? pool : pool.where((p) => p.category == filter).toList();
     int countOf(SquadCategory? cat) => cat == null ? pool.length : pool.where((p) => p.category == cat).length;
 
-    return ListView(padding: const EdgeInsets.only(bottom: 24), children: [
+    // Role balance of the current picks (XI + subs), shown in the pinned bar.
+    final byId = {for (final p in pool) p.id: p};
+    final balance = [
+      for (final cat in SquadCategory.values)
+        (cat, draft.picks.keys.where((id) => byId[id]?.category == cat).length),
+    ].where((e) => e.$2 > 0).map((e) => '${e.$2} ${e.$1.label}').join(' · ');
+
+    return Column(children: [
+      Expanded(child: ListView(padding: const EdgeInsets.only(bottom: 24), children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 0),
         child: Row(children: [
@@ -296,18 +304,41 @@ class _LineupBuilderViewState extends ConsumerState<LineupBuilderView> {
         )
       else
         for (final p in visible) SquadPickRow(player: p, role: draft.picks[p.id], onTap: () => _tap(p)),
-      if (_error != null)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 0),
-          child: CeErrorBanner(_error!),
-        ),
-      Padding(
-        padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 18, CeSpace.gutter, 0),
-        child: CeButton(
-          label: 'Confirm Team',
-          trailingIcon: CeIcons.of('arrow-right'),
-          loading: _saving,
-          onPressed: _saving ? null : _confirm,
+      ])),
+      // Pinned: counts, role balance, any error and Confirm stay in reach.
+      Container(
+        decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: CeColors.line))),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 10),
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Semantics(
+                liveRegion: true,
+                child: Text.rich(
+                  TextSpan(children: [
+                    TextSpan(
+                      text: 'XI ${draft.playing}/${SquadRules.maxPlaying} · Subs ${draft.subs}/${SquadRules.maxSubs}',
+                      style: const TextStyle(fontWeight: FontWeight.w800, color: CeColors.ink),
+                    ),
+                    if (balance.isNotEmpty) TextSpan(text: '  ·  $balance'),
+                  ]),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 11.5, color: CeColors.muted),
+                ),
+              ),
+              if (_error != null) ...[const SizedBox(height: 8), CeErrorBanner(_error!)],
+              const SizedBox(height: 8),
+              CeButton(
+                label: 'Confirm Team',
+                trailingIcon: CeIcons.of('arrow-right'),
+                loading: _saving,
+                onPressed: _saving ? null : _confirm,
+              ),
+            ]),
+          ),
         ),
       ),
     ]);

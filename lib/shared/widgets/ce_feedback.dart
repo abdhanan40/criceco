@@ -75,6 +75,50 @@ class CeEmptyState extends StatelessWidget {
   }
 }
 
+/// Load failure with a way forward: the same shape as [CeEmptyState], red
+/// icon, one plain-language line and a Retry button. Never shows the raw
+/// error.
+class CeErrorState extends StatelessWidget {
+  const CeErrorState({
+    super.key,
+    this.title = 'Couldn\'t load this',
+    this.body = 'Check your connection and try again.',
+    required this.onRetry,
+  });
+
+  final String title;
+  final String body;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    return Semantics(
+      liveRegion: true,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(30, 40, 30, 30),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(color: CeColors.redSoft, borderRadius: BorderRadius.circular(CeRadius.xl)),
+            child: Icon(CeIcons.of('info'), size: 28, color: CeColors.red),
+          ),
+          const SizedBox(height: 18),
+          Text(title, textAlign: TextAlign.center, style: t.headlineSmall),
+          const SizedBox(height: 8),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 290),
+            child: Text(body, textAlign: TextAlign.center, style: t.bodyMedium!.copyWith(color: CeColors.muted)),
+          ),
+          const SizedBox(height: 24),
+          CeButton.soft(label: 'Retry', onPressed: onRetry),
+        ]),
+      ),
+    );
+  }
+}
+
 /// Success / status panel (`.wf-success`); red variant for Reservation Expired.
 class CeSuccessPanel extends StatelessWidget {
   const CeSuccessPanel({super.key, required this.title, this.body, this.icon = 'check', this.danger = false});
@@ -116,11 +160,15 @@ class CeSuccessPanel extends StatelessWidget {
 Future<T?> showCeSheet<T>(BuildContext context, {required WidgetBuilder builder}) {
   return showModalBottomSheet<T>(
     context: context,
+    // Above the role shell's bottom navigation, so its barrier covers the
+    // tabs too (no switching sections with a sheet open).
+    useRootNavigator: true,
     isScrollControlled: true,
     useSafeArea: true,
     constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.88),
+    // Keyboard-safe: the sheet rises above the keyboard for forms.
     builder: (ctx) => Padding(
-      padding: const EdgeInsets.fromLTRB(18, 10, 18, 20),
+      padding: EdgeInsets.fromLTRB(18, 10, 18, 20 + MediaQuery.viewInsetsOf(ctx).bottom),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Center(
           child: Container(
@@ -134,6 +182,48 @@ Future<T?> showCeSheet<T>(BuildContext context, {required WidgetBuilder builder}
       ]),
     ),
   );
+}
+
+/// Confirmation sheet for a destructive or money-moving action: title, one
+/// line of consequence, a primary CTA (red when [destructive]) and Cancel.
+/// Resolves to `true` only when confirmed.
+Future<bool> showCeConfirmSheet(
+  BuildContext context, {
+  required String title,
+  required String body,
+  required String confirmLabel,
+  bool destructive = false,
+  String? icon,
+}) async {
+  final ok = await showCeSheet<bool>(
+    context,
+    builder: (ctx) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Row(children: [
+        if (icon != null) ...[
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: destructive ? CeColors.redSoft : CeColors.mint,
+              borderRadius: BorderRadius.circular(CeRadius.sm),
+            ),
+            child: Icon(CeIcons.of(icon), size: 18, color: destructive ? CeColors.red : CeColors.primaryDark),
+          ),
+          const SizedBox(width: 12),
+        ],
+        Expanded(child: Text(title, style: Theme.of(ctx).textTheme.titleLarge)),
+      ]),
+      const SizedBox(height: 10),
+      Text(body, style: Theme.of(ctx).textTheme.bodyMedium!.copyWith(color: CeColors.muted, height: 1.45)),
+      const SizedBox(height: 20),
+      destructive
+          ? CeButton.danger(label: confirmLabel, onPressed: () => Navigator.of(ctx).pop(true))
+          : CeButton(label: confirmLabel, onPressed: () => Navigator.of(ctx).pop(true)),
+      const SizedBox(height: 10),
+      CeButton.soft(label: 'Cancel', onPressed: () => Navigator.of(ctx).pop(false)),
+    ]),
+  );
+  return ok ?? false;
 }
 
 class CeSheetAction {

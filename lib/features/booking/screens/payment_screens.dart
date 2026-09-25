@@ -9,6 +9,7 @@ import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/ce_buttons.dart';
+import '../../../shared/widgets/ce_expandable.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
@@ -170,6 +171,13 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       CeSummaryCard(
         rows: [('Total Ground Cost', CeSummaryCard.value(context, CeFormat.rupees(b.groundCost)))],
         total: ('Your Share (50%)', CeSummaryCard.value(context, CeFormat.rupees(b.shareAmount), color: CeColors.primaryDark)),
+      ),
+      // Everything that was agreed, one tap away (no Back through the flow).
+      CeExpandableCard(
+        title: 'Booking details',
+        icon: 'clipboard-list',
+        summary: c.opponent.name,
+        child: CeSummaryCard(margin: EdgeInsets.zero, rows: bookingDetailRows(context, c)),
       ),
       const CeSectionHeader('Payment Method'),
       for (final m in PaymentMethodType.values)
@@ -407,6 +415,19 @@ class WaitingForOpponentScreen extends ConsumerWidget {
                 ]),
               ),
               PaymentSplitRow(booking: b, opponentName: name),
+              CeExpandableCard(
+                title: 'Booking details',
+                icon: 'clipboard-list',
+                summary: CeFormat.rupees(b.groundCost),
+                child: CeSummaryCard(
+                  margin: EdgeInsets.zero,
+                  rows: [
+                    ...bookingDetailRows(context, c, withOpponent: false),
+                    ('Total Ground Cost', CeSummaryCard.value(context, CeFormat.rupees(b.groundCost))),
+                    ('Your Share (50%)', CeSummaryCard.value(context, CeFormat.rupees(b.shareAmount))),
+                  ],
+                ),
+              ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 0),
                 child: Column(children: [
@@ -678,8 +699,19 @@ class _ReservationExpiredScreenState extends ConsumerState<ReservationExpiredScr
   bool _busy = false;
 
   Future<void> _resolve(Booking b, ReservationResolution r) async {
-    setState(() => _busy = true);
     final amount = b.myPayment?.amount ?? b.shareAmount;
+    // Money moves once and can't be undone: confirm the destination first.
+    final ok = await showCeConfirmSheet(
+      context,
+      title: r == ReservationResolution.wallet ? 'Move to CricEco Wallet?' : 'Refund to original method?',
+      body: r == ReservationResolution.wallet
+          ? '${CeFormat.rupees(amount)} will be added to your CricEco Wallet and can be used for your next booking.'
+          : '${CeFormat.rupees(amount)} will be sent back to the payment method you used.',
+      confirmLabel: r == ReservationResolution.wallet ? 'Move ${CeFormat.rupees(amount)}' : 'Refund ${CeFormat.rupees(amount)}',
+      icon: r == ReservationResolution.wallet ? 'wallet' : 'corner-up-left',
+    );
+    if (!ok || !mounted) return;
+    setState(() => _busy = true);
     await ref.read(bookingsProvider.notifier).resolveExpired(widget.matchId, r);
     if (!mounted) return;
     showCeToast(

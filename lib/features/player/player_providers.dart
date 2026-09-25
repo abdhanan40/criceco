@@ -202,10 +202,23 @@ enum HistoryFilter {
       };
 }
 
+/// What the History chart plots per match (both from the match log).
+enum TrendMetric {
+  runs('Runs'),
+  wickets('Wickets');
+
+  const TrendMetric(this.label);
+  final String label;
+
+  int of(MatchLogEntry m) => this == runs ? m.runs : m.wickets;
+}
+
 final performanceTabProvider =
     NotifierProvider<SelectionController<PerformanceTab>, PerformanceTab>(() => SelectionController(PerformanceTab.batting));
 final historyFilterProvider =
     NotifierProvider<SelectionController<HistoryFilter>, HistoryFilter>(() => SelectionController(HistoryFilter.all));
+final trendMetricProvider =
+    NotifierProvider<SelectionController<TrendMetric>, TrendMetric>(() => SelectionController(TrendMetric.runs));
 
 /// Open Matches role filter (`null` = "All": nothing listed until a role is
 /// picked, as in the prototype) and search query.

@@ -12,6 +12,7 @@ import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
 import '../../../shared/widgets/ce_match_widgets.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
+import '../../../shared/widgets/ce_workspace_tabs.dart';
 import '../../booking/booking_controller.dart';
 import '../../booking/widgets/booking_widgets.dart';
 import '../../club/club_providers.dart';
@@ -64,7 +65,7 @@ class MatchManagementScreen extends ConsumerWidget {
     return Scaffold(
       appBar: CeTopBar(title: 'Upcoming Matches', onBack: () => context.go(Routes.clubHome)),
       body: ListView(padding: const EdgeInsets.only(bottom: 24), children: [
-        CeChipRow<MatchTab>(
+        CeWorkspaceTabs<MatchTab>(
           values: MatchTab.values,
           selected: tab,
           labelOf: (t) => count(t) == 0 ? t.label : '${t.label} (${count(t)})',
@@ -72,6 +73,8 @@ class MatchManagementScreen extends ConsumerWidget {
         ),
         if (async.isLoading)
           const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator()))
+        else if (async.hasError)
+          CeErrorState(title: 'Couldn\'t load your matches', onRetry: () => ref.invalidate(clubMatchesProvider))
         else if (list.isEmpty)
           CeEmptyState(
             icon: 'calendar',
@@ -137,22 +140,56 @@ class _CardTop extends StatelessWidget {
       ]);
 }
 
+/// The card's next action, drawn as a tinted action bar so it reads as the
+/// thing to do (the whole card is the tap target).
 class _Cta extends StatelessWidget {
-  const _Cta({required this.icon, required this.label, this.color = CeColors.primaryDark});
+  const _Cta({required this.icon, required this.label, this.color = CeColors.primaryDark, this.tint = CeColors.mint});
   final String icon;
   final String label;
   final Color color;
+  final Color tint;
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(top: 10),
+  Widget build(BuildContext context) => Container(
+        margin: const EdgeInsets.only(top: 12),
+        constraints: const BoxConstraints(minHeight: 42),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(color: tint, borderRadius: BorderRadius.circular(CeRadius.md)),
         child: Row(children: [
           Icon(CeIcons.of(icon), size: 15, color: color),
-          const SizedBox(width: 6),
+          const SizedBox(width: 8),
           Expanded(child: Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: color))),
           Icon(CeIcons.of('arrow-right'), size: 15, color: color),
         ]),
       );
+}
+
+/// Hold countdown line that turns amber under 10 minutes and red under 5
+/// (with "Hurry" in words, so urgency isn't colour-only).
+class _HoldLine extends ConsumerWidget {
+  const _HoldLine({required this.matchId});
+  final String matchId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final left = ref.watch(holdRemainingProvider(matchId)) ?? Duration.zero;
+    final (color, prefix) = left < const Duration(minutes: 5)
+        ? (CeColors.red, 'Hurry · ')
+        : left < const Duration(minutes: 10)
+            ? (CeColors.amberInk, '')
+            : (CeColors.muted, '');
+    return Row(children: [
+      Icon(CeIcons.of('timer'), size: 12, color: color),
+      const SizedBox(width: 4),
+      if (prefix.isNotEmpty)
+        Text(prefix, style: TextStyle(fontSize: 11.5, color: color, fontWeight: FontWeight.w800)),
+      HoldCountdownText(matchId: matchId, style: TextStyle(fontSize: 11.5, color: color, fontWeight: FontWeight.w700)),
+      Flexible(
+        child: Text(' left on this reservation',
+            overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, color: color)),
+      ),
+    ]);
+  }
 }
 
 /// Pending ("SETUP NEEDED") or reserved ("RESERVED" + split + countdown) card.
@@ -173,7 +210,7 @@ class _WaitingCard extends ConsumerWidget {
         onTap: open,
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           _CardTop(opponent: opponent, meta: meta, chip: const CeStatusChip('Setup needed', tone: CeTone.amber)),
-          const _Cta(icon: 'sliders', label: 'Set Up Match'),
+          const _Cta(icon: 'sliders', label: 'Set Up Match', color: CeColors.amberInk, tint: CeColors.amberSoft),
         ]),
       );
     }
@@ -206,19 +243,11 @@ class _WaitingCard extends ConsumerWidget {
           const Text('Reservation expired — the slot was released.',
               style: TextStyle(fontSize: 11.5, color: CeColors.red, fontWeight: FontWeight.w600))
         else
-          Row(children: [
-            Icon(CeIcons.of('timer'), size: 12, color: CeColors.muted),
-            const SizedBox(width: 4),
-            HoldCountdownText(matchId: m.id, style: const TextStyle(fontSize: 11.5, color: CeColors.muted, fontWeight: FontWeight.w700)),
-            const Flexible(
-              child: Text(' left on this reservation',
-                  overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, color: CeColors.muted)),
-            ),
-          ]),
+          _HoldLine(matchId: m.id),
         if (expired)
-          const _Cta(icon: 'corner-up-left', label: 'Choose Refund Option', color: CeColors.red)
+          const _Cta(icon: 'corner-up-left', label: 'Choose Refund Option', color: CeColors.red, tint: CeColors.redSoft)
         else if (myPaid)
-          const _Cta(icon: 'hourglass', label: 'View Payment Status')
+          const _Cta(icon: 'hourglass', label: 'View Payment Status', tint: CeColors.historySoft)
         else
           const _Cta(icon: 'credit-card', label: 'Pay Your Share'),
       ]),
@@ -249,10 +278,13 @@ class _ScheduledCard extends ConsumerWidget {
         CeInfoChip(icon: 'calendar', label: start == null ? 'Date TBD' : CeFormat.dayDate(start)),
         CeInfoChip(icon: 'clock', label: start == null ? 'Time TBD' : CeFormat.time(start)),
         CeInfoChip(icon: 'circle-dot', label: m.format?.display(m.customOvers) ?? 'Format TBD'),
+        // Line-up status at a glance (in words, not colour).
+        CeInfoChip(icon: 'users', label: m.lineup == null ? 'Line-up needed' : 'Line-up set'),
       ],
       ground: ground == null ? 'Ground TBD' : '${ground.name}, ${ground.city}',
       groundDirections: ground != null,
       playingTeam: m.lineup?.name,
+      onTap: () => context.go(Routes.matchLineup(m.id)),
       footer: Semantics(
         button: true,
         label: m.lineup == null ? 'Select Your Playing XI' : 'View or edit line-up',

@@ -23,7 +23,7 @@ class MatchScorecardView extends ConsumerWidget {
     final scAsync = scId == null ? null : ref.watch(scorecardProvider(scId));
     if (scAsync?.isLoading ?? false) return const Center(child: CircularProgressIndicator());
     final sc = scAsync?.value;
-    if (sc == null) {
+    if (sc == null || sc.innings.isEmpty) {
       return const CeEmptyState(
         icon: 'file-text',
         title: 'Scorecard not available',
@@ -68,9 +68,11 @@ class MatchScorecardView extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 0),
           child: IntrinsicHeight(
             child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Expanded(child: _StatBox(label: 'Top Scorer', value: '${top.name}\n${top.runs} runs')),
+              Expanded(child: _StatBox(label: 'Top Scorer', value: top == null ? '—' : '${top.name}\n${top.runs} runs')),
               const SizedBox(width: 10),
-              Expanded(child: _StatBox(label: 'Top Wicket-Taker', value: '${wk.name}\n${wk.wickets} wkts')),
+              Expanded(
+                child: _StatBox(label: 'Top Wicket-Taker', value: wk == null ? '—' : '${wk.name}\n${wk.wickets} wkts'),
+              ),
             ]),
           ),
         ),

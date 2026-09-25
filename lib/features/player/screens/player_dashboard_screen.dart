@@ -9,6 +9,7 @@ import '../../../app/session/session_controller.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
 import '../../../shared/widgets/ce_match_widgets.dart';
@@ -17,6 +18,7 @@ import '../../../shared/widgets/ce_surfaces.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
 import '../../notifications/notifications_controller.dart';
 import '../player_providers.dart';
+import 'performance_workspace.dart';
 
 /// Player Dashboard (prototype `screens.playerDashboard`, :3961).
 class PlayerDashboardScreen extends ConsumerWidget {
@@ -92,7 +94,12 @@ class PlayerDashboardScreen extends ConsumerWidget {
                           label: available ? 'Available. Tap to mark unavailable' : 'Unavailable. Tap to mark available',
                           excludeSemantics: true,
                           child: GestureDetector(
-                            onTap: () => ref.read(playerAvailabilityProvider.notifier).toggleQuick(),
+                            onTap: () {
+                              ref.read(playerAvailabilityProvider.notifier).toggleQuick();
+                              // Feedback for a one-tap status change.
+                              showCeToast(context,
+                                  available ? "You're marked unavailable" : "You're marked available");
+                            },
                             child: _HeroPill(
                               dotColor: available ? CeColors.fresh : CeColors.red,
                               label: available ? 'Available' : 'Unavailable',
@@ -113,14 +120,28 @@ class PlayerDashboardScreen extends ConsumerWidget {
           Transform.translate(
             offset: const Offset(0, -6),
             child: CeStatsRow(children: [
-              CeStatCard(icon: 'calendar', label: 'Upcoming Matches', value: '${upcoming.length}', sub: nextLabel()),
+              CeStatCard(
+                icon: 'calendar',
+                label: 'Upcoming Matches',
+                value: '${upcoming.length}',
+                sub: nextLabel(),
+                onTap: () => context.go(Routes.myMatches),
+              ),
               CeStatCard(
                 icon: 'star',
                 label: 'Performance Rating',
                 value: perf?.rating ?? '–',
                 sub: perf == null ? null : ratingLabel(perf.rating),
+                onTap: () => context.go(Routes.myPerformance),
               ),
-              CeStatCard(icon: 'trophy', label: 'Matches Played', value: '${perf?.matches ?? 0}', sub: 'This Season'),
+              CeStatCard(
+                icon: 'trophy',
+                label: 'Matches Played',
+                // "–" while loading, never a misleading 0.
+                value: perf == null ? '–' : '${perf.matches}',
+                sub: 'This Season',
+                onTap: () => context.go(PerformanceView.history.location),
+              ),
             ]),
           ),
 
@@ -153,12 +174,14 @@ class PlayerDashboardScreen extends ConsumerWidget {
           else
             _NextMatchCard(match: next),
 
-          // ---- Performance snapshot ----
-          CeSectionHeader('Your Performance Snapshot',
-              actionLabel: 'See All',
-              onAction: () => context.go(Routes.myPerformance),
-              padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 18, CeSpace.gutter, 8)),
-          if (perf != null) _SnapshotRow(tiles: perf.snapshot),
+          // ---- Performance snapshot (only once there is data: no empty header) ----
+          if (perf != null) ...[
+            CeSectionHeader('Your Performance Snapshot',
+                actionLabel: 'See All',
+                onAction: () => context.go(Routes.myPerformance),
+                padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 18, CeSpace.gutter, 8)),
+            _SnapshotRow(tiles: perf.snapshot),
+          ],
         ]),
       ),
     );

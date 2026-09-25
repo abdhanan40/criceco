@@ -40,6 +40,18 @@ class _JoinRequestsScreenState extends ConsumerState<JoinRequestsScreen> {
 
   Future<void> _decide(JoinRequest r, {required bool approve}) async {
     if (_busy.contains(r.id)) return;
+    // Declining can't be undone: confirm first. Accepting stays one tap.
+    if (!approve) {
+      final ok = await showCeConfirmSheet(
+        context,
+        title: 'Decline ${r.name}?',
+        body: '${r.name} will be told the request was declined. They can apply again with your club code.',
+        confirmLabel: 'Decline Request',
+        destructive: true,
+        icon: 'x-circle',
+      );
+      if (!ok || !mounted) return;
+    }
     setState(() => _busy.add(r.id));
     final ctrl = ref.read(joinRequestsProvider.notifier);
     // Row "Accept" approves as Player, exactly as in the prototype.

@@ -23,6 +23,9 @@ class MembersScreen extends ConsumerStatefulWidget {
 class _MembersScreenState extends ConsumerState<MembersScreen> {
   late final _search = TextEditingController(text: ref.read(membersQueryProvider));
 
+  /// Role filter (null = all). Offered only when the club has several roles.
+  MemberRole? _role;
+
   @override
   void dispose() {
     _search.dispose();
@@ -32,9 +35,14 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(clubMembersProvider);
+    final all = async.value ?? const <ClubMember>[];
     final total = async.value?.length;
-    final visible = ref.watch(visibleMembersProvider);
+    final searched = ref.watch(visibleMembersProvider);
     final query = ref.watch(membersQueryProvider).trim();
+    final roles = [for (final r in MemberRole.values) if (all.any((m) => m.role == r)) r];
+    final role = roles.contains(_role) ? _role : null;
+    final visible = role == null ? searched : searched.where((m) => m.role == role).toList();
+    final narrowed = query.isNotEmpty || role != null;
 
     return Scaffold(
       appBar: CeTopBar(
@@ -70,18 +78,38 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                 onChanged: ref.read(membersQueryProvider.notifier).select,
               ),
             ),
+            if (roles.length > 1)
+              CeChipRow<MemberRole?>(
+                values: [null, ...roles],
+                selected: role,
+                labelOf: (r) => r == null ? 'All' : r.label,
+                countOf: (r) => r == null ? all.length : all.where((m) => m.role == r).length,
+                onSelected: (r) => setState(() => _role = r),
+                padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 8, CeSpace.gutter, 0),
+              ),
             if (async.isLoading)
               const Padding(padding: EdgeInsets.all(30), child: Center(child: CircularProgressIndicator()))
+            else if (async.hasError)
+              CeErrorState(title: 'Couldn\'t load members', onRetry: () => ref.invalidate(clubMembersProvider))
             else if (visible.isEmpty)
               CeEmptyState(
                 icon: 'users',
-                title: query.isEmpty ? 'No members yet' : 'No members found',
-                body: query.isEmpty
-                    ? 'Share your club code so players can request to join.'
-                    : 'No results for "$query".',
+                title: narrowed ? 'No members found' : 'No members yet',
+                body: query.isNotEmpty
+                    ? 'No results for "$query".'
+                    : narrowed
+                        ? 'No ${role!.label.toLowerCase()}s in your club yet.'
+                        : 'Share your club code so players can request to join.',
               )
-            else
+            else ...[
+              if (narrowed)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 8, CeSpace.gutter, 0),
+                  child: Text('${visible.length} of ${all.length} members',
+                      style: const TextStyle(fontSize: 11.5, color: CeColors.muted)),
+                ),
               for (final m in visible) MemberRow(member: m),
+            ],
           ],
         ),
       ),
