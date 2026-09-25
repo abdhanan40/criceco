@@ -67,10 +67,11 @@ class RoleController extends Notifier<RoleState> {
     ref.read(sharedPreferencesProvider).setString(_kActive, role.name);
   }
 
-  /// Continue As card tap. Club without profile → Set Up Your Club (prototype
-  /// behaviour); the active role is not changed until setup completes.
+  /// Role Selection card for an already set-up role (the former Continue As).
+  /// Club Owner without a profile → Club Setup Details; the active role is not
+  /// changed until setup completes.
   RoleNavigation continueAs(UserRole role) {
-    if (role == UserRole.clubOwner && !_hasClubProfile) return const NeedsClubSetup(Routes.chooseOption);
+    if (role == UserRole.clubOwner && !_hasClubProfile) return const NeedsClubSetup(Routes.clubSetup);
     _setActive(role);
     return GoToLocation(Routes.home(role));
   }
@@ -79,19 +80,27 @@ class RoleController extends Notifier<RoleState> {
   /// replaced, so system Back cannot undo a switch).
   RoleNavigation switchTo(UserRole role) {
     if (role == UserRole.clubOwner && !_hasClubProfile) return const NeedsClubSetup(Routes.roleSetup);
-    if (role == state.active) return GoToLocation(Routes.home(role));
+    if (role == effectiveRole(state.active, ref.read(sessionProvider))) {
+      _setActive(role); // make an inferred role explicit
+      return GoToLocation(Routes.home(role));
+    }
     _setActive(role);
     return GoToLocation(state.lastRoute[role] ?? Routes.home(role));
   }
 
-  /// Called after Create Club succeeds.
+  /// Called after Club Setup Details creates the club.
   void becomeClubOwner() => _setActive(UserRole.clubOwner);
+
+  /// Called when Player setup completes on Role Selection.
+  void becomePlayer() => _setActive(UserRole.player);
 
   /// Called when joining a club completes — membership never grants Club Owner.
   void enterPlayerContext() => _setActive(UserRole.player);
 
   /// Remember a role's last top-level destination (router observer).
   void recordLocation(String location) {
+    // Explicit roles only: writing here during the router's first build is
+    // not allowed, and an inferred role becomes explicit on the first switch.
     final role = state.active;
     if (role == null || !RoleDestinations.topLevel(role).contains(location)) return;
     if (state.lastRoute[role] == location) return;
@@ -111,11 +120,36 @@ class RoleController extends Notifier<RoleState> {
 
 final roleControllerProvider = NotifierProvider<RoleController, RoleState>(RoleController.new);
 
-/// The effective active role. A remembered Club Owner role is ignored if the
-/// account no longer has a Club Owner profile (e.g. mock data after restart).
-final activeRoleProvider = Provider<UserRole?>((ref) {
-  final role = ref.watch(roleControllerProvider).active;
-  final hasClubProfile = ref.watch(sessionProvider.select((s) => s.hasClubOwnerProfile));
-  if (role == UserRole.clubOwner && !hasClubProfile) return null;
-  return role;
-});
+/// The effective active role.
+///
+/// * An explicitly chosen role wins (Role Selection, drawer switch, club
+///   creation, completing Player setup) — except a remembered Club Owner role
+///   when the account no longer has a Club Owner profile (mock data restart).
+/// * Otherwise a returning user with exactly ONE completed role enters it
+///   directly (no onboarding repeat): a complete Player profile → Player; a
+///   Club Owner profile → Club Owner. With both (or neither) the user picks
+///   on Role Selection.
+///
+/// Derived — never written as a side effect — so the router's redirect and
+/// this value can't race each other after login.
+final activeRoleProvider = Provider<UserRole?>(
+  (ref) => effectiveRole(ref.watch(roleControllerProvider).active, ref.watch(sessionProvider)),
+);
+
+/// [explicit] if still valid, else the returning user's inferred role.
+UserRole? effectiveRole(UserRole? explicit, SessionState session) {
+  if (explicit == UserRole.clubOwner && session.hasClubOwnerProfile) return explicit;
+  if (explicit == UserRole.player) return explicit;
+  return inferEntryRole(session);
+}
+
+/// The single completed role of a signed-in, profile-complete account
+/// (`null` when none or both are set up).
+UserRole? inferEntryRole(SessionState session) {
+  if (session.status != SessionStatus.signedIn) return null;
+  final player = session.account?.playerProfile.isComplete ?? false;
+  final club = session.hasClubOwnerProfile;
+  if (player && !club) return UserRole.player;
+  if (club && !player) return UserRole.clubOwner;
+  return null;
+}

@@ -16,8 +16,8 @@ import '../../shared/widgets/ce_inputs.dart';
 import '../../shared/widgets/ce_top_bar.dart';
 import 'widgets/auth_widgets.dart';
 
-/// Create Account (prototype `screens.createAccount`, :2953): Full Name,
-/// Phone-or-Email, Password, Confirm Password → Complete Profile.
+/// Create Account (prototype `screens.createAccount`, :2953) — the Sign Up
+/// credentials: Phone-or-Email, Password, Confirm Password → User Profile Setup.
 class CreateAccountScreen extends ConsumerStatefulWidget {
   const CreateAccountScreen({super.key});
 
@@ -27,7 +27,6 @@ class CreateAccountScreen extends ConsumerStatefulWidget {
 
 class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _name = TextEditingController();
   final _phone = TextEditingController();
   final _email = TextEditingController();
   final _password = TextEditingController();
@@ -37,7 +36,7 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
 
   @override
   void dispose() {
-    for (final c in [_name, _phone, _email, _password, _confirm]) {
+    for (final c in [_phone, _email, _password, _confirm]) {
       c.dispose();
     }
     super.dispose();
@@ -51,14 +50,14 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
         ? (CeValidators.normalizePkPhone(_phone.text) ?? _phone.text.trim())
         : _email.text.trim();
     await ref.read(sessionProvider.notifier).signUp(
-          fullName: _name.text.trim(),
+          fullName: '',
           method: _method,
           identifier: identifier,
           password: _password.text,
         );
     if (!mounted) return;
     setState(() => _submitting = false);
-    // Onboarding session → Complete Profile (pushed, so Back returns here).
+    // Onboarding session → User Profile Setup (pushed, so Back returns here).
     unawaited(context.push(Routes.completeProfile));
   }
 
@@ -76,19 +75,10 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               const CenterBlock.brand(
                 title: 'Join Criceco',
-                subtitle: 'Create your player profile to get started',
+                subtitle: 'Create your profile to get started',
               ),
-              const CeFieldLabel('Full Name'),
-              CeTextField(
-                fieldKey: const Key('signup.name'),
-                controller: _name,
-                hint: 'Muhammad Ali',
-                icon: 'user',
-                textCapitalization: TextCapitalization.words,
-                textInputAction: TextInputAction.next,
-                autofillHints: const [AutofillHints.name],
-                validator: CeValidators.personName,
-              ),
+              // Credentials only: name, phone, date of birth and picture are
+              // the common profile, collected once on User Profile Setup.
               const CeFieldLabel('Sign up with'),
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),

@@ -20,7 +20,7 @@ import '../../shared/widgets/ce_top_bar.dart';
 /// Back target when Settings has nothing to pop to: the active role's home.
 String _roleHome(WidgetRef ref) {
   final role = ref.read(activeRoleProvider);
-  return role == null ? Routes.continueAs : Routes.home(role);
+  return role == null ? Routes.roleSelection : Routes.home(role);
 }
 
 /// Settings (prototype `screens.settings`, :8126) — shared and role-aware.
@@ -119,7 +119,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             title: 'Active profile',
             subtitle: role?.label ?? 'Not chosen',
             showDivider: false,
-            onTap: role == null ? () => context.go(Routes.continueAs) : () => _chooseProfile(role),
+            onTap: role == null ? () => context.go(Routes.roleSelection) : () => _chooseProfile(role),
           ),
         ]),
         const CeSectionHeader('Preferences'),

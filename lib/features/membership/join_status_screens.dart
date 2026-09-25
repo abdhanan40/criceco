@@ -16,7 +16,7 @@ import 'join_club_controller.dart';
 
 String _exitLocation(WidgetRef ref) {
   final role = ref.read(activeRoleProvider);
-  return role == null ? Routes.continueAs : Routes.home(role);
+  return role == null ? Routes.roleSelection : Routes.home(role);
 }
 
 /// Waiting for Approval (prototype `screens.waitingApproval`, :3190).
@@ -28,7 +28,7 @@ class WaitingApprovalScreen extends ConsumerWidget {
     final request = ref.watch(joinClubProvider);
     if (request == null) {
       return Scaffold(
-        appBar: CeTopBar(title: 'Join Request', onBack: () => context.go(Routes.chooseOption)),
+        appBar: CeTopBar(title: 'Join Request', onBack: () => context.go(Routes.clubSetup)),
         body: CeEmptyState(
           icon: 'search',
           title: 'No join request',
@@ -84,7 +84,7 @@ class WaitingApprovalScreen extends ConsumerWidget {
                 onPressed: () {
                   ref.read(joinClubProvider.notifier).cancel();
                   showCeToast(context, 'Join request cancelled');
-                  context.go(Routes.chooseOption);
+                  context.go(Routes.clubSetup);
                 },
               ),
               const SizedBox(height: 10),
@@ -221,13 +221,13 @@ class JoinApprovedScreen extends ConsumerWidget {
     final role = request?.approvedRole;
     if (request == null || role == null) {
       return Scaffold(
-        appBar: CeTopBar(title: 'Join Request', onBack: () => context.go(Routes.chooseOption)),
+        appBar: CeTopBar(title: 'Join Request', onBack: () => context.go(Routes.clubSetup)),
         body: CeEmptyState(
           icon: 'search',
           title: 'Request not found',
           body: 'This join request is no longer available.',
           primaryLabel: 'Go back',
-          onPrimary: () => context.go(Routes.chooseOption),
+          onPrimary: () => context.go(Routes.clubSetup),
         ),
       );
     }

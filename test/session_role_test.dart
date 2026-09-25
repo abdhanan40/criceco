@@ -8,11 +8,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'helpers.dart';
 
 void main() {
-  test('login → Continue As Player sets and persists the active role', () async {
+  test('login of a set-up Player infers the role; choosing it explicitly persists it', () async {
     final c = await makeContainer();
     await c.read(sessionProvider.notifier).signIn(identifier: 'x', password: 'y');
     expect(c.read(sessionProvider).status, SessionStatus.signedIn);
-    expect(c.read(activeRoleProvider), isNull);
+    // The seed account is a completed Player with no club: entered directly.
+    expect(c.read(activeRoleProvider), UserRole.player);
+    expect(c.read(roleControllerProvider).active, isNull, reason: 'inferred, not stored');
 
     final nav = c.read(roleControllerProvider.notifier).continueAs(UserRole.player);
     expect(nav, isA<GoToLocation>().having((n) => n.location, 'location', Routes.playerHome));

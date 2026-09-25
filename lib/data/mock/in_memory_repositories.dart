@@ -44,12 +44,15 @@ class InMemoryAccountRepository implements AccountRepository {
     required String password,
   }) async {
     final base = _accounts[SeedData.ownAccountId]!;
-    final account = base.copyWith(
-      fullName: fullName.trim().isEmpty ? base.fullName : fullName.trim(),
+    // A brand-new account (the mock reuses the demo id so every screen has
+    // data): no profile, no role set up yet — onboarding starts from scratch.
+    final account = UserAccount(
+      id: base.id,
+      fullName: fullName.trim(),
       contactMethod: method,
-      phone: method == ContactMethod.phone ? identifier : base.phone,
+      phone: method == ContactMethod.phone ? identifier : null,
       email: method == ContactMethod.email ? identifier : null,
-      onboardingComplete: false,
+      city: base.city,
     );
     _passwords[account.id] = password;
     return _accounts[account.id] = account;

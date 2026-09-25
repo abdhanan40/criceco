@@ -3,14 +3,28 @@ import '../../core/enums/enums.dart';
 /// Route locations. Names match the prototype screen keys; paths follow the
 /// approved revised architecture §1. Entity ids always travel in the path.
 abstract final class Routes {
-  // Public / auth
+  // Auth page (Login | Sign Up) and onboarding:
+  // Auth → User Profile Setup → Role Selection → Player (expands in place)
+  //                                             → Club Owner → Club Setup Details
   static const login = '/login';
   static const signup = '/signup';
   static const createAccount = '/signup/account';
+
+  /// User Profile Setup (name, phone, date of birth, picture).
   static const completeProfile = '/onboarding/profile';
+  static const profileSetup = completeProfile;
+
+  /// Role Selection: Player (details expand on the same screen) or Club Owner.
+  static const roleSelection = '/onboarding/role';
+
+  /// Role Selection opened with the Player details expanded.
+  static const roleSelectionPlayer = '$roleSelection?expand=player';
+
+  /// Legacy (auth architecture update) → Role Selection, Player expanded.
   static const roleDetails = '/onboarding/playing-style';
 
   // Shared
+  /// Legacy (auth architecture update) → Role Selection.
   static const continueAs = '/continue-as';
   static const roleSetup = '/role-setup';
   static const notifications = '/notifications';
@@ -19,9 +33,18 @@ abstract final class Routes {
   static const privacySettings = '/settings/privacy';
   static const securitySettings = '/settings/security';
 
-  // Club setup + membership onboarding
-  static const chooseOption = '/setup/club';
+  // Club Owner setup + club membership (join by code)
+  /// Club Setup Details (one screen: name, logo, owner, address, city, type,
+  /// home ground) → Club Owner Dashboard.
+  static const clubSetup = '/setup/club';
+
+  /// Former "Set Up Your Club" chooser; the same path now opens Club Setup Details.
+  static const chooseOption = clubSetup;
+
+  /// Legacy (auth architecture update) → Club Setup Details.
   static const createClub = '/setup/club/create';
+
+  /// Legacy (auth architecture update) → Club Setup Details.
   static const clubDetails = '/setup/club/create/details';
   static const enterClubCode = '/join';
   static const waitingApproval = '/join/waiting';
@@ -102,7 +125,8 @@ abstract final class Routes {
   static String home(UserRole role) => role == UserRole.player ? playerHome : clubHome;
 
   static const publicRoutes = {login, signup, createAccount};
-  static const onboardingRoutes = {completeProfile, roleDetails};
+  /// Reachable while the common profile is incomplete.
+  static const onboardingRoutes = {completeProfile};
 
   static bool isPlayerLocation(String path) => path == playerHome || path.startsWith('$playerHome/');
   static bool isClubLocation(String path) => path == clubHome || path.startsWith('$clubHome/');

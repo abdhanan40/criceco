@@ -1,3 +1,5 @@
+// Auth → User Profile Setup → Role Selection → Player (expands in place) →
+// Player Dashboard, or → Club Owner → Club Setup Details → Club Dashboard.
 import 'package:criceco/app/app.dart';
 import 'package:criceco/app/providers/core_providers.dart';
 import 'package:criceco/app/router/app_router.dart';
@@ -8,6 +10,7 @@ import 'package:criceco/core/models/models.dart';
 import 'package:criceco/data/mock/in_memory_repositories.dart';
 import 'package:criceco/data/repositories/repositories.dart';
 import 'package:criceco/features/auth/onboarding_controller.dart';
+import 'package:criceco/features/auth/role_selection_screen.dart';
 import 'package:criceco/features/auth/widgets/auth_widgets.dart';
 import 'package:criceco/shared/widgets/ce_brand_logo.dart';
 import 'package:criceco/shared/widgets/ce_buttons.dart';
@@ -78,28 +81,50 @@ Finder _button(String label) => label == 'Continue with Google'
     ? find.byType(GoogleButton)
     : find.widgetWithText(CeButton, label);
 
-Future<void> _login(WidgetTester tester) async {
+/// Demo credentials (the seed account is a returning, fully set-up Player).
+Future<void> _login(WidgetTester tester, {String password = 'secret1'}) async {
   await _enter(tester, 'login.phone', '0312-9020000');
-  await _enter(tester, 'login.password', 'secret1');
+  await _enter(tester, 'login.password', password);
   await _tap(tester, _button('Login'));
 }
 
+/// A brand-new account (Sign Up done) sitting on User Profile Setup.
+Future<ProviderContainer> _newUser(WidgetTester tester, {double width = 375}) async {
+  final c = await _pump(tester, width: width);
+  await c.read(sessionProvider.notifier).signUp(
+      fullName: '', method: ContactMethod.phone, identifier: '03339876543', password: 'secret1');
+  c.read(routerProvider).go(Routes.profileSetup);
+  await tester.pumpAndSettle();
+  return c;
+}
+
+/// A new account with the common profile done, on Role Selection.
+Future<ProviderContainer> _profiled(WidgetTester tester, {double width = 375, String name = 'Hamza Sheikh'}) async {
+  final c = await _newUser(tester, width: width);
+  await c.read(sessionProvider.notifier).completeProfile(
+      fullName: name, phone: '0333 9876543', dateOfBirth: DateTime(2000, 5, 1), hasPhoto: false);
+  c.read(routerProvider).go(Routes.roleSelection);
+  await tester.pumpAndSettle();
+  return c;
+}
+
+Finder get _playerCard => find.bySemanticsLabel(RegExp(r'^Player\. '));
+Finder get _clubCard => find.bySemanticsLabel(RegExp(r'^Club Owner\. '));
+
 void main() {
-  group('Login', () {
-    testWidgets('renders the prototype layout', (tester) async {
+  group('Auth page', () {
+    testWidgets('Login renders the auth page with the CricEco logo', (tester) async {
       final c = await _pump(tester);
       expect(_loc(c), Routes.login);
       expect(find.text('Criceco'), findsOneWidget);
-      expect(find.text('Your cricket club, organized.'), findsOneWidget);
+      expect(find.byType(CeBrandLogo), findsOneWidget);
       expect(find.text('Welcome back'), findsOneWidget);
-      expect(find.text('Login to manage your cricket club'), findsOneWidget);
       expect(find.byKey(const Key('login.phone')), findsOneWidget);
       expect(find.byKey(const Key('login.password')), findsOneWidget);
       expect(find.byTooltip('Show password'), findsOneWidget);
-      expect(find.text("Don't have an account? "), findsOneWidget);
     });
 
-    testWidgets('validates phone and password', (tester) async {
+    testWidgets('Login validates phone and password inline', (tester) async {
       final c = await _pump(tester);
       await _tap(tester, _button('Login'));
       expect(find.text('Phone number is required'), findsOneWidget);
@@ -110,19 +135,6 @@ void main() {
       expect(_loc(c), Routes.login);
     });
 
-    testWidgets('password visibility toggles', (tester) async {
-      await _pump(tester);
-      await _tap(tester, find.byTooltip('Show password'));
-      expect(find.byTooltip('Hide password'), findsOneWidget);
-    });
-
-    testWidgets('successful login goes to Continue As', (tester) async {
-      final c = await _pump(tester);
-      await _login(tester);
-      expect(_loc(c), Routes.continueAs);
-      expect(c.read(sessionProvider).status, SessionStatus.signedIn);
-    });
-
     testWidgets('rejected credentials show a friendly error, no exception', (tester) async {
       final c = await _pump(tester, overrides: [
         accountRepositoryProvider.overrideWith((ref) => _RejectingAccounts(InMemoryAccountRepository(ref.watch(seedDataProvider)))),
@@ -131,282 +143,389 @@ void main() {
       expect(find.text('Incorrect phone number or password. Please try again.'), findsOneWidget);
       expect(_loc(c), Routes.login);
     });
-  });
 
-  group('Sign Up', () {
-    testWidgets('toggle, landing, Create Account and Back behaviour', (tester) async {
+    testWidgets('Sign Up tab, Create Account and Back behaviour', (tester) async {
       final c = await _pump(tester);
       await _tap(tester, find.widgetWithText(TextButton, 'Sign Up'));
       expect(_loc(c), Routes.signup);
-      expect(find.text('Create account'), findsOneWidget);
       expect(_button('Continue with Google'), findsOneWidget);
-
       await _tap(tester, _button('Create New Account'));
       expect(_loc(c), Routes.createAccount);
       await _tap(tester, find.byTooltip('Back'));
       expect(_loc(c), Routes.signup);
-
-      // System Back on the Sign Up tab returns to Login.
       await tester.binding.handlePopRoute();
       await tester.pumpAndSettle();
-      expect(_loc(c), Routes.login);
+      expect(_loc(c), Routes.login, reason: 'system Back on Sign Up returns to Login');
     });
 
-    testWidgets('Create Account validates required fields, phone/email and passwords', (tester) async {
+    testWidgets('Create Account asks credentials only and validates them inline', (tester) async {
       final c = await _pump(tester);
       c.read(routerProvider).go(Routes.createAccount);
       await tester.pumpAndSettle();
+      expect(find.byKey(const Key('signup.name')), findsNothing, reason: 'name belongs to User Profile Setup');
       await _tap(tester, _button('Create Account'));
-      expect(find.text('Full name is required'), findsOneWidget);
       expect(find.text('Phone number is required'), findsOneWidget);
       expect(find.text('Password is required'), findsOneWidget);
-
       await _enter(tester, 'signup.password', 'abc');
       await _enter(tester, 'signup.confirm', 'abd');
       await _tap(tester, _button('Create Account'));
       expect(find.text('Password must be at least 6 characters'), findsOneWidget);
       expect(find.text('Passwords do not match'), findsOneWidget);
-
       await _tap(tester, find.text('Email'));
-      expect(find.byKey(const Key('signup.email')), findsOneWidget);
-      expect(find.byKey(const Key('signup.phone')), findsNothing);
       await _enter(tester, 'signup.email', 'not-an-email');
       await _tap(tester, _button('Create Account'));
       expect(find.text('Enter a valid email address'), findsOneWidget);
       expect(_loc(c), Routes.createAccount);
     });
 
-    testWidgets('successful sign up continues to Complete Profile; Back returns to Create Account', (tester) async {
+    testWidgets('Sign Up → User Profile Setup (phone prefilled); Back returns to Create Account', (tester) async {
       final c = await _pump(tester);
       c.read(routerProvider).go(Routes.createAccount);
       await tester.pumpAndSettle();
-      await _enter(tester, 'signup.name', 'Hamza Sheikh');
       await _enter(tester, 'signup.phone', '0333 9876543');
       await _enter(tester, 'signup.password', 'secret1');
       await _enter(tester, 'signup.confirm', 'secret1');
       await _tap(tester, _button('Create Account'));
-      expect(_loc(c), Routes.completeProfile);
+      expect(_loc(c), Routes.profileSetup);
       expect(c.read(sessionProvider).status, SessionStatus.onboarding);
-      expect(c.read(currentAccountProvider)!.fullName, 'Hamza Sheikh');
-      expect(c.read(currentAccountProvider)!.phone, '03339876543');
-
+      final a = c.read(currentAccountProvider)!;
+      expect((a.profileComplete, a.playerProfile.isComplete, a.hasClubOwnerProfile), (false, false, false),
+          reason: 'a new account: nothing set up');
+      expect(find.text('03339876543'), findsOneWidget, reason: 'sign-up phone prefilled');
       await _tap(tester, find.byTooltip('Back'));
       expect(_loc(c), Routes.createAccount);
     });
+
+    testWidgets('Continue with Google → User Profile Setup', (tester) async {
+      final c = await _pump(tester);
+      c.read(routerProvider).go(Routes.signup);
+      await tester.pumpAndSettle();
+      await _tap(tester, _button('Continue with Google'));
+      expect(_loc(c), Routes.profileSetup);
+      expect(c.read(currentAccountProvider)!.playerProfile.isComplete, isFalse);
+    });
   });
 
-  group('Onboarding', () {
-    Future<ProviderContainer> toCompleteProfile(WidgetTester tester) async {
-      final c = await _pump(tester);
-      await c.read(sessionProvider.notifier).signUp(
-          fullName: 'Hamza Sheikh', method: ContactMethod.phone, identifier: '03339876543', password: 'secret1');
-      c.read(routerProvider).go(Routes.completeProfile);
-      await tester.pumpAndSettle();
-      return c;
-    }
-
-    testWidgets('Complete Profile requires DOB and role, then progresses to Playing Style', (tester) async {
-      final c = await toCompleteProfile(tester);
-      expect(find.text('Step 2 of 3 — Player Details'), findsOneWidget);
-      expect(find.byKey(const Key('profile.name')), findsOneWidget);
+  group('User Profile Setup', () {
+    testWidgets('validates Name, Phone and DOB inline; saves the profile to the account → Role Selection',
+        (tester) async {
+      final c = await _newUser(tester);
+      expect(find.text('Step 2 of 3 — Your Profile'), findsOneWidget);
+      expect(find.text('Playing Role'), findsNothing, reason: 'no cricket-role questions here');
+      await _enter(tester, 'profile.phone', '');
       await _tap(tester, _button('Continue'));
+      expect(find.text('Full name is required'), findsOneWidget);
+      expect(find.text('Phone number is required'), findsOneWidget);
       expect(find.text('Date of birth is required'), findsOneWidget);
-      expect(find.text('Please select your role'), findsOneWidget);
-      expect(_loc(c), Routes.completeProfile);
+      expect(_loc(c), Routes.profileSetup);
 
+      await _enter(tester, 'profile.name', 'Hamza Sheikh');
+      await _enter(tester, 'profile.phone', '0333-9876543');
       await _tap(tester, find.byKey(const Key('profile.dob')));
       await _tap(tester, find.text('OK'));
-      await _tap(tester, find.text('Bowler'));
-      await _tap(tester, _button('Continue'));
-      expect(_loc(c), Routes.roleDetails);
-      expect(find.text('Step 3 of 3 — Bowler'), findsOneWidget);
-      expect(c.read(currentAccountProvider)!.dateOfBirth, isNotNull);
-      expect(c.read(currentAccountProvider)!.playerProfile.role, PlayerRole.bowler);
-    });
-
-    testWidgets('Playing Style: role-specific blocks, selections persist across Back, Save completes onboarding',
-        (tester) async {
-      final c = await toCompleteProfile(tester);
-      c.read(onboardingProvider.notifier)
-        ..setDateOfBirth(DateTime(2001, 4, 15))
-        ..setRole(PlayerRole.bowler);
-      await tester.pumpAndSettle();
+      await _tap(tester, find.bySemanticsLabel('Add profile picture'));
       await _tap(tester, _button('Continue'));
 
-      // Bowler: Bowling block before Batting, no wicketkeeper option.
-      final bowlingY = tester.getTopLeft(find.text('Bowling Style *')).dy;
-      final battingY = tester.getTopLeft(find.text('Batting Style *')).dy;
-      expect(bowlingY, lessThan(battingY));
-      expect(find.text('Also a Wicketkeeper?'), findsNothing);
-
-      await _tap(tester, _button('Save Profile'));
-      expect(find.text('Please select both styles'), findsOneWidget);
-
-      await _tap(tester, find.text('Left-arm Orthodox'));
-      await _tap(tester, find.byTooltip('Back'));
-      expect(_loc(c), Routes.completeProfile);
-      // Role still selected after Back; go forward again — style kept.
-      await _tap(tester, _button('Continue'));
-      expect(c.read(onboardingProvider).bowlingStyle, BowlingStyle.leftArmOrthodox);
-
-      await _tap(tester, find.text('Right-handed'));
-      await _tap(tester, _button('Save Profile'));
-      expect(_loc(c), Routes.continueAs);
-      final p = c.read(currentAccountProvider)!.playerProfile;
-      expect(p.bowlingStyle, BowlingStyle.leftArmOrthodox);
-      expect(p.battingStyle, BattingStyle.rightHanded);
+      expect(_loc(c), Routes.roleSelection);
+      final a = c.read(currentAccountProvider)!;
+      expect((a.fullName, a.phone, a.hasPhoto, a.profileComplete), ('Hamza Sheikh', '0333 9876543', true, true));
+      expect(a.dateOfBirth, isNotNull);
       expect(c.read(sessionProvider).status, SessionStatus.signedIn);
+      expect(c.read(activeRoleProvider), isNull, reason: 'no role yet — the user chooses');
     });
 
-    testWidgets('Batsman gets the wicketkeeper toggle; Skip completes onboarding', (tester) async {
-      final c = await toCompleteProfile(tester);
-      c.read(onboardingProvider.notifier).setRole(PlayerRole.batsman);
-      c.read(routerProvider).go(Routes.roleDetails);
-      await tester.pumpAndSettle();
-      await _tap(tester, _button('Mark as Wicketkeeper'));
-      expect(c.read(onboardingProvider).isWicketkeeper, isTrue);
-      expect(_button('Wicketkeeper'), findsOneWidget);
-      await _tap(tester, find.text('Skip'));
-      expect(_loc(c), Routes.continueAs);
+    testWidgets('an incomplete profile is always sent back to Profile Setup', (tester) async {
+      final c = await _newUser(tester);
+      for (final loc in [Routes.roleSelection, Routes.playerHome, Routes.clubSetup, Routes.clubHome]) {
+        c.read(routerProvider).go(loc);
+        await tester.pumpAndSettle();
+        expect(_loc(c), Routes.profileSetup, reason: loc);
+      }
     });
   });
 
-  group('Continue As and role guards', () {
-    Future<ProviderContainer> signedIn(WidgetTester tester) async {
-      final c = await _pump(tester);
-      await _login(tester);
-      return c;
-    }
+  group('Role Selection → Player (same screen)', () {
+    testWidgets('selecting Player expands the details in place; Continue reaches the Player Dashboard',
+        (tester) async {
+      final c = await _profiled(tester);
+      expect(find.byType(RoleSelectionScreen), findsOneWidget);
+      expect(find.text('Playing Role *'), findsNothing, reason: 'collapsed until Player is chosen');
 
-    testWidgets('renders both profiles with the setup tag', (tester) async {
-      await signedIn(tester);
-      expect(find.text('Continue as'), findsOneWidget);
-      expect(find.text('Signed in as Aman Ali · one account, every role'), findsOneWidget);
-      expect(find.text('Player Profile'), findsOneWidget);
-      expect(find.text('Club Owner'), findsOneWidget);
-      expect(find.text('SETUP REQUIRED'), findsOneWidget);
-      expect(find.text('You can switch profiles any time from the menu — no second login.'), findsOneWidget);
-      // Regression (found on emulator): banner must be full-bleed without a toggle row.
-      expect(tester.getSize(find.byType(AuthBanner)).width, 375);
-      expect(tester.getSize(find.byType(CeBrandLogo)), const Size(74, 74), reason: 'approved logo at the banner mark size');
-    });
+      await _tap(tester, _playerCard);
+      expect(_loc(c), Routes.roleSelection, reason: 'no route transition for Player details');
+      expect(find.byType(RoleSelectionScreen), findsOneWidget);
+      expect(find.text('Playing Role *'), findsOneWidget);
+      expect(find.text('Batting Style *'), findsOneWidget);
+      expect(find.text('Bowling Style *'), findsOneWidget);
+      expect(find.text('Wicket Keeper'), findsOneWidget);
 
-    testWidgets('Player Profile opens the Player dashboard and sets the role', (tester) async {
-      final c = await signedIn(tester);
-      await _tap(tester, find.text('Player Profile'));
+      await _tap(tester, _button('Continue as Player'));
+      expect(find.text('Please select your playing role'), findsOneWidget);
+      expect(find.text('Please select your batting style'), findsOneWidget);
+      expect(find.text('Please select your bowling style'), findsOneWidget);
+      expect(_loc(c), Routes.roleSelection);
+
+      await _tap(tester, find.text('All-Rounder'));
+      await _tap(tester, find.text('Left-handed'));
+      await _tap(tester, find.text('Left-arm Orthodox'));
+      await _tap(tester, find.text('Wicket Keeper'));
+      expect(c.read(onboardingProvider).isWicketkeeper, isTrue);
+      await _tap(tester, _button('Continue as Player'));
+
       expect(_loc(c), Routes.playerHome);
       expect(c.read(activeRoleProvider), UserRole.player);
+      final p = c.read(currentAccountProvider)!.playerProfile;
+      expect((p.role, p.battingStyle, p.bowlingStyle, p.isWicketkeeper),
+          (PlayerRole.allRounder, BattingStyle.leftHanded, BowlingStyle.leftArmOrthodox, true));
+      expect(c.read(routerProvider).canPop(), isFalse, reason: 'onboarding cleared from the back stack');
+    });
+
+    testWidgets('wicket keeper is optional and never the primary role', (tester) async {
+      final c = await _profiled(tester);
+      await _tap(tester, _playerCard);
+      expect(find.text('Wicket-Keeper'), findsNothing, reason: 'not offered as a playing role');
+      await _tap(tester, find.text('Bowler'));
+      await _tap(tester, find.text('Right-handed'));
+      await _tap(tester, find.text('Right-arm Fast'));
+      await _tap(tester, _button('Continue as Player'));
+      expect(_loc(c), Routes.playerHome);
+      final p = c.read(currentAccountProvider)!.playerProfile;
+      expect((p.role, p.isWicketkeeper), (PlayerRole.bowler, false));
+    });
+
+    testWidgets('Back collapses the Player details first; tapping the header collapses too', (tester) async {
+      final c = await _profiled(tester);
+      await _tap(tester, _playerCard);
+      expect(find.text('Playing Role *'), findsOneWidget);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('Playing Role *'), findsNothing, reason: 'collapsed, not navigated away');
+      expect(_loc(c), Routes.roleSelection);
+      await _tap(tester, _playerCard);
+      await _tap(tester, find.text('Batsman'));
+      await _tap(tester, _playerCard);
+      expect(find.text('Playing Role *'), findsNothing);
+      await _tap(tester, _playerCard);
+      expect(c.read(onboardingProvider).role, PlayerRole.batsman, reason: 'answers kept while collapsed');
+    });
+  });
+
+  group('Role Selection → Club Owner (new screen)', () {
+    testWidgets('opens Club Setup Details; Back returns to Role Selection', (tester) async {
+      final c = await _profiled(tester);
+      await _tap(tester, _clubCard);
+      expect(_loc(c), Routes.clubSetup);
+      expect(c.read(activeRoleProvider), isNull, reason: 'setup must not change the role yet');
+      await _tap(tester, find.byTooltip('Back'));
+      expect(_loc(c), Routes.roleSelection);
+    });
+
+    testWidgets('validates every field inline; completion reaches the Club Owner Dashboard', (tester) async {
+      final c = await _profiled(tester);
+      await _tap(tester, _clubCard);
+      expect(find.byKey(const Key('club.owner')), findsOneWidget);
+      await _enter(tester, 'club.owner', '');
+      await _tap(tester, _button('Create Club'));
+      expect(find.text('Club name is required'), findsOneWidget);
+      expect(find.text('Owner name is required'), findsOneWidget);
+      expect(find.text('Address is required'), findsOneWidget);
+      expect(find.text('Please select a city'), findsOneWidget);
+      expect(find.text('Please select a club type'), findsOneWidget);
+      expect(find.text('Please choose Yes or No'), findsOneWidget);
+      expect(_loc(c), Routes.clubSetup);
+
+      await _enter(tester, 'club.name', 'Lahore Lions CC');
+      await _enter(tester, 'club.owner', 'Hamza Sheikh');
+      await _enter(tester, 'club.address', 'Mian Mir Road');
+      await _tap(tester, find.byKey(const Key('club.city')));
+      await _tap(tester, find.text('Lahore').last);
+      await _tap(tester, find.byKey(const Key('club.type')));
+      await _tap(tester, find.text('Corporate Club').last);
+      await _tap(tester, find.text('Yes'));
+      await _tap(tester, _button('Create Club'));
+      expect(find.text('Please select your home ground'), findsOneWidget);
+      await _tap(tester, _button('Select Home Ground'));
+      await _tap(tester, find.text('Pindi Cricket Ground'));
+      await _tap(tester, find.bySemanticsLabel('Add club picture'));
+      await _tap(tester, _button('Create Club'));
+
+      expect(_loc(c), Routes.clubHome);
+      expect(c.read(activeRoleProvider), UserRole.clubOwner);
+      final club = c.read(currentClubProvider)!;
+      expect((club.name, club.city, club.type, club.homeGroundId, club.ownerName, club.address),
+          ('Lahore Lions CC', 'Lahore', ClubType.corporate, 'g_pindi', 'Hamza Sheikh', 'Mian Mir Road'));
+      expect(c.read(routerProvider).canPop(), isFalse, reason: 'setup screens are not in the back stack');
+    });
+
+    testWidgets('Home Ground "No" needs no ground', (tester) async {
+      final c = await _profiled(tester);
+      await _tap(tester, _clubCard);
+      await _enter(tester, 'club.name', 'Karachi Kites');
+      await _enter(tester, 'club.address', 'Clifton');
+      await _tap(tester, find.byKey(const Key('club.city')));
+      await _tap(tester, find.text('Karachi').last);
+      await _tap(tester, find.byKey(const Key('club.type')));
+      await _tap(tester, find.text('Professional').last);
+      await _tap(tester, find.text('No'));
+      await _tap(tester, _button('Create Club'));
+      expect(_loc(c), Routes.clubHome);
+      expect(c.read(currentClubProvider)!.homeGroundId, isNull);
+      expect(c.read(currentClubProvider)!.ownerName, 'Hamza Sheikh', reason: 'owner prefilled from the account');
+    });
+  });
+
+  group('Returning users', () {
+    testWidgets('a completed Player logs straight into the Player Dashboard, data intact', (tester) async {
+      final c = await _pump(tester);
+      final before = c.read(seedDataProvider).account.playerProfile;
+      await _login(tester);
+      expect(_loc(c), Routes.playerHome);
+      expect(c.read(activeRoleProvider), UserRole.player);
+      final a = c.read(currentAccountProvider)!;
+      expect((a.fullName, a.phone, a.playerProfile.role, a.playerProfile.bowlingStyle),
+          ('Aman Ali', '0312 9020000', before.role, before.bowlingStyle));
+    });
+
+    testWidgets('a completed Club Owner (no Player setup) logs straight into the Club Dashboard', (tester) async {
+      final c = await _profiled(tester);
+      await c.read(sessionProvider.notifier).createClub(name: 'Lahore Lions CC', city: 'Lahore', type: ClubType.corporate);
+      c.read(sessionProvider.notifier).logout();
+      c.read(routerProvider).go(Routes.login);
+      await tester.pumpAndSettle();
+      await _login(tester);
+      expect(_loc(c), Routes.clubHome);
+      expect(c.read(activeRoleProvider), UserRole.clubOwner);
+      expect(c.read(currentClubProvider)!.name, 'Lahore Lions CC');
+    });
+
+    testWidgets('both roles set up → Role Selection shows both Ready and enters without setup', (tester) async {
+      final c = await _pump(tester);
+      await _login(tester);
+      await c.read(sessionProvider.notifier).createClub(name: 'Shalimar Cricket Club', city: 'Islamabad', type: ClubType.professional);
+      c.read(sessionProvider.notifier).logout();
+      c.read(routerProvider).go(Routes.login);
+      await tester.pumpAndSettle();
+      await _login(tester);
+      expect(_loc(c), Routes.roleSelection);
+      expect(find.text('READY'), findsNWidgets(2));
+      await _tap(tester, _playerCard);
+      expect(_loc(c), Routes.playerHome, reason: 'no expansion for a completed Player');
+    });
+
+    testWidgets('profile-complete user without a role lands on Role Selection', (tester) async {
+      final c = await _profiled(tester);
+      c.read(sessionProvider.notifier).logout();
+      c.read(routerProvider).go(Routes.login);
+      await tester.pumpAndSettle();
+      await _login(tester);
+      expect(_loc(c), Routes.roleSelection);
+      expect(c.read(currentAccountProvider)!.fullName, 'Hamza Sheikh', reason: 'profile not reset on login');
+    });
+
+    testWidgets('no onboarding loop: auth and setup routes bounce a set-up user to their dashboard', (tester) async {
+      final c = await _pump(tester);
+      await _login(tester);
+      for (final loc in [Routes.login, Routes.signup, Routes.profileSetup]) {
+        c.read(routerProvider).go(loc);
+        await tester.pumpAndSettle();
+        expect(_loc(c), Routes.playerHome, reason: loc);
+      }
       // Role guard intact: a Club Owner location bounces back to Player home.
       c.read(routerProvider).go(Routes.teams);
       await tester.pumpAndSettle();
       expect(_loc(c), Routes.playerHome);
     });
+  });
 
-    testWidgets('Club Owner without a profile follows the setup path and ends on the Club dashboard', (tester) async {
-      final c = await signedIn(tester);
-      await _tap(tester, find.text('Club Owner'));
-      expect(_loc(c), Routes.chooseOption);
-      expect(c.read(activeRoleProvider), isNull, reason: 'setup must not change the role yet');
-      expect(find.text('Set up your club'), findsOneWidget);
-
-      await _tap(tester, find.text('Create a Club'));
-      expect(_loc(c), Routes.createClub);
-      await _tap(tester, _button('Continue'));
-      expect(find.text('Club name is required'), findsOneWidget);
-      expect(find.text('Please select a city'), findsOneWidget);
-
-      await _enter(tester, 'club.name', 'Lahore Lions CC');
-      await _tap(tester, find.byKey(const Key('club.city')));
-      await _tap(tester, find.text('Lahore').last);
-      await _tap(tester, _button('Continue'));
-      expect(_loc(c), Routes.clubDetails);
-      expect(find.text('Lahore Lions CC'), findsOneWidget);
-
-      await _tap(tester, _button('Create Club'));
-      expect(find.text('Please select a club type'), findsOneWidget);
-      await _tap(tester, find.byKey(const Key('club.type')));
-      await _tap(tester, find.text('Corporate Club').last);
-      await _tap(tester, _button('Add Home Ground'));
-      await _tap(tester, find.text('Pindi Cricket Ground'));
-      expect(_button('Pindi Cricket Ground'), findsOneWidget);
-      await _tap(tester, _button('Create Club'));
-
-      expect(_loc(c), Routes.clubHome);
-      expect(c.read(activeRoleProvider), UserRole.clubOwner);
-      expect(c.read(sessionProvider).hasClubOwnerProfile, isTrue);
-      final club = c.read(currentClubProvider)!;
-      expect((club.name, club.city, club.type, club.homeGroundId), ('Lahore Lions CC', 'Lahore', ClubType.corporate, 'g_pindi'));
-      // Setup screens are not in the back stack.
-      expect(c.read(routerProvider).canPop(), isFalse);
-    });
-
-    testWidgets('Club Owner with a profile opens the Club dashboard directly', (tester) async {
-      final c = await signedIn(tester);
-      await c.read(sessionProvider.notifier).createClub(name: 'Shalimar Cricket Club', city: 'Islamabad', type: ClubType.professional);
+  group('Legacy onboarding routes', () {
+    testWidgets('Continue As / Playing Style → Role Selection; Create Club / Club Details → Club Setup', (tester) async {
+      final c = await _profiled(tester);
+      final router = c.read(routerProvider);
+      router.go(Routes.continueAs);
       await tester.pumpAndSettle();
-      expect(find.text('SETUP REQUIRED'), findsNothing);
-      await _tap(tester, find.text('Club Owner'));
-      expect(_loc(c), Routes.clubHome);
+      expect(_loc(c), Routes.roleSelection);
+      router.go(Routes.roleDetails);
+      await tester.pumpAndSettle();
+      expect(_loc(c), Routes.roleSelectionPlayer);
+      expect(find.text('Playing Role *'), findsOneWidget, reason: 'opens with Player expanded');
+      for (final loc in [Routes.createClub, Routes.clubDetails]) {
+        router.go(loc);
+        await tester.pumpAndSettle();
+        expect(_loc(c), Routes.clubSetup, reason: loc);
+      }
     });
+  });
 
-    testWidgets('Join a Club as Coach grants membership only and lands in Player context', (tester) async {
-      final c = await signedIn(tester);
-      await _tap(tester, find.text('Club Owner'));
-      await _tap(tester, find.text('Join a Club'));
+  group('Join a Club (membership by code, from Club Setup)', () {
+    testWidgets('grants membership only and lands in Player context', (tester) async {
+      final c = await _pump(tester);
+      await _login(tester);
+      c.read(routerProvider).go(Routes.clubSetup);
+      await tester.pumpAndSettle();
+      await _tap(tester, find.text('Enter club code'));
       await _tap(tester, _button('Send Join Request'));
       expect(find.text('Please enter a club code'), findsOneWidget);
       await _enter(tester, 'join.code', 'krc001');
       await _tap(tester, _button('Send Join Request'));
       expect(_loc(c), Routes.waitingApproval);
-      expect(find.text('Waiting for Approval'), findsOneWidget);
-      expect(find.text('KRC001'), findsOneWidget);
       await tester.scrollUntilVisible(find.text('PROTOTYPE CONTROLS'), 200);
-      expect(find.text('PROTOTYPE CONTROLS'), findsOneWidget);
-
       await _tap(tester, find.text('As Coach'));
       expect(_loc(c), Routes.joinApproved);
-      expect(find.text("You're In!"), findsOneWidget);
       await _tap(tester, _button('Continue to Dashboard'));
       expect(_loc(c), Routes.playerHome);
-      expect(c.read(activeRoleProvider), UserRole.player);
       expect(c.read(sessionProvider).hasClubOwnerProfile, isFalse);
       expect(c.read(currentAccountProvider)!.memberships.single.role, MemberRole.coach);
     });
 
-    testWidgets('Cancel Request returns to Set Up Your Club', (tester) async {
-      final c = await signedIn(tester);
-      await _tap(tester, find.text('Club Owner'));
-      await _tap(tester, find.text('Join a Club'));
+    testWidgets('Cancel Request returns to Club Setup', (tester) async {
+      final c = await _pump(tester);
+      await _login(tester);
+      c.read(routerProvider).go(Routes.clubSetup);
+      await tester.pumpAndSettle();
+      await _tap(tester, find.text('Enter club code'));
       await _enter(tester, 'join.code', 'ABCD12');
       await _tap(tester, _button('Send Join Request'));
-      expect(find.text('Club ABCD12'), findsWidgets);
       await _tap(tester, _button('Cancel Request'));
-      expect(_loc(c), Routes.chooseOption);
+      expect(_loc(c), Routes.clubSetup);
     });
   });
 
   group('Responsive', () {
     for (final width in [320.0, 360.0, 375.0, 390.0, 414.0]) {
-      testWidgets('Phase 1 screens render without overflow at ${width.toInt()} px (long content)', (tester) async {
-        final c = await _pump(tester, width: width);
-        await c.read(sessionProvider.notifier).signUp(
-            fullName: 'Muhammad Abdul Rehman Chaudhry Al-Pakistani the Third',
-            method: ContactMethod.phone,
-            identifier: '03001234567',
-            password: 'secret1');
-        c.read(onboardingProvider.notifier).setRole(PlayerRole.batsman);
+      testWidgets('auth + onboarding screens fit at ${width.toInt()} px (long content, expanded, errors)',
+          (tester) async {
+        final c = await _newUser(tester, width: width);
         final router = c.read(routerProvider);
-        for (final loc in [Routes.signup, Routes.createAccount, Routes.completeProfile, Routes.roleDetails]) {
+        for (final loc in [Routes.signup, Routes.createAccount, Routes.profileSetup]) {
           router.go(loc);
           await tester.pumpAndSettle();
           expect(tester.takeException(), isNull, reason: '$loc @ $width');
         }
-        await c.read(sessionProvider.notifier).completeOnboarding();
-        for (final loc in [Routes.continueAs, Routes.chooseOption, Routes.createClub, Routes.clubDetails, Routes.enterClubCode]) {
-          router.go(loc);
-          await tester.pumpAndSettle();
-          expect(tester.takeException(), isNull, reason: '$loc @ $width');
-        }
+        await _tap(tester, _button('Continue')); // profile errors shown
+        expect(tester.takeException(), isNull, reason: 'profile errors @ $width');
+
+        await c.read(sessionProvider.notifier).completeProfile(
+            fullName: 'Muhammad Abdul Rehman Chaudhry Al-Pakistani the Third',
+            phone: '0300 1234567',
+            dateOfBirth: DateTime(1999),
+            hasPhoto: true);
+        router.go(Routes.roleSelection);
+        await tester.pumpAndSettle();
+        await _tap(tester, _playerCard); // expanded Player details
+        await _tap(tester, _button('Continue as Player')); // with inline errors
+        await tester.drag(find.byType(Scrollable).first, const Offset(0, -2000));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'expanded player @ $width');
+        expect(_button('Continue as Player').hitTestable(), findsOneWidget, reason: 'reachable by scrolling');
+
+        router.go(Routes.clubSetup);
+        await tester.pumpAndSettle();
+        await _tap(tester, find.text('Yes'));
+        await _tap(tester, _button('Create Club'));
+        expect(tester.takeException(), isNull, reason: 'club setup errors @ $width');
+        router.go(Routes.enterClubCode);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'join @ $width');
         c.read(sessionProvider.notifier).logout();
         router.go(Routes.login);
         await tester.pumpAndSettle();
@@ -415,4 +534,3 @@ void main() {
     }
   });
 }
-

@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/models.dart';
 import '../providers/core_providers.dart';
 
+/// `onboarding` = authenticated, common user profile not yet complete.
+/// `signedIn` = profile complete (role setup is tracked per role on the
+/// account: a complete player profile / a Club Owner profile).
 enum SessionStatus { signedOut, onboarding, signedIn }
 
 class SessionState {
@@ -48,12 +51,15 @@ class SessionController extends Notifier<SessionState> {
     await _setAccount(account);
   }
 
-  /// "Continue with Google" — prototype jumps straight to Complete Profile.
+  /// "Continue with Google" — a new account that goes straight to User
+  /// Profile Setup (no password step), then Role Selection.
   Future<void> signInWithGoogle() async {
     final repo = ref.read(accountRepositoryProvider);
     final base = await repo.signIn(identifier: 'google', password: '');
     if (base == null) return;
-    await _setAccount(await repo.update(base.copyWith(onboardingComplete: false)));
+    await _setAccount(await repo.update(
+      base.copyWith(profileComplete: false, playerProfile: const PlayerProfile()),
+    ));
   }
 
   static const _kAccount = 'criceco.session.accountId';
@@ -61,7 +67,8 @@ class SessionController extends Notifier<SessionState> {
   Future<void> _setAccount(UserAccount account) async {
     final club = account.hasClubOwnerProfile ? await ref.read(clubRepositoryProvider).ownClub(account.id) : null;
     state = SessionState(
-      status: account.onboardingComplete ? SessionStatus.signedIn : SessionStatus.onboarding,
+      // Saved setup state decides where the user lands — never reset on login.
+      status: account.profileComplete ? SessionStatus.signedIn : SessionStatus.onboarding,
       account: account,
       ownClub: club,
     );
@@ -99,11 +106,27 @@ class SessionController extends Notifier<SessionState> {
     return true;
   }
 
-  /// Save Profile or Skip on onboarding.
-  Future<void> completeOnboarding() async {
-    await updateAccount((a) => a.copyWith(onboardingComplete: true));
+  /// User Profile Setup → Continue: saves the common profile (it belongs to
+  /// the account, not a role) and moves on to Role Selection.
+  Future<void> completeProfile({
+    required String fullName,
+    required String phone,
+    required DateTime dateOfBirth,
+    required bool hasPhoto,
+  }) async {
+    await updateAccount((a) => a.copyWith(
+          fullName: fullName,
+          phone: phone,
+          dateOfBirth: dateOfBirth,
+          hasPhoto: hasPhoto,
+          profileComplete: true,
+        ));
     state = state.copyWith(status: SessionStatus.signedIn);
   }
+
+  /// Role Selection → Player → Continue: saves the Player role profile.
+  Future<void> savePlayerProfile(PlayerProfile profile) =>
+      updateAccount((a) => a.copyWith(playerProfile: profile));
 
   /// Create Club → Club Details submit. The only path that grants the
   /// account-level Club Owner profile.

@@ -14,7 +14,8 @@ class UserAccount {
     this.hasClubOwnerProfile = false,
     this.ownedClubId,
     this.memberships = const [],
-    this.onboardingComplete = false,
+    this.profileComplete = false,
+    this.hasPhoto = false,
     this.settings = const AccountSettings(),
   });
 
@@ -34,7 +35,15 @@ class UserAccount {
 
   /// Membership of other clubs (Player / Coach / Manager).
   final List<ClubMembership> memberships;
-  final bool onboardingComplete;
+
+  /// Common user profile (name, phone, date of birth, picture) completed —
+  /// the first onboarding step. Role setup is tracked per role: a complete
+  /// [playerProfile] and [hasClubOwnerProfile].
+  final bool profileComplete;
+
+  /// Profile picture chosen (prototype-level: no upload backend). Belongs to
+  /// the account, not to a role.
+  final bool hasPhoto;
 
   /// Privacy and sign-in preferences (Settings → Privacy / Password & security).
   final AccountSettings settings;
@@ -52,7 +61,8 @@ class UserAccount {
     bool? hasClubOwnerProfile,
     String? ownedClubId,
     List<ClubMembership>? memberships,
-    bool? onboardingComplete,
+    bool? profileComplete,
+    bool? hasPhoto,
     AccountSettings? settings,
   }) =>
       UserAccount(
@@ -67,7 +77,8 @@ class UserAccount {
         hasClubOwnerProfile: hasClubOwnerProfile ?? this.hasClubOwnerProfile,
         ownedClubId: ownedClubId ?? this.ownedClubId,
         memberships: memberships ?? this.memberships,
-        onboardingComplete: onboardingComplete ?? this.onboardingComplete,
+        profileComplete: profileComplete ?? this.profileComplete,
+        hasPhoto: hasPhoto ?? this.hasPhoto,
         settings: settings ?? this.settings,
       );
 }
@@ -109,34 +120,35 @@ class AccountSettings {
       );
 }
 
+/// Player role data (set on Role Selection → Player). Wicket keeper is an
+/// optional extra on top of the primary [role], never the role itself.
 class PlayerProfile {
   const PlayerProfile({
     this.role,
     this.battingStyle,
     this.bowlingStyle,
     this.isWicketkeeper = false,
-    this.hasPhoto = false,
   });
 
   final PlayerRole? role;
   final BattingStyle? battingStyle;
   final BowlingStyle? bowlingStyle;
   final bool isWicketkeeper;
-  final bool hasPhoto;
+
+  /// Player onboarding done: playing role and both styles chosen.
+  bool get isComplete => role != null && battingStyle != null && bowlingStyle != null;
 
   PlayerProfile copyWith({
     PlayerRole? role,
     BattingStyle? battingStyle,
     BowlingStyle? bowlingStyle,
     bool? isWicketkeeper,
-    bool? hasPhoto,
   }) =>
       PlayerProfile(
         role: role ?? this.role,
         battingStyle: battingStyle ?? this.battingStyle,
         bowlingStyle: bowlingStyle ?? this.bowlingStyle,
         isWicketkeeper: isWicketkeeper ?? this.isWicketkeeper,
-        hasPhoto: hasPhoto ?? this.hasPhoto,
       );
 }
 

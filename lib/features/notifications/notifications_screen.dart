@@ -26,13 +26,13 @@ class NotificationsScreen extends ConsumerWidget {
     final role = ref.watch(activeRoleProvider);
     if (role == null) {
       return Scaffold(
-        appBar: const CeTopBar(title: 'Notifications', fallbackLocation: Routes.continueAs),
+        appBar: const CeTopBar(title: 'Notifications', fallbackLocation: Routes.roleSelection),
         body: CeEmptyState(
           icon: 'bell',
           title: 'Choose a profile first',
           body: 'Notifications are shown for your active profile.',
           primaryLabel: 'Continue',
-          onPrimary: () => context.go(Routes.continueAs),
+          onPrimary: () => context.go(Routes.roleSelection),
         ),
       );
     }

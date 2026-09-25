@@ -25,7 +25,7 @@ class RoleSetupScreen extends ConsumerWidget {
           title: 'Become a Club Owner',
           body: 'Create your Club Owner profile to create clubs, manage teams, invite players and organise matches.',
           primaryLabel: 'Set Up Club Owner Profile',
-          onPrimary: () => context.go(Routes.chooseOption),
+          onPrimary: () => context.go(Routes.clubSetup),
           secondaryLabel: 'Not now',
           onSecondary: () => context.go(home),
         ),

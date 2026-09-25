@@ -60,3 +60,6 @@ abstract final class CeFormat {
   /// Local midnight of [d].
   static DateTime dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 }
+
+/// "03129020000" → "0312 9020000" (the account's stored display form).
+String formatPkPhone(String canonical) => '${canonical.substring(0, 4)} ${canonical.substring(4)}';

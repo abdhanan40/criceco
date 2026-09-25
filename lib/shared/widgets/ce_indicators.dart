@@ -69,7 +69,14 @@ class CeChip extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               if (icon != null) ...[Icon(CeIcons.of(icon!), size: 14, color: fg), const SizedBox(width: 6)],
-              Text(label, style: Theme.of(context).textTheme.labelMedium!.copyWith(color: fg)),
+              // Flexible: a long label ellipsizes in a narrow Wrap / card
+              // (320 px, large text) instead of overflowing.
+              Flexible(
+                child: Text(label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelMedium!.copyWith(color: fg)),
+              ),
               if (count != null) ...[
                 const SizedBox(width: 6),
                 Text('$count',

@@ -8,6 +8,7 @@ import '../../../app/session/session_controller.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/constants/cities.dart';
 import '../../../core/models/models.dart';
+import '../../../core/utils/formatters.dart';
 import '../../../core/utils/validators.dart';
 import '../../../shared/widgets/ce_availability.dart';
 import '../../../shared/widgets/ce_buttons.dart';
@@ -19,8 +20,6 @@ import '../../../shared/widgets/ce_surfaces.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
 import '../player_providers.dart';
 
-/// "03129020000" → "0312 9020000" (the account's stored display form).
-String formatPkPhone(String canonical) => '${canonical.substring(0, 4)} ${canonical.substring(4)}';
 
 /// Player Profile (prototype `screens.playerProfile`, :8052) with Edit
 /// Profile (:8223) folded in as an inline edit mode — consolidation Phase A.

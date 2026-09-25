@@ -54,13 +54,21 @@ class SeedData {
   static const walletStartingBalance = 5000;
 
   void _build() {
-    account = const UserAccount(
+    account = UserAccount(
       id: ownAccountId,
       fullName: 'Aman Ali',
       contactMethod: ContactMethod.phone,
       phone: '0312 9020000',
       city: 'Islamabad',
-      onboardingComplete: true,
+      dateOfBirth: DateTime(2001, 3, 14),
+      // A returning, fully set-up Player (the demo persona is a batsman):
+      // login goes straight to the Player Dashboard.
+      profileComplete: true,
+      playerProfile: const PlayerProfile(
+        role: PlayerRole.batsman,
+        battingStyle: BattingStyle.rightHanded,
+        bowlingStyle: BowlingStyle.rightArmOffSpin,
+      ),
     );
 
     ownClub = const Club(

@@ -157,7 +157,8 @@ void main() {
       Routes.tournamentTeamBuild('t_1'), Routes.tournamentTeamPick('t_1'), Routes.registrationSummary('t_1'),
       Routes.myRegistrations, Routes.registrationDetails('r_1'), Routes.registrationSuccess('r_1'),
       Routes.notifications, Routes.settings, Routes.privacySettings, Routes.securitySettings, Routes.roleSetup,
-      Routes.continueAs, Routes.chooseOption, Routes.createClub, Routes.clubDetails, Routes.enterClubCode,
+      Routes.continueAs, Routes.roleSelection, Routes.roleDetails, Routes.clubSetup, Routes.createClub,
+      Routes.clubDetails, Routes.enterClubCode,
       Routes.waitingApproval, Routes.joinApproved,
     ];
     // Screen consolidation Phase A: pre-consolidation routes still resolve,
@@ -170,6 +171,11 @@ void main() {
       Routes.matchScorecard('pm_2'): '/player/matches/pm_2?tab=scorecard',
       Routes.matchHistory: '/player/performance?tab=history',
       Routes.editProfile: '/player/profile?edit=1',
+      // Auth architecture update: old onboarding steps.
+      Routes.continueAs: '/onboarding/role',
+      Routes.roleDetails: '/onboarding/role?expand=player',
+      Routes.createClub: '/setup/club',
+      Routes.clubDetails: '/setup/club',
     };
     final router = c.read(routerProvider);
     for (final loc in clubLocations) {

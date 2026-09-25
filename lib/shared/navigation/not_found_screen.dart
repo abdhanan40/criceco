@@ -18,7 +18,7 @@ class NotFoundScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final signedIn = ref.watch(sessionProvider.select((s) => s.isAuthenticated));
     final role = ref.watch(activeRoleProvider);
-    final home = !signedIn ? Routes.login : (role == null ? Routes.continueAs : Routes.home(role));
+    final home = !signedIn ? Routes.login : (role == null ? Routes.roleSelection : Routes.home(role));
     return Scaffold(
       appBar: CeTopBar(title: 'Not found', fallbackLocation: home),
       body: ListView(children: [

@@ -3,13 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/enums/enums.dart';
-import '../../features/auth/complete_profile_screen.dart';
-import '../../features/auth/continue_as_screen.dart';
 import '../../features/auth/create_account_screen.dart';
 import '../../features/auth/login_screen.dart';
-import '../../features/auth/playing_style_screen.dart';
+import '../../features/auth/role_selection_screen.dart';
 import '../../features/auth/role_setup_screen.dart';
 import '../../features/auth/signup_screen.dart';
+import '../../features/auth/user_profile_setup_screen.dart';
 import '../../features/booking/screens/payment_screens.dart';
 import '../../features/booking/screens/schedule_screens.dart';
 import '../../features/booking/screens/setup_screens.dart';
@@ -27,9 +26,7 @@ import '../../features/club/screens/my_club_screen.dart';
 import '../../features/club/screens/player_hunt_screen.dart';
 import '../../features/club/screens/team_squad_screen.dart';
 import '../../features/club/screens/teams_screen.dart';
-import '../../features/club_setup/choose_option_screen.dart';
-import '../../features/club_setup/club_details_screen.dart';
-import '../../features/club_setup/create_club_screen.dart';
+import '../../features/club_setup/club_setup_screen.dart';
 import '../../features/matches/screens/lineup_screens.dart';
 import '../../features/matches/screens/match_management_screen.dart';
 import '../../features/membership/enter_club_code_screen.dart';
@@ -66,30 +63,32 @@ String? resolveRedirect({
   final isPublic = Routes.publicRoutes.contains(location);
   final isOnboarding = Routes.onboardingRoutes.contains(location);
 
-  // 1. Signed out → Login (public routes allowed).
+  // 1. Signed out → Auth (Login / Sign Up allowed).
   if (!session.isAuthenticated) return isPublic ? null : Routes.login;
 
-  // 2. Onboarding incomplete → Complete Profile. Auth screens stay reachable
-  //    so Back from Complete Profile can return to Create Account / Sign Up.
+  // 2. Common profile incomplete → User Profile Setup. Auth screens stay
+  //    reachable so Back from Profile Setup returns to Create Account / Sign Up.
   if (session.status == SessionStatus.onboarding) {
-    return (isOnboarding || isPublic) ? null : Routes.completeProfile;
+    return (isOnboarding || isPublic) ? null : Routes.profileSetup;
   }
 
-  // 6. Authenticated users never see auth screens.
-  if (isPublic || isOnboarding) return activeRole == null ? Routes.continueAs : Routes.home(activeRole);
+  // 3. Profile complete: auth and profile setup are behind the user. Enter
+  //    the active role — or, for a returning user, the single completed role
+  //    ([activeRole] is inferred from saved setup state) — else Role Selection.
+  if (isPublic || isOnboarding) return activeRole == null ? Routes.roleSelection : Routes.home(activeRole);
 
   final isPlayer = Routes.isPlayerLocation(location);
   final isClub = Routes.isClubLocation(location);
   if (isPlayer || isClub) {
-    // 3. No active role → Continue As.
-    if (activeRole == null) return Routes.continueAs;
-    // 4. Navigation never changes the role: wrong-role locations bounce to
+    // 4. No role chosen or set up yet → Role Selection.
+    if (activeRole == null) return Routes.roleSelection;
+    // 5. Navigation never changes the role: wrong-role locations bounce to
     //    the active role's home (checked first, so a Player is never sent
     //    into Club Owner setup by a stray link).
     if (isPlayer && activeRole != UserRole.player) return Routes.home(activeRole);
     if (isClub && activeRole != UserRole.clubOwner) return Routes.home(activeRole);
-    // 5. Club routes need a Club Owner profile.
-    if (isClub && !session.hasClubOwnerProfile) return Routes.chooseOption;
+    // 6. Club routes need a Club Owner profile.
+    if (isClub && !session.hasClubOwnerProfile) return Routes.clubSetup;
   }
   return null;
 }
@@ -142,16 +141,24 @@ Page<void> _fade(Widget child, GoRouterState state) => CustomTransitionPage<void
     );
 
 final List<RouteBase> appRoutes = [
-  // ---- Public / auth (Phase 1: migrated) ----
+  // ---- Auth page + onboarding (auth architecture update) ----
+  // Auth (Login | Sign Up) → User Profile Setup → Role Selection
+  //   → Player: details expand on Role Selection → Player Dashboard
+  //   → Club Owner: Club Setup Details → Club Owner Dashboard
   GoRoute(path: Routes.login, builder: (_, _) => const LoginScreen()),
   GoRoute(path: Routes.signup, builder: (_, _) => const SignupScreen(), routes: [
     GoRoute(path: 'account', builder: (_, _) => const CreateAccountScreen()),
   ]),
-  GoRoute(path: Routes.completeProfile, builder: (_, _) => const CompleteProfileScreen()),
-  GoRoute(path: Routes.roleDetails, builder: (_, _) => const PlayingStyleScreen()),
+  GoRoute(path: Routes.profileSetup, builder: (_, _) => const UserProfileSetupScreen()),
+  GoRoute(
+    path: Routes.roleSelection,
+    builder: (_, s) => RoleSelectionScreen(expandPlayer: s.uri.queryParameters['expand'] == 'player'),
+  ),
+  // Old onboarding steps kept for deep links / bookmarks only.
+  _legacy(Routes.roleDetails, (_) => Routes.roleSelectionPlayer), // Playing Style
+  _legacy(Routes.continueAs, (_) => Routes.roleSelection), // Continue As
 
   // ---- Shared ----
-  GoRoute(path: Routes.continueAs, builder: (_, _) => const ContinueAsScreen()),
   GoRoute(path: Routes.roleSetup, builder: (_, _) => const RoleSetupScreen()),
   GoRoute(path: Routes.notifications, builder: (_, _) => const NotificationsScreen()),
   // Settings with the Privacy section inline (`?section=privacy` expands it).
@@ -164,11 +171,11 @@ final List<RouteBase> appRoutes = [
     ],
   ),
 
-  // ---- Club setup + membership onboarding (Phase 1: migrated) ----
-  GoRoute(path: Routes.chooseOption, builder: (_, _) => const ChooseOptionScreen(), routes: [
-    GoRoute(path: 'create', builder: (_, _) => const CreateClubScreen(), routes: [
-      GoRoute(path: 'details', builder: (_, _) => const ClubDetailsScreen()),
-    ]),
+  // ---- Club Owner setup (one screen) + club membership by code ----
+  GoRoute(path: Routes.clubSetup, builder: (_, _) => const ClubSetupScreen(), routes: [
+    // Former Create Club → Club Details steps, kept for compatibility.
+    _legacy('create', (_) => Routes.clubSetup),
+    _legacy('create/details', (_) => Routes.clubSetup),
   ]),
   GoRoute(path: Routes.enterClubCode, builder: (_, _) => const EnterClubCodeScreen(), routes: [
     GoRoute(path: 'waiting', builder: (_, _) => const WaitingApprovalScreen()),
