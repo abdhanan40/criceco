@@ -1,4 +1,5 @@
 import '../enums/enums.dart';
+import 'team.dart';
 
 /// A tournament entry is either a club (seeded tournaments) or a registration
 /// of one of the owner's teams. Stored as ids only — no name/abbr mixing.
@@ -105,6 +106,23 @@ class Tournament {
 
   int get availableSlots => (maxTeams - joined.length).clamp(0, maxTeams);
   bool get canGenerateFixtures => joined.length >= minTeamsForFixtures;
+  bool get isFull => joined.length >= maxTeams;
+
+  /// Status as of [now]: an open tournament whose registration deadline day
+  /// has passed is closed (the stored status is not rewritten).
+  TournamentStatus statusAt(DateTime now) {
+    if (status != TournamentStatus.registrationOpen) return status;
+    final today = DateTime(now.year, now.month, now.day);
+    final deadline = DateTime(registrationDeadline.year, registrationDeadline.month, registrationDeadline.day);
+    return today.isAfter(deadline) ? TournamentStatus.registrationClosed : status;
+  }
+
+  /// A club can still submit a registration.
+  bool acceptsRegistrationsAt(DateTime now) =>
+      statusAt(now) == TournamentStatus.registrationOpen && !isFull && fixtures == null;
+
+  TournamentEntrant? entrant(String id) =>
+      joined.where((e) => e.id == id).firstOrNull ?? pending.where((e) => e.id == id).firstOrNull;
 
   Tournament copyWith({
     TournamentStatus? status,
@@ -140,30 +158,71 @@ class Tournament {
       );
 }
 
+/// One club's entry request for a tournament, keyed by id. Its entrant id in
+/// the tournament's pending / joined lists is this registration's [id].
 class TournamentRegistration {
   const TournamentRegistration({
     required this.id,
     required this.tournamentId,
+    required this.clubId,
     required this.teamName,
     required this.status,
     required this.submittedAt,
     this.teamId,
+    this.lineup,
+    this.decidedAt,
   });
   final String id;
   final String tournamentId;
+
+  /// The registering club (the owner's own club for My Registrations).
+  final String clubId;
+
+  /// Club team the line-up was taken from (`null` for a new squad).
   final String? teamId;
   final String teamName;
+
+  /// Snapshot of the registered squad (`null` for an incoming request whose
+  /// squad this app doesn't hold).
+  final Lineup? lineup;
   final RegistrationStatus status;
   final DateTime submittedAt;
+  final DateTime? decidedAt;
 
-  TournamentRegistration copyWith({RegistrationStatus? status}) => TournamentRegistration(
+  bool get isPending => status == RegistrationStatus.pending;
+
+  TournamentRegistration copyWith({RegistrationStatus? status, DateTime? decidedAt}) => TournamentRegistration(
         id: id,
         tournamentId: tournamentId,
+        clubId: clubId,
         teamId: teamId,
         teamName: teamName,
+        lineup: lineup,
         status: status ?? this.status,
         submittedAt: submittedAt,
+        decidedAt: decidedAt ?? this.decidedAt,
       );
+}
+
+/// One Tournament Dashboard award (prototype `tournamentAwardStats`).
+class TournamentAward {
+  const TournamentAward({required this.playerName, required this.entrantId, required this.value});
+  final String playerName;
+  final String entrantId;
+  final int value; // runs / wickets / dismissals / catches
+}
+
+class TournamentAwards {
+  const TournamentAwards({
+    required this.topScorer,
+    required this.topWicketTaker,
+    required this.bestKeeper,
+    required this.bestFielder,
+  });
+  final TournamentAward topScorer;
+  final TournamentAward topWicketTaker;
+  final TournamentAward bestKeeper;
+  final TournamentAward bestFielder;
 }
 
 /// Destination of a notification row (a route location, resolved per role).

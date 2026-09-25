@@ -181,7 +181,7 @@ class _CreateSlotScreenState extends ConsumerState<CreateSlotScreen> {
             ),
 
             _title('Date'),
-            _DateRow(
+            CeDateRow(
               date: _date,
               open: _pickerOpen,
               hasError: _errors.containsKey('date'),
@@ -244,46 +244,4 @@ class _CreateSlotScreenState extends ConsumerState<CreateSlotScreen> {
       ),
     );
   }
-}
-
-class _DateRow extends StatelessWidget {
-  const _DateRow({required this.date, required this.open, required this.hasError, required this.onTap});
-  final DateTime? date;
-  final bool open;
-  final bool hasError;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-        button: true,
-        label: 'Date, ${date == null ? 'not set' : CeFormat.date(date!)}',
-        excludeSemantics: true,
-        child: Material(
-          color: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(CeRadius.md),
-            side: BorderSide(color: hasError ? CeColors.red : CeColors.line2),
-          ),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(CeRadius.md),
-            onTap: onTap,
-            child: Container(
-              constraints: const BoxConstraints(minHeight: CeSize.inputMinHeight),
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: Row(children: [
-                Icon(CeIcons.of('calendar'), size: 17, color: CeColors.muted),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(date == null ? 'Pick a date' : CeFormat.dayDate(date!),
-                      style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: date == null ? CeColors.muted2 : CeColors.ink)),
-                ),
-                Icon(CeIcons.of(open ? 'chevron-up' : 'chevron-down'), size: 17, color: CeColors.muted),
-              ]),
-            ),
-          ),
-        ),
-      );
 }

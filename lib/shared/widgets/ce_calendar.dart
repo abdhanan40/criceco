@@ -125,3 +125,59 @@ class CeMonthCalendar extends StatelessWidget {
     );
   }
 }
+
+/// Date input row that toggles an inline [CeMonthCalendar] (Create
+/// Availability Slot, Create Tournament).
+class CeDateRow extends StatelessWidget {
+  const CeDateRow({
+    super.key,
+    required this.date,
+    required this.open,
+    required this.hasError,
+    required this.onTap,
+    this.label = 'Date',
+    this.hint = 'Pick a date',
+    this.icon = 'calendar',
+  });
+  final DateTime? date;
+  final bool open;
+  final bool hasError;
+  final VoidCallback onTap;
+  final String label;
+  final String hint;
+  final String icon;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        label: '$label, ${date == null ? 'not set' : CeFormat.date(date!)}',
+        excludeSemantics: true,
+        child: Material(
+          color: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(CeRadius.md),
+            side: BorderSide(color: hasError ? CeColors.red : CeColors.line2),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(CeRadius.md),
+            onTap: onTap,
+            child: Container(
+              constraints: const BoxConstraints(minHeight: CeSize.inputMinHeight),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Row(children: [
+                Icon(CeIcons.of(icon), size: 17, color: CeColors.muted),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(date == null ? hint : CeFormat.dayDate(date!),
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: date == null ? CeColors.muted2 : CeColors.ink)),
+                ),
+                Icon(CeIcons.of(open ? 'chevron-up' : 'chevron-down'), size: 17, color: CeColors.muted),
+              ]),
+            ),
+          ),
+        ),
+      );
+}

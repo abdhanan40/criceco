@@ -5,9 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers/core_providers.dart';
 import '../../core/models/models.dart';
 import '../club/teams/teams_controller.dart';
+import '../tournaments/registration_draft.dart';
 import 'club_matches_controller.dart';
 
-/// Unsaved match-day line-up for one target (revised architecture §7:
+/// Unsaved match-day / tournament line-up for one target (revised architecture §7:
 /// `lineupDraftProvider(target)`). Same selection model as a team squad.
 class LineupDraft {
   LineupDraft(Map<String, SelectionRole> picks, {this.name, this.sourceTeamId, this.dirty = false})
@@ -39,9 +40,12 @@ class LineupDraftController extends Notifier<LineupDraft> {
   LineupDraftController(this.target);
   final LineupTarget target;
 
-  String get _matchId => (target as MatchLineupTarget).matchId;
-
-  Lineup? get _saved => ref.read(clubMatchProvider(_matchId))?.lineup;
+  /// The confirmed line-up: on the match, or on the tournament registration
+  /// draft (submitted with the registration).
+  Lineup? get _saved => switch (target) {
+        MatchLineupTarget(:final matchId) => ref.read(clubMatchProvider(matchId))?.lineup,
+        TournamentEntryTarget(:final tournamentId) => ref.read(registrationDraftProvider(tournamentId)).lineup,
+      };
 
   @override
   LineupDraft build() => _fromSaved();
@@ -109,10 +113,15 @@ class LineupDraftController extends Notifier<LineupDraft> {
   }
 
   Future<void> _save(Lineup lineup) async {
-    final matches = ref.read(clubMatchesProvider.notifier);
-    final m = matches.byId(_matchId);
-    if (m == null) return;
-    await matches.save(m.copyWith(lineup: lineup));
+    switch (target) {
+      case MatchLineupTarget(:final matchId):
+        final matches = ref.read(clubMatchesProvider.notifier);
+        final m = matches.byId(matchId);
+        if (m == null) return;
+        await matches.save(m.copyWith(lineup: lineup));
+      case TournamentEntryTarget(:final tournamentId):
+        ref.read(registrationDraftProvider(tournamentId).notifier).setLineup(lineup);
+    }
     state = LineupDraft(
       {for (final x in lineup.members) x.playerId: x.selection},
       name: lineup.name,

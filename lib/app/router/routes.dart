@@ -80,6 +80,8 @@ abstract final class Routes {
   static String teamRequestDetail(String id, String registrationId) =>
       '/club/tournaments/hosted/$id/teams/requests/$registrationId';
   static const browseTournaments = '/club/tournaments/browse';
+  static String browseTournamentsIn(String city) =>
+      '/club/tournaments/browse?city=${Uri.encodeQueryComponent(city)}';
   static String tournamentRegister(String id) => '/club/tournaments/browse/$id';
   static String tournamentTeam(String id) => '/club/tournaments/browse/$id/team';
   static String tournamentTeamBuild(String id) => '/club/tournaments/browse/$id/team/build';

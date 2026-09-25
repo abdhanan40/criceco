@@ -41,6 +41,11 @@ import '../../features/player/screens/performance_screens.dart';
 import '../../features/player/screens/player_dashboard_screen.dart';
 import '../../features/player/screens/player_match_details_screen.dart';
 import '../../features/player/screens/player_profile_screen.dart';
+import '../../features/tournaments/screens/browse_screens.dart';
+import '../../features/tournaments/screens/create_tournament_screen.dart';
+import '../../features/tournaments/screens/hosted_screens.dart';
+import '../../features/tournaments/screens/registration_screens.dart';
+import '../../features/tournaments/screens/tournament_hub_screen.dart';
 import '../../shared/navigation/placeholder_screen.dart';
 import '../../shared/navigation/role_shells.dart';
 import '../session/role_controller.dart';
@@ -399,39 +404,52 @@ final List<RouteBase> _clubFullRoutes = [
       ),
     ],
   ),
-  _ph('tournaments', 'Tournament', 'hostTournament', root: true, fallback: Routes.clubHome, links: const [
-    PlaceholderLink('Create Tournament', Routes.createTournament),
-    PlaceholderLink('Browse Tournaments', Routes.browseTournaments),
-    PlaceholderLink('My Tournaments', Routes.myTournaments),
-    PlaceholderLink('My Registrations', Routes.myRegistrations),
-  ], routes: [
-    _ph('new', 'Create Tournament', 'createTournament', root: true, fallback: Routes.tournamentHub),
-    _ph('hosted', 'My Tournaments', 'myTournaments', root: true, fallback: Routes.tournamentHub, routes: [
-      _ph(':tournamentId', 'Tournament Details', 'tournamentDetails', root: true, fallback: Routes.myTournaments, routes: [
-        _ph('dashboard', 'Tournament Dashboard', 'tournamentDashboard', root: true, fallback: Routes.myTournaments),
-        _ph('teams', 'Manage Teams', 'tournamentTeamsManage', root: true, fallback: Routes.myTournaments, routes: [
-          _ph('requests/:registrationId', 'Registration Request', 'teamRequestDetail',
-              root: true, fallback: Routes.myTournaments),
+  ..._tournamentRoutes,
+];
+
+/// Tournaments (revised architecture §9). Every screen is a full route over
+/// the club shell; ids travel in the path, tabs / filters in the query.
+String _tid(GoRouterState s) => s.pathParameters['tournamentId']!;
+String _rid(GoRouterState s) => s.pathParameters['registrationId']!;
+
+GoRoute _full(String path, Widget Function(GoRouterState s) build, {List<RouteBase> routes = const []}) => GoRoute(
+      path: path,
+      parentNavigatorKey: rootNavigatorKey,
+      builder: (_, s) => build(s),
+      routes: routes,
+    );
+
+final List<RouteBase> _tournamentRoutes = [
+  _full('tournaments', (_) => const TournamentHubScreen(), routes: [
+    _full('new', (_) => const CreateTournamentScreen()),
+    _full('hosted', (_) => const MyTournamentsScreen(), routes: [
+      _full(':tournamentId',
+          (s) => TournamentDetailsScreen(tournamentId: _tid(s), tab: TournamentTab.parse(s.uri.queryParameters['tab'])),
+          routes: [
+            _full('dashboard', (s) => TournamentDashboardScreen(tournamentId: _tid(s))),
+            _full('teams', (s) => ManageTeamsScreen(tournamentId: _tid(s)), routes: [
+              _full('requests/:registrationId',
+                  (s) => TeamRequestDetailScreen(tournamentId: _tid(s), registrationId: _rid(s))),
+            ]),
+          ]),
+    ]),
+    _full('browse', (s) => BrowseTournamentsScreen(city: s.uri.queryParameters['city']), routes: [
+      _full(':tournamentId', (s) => TournamentRegisterScreen(tournamentId: _tid(s)), routes: [
+        _full('team', (s) => TournamentSelectTeamScreen(tournamentId: _tid(s)), routes: [
+          _full('build', (s) => TournamentTeamBuilderScreen(tournamentId: _tid(s))),
+          _full('pick', (s) => TournamentTeamPickerScreen(tournamentId: _tid(s))),
+          _full('summary', (s) => RegistrationSummaryScreen(tournamentId: _tid(s))),
         ]),
       ]),
     ]),
-    _ph('browse', 'Browse Tournaments', 'browseTournaments', root: true, fallback: Routes.tournamentHub, routes: [
-      _ph(':tournamentId', 'Tournament', 'tournamentRegister', root: true, fallback: Routes.browseTournaments, routes: [
-        _ph('team', 'Select Team', 'selectTeam (tournament)', root: true, fallback: Routes.browseTournaments, routes: [
-          _ph('build', 'Build Your Team', 'teamBuilder (tournament)', root: true, fallback: Routes.browseTournaments),
-          _ph('pick', 'Select Existing Team', 'teamPicker (tournament)', root: true, fallback: Routes.browseTournaments),
-          _ph('summary', 'Registration Summary', 'registrationSummary', root: true, fallback: Routes.browseTournaments),
+    _full('registrations',
+        (s) => MyRegistrationsScreen(tab: MyRegistrationsScreen.parseTab(s.uri.queryParameters['tab'])),
+        routes: [
+          _full(':registrationId', (s) => RegistrationDetailsScreen(registrationId: _rid(s)), routes: [
+            _full('success', (s) => RegistrationSuccessScreen(registrationId: _rid(s))),
+          ]),
         ]),
-      ]),
-    ]),
-    _ph('registrations', 'My Registrations', 'myRegistrations', root: true, fallback: Routes.tournamentHub, routes: [
-      _ph(':registrationId', 'Registration Details', 'registrationDetails',
-          root: true, fallback: Routes.myRegistrations, routes: [
-        _ph('success', 'Registration Status', 'registrationSuccess', root: true, terminal: Routes.myRegistrations),
-      ]),
-    ]),
     // Declared after the static children so they win matching.
-    _ph(':tournamentId/published', 'Tournament Status', 'tournamentPublished',
-        root: true, terminal: Routes.tournamentHub),
+    _full(':tournamentId/published', (s) => TournamentPublishedScreen(tournamentId: _tid(s))),
   ]),
 ];
