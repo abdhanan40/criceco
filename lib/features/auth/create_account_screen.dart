@@ -74,8 +74,7 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
           key: _formKey,
           child: AutofillGroup(
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              const CenterBlock(
-                icon: 'circle-dot',
+              const CenterBlock.brand(
                 title: 'Join Criceco',
                 subtitle: 'Create your player profile to get started',
               ),

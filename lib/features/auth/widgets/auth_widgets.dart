@@ -4,12 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../app/theme/tokens.dart';
-import '../../../shared/widgets/ce_icons.dart';
+import '../../../shared/widgets/ce_brand_logo.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
 
 enum AuthTab { login, signUp }
 
-/// Green auth banner (`.banner`): logo circle, title, subtitle and the
+/// Green auth banner (`.banner`): CricEco logo, title, subtitle and the
 /// optional Login / Sign Up toggle pill. Extends under the status bar.
 class AuthBanner extends StatelessWidget {
   const AuthBanner({
@@ -36,14 +36,8 @@ class AuthBanner extends StatelessWidget {
       child: CeBrandHero(
         padding: EdgeInsets.fromLTRB(24, 34 + top, 24, bottomPadding),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Center(
-            child: Container(
-              width: 74,
-              height: 74,
-              decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-              child: Icon(CeIcons.of('circle-dot'), size: 30, color: CeColors.primaryDark),
-            ),
-          ),
+          // Approved CricEco logo (was a placeholder circle-dot mark).
+          const Center(child: CeBrandLogo(size: 74, onDark: true)),
           const SizedBox(height: 14),
           Text(title,
               textAlign: TextAlign.center,
@@ -131,16 +125,24 @@ class AuthHeading extends StatelessWidget {
 
 /// Centered icon circle + heading (`.center-block`).
 class CenterBlock extends StatelessWidget {
-  const CenterBlock({super.key, required this.icon, required this.title, required this.subtitle});
+  const CenterBlock({super.key, required this.icon, required this.title, required this.subtitle})
+      : brand = false;
+
+  /// Brand intro (e.g. "Join Criceco"): the approved logo instead of an icon.
+  const CenterBlock.brand({super.key, required this.title, required this.subtitle})
+      : icon = '',
+        brand = true;
+
   final String icon;
   final String title;
   final String subtitle;
+  final bool brand;
 
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(bottom: 22),
         child: Column(children: [
-          CeIconWell(icon, size: 72, iconSize: 30, circle: true),
+          if (brand) const CeBrandLogo(size: 72) else CeIconWell(icon, size: 72, iconSize: 30, circle: true),
           const SizedBox(height: 12),
           AuthHeading(title: title, subtitle: subtitle, center: true),
         ]),

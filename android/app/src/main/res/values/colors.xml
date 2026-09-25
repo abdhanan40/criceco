@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Approved CricEco icon tile colour (sampled from the approved render). -->
+    <color name="ic_launcher_background">#0C262B</color>
+    <!-- Launch / splash background: the same tile colour. -->
+    <color name="splash_background">#0C262B</color>
+</resources>

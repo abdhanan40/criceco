@@ -9,8 +9,8 @@ import 'package:criceco/data/mock/in_memory_repositories.dart';
 import 'package:criceco/data/repositories/repositories.dart';
 import 'package:criceco/features/auth/onboarding_controller.dart';
 import 'package:criceco/features/auth/widgets/auth_widgets.dart';
+import 'package:criceco/shared/widgets/ce_brand_logo.dart';
 import 'package:criceco/shared/widgets/ce_buttons.dart';
-import 'package:criceco/shared/widgets/ce_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -288,7 +288,7 @@ void main() {
       expect(find.text('You can switch profiles any time from the menu — no second login.'), findsOneWidget);
       // Regression (found on emulator): banner must be full-bleed without a toggle row.
       expect(tester.getSize(find.byType(AuthBanner)).width, 375);
-      expect(tester.getSize(find.ancestor(of: find.byIcon(CeIcons.of('circle-dot')), matching: find.byType(Container)).first).width, 74);
+      expect(tester.getSize(find.byType(CeBrandLogo)), const Size(74, 74), reason: 'approved logo at the banner mark size');
     });
 
     testWidgets('Player Profile opens the Player dashboard and sets the role', (tester) async {
