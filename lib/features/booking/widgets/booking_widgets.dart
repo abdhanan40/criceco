@@ -44,12 +44,18 @@ class BookingScaffold extends ConsumerWidget {
     required this.builder,
     this.showBack = true,
     this.fallbackLocation,
+    this.onBack,
+    this.actions = const [],
   });
 
   final String matchId;
   final String title;
   final bool showBack;
   final String? fallbackLocation;
+
+  /// Explicit Back target (overrides pop / [fallbackLocation]).
+  final VoidCallback? onBack;
+  final List<Widget> actions;
   final Widget Function(BuildContext context, BookingContext ctx) builder;
 
   @override
@@ -62,6 +68,8 @@ class BookingScaffold extends ConsumerWidget {
       title: title,
       showBack: showBack,
       fallbackLocation: fallbackLocation ?? Routes.matchManagement(),
+      onBack: onBack,
+      actions: actions,
     );
     if (loading) return Scaffold(appBar: bar, body: const Center(child: CircularProgressIndicator()));
     if (ctx == null) {

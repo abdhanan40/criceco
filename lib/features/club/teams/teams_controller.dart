@@ -69,6 +69,36 @@ final clubPlayerPoolProvider = FutureProvider<List<SquadPlayer>>((ref) async {
 
 enum PickOutcome { changed, locked, full }
 
+/// The one squad-pick rule, shared by Add Players (team squads) and the
+/// match-day line-up (prototype `cycleAddPlayer` / `cycleSquadPick`):
+/// Unselected → Playing XI (until 11) → Substitute (until 4) → Unselected.
+/// Injured / unavailable players are locked. Returns the new picks (a copy,
+/// insertion order kept) and what happened.
+(Map<String, SelectionRole>, PickOutcome) cycleSquadPick(Map<String, SelectionRole> current, SquadPlayer player) {
+  if (player.locked) return (current, PickOutcome.locked);
+  final picks = Map.of(current);
+  int count(SelectionRole r) => picks.values.where((x) => x == r).length;
+  final role = picks[player.id];
+  if (role == null) {
+    if (count(SelectionRole.playing) < SquadRules.maxPlaying) {
+      picks[player.id] = SelectionRole.playing;
+    } else if (count(SelectionRole.sub) < SquadRules.maxSubs) {
+      picks[player.id] = SelectionRole.sub;
+    } else {
+      return (current, PickOutcome.full);
+    }
+  } else if (role == SelectionRole.playing) {
+    if (count(SelectionRole.sub) < SquadRules.maxSubs) {
+      picks[player.id] = SelectionRole.sub;
+    } else {
+      picks.remove(player.id);
+    }
+  } else {
+    picks.remove(player.id);
+  }
+  return (picks, PickOutcome.changed);
+}
+
 /// Unsaved Add Players selection for one team. Kept for the session, so
 /// leaving and returning restores it (approved decision 5, default P5).
 class SquadDraft {
@@ -100,28 +130,9 @@ class SquadEditor extends Notifier<SquadDraft> {
 
   /// Prototype cycle: Unselected → Playing (until 11) → Sub (until 4) → Unselected.
   PickOutcome cycle(SquadPlayer player) {
-    if (player.locked) return PickOutcome.locked;
-    final picks = Map.of(state.picks);
-    final current = picks[player.id];
-    if (current == null) {
-      if (state.playing < SquadRules.maxPlaying) {
-        picks[player.id] = SelectionRole.playing;
-      } else if (state.subs < SquadRules.maxSubs) {
-        picks[player.id] = SelectionRole.sub;
-      } else {
-        return PickOutcome.full;
-      }
-    } else if (current == SelectionRole.playing) {
-      if (state.subs < SquadRules.maxSubs) {
-        picks[player.id] = SelectionRole.sub;
-      } else {
-        picks.remove(player.id);
-      }
-    } else {
-      picks.remove(player.id);
-    }
-    state = SquadDraft(picks, dirty: true);
-    return PickOutcome.changed;
+    final (picks, outcome) = cycleSquadPick(state.picks, player);
+    if (outcome == PickOutcome.changed) state = SquadDraft(picks, dirty: true);
+    return outcome;
   }
 
   /// "Save Squad": commit to the team, then the draft equals the saved state.

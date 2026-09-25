@@ -29,6 +29,7 @@ import '../../features/club/screens/teams_screen.dart';
 import '../../features/club_setup/choose_option_screen.dart';
 import '../../features/club_setup/club_details_screen.dart';
 import '../../features/club_setup/create_club_screen.dart';
+import '../../features/matches/screens/lineup_screens.dart';
 import '../../features/matches/screens/match_management_screen.dart';
 import '../../features/membership/enter_club_code_screen.dart';
 import '../../features/membership/join_status_screens.dart';
@@ -379,12 +380,25 @@ final List<RouteBase> _clubFullRoutes = [
         parentNavigatorKey: rootNavigatorKey,
         builder: (_, s) => ReservationExpiredScreen(matchId: s.pathParameters['matchId']!),
       ),
-      // Match-day line-up (Select Team / Build / Pick) is migrated later.
-    _ph(':matchId/lineup', 'Select Team', 'selectTeam', root: true, fallback: '/club/matches', routes: [
-      _ph('build', 'Build Your Team', 'teamBuilder', root: true, fallback: '/club/matches'),
-      _ph('pick', 'Select Existing Team', 'teamPicker', root: true, fallback: '/club/matches'),
-    ]),
-  ]),
+      GoRoute(
+        path: ':matchId/lineup',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, s) => SelectTeamScreen(matchId: s.pathParameters['matchId']!),
+        routes: [
+          GoRoute(
+            path: 'build',
+            parentNavigatorKey: rootNavigatorKey,
+            builder: (_, s) => TeamBuilderScreen(matchId: s.pathParameters['matchId']!),
+          ),
+          GoRoute(
+            path: 'pick',
+            parentNavigatorKey: rootNavigatorKey,
+            builder: (_, s) => TeamPickerScreen(matchId: s.pathParameters['matchId']!),
+          ),
+        ],
+      ),
+    ],
+  ),
   _ph('tournaments', 'Tournament', 'hostTournament', root: true, fallback: Routes.clubHome, links: const [
     PlaceholderLink('Create Tournament', Routes.createTournament),
     PlaceholderLink('Browse Tournaments', Routes.browseTournaments),

@@ -253,12 +253,17 @@ class _ScheduledCard extends ConsumerWidget {
       ground: ground == null ? 'Ground TBD' : '${ground.name}, ${ground.city}',
       groundDirections: ground != null,
       playingTeam: m.lineup?.name,
-      footer: m.lineup == null
-          ? InkWell(
-              onTap: () => context.go(Routes.matchLineup(m.id)),
-              child: const _Cta(icon: 'circle-dot', label: 'Select Your Playing XI'),
-            )
-          : null,
+      footer: Semantics(
+        button: true,
+        label: m.lineup == null ? 'Select Your Playing XI' : 'View or edit line-up',
+        excludeSemantics: true,
+        child: InkWell(
+          onTap: () => context.go(Routes.matchLineup(m.id)),
+          child: m.lineup == null
+              ? const _Cta(icon: 'circle-dot', label: 'Select Your Playing XI')
+              : const _Cta(icon: 'users', label: 'View / Edit Line-up'),
+        ),
+      ),
     );
   }
 }
