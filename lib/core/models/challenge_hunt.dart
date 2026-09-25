@@ -16,7 +16,13 @@ class Challenge {
     this.groundName,
     this.isNew = false,
     this.matchId,
+    this.expiresAt,
+    this.respondedAt,
   });
+
+  /// How long a sent challenge waits for a reply before it expires (no
+  /// response window exists in the prototype; 7 days is the default here).
+  static const responseWindow = Duration(days: 7);
 
   final String id;
   final String opponentClubId;
@@ -31,7 +37,21 @@ class Challenge {
   /// Pending club match created on acceptance (at most one — no duplicates).
   final String? matchId;
 
-  Challenge copyWith({ChallengeStatus? status, String? matchId, bool? isNew}) => Challenge(
+  /// A pending challenge becomes expired after this instant (sent: response
+  /// window) or once the proposed match time has passed (received).
+  final DateTime? expiresAt;
+  final DateTime? respondedAt;
+
+  bool get isPending => status == ChallengeStatus.pending;
+
+  /// The status as of [now]: a pending challenge past its deadline is expired.
+  ChallengeStatus statusAt(DateTime now) {
+    if (status != ChallengeStatus.pending) return status;
+    final deadline = expiresAt ?? proposedAt;
+    return deadline != null && !now.isBefore(deadline) ? ChallengeStatus.expired : status;
+  }
+
+  Challenge copyWith({ChallengeStatus? status, String? matchId, bool? isNew, DateTime? respondedAt}) => Challenge(
         id: id,
         opponentClubId: opponentClubId,
         direction: direction,
@@ -42,6 +62,8 @@ class Challenge {
         groundName: groundName,
         isNew: isNew ?? this.isNew,
         matchId: matchId ?? this.matchId,
+        expiresAt: expiresAt,
+        respondedAt: respondedAt ?? this.respondedAt,
       );
 }
 

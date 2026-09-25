@@ -10,6 +10,11 @@ import '../../features/auth/login_screen.dart';
 import '../../features/auth/playing_style_screen.dart';
 import '../../features/auth/role_setup_screen.dart';
 import '../../features/auth/signup_screen.dart';
+import '../../features/challenges/screens/challenge_status_screen.dart';
+import '../../features/challenges/screens/challenges_hub_screen.dart';
+import '../../features/challenges/screens/club_profile_screen.dart';
+import '../../features/challenges/screens/create_slot_screen.dart';
+import '../../features/challenges/screens/my_challenges_screen.dart';
 import '../../features/club/screens/add_team_players_screen.dart';
 import '../../features/club/screens/club_dashboard_screen.dart';
 import '../../features/club/screens/join_request_profile_screen.dart';
@@ -284,19 +289,26 @@ final List<RouteBase> _clubFullRoutes = [
     ],
   ),
   _ph('player-hunt', 'Open Players', 'openPlayers', root: true, fallback: Routes.clubHome),
-  _ph('challenges', 'Challenges', 'challenges', root: true, fallback: Routes.clubHome, links: const [
-    PlaceholderLink('My Challenges', Routes.myChallenges),
-    PlaceholderLink('Find Match', Routes.findMatch),
-    PlaceholderLink('Create Availability Slot', Routes.createAvailabilitySlot),
-    PlaceholderLink('Opponent club profile', '/club/clubs/club_kk'),
-  ], routes: [
-    _ph('mine', 'Challenges', 'myChallenges', root: true, fallback: Routes.challenges),
-    _ph('find', 'Find a Match', 'findMatch', root: true, fallback: Routes.challenges),
-    _ph('slots/new', 'Create Availability Slot', 'createAvailabilitySlot', root: true, fallback: Routes.challenges),
-    _ph(':challengeId/accepted', 'Challenge Status', 'challengeAccepted',
-        root: true, terminal: '/club/matches?tab=waiting'),
-  ]),
-  _ph('clubs/:clubId', 'Club Profile', 'clubProfile', root: true, fallback: Routes.challenges),
+  GoRoute(
+    path: 'challenges',
+    parentNavigatorKey: rootNavigatorKey,
+    builder: (_, _) => const ChallengesHubScreen(),
+    routes: [
+      GoRoute(path: 'mine', parentNavigatorKey: rootNavigatorKey, builder: (_, _) => const MyChallengesScreen()),
+      GoRoute(path: 'find', parentNavigatorKey: rootNavigatorKey, builder: (_, _) => const FindMatchScreen()),
+      GoRoute(path: 'slots/new', parentNavigatorKey: rootNavigatorKey, builder: (_, _) => const CreateSlotScreen()),
+      GoRoute(
+        path: ':challengeId/accepted',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, s) => ChallengeStatusScreen(challengeId: s.pathParameters['challengeId']!),
+      ),
+    ],
+  ),
+  GoRoute(
+    path: 'clubs/:clubId',
+    parentNavigatorKey: rootNavigatorKey,
+    builder: (_, s) => ClubProfileScreen(clubId: s.pathParameters['clubId']!),
+  ),
   _ph('matches', 'Upcoming Matches', 'upcomingMatches', root: true, fallback: Routes.clubHome, links: const [
     PlaceholderLink('Pending match → Match Setup', '/club/matches/m_3/setup'),
   ], routes: [

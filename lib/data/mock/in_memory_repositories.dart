@@ -329,14 +329,15 @@ class InMemoryChallengeRepository implements ChallengeRepository {
   Future<List<MatchSeekerListing>> matchSeekers() async => _seekers;
 
   @override
-  Future<Challenge> send({required String opponentClubId, MatchFormat? format}) async {
+  Future<Challenge> send({required String opponentClubId, MatchFormat? format, required DateTime at}) async {
     final c = Challenge(
       id: _id('ch'),
       opponentClubId: opponentClubId,
       direction: ChallengeDirection.sent,
       status: ChallengeStatus.pending,
-      createdAt: DateTime.now(),
+      createdAt: at,
       format: format,
+      expiresAt: at.add(Challenge.responseWindow),
     );
     _challenges.add(c);
     return c;

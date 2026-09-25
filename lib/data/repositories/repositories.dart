@@ -109,7 +109,9 @@ abstract interface class ChallengeRepository {
   Future<List<Challenge>> challenges();
   Future<List<String>> challengeableClubIds();
   Future<List<MatchSeekerListing>> matchSeekers();
-  Future<Challenge> send({required String opponentClubId, MatchFormat? format});
+  /// Always creates a PENDING sent challenge (expires after
+  /// [Challenge.responseWindow]). Demo Mode may then accept it instantly.
+  Future<Challenge> send({required String opponentClubId, MatchFormat? format, required DateTime at});
   Future<Challenge> save(Challenge challenge);
   Future<List<AvailabilitySlot>> availabilitySlots();
   Future<AvailabilitySlot> postAvailabilitySlot(AvailabilitySlot slot);
