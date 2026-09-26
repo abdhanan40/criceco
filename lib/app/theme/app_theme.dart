@@ -105,7 +105,7 @@ abstract final class AppTheme {
         isDense: false,
         constraints: const BoxConstraints(minHeight: CeSize.inputMinHeight),
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         hintStyle: text.bodyLarge?.copyWith(color: CeColors.muted2),
         prefixIconColor: CeColors.muted,
         suffixIconColor: CeColors.muted,

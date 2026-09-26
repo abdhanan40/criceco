@@ -46,14 +46,17 @@ class PlayerDashboardScreen extends ConsumerWidget {
       return 'Next: ${CeFormat.dayMonth(next.startsAt)}';
     }
 
+    // Structure (reference dashboard): compact header → season summary with
+    // recent form → quick actions → next match → performance snapshot.
     return Scaffold(
       body: CeStatusBarScrim(
-        child: ListView(padding: const EdgeInsets.only(bottom: 24), children: [
-          // ---- Hero ----
+        child: ListView(padding: const EdgeInsets.only(bottom: 20), children: [
+          // ---- Compact header: greeting, identity, status ----
           AnnotatedRegion<SystemUiOverlayStyle>(
             value: SystemUiOverlayStyle.light,
             child: CeBrandHero(
-              padding: EdgeInsets.fromLTRB(8, top + 4, 8, 24),
+              bottomRadius: 24,
+              padding: EdgeInsets.fromLTRB(4, top + 2, 8, 18),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Row(children: [
                   Builder(
@@ -67,89 +70,93 @@ class PlayerDashboardScreen extends ConsumerWidget {
                   _Bell(count: notifCount, onTap: () => context.push(Routes.notifications)),
                 ]),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
-                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  padding: const EdgeInsets.fromLTRB(12, 2, 8, 0),
+                  child: Row(children: [
                     _HeroAvatar(initial: account?.initial ?? 'A', available: available),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        const _HeroPill(icon: 'circle-dot', label: 'Player'),
-                        const SizedBox(height: 8),
                         Text('Welcome back,',
-                            style: TextStyle(fontSize: 12.5, color: Colors.white.withValues(alpha: 0.85))),
-                        const SizedBox(height: 2),
+                            style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.85))),
                         Text(name,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: 21, fontWeight: FontWeight.w800, color: Colors.white, height: 1.15, letterSpacing: -0.5)),
-                        const SizedBox(height: 4),
-                        Text('Club ${club.code} • ${club.city}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.85))),
-                        const SizedBox(height: 9),
-                        Semantics(
-                          button: true,
-                          label: available ? 'Available. Tap to mark unavailable' : 'Unavailable. Tap to mark available',
-                          excludeSemantics: true,
-                          child: GestureDetector(
-                            onTap: () {
-                              ref.read(playerAvailabilityProvider.notifier).toggleQuick();
-                              // Feedback for a one-tap status change.
-                              showCeToast(context,
-                                  available ? "You're marked unavailable" : "You're marked available");
-                            },
-                            child: _HeroPill(
-                              dotColor: available ? CeColors.fresh : CeColors.red,
-                              label: available ? 'Available' : 'Unavailable',
-                            ),
+                            style: const TextStyle(
+                                fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white, height: 1.2, letterSpacing: -0.5)),
+                        const SizedBox(height: 2),
+                        Row(children: [
+                          Flexible(
+                            child: Text('Club ${club.code} • ${club.city}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontSize: 11.5, color: Colors.white.withValues(alpha: 0.85))),
                           ),
-                        ),
+                          Text(' · Est. ${club.established}',
+                              maxLines: 1,
+                              style: TextStyle(fontSize: 11.5, color: Colors.white.withValues(alpha: 0.6))),
+                        ]),
                       ]),
                     ),
-                    const SizedBox(width: 10),
-                    _ClubCard(code: club.code, established: club.established),
+                  ]),
+                ),
+                const SizedBox(height: 12),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Wrap(spacing: 8, runSpacing: 6, children: [
+                    const _HeroPill(icon: 'circle-dot', label: 'Player'),
+                    Semantics(
+                      button: true,
+                      label: available ? 'Available. Tap to mark unavailable' : 'Unavailable. Tap to mark available',
+                      excludeSemantics: true,
+                      child: GestureDetector(
+                        onTap: () {
+                          ref.read(playerAvailabilityProvider.notifier).toggleQuick();
+                          // Feedback for a one-tap status change.
+                          showCeToast(context, available ? "You're marked unavailable" : "You're marked available");
+                        },
+                        child: _HeroPill(
+                          dotColor: available ? CeColors.fresh : CeColors.red,
+                          label: available ? 'Available' : 'Unavailable',
+                        ),
+                      ),
+                    ),
                   ]),
                 ),
               ]),
             ),
           ),
 
-          // ---- Stats ----
-          Transform.translate(
-            offset: const Offset(0, -6),
-            child: CeStatsRow(children: [
-              CeStatCard(
-                icon: 'calendar',
+          // ---- Season summary: the three headline numbers + recent form ----
+          CeStatGroup(
+            margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 0),
+            cells: [
+              CeStatCell(
                 label: 'Upcoming Matches',
                 value: '${upcoming.length}',
                 sub: nextLabel(),
                 onTap: () => context.go(Routes.myMatches),
               ),
-              CeStatCard(
-                icon: 'star',
+              CeStatCell(
                 label: 'Performance Rating',
                 value: perf?.rating ?? '–',
                 sub: perf == null ? null : ratingLabel(perf.rating),
                 onTap: () => context.go(Routes.myPerformance),
               ),
-              CeStatCard(
-                icon: 'trophy',
+              CeStatCell(
                 label: 'Matches Played',
                 // "–" while loading, never a misleading 0.
                 value: perf == null ? '–' : '${perf.matches}',
                 sub: 'This Season',
                 onTap: () => context.go(PerformanceView.history.location),
               ),
-            ]),
+            ],
+            footer: perf == null || perf.recentForm.isEmpty
+                ? null
+                : _RecentFormBars(form: perf.recentForm, wins: perf.recentWins, losses: perf.recentLosses),
           ),
 
           // ---- Quick actions ----
-          CeSectionHeader('Quick Actions',
-              actionLabel: 'View All',
-              onAction: () => CeTopBar.openDrawer(context),
-              padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 8)),
+          CeSectionHeader('Quick Actions', actionLabel: 'View All', onAction: () => CeTopBar.openDrawer(context)),
           CeQuickActionGrid(actions: [
             CeQuickAction(icon: 'calendar', label: 'My Matches', onTap: () => context.go(Routes.myMatches)),
             CeQuickAction(icon: 'check-circle', label: 'Availability', onTap: () => context.go(Routes.availability)),
@@ -158,12 +165,12 @@ class PlayerDashboardScreen extends ConsumerWidget {
           ]),
 
           // ---- Next match ----
-          const CeSectionHeader('Next Match', padding: EdgeInsets.fromLTRB(CeSpace.gutter, 18, CeSpace.gutter, 8)),
+          const CeSectionHeader('Next Match'),
           if (next == null)
             CeCard(
               margin: const EdgeInsets.symmetric(horizontal: CeSpace.gutter),
               child: Row(children: [
-                const CeIconWell('calendar', size: 44),
+                const CeIconWell('calendar', size: 38, iconSize: 17),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text('No upcoming matches yet. Confirmed matches will show up here.',
@@ -177,9 +184,7 @@ class PlayerDashboardScreen extends ConsumerWidget {
           // ---- Performance snapshot (only once there is data: no empty header) ----
           if (perf != null) ...[
             CeSectionHeader('Your Performance Snapshot',
-                actionLabel: 'See All',
-                onAction: () => context.go(Routes.myPerformance),
-                padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 18, CeSpace.gutter, 8)),
+                actionLabel: 'See All', onAction: () => context.go(Routes.myPerformance)),
             _SnapshotRow(tiles: perf.snapshot),
           ],
         ]),
@@ -223,26 +228,26 @@ class _HeroAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-        width: 70,
-        height: 70,
+        width: 54,
+        height: 54,
         child: Stack(children: [
           Container(
-            width: 70,
-            height: 70,
+            width: 54,
+            height: 54,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: Colors.white.withValues(alpha: 0.2),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 3),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 2.5),
             ),
-            child: Text(initial, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: Colors.white)),
+            child: Text(initial, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: Colors.white)),
           ),
           Positioned(
-            right: 2,
-            bottom: 2,
+            right: 0,
+            bottom: 0,
             child: Container(
-              width: 15,
-              height: 15,
+              width: 14,
+              height: 14,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: available ? CeColors.fresh : CeColors.red,
@@ -282,40 +287,61 @@ class _HeroPill extends StatelessWidget {
       );
 }
 
-class _ClubCard extends StatelessWidget {
-  const _ClubCard({required this.code, required this.established});
-  final String code;
-  final int established;
+/// Recent form inside the season summary (reference "weekly progress" bars):
+/// one bar per recent match, height = runs, green won / red lost, opponent
+/// below. Same data as My Performance → Recent Form.
+class _RecentFormBars extends StatelessWidget {
+  const _RecentFormBars({required this.form, required this.wins, required this.losses});
+  final List<FormEntry> form;
+  final int wins;
+  final int losses;
 
   @override
-  Widget build(BuildContext context) => Container(
-        width: 84,
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.14),
-          borderRadius: BorderRadius.circular(CeRadius.row),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.24)),
-        ),
-        child: Column(children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(CeRadius.sm)),
-            child: Icon(CeIcons.of('shield'), size: 17, color: Colors.white),
-          ),
-          const SizedBox(height: 6),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(code,
-                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, letterSpacing: 0.4, color: Colors.white)),
-          ),
+  Widget build(BuildContext context) {
+    final maxRuns = form.map((f) => f.runs).fold<int>(0, (a, b) => b > a ? b : a);
+    final spoken = form
+        .map((f) => '${f.result == MatchResult.won ? 'Won' : 'Lost'} against ${f.opponentAbbr}, ${f.runs} runs')
+        .join('; ');
+    return Semantics(
+      label: 'Recent form, $wins won $losses lost: $spoken',
+      excludeSemantics: true,
+      child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+        Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          const Text('Recent form', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: CeColors.ink)),
           const SizedBox(height: 2),
-          Text('EST. $established', style: TextStyle(fontSize: 9, color: Colors.white.withValues(alpha: 0.72))),
+          Text('${wins}W - ${losses}L · runs', style: const TextStyle(fontSize: 10.5, color: CeColors.muted)),
         ]),
-      );
+        const SizedBox(width: 12),
+        Expanded(
+          child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            for (final (i, f) in form.indexed) ...[
+              if (i > 0) const SizedBox(width: 6),
+              Expanded(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Container(
+                    height: 6 + 28 * (maxRuns <= 0 ? 0 : f.runs / maxRuns),
+                    decoration: BoxDecoration(
+                      color: f.result == MatchResult.won ? CeColors.fresh : CeColors.red,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(f.opponentAbbr, style: const TextStyle(fontSize: 9, color: CeColors.muted)),
+                  ),
+                ]),
+              ),
+            ],
+          ]),
+        ),
+      ]),
+    );
+  }
 }
 
-/// `.pd-next-match`: gradient body + mint footer with live countdown.
+/// `.pd-next-match`, compact: gradient body (teams, status, when/where) +
+/// mint footer with the live countdown and the one primary action.
 class _NextMatchCard extends ConsumerWidget {
   const _NextMatchCard({required this.match});
   final PlayerMatch match;
@@ -328,55 +354,47 @@ class _NextMatchCard extends ConsumerWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: CeSpace.gutter),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(CeRadius.lg),
         boxShadow: const [BoxShadow(color: Color(0x26092328), blurRadius: 14, offset: Offset(0, 4))],
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Container(
           decoration: const BoxDecoration(gradient: CeColors.brandGradient),
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
           child: DefaultTextStyle.merge(
             style: const TextStyle(color: Colors.white),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Align(
-                alignment: Alignment.centerRight,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              Row(children: [
+                CeTeamBadge(match.ownTeamAbbr, size: 38, color: CeColors.primaryDark),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 6),
+                  child: Text('VS', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 1)),
+                ),
+                CeTeamBadge(match.opponentAbbr, size: 38, color: CeColors.red),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.22), borderRadius: BorderRadius.circular(CeRadius.pill)),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(CeIcons.of('check'), size: 11, color: Colors.white),
-                    const SizedBox(width: 4),
-                    const Text('CONFIRMED', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
+                    Icon(CeIcons.of('check'), size: 10, color: Colors.white),
+                    const SizedBox(width: 3),
+                    const Text('CONFIRMED', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800)),
                   ]),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                CeTeamBadge(match.ownTeamAbbr, size: 46, color: CeColors.primaryDark),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: Text('VS', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: 1)),
-                ),
-                CeTeamBadge(match.opponentAbbr, size: 46, color: CeColors.red),
               ]),
+              // Names get the full width (never clipped by the status pill at 320 px).
               const SizedBox(height: 8),
-              Row(children: [
-                Expanded(
-                  child: Text(match.ownTeamName,
-                      textAlign: TextAlign.center,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
-                ),
-                Expanded(
-                  child: Text(match.opponentName,
-                      textAlign: TextAlign.center,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
-                ),
-              ]),
-              const SizedBox(height: 14),
+              Text('${match.ownTeamName} vs',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: white85)),
+              Text(match.opponentName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, letterSpacing: -0.2)),
+              const SizedBox(height: 10),
               InkWell(
                 onTap: () => openDirections(context, match.ground),
                 child: Row(children: [
@@ -391,17 +409,14 @@ class _NextMatchCard extends ConsumerWidget {
                   Icon(CeIcons.of('arrow-up-right'), size: 11, color: Colors.white),
                 ]),
               ),
-              const SizedBox(height: 7),
-              Wrap(spacing: 10, runSpacing: 4, children: [
+              const SizedBox(height: 8),
+              Wrap(spacing: 10, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
                 _WhiteInfo(icon: 'calendar', text: CeFormat.dayDate(match.startsAt)),
                 _WhiteInfo(icon: 'clock', text: CeFormat.time(match.startsAt)),
-              ]),
-              const SizedBox(height: 10),
-              Wrap(spacing: 8, runSpacing: 6, children: [
                 _Tag('${match.format.display()} Match'),
                 if (match.matchType != null) _Tag(match.matchType!),
               ]),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Row(children: [
                 Icon(CeIcons.of('users'), size: 12, color: white85),
                 const SizedBox(width: 5),
@@ -416,7 +431,7 @@ class _NextMatchCard extends ConsumerWidget {
         ),
         Container(
           color: CeColors.mint,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
           child: Row(children: [
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -511,7 +526,7 @@ class _SnapshotRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         margin: const EdgeInsets.symmetric(horizontal: CeSpace.gutter),
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 4),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(CeRadius.lg),

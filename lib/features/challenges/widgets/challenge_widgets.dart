@@ -11,6 +11,7 @@ import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
 import '../../../shared/widgets/ce_match_widgets.dart';
+import '../../../shared/widgets/ce_segmented.dart';
 import '../../club/club_providers.dart';
 import '../challenges_controller.dart';
 
@@ -33,7 +34,7 @@ class ChallengesTabs extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final awaiting = ref.watch(myChallengeSectionsProvider).awaitingDecision.length;
-    return CeChipRow<ChallengesSection>(
+    return CeSegmentedTabs<ChallengesSection>(
       values: ChallengesSection.values,
       selected: active,
       labelOf: (s) => s.label,
@@ -128,7 +129,7 @@ class AvailabilitySlotCta extends StatelessWidget {
             borderRadius: BorderRadius.circular(CeRadius.row),
             onTap: () => context.push(Routes.createAvailabilitySlot),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Icon(CeIcons.of('plus'), size: 16, color: CeColors.primaryDark),
                 const SizedBox(width: 8),
@@ -159,8 +160,8 @@ class MySlotsList extends ConsumerWidget {
     return Column(children: [
       for (final s in slots)
         Container(
-          margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 0),
-          padding: const EdgeInsets.all(14),
+          margin: const EdgeInsets.fromLTRB(CeSpace.gutter, CeSpace.rowGap, CeSpace.gutter, 0),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(CeRadius.row),
@@ -254,6 +255,7 @@ class ChallengeCard extends StatelessWidget {
     this.trailing,
     this.details = const [],
     this.actions,
+    this.inlineActions = false,
     this.onTap,
   });
 
@@ -265,11 +267,15 @@ class ChallengeCard extends StatelessWidget {
   final Widget? trailing;
   final List<Widget> details;
   final Widget? actions;
+
+  /// Dense layout: the details and a compact action share the last row
+  /// (primary action on the right) instead of a full-width button below.
+  final bool inlineActions;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 0),
+        margin: const EdgeInsets.fromLTRB(CeSpace.gutter, CeSpace.rowGap, CeSpace.gutter, 0),
         child: Material(
           color: Colors.white,
           shape: RoundedRectangleBorder(
@@ -280,10 +286,10 @@ class ChallengeCard extends StatelessWidget {
           child: InkWell(
             onTap: onTap,
             child: Padding(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Row(children: [
-                  CeTeamBadge(abbr, color: color, size: 40),
+                  CeTeamBadge(abbr, color: color, size: 38),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -300,11 +306,20 @@ class ChallengeCard extends StatelessWidget {
                   ),
                   if (trailing != null) ...[const SizedBox(width: 8), trailing!],
                 ]),
-                if (details.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  Wrap(spacing: 12, runSpacing: 6, children: details),
+                if (inlineActions && actions != null) ...[
+                  const SizedBox(height: 8),
+                  Row(children: [
+                    Expanded(child: Wrap(spacing: 12, runSpacing: 6, children: details)),
+                    const SizedBox(width: 10),
+                    actions!,
+                  ]),
+                ] else ...[
+                  if (details.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(spacing: 12, runSpacing: 6, children: details),
+                  ],
+                  if (actions != null) ...[const SizedBox(height: 10), actions!],
                 ],
-                if (actions != null) ...[const SizedBox(height: 12), actions!],
               ]),
             ),
           ),

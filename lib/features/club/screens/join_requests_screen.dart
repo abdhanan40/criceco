@@ -9,6 +9,7 @@ import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
+import '../../../shared/widgets/ce_segmented.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
 import '../requests/join_requests_controller.dart';
@@ -95,7 +96,7 @@ class _JoinRequestsScreenState extends ConsumerState<JoinRequestsScreen> {
         ],
       ),
       body: ListView(padding: const EdgeInsets.only(bottom: 24), children: [
-        CeChipRow<JoinRequestReview>(
+        CeSegmentedTabs<JoinRequestReview>(
           values: JoinRequestReview.values,
           selected: tab,
           labelOf: (t) => t.label,

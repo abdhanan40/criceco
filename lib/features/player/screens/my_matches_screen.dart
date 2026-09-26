@@ -10,6 +10,7 @@ import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
 import '../../../shared/widgets/ce_match_widgets.dart';
+import '../../../shared/widgets/ce_segmented.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
 import '../player_providers.dart';
 
@@ -38,7 +39,7 @@ class MyMatchesScreen extends ConsumerWidget {
     return Scaffold(
       appBar: CeTopBar(title: 'My Matches', onBack: () => context.go(Routes.playerHome)),
       body: ListView(padding: const EdgeInsets.only(bottom: 24), children: [
-        CeChipRow<PlayerMatchStatus>(
+        CeSegmentedTabs<PlayerMatchStatus>(
           values: PlayerMatchStatus.values,
           selected: tab,
           labelOf: (s) => s.label,

@@ -18,10 +18,13 @@ import '../widgets/challenge_widgets.dart';
 /// "Challenge" / "Send Match Request" button; shows "Challenge Sent" while a
 /// sent challenge to that club is still awaiting a reply (no duplicates).
 class _SendButton extends ConsumerStatefulWidget {
-  const _SendButton({required this.club, required this.label, this.format});
+  const _SendButton({required this.club, required this.label, this.format, this.expand = true});
   final ClubSummary club;
   final String label;
   final MatchFormat? format;
+
+  /// false = a compact inline action sized to its label.
+  final bool expand;
 
   @override
   ConsumerState<_SendButton> createState() => _SendButtonState();
@@ -34,10 +37,13 @@ class _SendButtonState extends ConsumerState<_SendButton> {
   Widget build(BuildContext context) {
     final waiting = ref.watch(pendingSentClubIdsProvider).contains(widget.club.id);
     if (waiting) {
-      return CeButton.soft(label: 'Challenge Sent', icon: CeIcons.of('hourglass'));
+      return CeButton.soft(
+          label: 'Challenge Sent', icon: CeIcons.of('hourglass'), dense: true, expand: widget.expand);
     }
     return CeButton(
       label: widget.label,
+      dense: true,
+      expand: widget.expand,
       loading: _busy,
       onPressed: _busy
           ? null
@@ -77,7 +83,8 @@ class ChallengesHubScreen extends ConsumerWidget {
                 Text('L${c.losses}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: CeColors.red)),
               ]),
               details: [InlineInfo(icon: 'map-pin', text: c.homeGround)],
-              actions: _SendButton(club: c, label: 'Challenge'),
+              actions: _SendButton(club: c, label: 'Challenge', expand: false),
+              inlineActions: true,
               onTap: () => context.push(Routes.clubProfile(c.id)),
             ),
       ]),

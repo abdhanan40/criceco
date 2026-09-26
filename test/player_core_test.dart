@@ -425,7 +425,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(_loc(c), Routes.playerProfile);
       expect(find.byKey(const Key('edit.name')), findsOneWidget);
-      await tester.tap(find.text('Cancel').first);
+      // The top-bar Cancel (always on screen, whatever the body's scroll).
+      await tester.tap(find.descendant(of: find.byType(AppBar), matching: find.text('Cancel')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('edit.name')), findsNothing);
       expect(find.text('Edit'), findsOneWidget);

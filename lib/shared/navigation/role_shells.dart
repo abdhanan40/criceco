@@ -31,6 +31,8 @@ abstract final class RoleNavItems {
 }
 
 /// Bottom navigation (`.bottom-nav`). The selected item is the active branch.
+/// Compact, docked bar (structural UI update): hairline divider, no floating
+/// shadow; icon + short label, the active item marked by a tinted pill.
 class CeBottomNav extends StatelessWidget {
   const CeBottomNav({super.key, required this.items, required this.currentIndex, required this.onTap});
   final List<NavItem> items;
@@ -43,12 +45,11 @@ class CeBottomNav extends StatelessWidget {
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(top: BorderSide(color: CeColors.line)),
-        boxShadow: CeShadows.bottomNav,
       ),
       child: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(6, 8, 6, 10),
+          padding: const EdgeInsets.fromLTRB(4, 5, 4, 5),
           child: Row(children: [
             for (var i = 0; i < items.length; i++)
               Expanded(child: _NavButton(item: items[i], active: i == currentIndex, onTap: () => onTap(i))),
@@ -67,7 +68,7 @@ class _NavButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = active ? CeColors.primary : CeColors.muted2;
+    final color = active ? CeColors.primary : CeColors.muted;
     return Semantics(
       selected: active,
       button: true,
@@ -81,18 +82,18 @@ class _NavButton extends StatelessWidget {
           child: Column(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
             AnimatedContainer(
               duration: CeMotion.slow,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 3),
               decoration: BoxDecoration(
                 color: active ? CeColors.mint : Colors.transparent,
                 borderRadius: BorderRadius.circular(CeRadius.pill),
               ),
-              child: Icon(CeIcons.of(item.icon), size: 22, color: color),
+              child: Icon(CeIcons.of(item.icon), size: 20, color: color),
             ),
-            const SizedBox(height: 5),
+            const SizedBox(height: 3),
             Text(item.label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 10.5, fontWeight: active ? FontWeight.w700 : FontWeight.w600, color: color)),
+                style: TextStyle(fontSize: 10.5, fontWeight: active ? FontWeight.w800 : FontWeight.w600, color: color)),
           ]),
         ),
       ),

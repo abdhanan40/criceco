@@ -87,23 +87,15 @@ class PerformanceOverviewView extends ConsumerWidget {
           ]),
         ),
         const CeSectionHeader('Statistics', padding: EdgeInsets.fromLTRB(CeSpace.gutter, 16, CeSpace.gutter, 0)),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
-          child: Row(children: [
-            for (final t in PerformanceTab.values) ...[
-              if (t.index > 0) const SizedBox(width: 8),
-              CeChip(
-                label: t.label,
-                icon: t.icon,
-                selected: t == tab,
-                onTap: () => ref.read(performanceTabProvider.notifier).select(t),
-              ),
-            ],
-          ]),
+        CeSegmentedTabs<PerformanceTab>(
+          values: PerformanceTab.values,
+          selected: tab,
+          labelOf: (t) => t.label,
+          onSelected: ref.read(performanceTabProvider.notifier).select,
+          padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 0),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 0),
+          padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 0),
           child: _StatGrid(tiles: stats),
         ),
         CeSectionHeader('Match-by-Match',
@@ -343,11 +335,11 @@ class _StatGrid extends StatelessWidget {
       }
 
       rows.add(Padding(
-        padding: EdgeInsets.only(top: i == 0 ? 0 : 10),
+        padding: EdgeInsets.only(top: i == 0 ? 0 : 8),
         child: IntrinsicHeight(
           child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Expanded(child: cell(tiles[i])),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             Expanded(child: i + 1 < tiles.length ? cell(tiles[i + 1]) : const SizedBox.shrink()),
           ]),
         ),
@@ -366,11 +358,12 @@ class MatchLogCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final m = entry;
     return CeCard(
-      margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      margin: const EdgeInsets.fromLTRB(CeSpace.gutter, CeSpace.rowGap, CeSpace.gutter, 0),
+      radius: CeRadius.row,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
-          CeTeamBadge(m.opponentAbbr, color: clubBadgeColor(m.opponentAbbr), size: 36),
+          CeTeamBadge(m.opponentAbbr, color: clubBadgeColor(m.opponentAbbr), size: 34),
           const SizedBox(width: 10),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -389,8 +382,8 @@ class MatchLogCard extends StatelessWidget {
           const SizedBox(width: 8),
           CeResultPill(won: m.result == MatchResult.won),
         ]),
-        const Padding(padding: EdgeInsets.only(top: 10), child: Divider(height: 1, color: CeColors.hairline)),
-        const SizedBox(height: 10),
+        const Padding(padding: EdgeInsets.only(top: 8), child: Divider(height: 1, color: CeColors.hairline)),
+        const SizedBox(height: 8),
         Wrap(spacing: 14, runSpacing: 4, children: [
           _Stat(icon: 'circle-dot', strong: '${m.runs}', rest: ' (${m.balls}b)'),
           _Stat(icon: 'target', strong: '${m.wickets}', rest: '/${m.overs} ov'),

@@ -143,14 +143,16 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: EdgeInsets.only(bottom: 24 + MediaQuery.viewInsetsOf(context).bottom),
             children: [
+              // Reference profile structure: identity → stats row → grouped
+              // detail rows → actions.
               CeBrandHero(
-                margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 0),
-                radius: 18,
-                padding: const EdgeInsets.all(20),
+                margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
+                radius: CeRadius.lg,
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
                 child: Row(children: [
                   Container(
-                    width: 62,
-                    height: 62,
+                    width: 56,
+                    height: 56,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
@@ -192,20 +194,15 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
                   ),
                 ]),
               ),
-              const CeSectionHeader('Career'),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: CeSpace.gutter),
-                child: Row(children: [
-                  for (final (i, (v, l)) in [
-                    ('${perf?.matches ?? '—'}', 'Matches'),
-                    ('${perf?.runs ?? '—'}', 'Runs'),
-                    (perf?.battingAverage ?? '—', 'Average'),
-                    (perf?.rating ?? '—', 'Rating'),
-                  ].indexed) ...[
-                    if (i > 0) const SizedBox(width: 8),
-                    Expanded(child: _CareerCell(value: v, label: l)),
-                  ],
-                ]),
+              // Career numbers in one compact stats row under the identity.
+              CeStatGroup(
+                margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 0),
+                cells: [
+                  CeStatCell(value: '${perf?.matches ?? '—'}', label: 'Matches'),
+                  CeStatCell(value: '${perf?.runs ?? '—'}', label: 'Runs'),
+                  CeStatCell(value: perf?.battingAverage ?? '—', label: 'Average'),
+                  CeStatCell(value: perf?.rating ?? '—', label: 'Rating'),
+                ],
               ),
               CeSectionHeader(_editing ? 'Edit Details' : 'Details'),
               if (_editing)
@@ -240,7 +237,7 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
                   ]),
                 ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 18, CeSpace.gutter, 0),
+                padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 16, CeSpace.gutter, 0),
                 child: _editing
                     ? Column(children: [
                         CeButton(label: 'Save Changes', loading: _saving, onPressed: _saving ? null : _save),
@@ -342,33 +339,6 @@ class _EditForm extends StatelessWidget {
       );
 }
 
-class _CareerCell extends StatelessWidget {
-  const _CareerCell({required this.value, required this.label});
-  final String value;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(CeRadius.row),
-          border: Border.all(color: CeColors.line),
-          boxShadow: CeShadows.card,
-        ),
-        child: Column(children: [
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(value,
-                style: const TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.w800, color: CeColors.ink, fontFeatures: [FontFeature.tabularFigures()])),
-          ),
-          const SizedBox(height: 3),
-          Text(label, maxLines: 1, style: const TextStyle(fontSize: 10, color: CeColors.muted)),
-        ]),
-      );
-}
-
 class _DetailRow extends StatelessWidget {
   const _DetailRow({required this.icon, required this.label, required this.value, this.last = false});
   final String icon;
@@ -380,7 +350,7 @@ class _DetailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        constraints: const BoxConstraints(minHeight: 46),
+        constraints: const BoxConstraints(minHeight: 44),
         decoration: BoxDecoration(
           border: last ? null : const Border(bottom: BorderSide(color: CeColors.hairline)),
         ),

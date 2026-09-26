@@ -11,6 +11,7 @@ import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
 import '../../../shared/widgets/ce_inputs.dart';
+import '../../../shared/widgets/ce_rows.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
 import '../club_providers.dart';
@@ -33,7 +34,7 @@ class TeamsScreen extends ConsumerWidget {
       body: ListView(padding: const EdgeInsets.only(bottom: 24), children: [
         _NewTeamRow(onTap: () => showCreateTeamSheet(context)),
         CeSectionHeader(teams.isEmpty ? 'All Teams' : 'All Teams · ${teams.length}',
-            padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 20, CeSpace.gutter, 4)),
+            padding: const EdgeInsets.fromLTRB(CeSpace.gutter, CeSpace.section, CeSpace.gutter, 0)),
         if (teamsAsync.isLoading)
           const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()))
         else if (teamsAsync.hasError)
@@ -210,29 +211,28 @@ class _NewTeamRow extends StatelessWidget {
         label: 'New Team. Create a team to organize your club players',
         excludeSemantics: true,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 0),
+          padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
           child: Material(
             color: CeColors.mint,
-            borderRadius: BorderRadius.circular(CeRadius.lg),
+            borderRadius: BorderRadius.circular(CeRadius.row),
             child: InkWell(
-              borderRadius: BorderRadius.circular(CeRadius.lg),
+              borderRadius: BorderRadius.circular(CeRadius.row),
               onTap: onTap,
               child: Container(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(CeRadius.lg),
+                  borderRadius: BorderRadius.circular(CeRadius.row),
                   border: Border.all(color: CeColors.mint2),
                 ),
                 child: Row(children: [
-                  const CeIconWell('plus', size: 42, iconSize: 20, background: Colors.white),
-                  const SizedBox(width: 12),
-                  Expanded(
+                  const CeIconWell('plus', size: 40, iconSize: 18, background: Colors.white),
+                  const SizedBox(width: 11),
+                  const Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('New Team',
-                          style: Theme.of(context).textTheme.titleMedium!.copyWith(fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 2),
-                      const Text('Create a team to organize your club players',
-                          style: TextStyle(fontSize: 12, color: CeColors.muted)),
+                      Text('New Team', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: CeColors.ink)),
+                      SizedBox(height: 2),
+                      Text('Create a team to organize your club players',
+                          style: TextStyle(fontSize: 11.5, color: CeColors.muted)),
                     ]),
                   ),
                   Icon(CeIcons.of('chevron-right'), size: 18, color: CeColors.primaryDark),
@@ -253,30 +253,12 @@ class _TeamRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = team;
     final players = '${t.playerCount} player${t.playerCount == 1 ? '' : 's'}';
-    return Semantics(
-      button: true,
-      label: '${t.name}, $players, ${t.format.display(t.customOvers)}',
-      excludeSemantics: true,
-      child: CeCard(
-        margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 0),
-        onTap: onTap,
-        child: Row(children: [
-          const CeIconWell('shield', size: 44, iconSize: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(t.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: CeColors.ink)),
-              const SizedBox(height: 2),
-              Text('$players · ${t.format.display(t.customOvers)}',
-                  style: const TextStyle(fontSize: 12, color: CeColors.muted, height: 1.35)),
-            ]),
-          ),
-          Icon(CeIcons.of('chevron-right'), size: 18, color: CeColors.muted),
-        ]),
-      ),
+    return CeListRow(
+      semanticLabel: '${t.name}, $players, ${t.format.display(t.customOvers)}',
+      leading: const CeIconWell('shield', size: 40, iconSize: 18),
+      title: t.name,
+      subtitle: '$players · ${t.format.display(t.customOvers)}',
+      onTap: onTap,
     );
   }
 }

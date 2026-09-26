@@ -49,12 +49,17 @@ class CeBrandHero extends StatelessWidget {
     required this.child,
     this.padding = const EdgeInsets.fromLTRB(24, 30, 24, 22),
     this.radius = 0,
+    this.bottomRadius,
     this.margin,
   });
 
   final Widget child;
   final EdgeInsetsGeometry padding;
   final double radius;
+
+  /// Rounds only the bottom corners (compact dashboard headers); overrides
+  /// [radius].
+  final double? bottomRadius;
   final EdgeInsetsGeometry? margin;
 
   @override
@@ -63,7 +68,9 @@ class CeBrandHero extends StatelessWidget {
       margin: margin,
       decoration: BoxDecoration(
         gradient: CeColors.brandGradient,
-        borderRadius: BorderRadius.circular(radius),
+        borderRadius: bottomRadius != null
+            ? BorderRadius.vertical(bottom: Radius.circular(bottomRadius!))
+            : BorderRadius.circular(radius),
         boxShadow: CeShadows.hero,
       ),
       clipBehavior: Clip.antiAlias,
@@ -109,21 +116,29 @@ class CeSectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = Theme.of(context).textTheme;
     return Padding(
-      padding: padding ?? const EdgeInsets.fromLTRB(CeSpace.gutter, 20, CeSpace.gutter, 10),
+      padding: padding ?? const EdgeInsets.fromLTRB(CeSpace.gutter, CeSpace.section, CeSpace.gutter, 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Expanded(child: Text(title, style: t.titleMedium, maxLines: 1, overflow: TextOverflow.ellipsis)),
+          Expanded(
+            child: Text(title,
+                style: t.titleMedium!.copyWith(fontSize: 14.5, fontWeight: FontWeight.w800),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
+          ),
           if (actionLabel != null)
             InkWell(
               onTap: onAction,
               borderRadius: BorderRadius.circular(CeRadius.sm),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(minHeight: CeSize.touchTarget),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Text(actionLabel!, style: t.labelMedium!.copyWith(color: CeColors.primary)),
-                  Icon(CeIcons.of('chevron-right'), size: 14, color: CeColors.primary),
-                ]),
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text(actionLabel!, style: t.labelMedium!.copyWith(color: CeColors.primary, fontSize: 12, fontWeight: FontWeight.w700)),
+                    Icon(CeIcons.of('chevron-right'), size: 13, color: CeColors.primary),
+                  ]),
+                ),
               ),
             ),
         ],

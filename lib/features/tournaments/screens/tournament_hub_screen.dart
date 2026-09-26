@@ -31,38 +31,40 @@ class TournamentHubScreen extends ConsumerWidget {
     return Scaffold(
       appBar: const CeTopBar(title: 'Tournament', fallbackLocation: Routes.clubHome),
       body: ListView(padding: const EdgeInsets.only(bottom: 28), children: [
-        // ---- Hero ----
+        // ---- Compact header ----
         CeBrandHero(
-          margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 0),
+          margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
           radius: CeRadius.lg,
-          padding: const EdgeInsets.fromLTRB(18, 20, 18, 20),
-          child: Column(children: [
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+          child: Row(children: [
             Container(
-              width: 52,
-              height: 52,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.16), shape: BoxShape.circle),
-              child: Icon(CeIcons.of('trophy'), size: 24, color: Colors.white),
+              child: Icon(CeIcons.of('trophy'), size: 21, color: Colors.white),
             ),
-            const SizedBox(height: 10),
-            const Text.rich(
-              TextSpan(children: [
-                TextSpan(text: 'Tournament '),
-                TextSpan(text: 'Center', style: TextStyle(color: CeColors.sage)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text.rich(
+                  TextSpan(children: [
+                    TextSpan(text: 'Tournament '),
+                    TextSpan(text: 'Center', style: TextStyle(color: CeColors.sage)),
+                  ]),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 2),
+                Text('Organize, discover and manage tournaments with ease.',
+                    style: TextStyle(fontSize: 11.5, color: Colors.white.withValues(alpha: 0.85))),
               ]),
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
             ),
-            const SizedBox(height: 4),
-            Text('Organize, discover and manage tournaments with ease.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12.5, color: Colors.white.withValues(alpha: 0.85))),
           ]),
         ),
 
         // ---- Stats ----
         CeCard(
-          margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
+          margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 0),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
           child: Row(children: [
             _Stat(icon: 'trophy', color: CeColors.primary, value: stats.hosted, label: 'Hosted'),
             _Stat(icon: 'users', color: CeColors.blue, value: stats.open, label: 'Open'),
@@ -71,60 +73,37 @@ class TournamentHubScreen extends ConsumerWidget {
           ]),
         ),
 
+        // ---- Actions: dense rows (reference list style) ----
         const CeSectionHeader('What would you like to do?'),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: CeSpace.gutter),
-          child: Column(children: [
-            IntrinsicHeight(
-              child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Expanded(
-                  child: _HubCard(
-                    icon: 'trophy',
-                    color: CeColors.primary,
-                    title: 'Create Tournament',
-                    body: 'Create a new tournament and invite clubs to participate.',
-                    onTap: () => context.go(Routes.createTournament),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _HubCard(
-                    icon: 'search',
-                    color: CeColors.blue,
-                    title: 'Browse Tournaments',
-                    body: 'Find tournaments open for registration and enter a team.',
-                    badge: stats.open,
-                    onTap: () => context.go(Routes.browseTournaments),
-                  ),
-                ),
-              ]),
-            ),
-            const SizedBox(height: 10),
-            IntrinsicHeight(
-              child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Expanded(
-                  child: _HubCard(
-                    icon: 'shield',
-                    color: CeColors.violet,
-                    title: 'My Tournaments',
-                    body: 'View and manage tournaments created by your club.',
-                    onTap: () => context.go(Routes.myTournaments),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _HubCard(
-                    icon: 'clipboard-list',
-                    color: CeColors.amber,
-                    title: 'My Registrations',
-                    body: "Track teams you've registered into other tournaments.",
-                    badge: stats.pendingRegistrations,
-                    onTap: () => context.go(Routes.myRegistrations),
-                  ),
-                ),
-              ]),
-            ),
-          ]),
+        _HubCard(
+          icon: 'trophy',
+          color: CeColors.primary,
+          title: 'Create Tournament',
+          body: 'Create a new tournament and invite clubs to participate.',
+          onTap: () => context.go(Routes.createTournament),
+        ),
+        _HubCard(
+          icon: 'search',
+          color: CeColors.blue,
+          title: 'Browse Tournaments',
+          body: 'Find tournaments open for registration and enter a team.',
+          badge: stats.open,
+          onTap: () => context.go(Routes.browseTournaments),
+        ),
+        _HubCard(
+          icon: 'shield',
+          color: CeColors.violet,
+          title: 'My Tournaments',
+          body: 'View and manage tournaments created by your club.',
+          onTap: () => context.go(Routes.myTournaments),
+        ),
+        _HubCard(
+          icon: 'clipboard-list',
+          color: CeColors.amber,
+          title: 'My Registrations',
+          body: "Track teams you've registered into other tournaments.",
+          badge: stats.pendingRegistrations,
+          onTap: () => context.go(Routes.myRegistrations),
         ),
 
         // ---- Quick Overview ----
@@ -168,13 +147,13 @@ class _Stat extends StatelessWidget {
           excludeSemantics: true,
           child: Column(children: [
             Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(CeRadius.sm)),
-              child: Icon(CeIcons.of(icon), size: 16, color: color),
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(CeRadius.xs)),
+              child: Icon(CeIcons.of(icon), size: 14, color: color),
             ),
-            const SizedBox(height: 6),
-            Text('$value', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: CeColors.ink)),
+            const SizedBox(height: 4),
+            Text('$value', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: CeColors.ink)),
             Text(label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -200,6 +179,7 @@ class _HubCard extends StatelessWidget {
   final VoidCallback onTap;
   final int badge;
 
+  // Dense row: tinted icon · title + one-line purpose · count badge · chevron.
   @override
   Widget build(BuildContext context) => Semantics(
         button: true,
@@ -207,41 +187,40 @@ class _HubCard extends StatelessWidget {
         excludeSemantics: true,
         child: CeCard(
           onTap: onTap,
-          padding: const EdgeInsets.all(12),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(CeRadius.md)),
-                child: Icon(CeIcons.of(icon), size: 19, color: color),
-              ),
-              const Spacer(),
-              if (badge > 0)
-                Container(
-                  constraints: const BoxConstraints(minWidth: 22),
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                  decoration: BoxDecoration(color: CeColors.red, borderRadius: BorderRadius.circular(CeRadius.pill)),
-                  child: Text('$badge',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white)),
-                ),
-            ]),
-            const SizedBox(height: 10),
-            Text(title, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: CeColors.ink, height: 1.25)),
-            const SizedBox(height: 4),
-            Text(body, style: const TextStyle(fontSize: 11.5, color: CeColors.muted, height: 1.35)),
-            const Spacer(),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Container(
-                width: 26,
-                height: 26,
-                decoration: BoxDecoration(color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
-                child: Icon(CeIcons.of('chevron-right'), size: 15, color: color),
-              ),
+          radius: CeRadius.row,
+          margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 0, CeSpace.gutter, CeSpace.rowGap),
+          padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+          child: Row(children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(CeRadius.md)),
+              child: Icon(CeIcons.of(icon), size: 19, color: color),
             ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(title, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: CeColors.ink, height: 1.25)),
+                const SizedBox(height: 2),
+                Text(body,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11.5, color: CeColors.muted, height: 1.3)),
+              ]),
+            ),
+            if (badge > 0) ...[
+              const SizedBox(width: 8),
+              Container(
+                constraints: const BoxConstraints(minWidth: 22),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(color: CeColors.red, borderRadius: BorderRadius.circular(CeRadius.pill)),
+                child: Text('$badge',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white)),
+              ),
+            ],
+            const SizedBox(width: 4),
+            Icon(CeIcons.of('chevron-right'), size: 16, color: CeColors.muted2),
           ]),
         ),
       );

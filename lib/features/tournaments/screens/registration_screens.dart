@@ -10,6 +10,7 @@ import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_indicators.dart';
+import '../../../shared/widgets/ce_segmented.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
 import '../../../shared/widgets/demo_widgets.dart';
@@ -121,7 +122,7 @@ class _MyRegistrationsScreenState extends ConsumerState<MyRegistrationsScreen> {
     return Scaffold(
       appBar: const CeTopBar(title: 'My Registrations', fallbackLocation: Routes.tournamentHub),
       body: ListView(padding: const EdgeInsets.only(bottom: 28), children: [
-        CeChipRow<RegistrationStatus>(
+        CeSegmentedTabs<RegistrationStatus>(
           values: RegistrationStatus.values,
           selected: tab,
           labelOf: (s) => s.label,

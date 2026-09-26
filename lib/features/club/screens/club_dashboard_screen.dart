@@ -39,14 +39,17 @@ class ClubDashboardScreen extends ConsumerWidget {
     final top = MediaQuery.paddingOf(context).top;
     String n(int? v) => v == null ? '–' : '$v';
 
+    // Structure (reference dashboard): compact club identity header → club
+    // summary → the pending action → quick actions → next match.
     return Scaffold(
       body: CeStatusBarScrim(
-        child: ListView(padding: const EdgeInsets.only(bottom: 24), children: [
-          // ---- Hero ----
+        child: ListView(padding: const EdgeInsets.only(bottom: 20), children: [
+          // ---- Compact header: club identity + code ----
           AnnotatedRegion<SystemUiOverlayStyle>(
             value: SystemUiOverlayStyle.light,
             child: CeBrandHero(
-              padding: EdgeInsets.fromLTRB(8, top + 4, CeSpace.gutter, 22),
+              bottomRadius: 24,
+              padding: EdgeInsets.fromLTRB(4, top + 2, CeSpace.gutter, 16),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Row(children: [
                   Builder(
@@ -58,36 +61,44 @@ class ClubDashboardScreen extends ConsumerWidget {
                   ),
                   const Spacer(),
                   Container(
-                    width: 40,
-                    height: 40,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(CeRadius.md)),
-                    child: Icon(CeIcons.of('shield'), size: 18, color: Colors.white),
+                        color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(CeRadius.pill)),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(CeIcons.of('crown'), size: 12, color: Colors.white),
+                      const SizedBox(width: 5),
+                      const Text('Club Owner',
+                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.white)),
+                    ]),
                   ),
                 ]),
                 Padding(
-                  padding: const EdgeInsets.only(left: 10, top: 10),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(CeRadius.pill)),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(CeIcons.of('crown'), size: 12, color: Colors.white),
-                        const SizedBox(width: 5),
-                        const Text('Club Owner',
-                            style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.white)),
-                      ]),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(club?.name ?? 'My Club',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.w800, height: 1.2, letterSpacing: -0.6, color: Colors.white)),
-                    const SizedBox(height: 1),
-                    Text(club?.city ?? '', style: const TextStyle(fontSize: 12.5, color: CeColors.mint2)),
-                    const SizedBox(height: 14),
+                  padding: const EdgeInsets.only(left: 12, top: 4),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    Row(children: [
+                      Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(CeRadius.md),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
+                        ),
+                        child: Icon(CeIcons.of('shield'), size: 21, color: Colors.white),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(club?.name ?? 'My Club',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontSize: 19, fontWeight: FontWeight.w800, height: 1.2, letterSpacing: -0.5, color: Colors.white)),
+                          Text(club?.city ?? '', style: const TextStyle(fontSize: 12, color: CeColors.mint2)),
+                        ]),
+                      ),
+                    ]),
+                    const SizedBox(height: 12),
                     if (club != null) _CodeRow(code: club.code, onShare: () => _shareCode(context, club.code)),
                   ]),
                 ),
@@ -95,22 +106,21 @@ class ClubDashboardScreen extends ConsumerWidget {
             ),
           ),
 
-          // ---- Stats ----
-          Transform.translate(
-            offset: const Offset(0, -6),
-            child: CeStatsRow(children: [
-              CeStatCard(value: n(members), label: 'Members', onTap: () => context.go(Routes.members)),
-              CeStatCard(value: n(teams), label: 'Teams', onTap: () => context.go(Routes.teams)),
-              CeStatCard(value: n(requests), label: 'Requests', onTap: () => context.go(Routes.joinRequests)),
-            ]),
+          // ---- Club summary ----
+          CeStatGroup(
+            margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 0),
+            cells: [
+              CeStatCell(value: n(members), label: 'Members', onTap: () => context.go(Routes.members)),
+              CeStatCell(value: n(teams), label: 'Teams', onTap: () => context.go(Routes.teams)),
+              CeStatCell(value: n(requests), label: 'Requests', onTap: () => context.go(Routes.joinRequests)),
+            ],
           ),
 
           // ---- Pending join requests: the one thing waiting on the owner ----
           if ((requests ?? 0) > 0) _PendingRequestsBanner(count: requests!),
 
           // ---- Quick actions (out-of-phase destinations keep their routes) ----
-          const CeSectionHeader('Quick Actions',
-              padding: EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 8)),
+          const CeSectionHeader('Quick Actions'),
           CeQuickActionGrid(actions: [
             CeQuickAction(icon: 'user-plus', label: 'Requests', onTap: () => context.go(Routes.joinRequests)),
             CeQuickAction(icon: 'users', label: 'Members', onTap: () => context.go(Routes.members)),
@@ -127,7 +137,7 @@ class ClubDashboardScreen extends ConsumerWidget {
             CeSectionHeader('Next Match',
                 actionLabel: 'View All',
                 onAction: () => context.go(Routes.matchManagement(MatchTab.scheduled)),
-                padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 18, CeSpace.gutter, 0)),
+                padding: const EdgeInsets.fromLTRB(CeSpace.gutter, CeSpace.section, CeSpace.gutter, 0)),
             _NextMatch(match: next, clubShortName: club?.displayShortName ?? 'My Club'),
           ],
         ]),
@@ -145,7 +155,7 @@ class _PendingRequestsBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final label = count == 1 ? '1 join request waiting' : '$count join requests waiting';
     return Padding(
-      padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 8, CeSpace.gutter, 0),
+      padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 0),
       child: Semantics(
         button: true,
         label: '$label. Review',
@@ -205,6 +215,7 @@ class _CodeRow extends StatelessWidget {
           Icon(CeIcons.of('key'), size: 14, color: Colors.white),
           const SizedBox(width: 6),
           Expanded(
+            flex: 3,
             child: Text.rich(
               TextSpan(children: [
                 const TextSpan(text: 'Club Code: '),
@@ -218,6 +229,7 @@ class _CodeRow extends StatelessWidget {
           const SizedBox(width: 8),
           // Narrow phones: the pill scales down rather than overflowing.
           Flexible(
+            flex: 2,
             child: FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerRight,

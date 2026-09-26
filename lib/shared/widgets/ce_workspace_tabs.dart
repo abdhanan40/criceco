@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../app/theme/tokens.dart';
-import 'ce_indicators.dart';
+import 'ce_segmented.dart';
 
 /// The one tab style for consolidated workspaces (Performance, Match,
-/// Tournament host): compact chips, horizontally scrollable at 320 px, never
-/// wrapping. Tabs live in the route (`?tab=`), so switching replaces the
-/// location instead of stacking history entries.
+/// Tournament host): a compact full-width segmented track under the top bar.
+/// Tabs live in the route (`?tab=`), so switching replaces the location
+/// instead of stacking history entries.
 class CeWorkspaceTabs<T> extends StatelessWidget {
   const CeWorkspaceTabs({
     super.key,
@@ -23,22 +23,19 @@ class CeWorkspaceTabs<T> extends StatelessWidget {
 
   @override
   // Full width in any parent (a Column centres a shrink-wrapped child), so
-  // the chips start at the gutter and the divider spans the screen.
+  // the track spans the gutters and the divider spans the screen.
   Widget build(BuildContext context) => Container(
         width: double.infinity,
-        alignment: Alignment.centerLeft,
         decoration: const BoxDecoration(
           color: CeColors.bg,
           border: Border(bottom: BorderSide(color: CeColors.line)),
         ),
-        child: CeChipRow<T>(
+        child: CeSegmentedTabs<T>(
           values: values,
           selected: selected,
           labelOf: labelOf,
-          onSelected: (t) {
-            if (t != selected) onSelected(t);
-          },
-          padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 10),
+          onSelected: onSelected,
+          padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 8, CeSpace.gutter, 8),
         ),
       );
 }

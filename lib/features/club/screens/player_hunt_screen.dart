@@ -15,6 +15,7 @@ import '../../../shared/widgets/ce_form_widgets.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
 import '../../../shared/widgets/ce_inputs.dart';
+import '../../../shared/widgets/ce_segmented.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
 import '../../../shared/widgets/demo_widgets.dart';
@@ -60,7 +61,7 @@ class PlayerHuntScreen extends ConsumerWidget {
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: const EdgeInsets.only(bottom: 28),
         children: [
-          CeChipRow<HuntTab>(
+          CeSegmentedTabs<HuntTab>(
             values: HuntTab.values,
             selected: tab,
             labelOf: (t) => t.label,
@@ -147,7 +148,7 @@ class _FindPlayersTabState extends ConsumerState<_FindPlayersTab> {
   Widget build(BuildContext context) {
     final d = ref.watch(huntDraftProvider);
     final mine = ref.watch(myHuntPostsProvider);
-    Widget head(String t) => CeSectionHeader(t, padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 18, CeSpace.gutter, 10));
+    Widget head(String t) => CeSectionHeader(t, padding: const EdgeInsets.fromLTRB(CeSpace.gutter, CeSpace.section, CeSpace.gutter, 8));
 
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       // `.ph-info-banner`
@@ -175,7 +176,7 @@ class _FindPlayersTabState extends ConsumerState<_FindPlayersTab> {
           ]) ...[
             Row(children: [
               for (final (i, r) in pair.indexed) ...[
-                if (i > 0) const SizedBox(width: 10),
+                if (i > 0) const SizedBox(width: 8),
                 Expanded(
                   child: _RoleOption(
                     role: r,
@@ -188,7 +189,7 @@ class _FindPlayersTabState extends ConsumerState<_FindPlayersTab> {
                 ),
               ],
             ]),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
           ],
         ]),
       ),
@@ -248,7 +249,7 @@ class _FindPlayersTabState extends ConsumerState<_FindPlayersTab> {
               Expanded(
                 child: _FilterCard(icon: 'map-pin', label: 'Location', value: d.location ?? 'All', onTap: () => _pickLocation(d)),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: _FilterCard(
                   icon: 'calendar',
@@ -259,7 +260,7 @@ class _FindPlayersTabState extends ConsumerState<_FindPlayersTab> {
               ),
             ]),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           IntrinsicHeight(
             child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Expanded(
@@ -270,14 +271,14 @@ class _FindPlayersTabState extends ConsumerState<_FindPlayersTab> {
                   onTap: () => _pickTime(d),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(child: _FilterCard(icon: 'banknote', label: 'Budget', value: d.budget.label, onTap: _pickBudget)),
             ]),
           ),
         ]),
       ),
       Padding(
-        padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 18, CeSpace.gutter, 0),
+        padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 16, CeSpace.gutter, 0),
         child: CeButton(label: 'Post Player Requirement', loading: _posting, onPressed: _posting ? null : _post),
       ),
 
@@ -310,33 +311,26 @@ class _RoleOption extends StatelessWidget {
           child: InkWell(
             borderRadius: BorderRadius.circular(CeRadius.row),
             onTap: onTap,
+            // Compact horizontal option: icon · label · check when selected.
             child: Container(
-              constraints: const BoxConstraints(minHeight: 78),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-              child: Stack(children: [
-                Center(
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(CeIcons.of(huntRoleIcon(role)),
-                        size: 22, color: selected ? CeColors.primary : CeColors.primaryDark),
-                    const SizedBox(height: 6),
-                    Text(role.label,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                            color: selected ? CeColors.primaryDark : CeColors.ink2)),
-                  ]),
+              constraints: const BoxConstraints(minHeight: 50),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(children: [
+                Icon(CeIcons.of(huntRoleIcon(role)), size: 19, color: selected ? CeColors.primary : CeColors.primaryDark),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(role.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 12.5, fontWeight: FontWeight.w700, color: selected ? CeColors.primaryDark : CeColors.ink2)),
                 ),
                 if (selected)
-                  Positioned(
-                    top: 0,
-                    right: 0,
-                    child: Container(
-                      width: 18,
-                      height: 18,
-                      decoration: const BoxDecoration(color: CeColors.primary, shape: BoxShape.circle),
-                      child: Icon(CeIcons.of('check'), size: 12, color: Colors.white),
-                    ),
+                  Container(
+                    width: 18,
+                    height: 18,
+                    decoration: const BoxDecoration(color: CeColors.primary, shape: BoxShape.circle),
+                    child: Icon(CeIcons.of('check'), size: 12, color: Colors.white),
                   ),
               ]),
             ),
@@ -377,23 +371,24 @@ class _FilterCard extends StatelessWidget {
         button: true,
         label: '$label, $value',
         excludeSemantics: true,
+        // Compact: icon well beside label + value, chevron on the right.
         child: CeCard(
-          padding: const EdgeInsets.all(12),
+          radius: CeRadius.row,
+          padding: const EdgeInsets.fromLTRB(10, 9, 8, 9),
           onTap: onTap,
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child: Row(children: [
             CeIconWell(icon, size: 30, iconSize: 15),
-            const SizedBox(height: 8),
-            Text(label, style: const TextStyle(fontSize: 11, color: CeColors.muted)),
-            const SizedBox(height: 2),
-            Row(children: [
-              Expanded(
-                child: Text(value,
-                    maxLines: 2,
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                Text(label, style: const TextStyle(fontSize: 10.5, color: CeColors.muted)),
+                Text(value,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: CeColors.ink)),
-              ),
-              Icon(CeIcons.of('chevron-down'), size: 14, color: CeColors.muted),
-            ]),
+              ]),
+            ),
+            Icon(CeIcons.of('chevron-down'), size: 14, color: CeColors.muted),
           ]),
         ),
       );

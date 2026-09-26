@@ -16,13 +16,15 @@ class CeButton extends StatelessWidget {
     this.trailingIcon,
     this.loading = false,
     this.expand = true,
+    this.dense = false,
   });
 
-  const CeButton.soft({super.key, required this.label, this.onPressed, this.icon, this.trailingIcon, this.expand = true})
+  const CeButton.soft(
+      {super.key, required this.label, this.onPressed, this.icon, this.trailingIcon, this.expand = true, this.dense = false})
       : variant = CeButtonVariant.soft,
         loading = false;
 
-  const CeButton.danger({super.key, required this.label, this.onPressed, this.icon, this.expand = true})
+  const CeButton.danger({super.key, required this.label, this.onPressed, this.icon, this.expand = true, this.dense = false})
       : variant = CeButtonVariant.dangerOutline,
         trailingIcon = null,
         loading = false;
@@ -35,6 +37,9 @@ class CeButton extends StatelessWidget {
   final bool loading;
   final bool expand;
 
+  /// Compact in-card action (list rows / cards): 40 dp tall, smaller label.
+  final bool dense;
+
   @override
   Widget build(BuildContext context) {
     final (bg, fg, border) = switch (variant) {
@@ -44,7 +49,8 @@ class CeButton extends StatelessWidget {
       CeButtonVariant.google => (Colors.white, CeColors.ink, CeColors.line2),
     };
     final enabled = onPressed != null && !loading;
-    final text = Theme.of(context).textTheme.labelLarge!.copyWith(color: fg);
+    final text = Theme.of(context).textTheme.labelLarge!.copyWith(color: fg, fontSize: dense ? 13 : null);
+    final iconSize = dense ? 15.0 : 18.0;
 
     final content = loading
         ? SizedBox(
@@ -52,9 +58,9 @@ class CeButton extends StatelessWidget {
         : Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (icon != null) ...[Icon(icon, size: 18, color: fg), const SizedBox(width: 8)],
+              if (icon != null) ...[Icon(icon, size: iconSize, color: fg), const SizedBox(width: 6)],
               Flexible(child: Text(label, textAlign: TextAlign.center, maxLines: 2, style: text)),
-              if (trailingIcon != null) ...[const SizedBox(width: 8), Icon(trailingIcon, size: 18, color: fg)],
+              if (trailingIcon != null) ...[const SizedBox(width: 6), Icon(trailingIcon, size: iconSize, color: fg)],
             ],
           );
 
@@ -68,8 +74,10 @@ class CeButton extends StatelessWidget {
           onTap: enabled ? onPressed : null,
           borderRadius: BorderRadius.circular(CeRadius.md),
           child: Container(
-            constraints: const BoxConstraints(minHeight: CeSize.buttonMinHeight),
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            constraints: BoxConstraints(minHeight: dense ? CeSize.touchTarget : CeSize.buttonMinHeight),
+            padding: dense
+                ? const EdgeInsets.symmetric(horizontal: 14, vertical: 8)
+                : const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(CeRadius.md),
               border: border == null ? null : Border.all(color: border),

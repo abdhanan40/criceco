@@ -108,13 +108,14 @@ class _MyChallengesScreenState extends ConsumerState<MyChallengesScreen> {
                     : Row(children: [
                         Expanded(
                           // Label only: an icon makes "Decline" wrap in the 1/3 column.
-                          child: CeButton.danger(label: 'Decline', onPressed: () => _respond(c, accept: false)),
+                          child: CeButton.danger(label: 'Decline', dense: true, onPressed: () => _respond(c, accept: false)),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           flex: 2,
                           child: CeButton(
                             label: 'Accept Challenge',
+                            dense: true,
                             icon: CeIcons.of('check'),
                             onPressed: () => _respond(c, accept: true),
                           ),

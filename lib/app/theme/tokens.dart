@@ -85,10 +85,14 @@ abstract final class CeRadius {
   static const pill = 999.0;
 }
 
+/// Spacing. Density pass (structural UI update): compact, data-dense layouts
+/// — tighter gutters and card padding. Colours are untouched.
 abstract final class CeSpace {
-  static const gutter = 18.0; // screen side padding for lists / sections
-  static const form = 22.0; // form body padding
-  static const card = 14.0; // card inner padding
+  static const gutter = 16.0; // screen side padding for lists / sections
+  static const form = 20.0; // form body padding
+  static const card = 12.0; // card inner padding
+  static const section = 16.0; // gap above a section header
+  static const rowGap = 8.0; // gap between list-card rows
   static const g6 = 6.0;
   static const g8 = 8.0;
   static const g10 = 10.0;
@@ -97,15 +101,16 @@ abstract final class CeSpace {
 }
 
 abstract final class CeSize {
-  static const buttonMinHeight = 50.0;
-  static const inputMinHeight = 52.0;
-  static const searchMinHeight = 48.0;
-  static const chipMinHeight = 31.0;
+  static const buttonMinHeight = 48.0;
+  static const inputMinHeight = 48.0;
+  static const searchMinHeight = 44.0;
+  static const chipMinHeight = 32.0;
   static const statusChipMinHeight = 22.0;
   static const touchTarget = 40.0;
-  static const navItemMinHeight = 52.0;
+  static const navItemMinHeight = 48.0;
   static const drawerItemMinHeight = 44.0;
-  static const topBarMinHeight = 58.0;
+  static const topBarMinHeight = 52.0;
+  static const listRowMinHeight = 60.0; // dense list-card row
 }
 
 abstract final class CeShadows {

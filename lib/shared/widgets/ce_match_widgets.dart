@@ -52,7 +52,7 @@ class CeInfoChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
         decoration: BoxDecoration(color: CeColors.mint, borderRadius: BorderRadius.circular(CeRadius.sm)),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(CeIcons.of(icon), size: 12, color: CeColors.primaryDark),
@@ -60,7 +60,7 @@ class CeInfoChip extends StatelessWidget {
           Flexible(
             child: Text(label,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: CeColors.ink2)),
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: CeColors.ink2)),
           ),
         ]),
       );
@@ -80,7 +80,7 @@ class CeGroundRow extends StatelessWidget {
           borderRadius: BorderRadius.circular(CeRadius.md),
           onTap: directions ? () => openDirections(context, ground) : null,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
             child: Row(children: [
               Icon(CeIcons.of('flag'), size: 14, color: CeColors.ink2),
               const SizedBox(width: 6),
@@ -120,7 +120,7 @@ class CeMatchCard extends StatelessWidget {
     this.playingTeam,
     this.footer,
     this.onTap,
-    this.margin = const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
+    this.margin = const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 0),
   });
 
   final String homeAbbr;
@@ -144,40 +144,40 @@ class CeMatchCard extends StatelessWidget {
     return Container(
       margin: margin,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(CeRadius.lg),
         boxShadow: const [BoxShadow(color: Color(0x0F092328), blurRadius: 10, offset: Offset(0, 2))],
       ),
       child: Material(
         color: Colors.white,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: const BorderSide(color: CeColors.mint),
+          borderRadius: BorderRadius.circular(CeRadius.lg),
+          side: const BorderSide(color: CeColors.line),
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 13),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Row(children: [
-                CeTeamBadge(homeAbbr, color: homeColor),
+                CeTeamBadge(homeAbbr, color: homeColor, size: 34),
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 8),
                   child: Text('VS',
                       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.1, color: CeColors.muted)),
                 ),
-                CeTeamBadge(awayAbbr, color: awayColor),
+                CeTeamBadge(awayAbbr, color: awayColor, size: 34),
                 const Spacer(),
                 status,
               ]),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Text(title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, letterSpacing: -0.2)),
-              const SizedBox(height: 10),
-              Wrap(spacing: 8, runSpacing: 8, children: infoChips),
-              if (ground != null) ...[const SizedBox(height: 10), CeGroundRow(ground: ground!, directions: groundDirections)],
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, letterSpacing: -0.2)),
+              const SizedBox(height: 8),
+              Wrap(spacing: 6, runSpacing: 6, children: infoChips),
+              if (ground != null) ...[const SizedBox(height: 8), CeGroundRow(ground: ground!, directions: groundDirections)],
               if (playingTeam != null) ...[
                 const SizedBox(height: 8),
                 Row(children: [
@@ -209,7 +209,7 @@ class CeToggleCard extends StatelessWidget {
     required this.subtitle,
     required this.value,
     required this.onChanged,
-    this.margin = const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
+    this.margin = const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 0),
   });
 
   final String icon;
@@ -227,7 +227,7 @@ class CeToggleCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(CeRadius.lg),
           onTap: () => onChanged(!value),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
             child: Row(children: [
               Icon(CeIcons.of(icon), size: 22, color: CeColors.primaryDark),
               const SizedBox(width: 12),
@@ -258,7 +258,7 @@ class CeSummaryStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        margin: margin ?? const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 0),
+        margin: margin ?? const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(CeRadius.lg),
@@ -271,7 +271,7 @@ class CeSummaryStrip extends StatelessWidget {
               if (i > 0) const VerticalDivider(width: 1, color: CeColors.hairline),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
+                  padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 6),
                   child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                     FittedBox(
                       fit: BoxFit.scaleDown,
@@ -305,32 +305,37 @@ class CeStatTile extends StatelessWidget {
   final String label;
   final Color tint;
 
+  // Compact, horizontal (reference density): icon well beside value + label.
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.fromLTRB(10, 10, 8, 10),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(CeRadius.row),
           border: Border.all(color: CeColors.line),
           boxShadow: CeShadows.card,
         ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        child: Row(children: [
           Container(
             width: 32,
             height: 32,
             decoration: BoxDecoration(color: tint, borderRadius: BorderRadius.circular(CeRadius.sm)),
             child: Icon(CeIcons.of(icon), size: 15, color: CeColors.primaryDark),
           ),
-          const SizedBox(height: 10),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(value,
-                style: const TextStyle(
-                    fontSize: 19, fontWeight: FontWeight.w800, color: CeColors.ink, fontFeatures: [FontFeature.tabularFigures()])),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(value,
+                    style: const TextStyle(
+                        fontSize: 17, fontWeight: FontWeight.w800, color: CeColors.ink, fontFeatures: [FontFeature.tabularFigures()])),
+              ),
+              const SizedBox(height: 1),
+              Text(label, maxLines: 2, style: const TextStyle(fontSize: 10.5, color: CeColors.muted, height: 1.2)),
+            ]),
           ),
-          const SizedBox(height: 2),
-          Text(label, maxLines: 2, style: const TextStyle(fontSize: 10.5, color: CeColors.muted)),
         ]),
       );
 }

@@ -34,14 +34,15 @@ class MyClubScreen extends ConsumerWidget {
     return Scaffold(
       appBar: CeTopBar(title: 'My Club', onBack: () => context.go(Routes.clubHome)),
       body: ListView(padding: const EdgeInsets.only(bottom: 24), children: [
+        // Reference profile structure: identity → stats row → list.
         CeBrandHero(
-          margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 0),
-          radius: 18,
-          padding: const EdgeInsets.all(18),
+          margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
+          radius: CeRadius.lg,
+          padding: const EdgeInsets.all(16),
           child: Row(children: [
             Container(
-              width: 56,
-              height: 56,
+              width: 52,
+              height: 52,
               decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(CeRadius.lg)),
               child: Icon(CeIcons.of('shield'), size: 26, color: Colors.white),
@@ -64,27 +65,26 @@ class MyClubScreen extends ConsumerWidget {
             ),
           ]),
         ),
-        const SizedBox(height: 14),
-        CeStatsRow(children: [
-          CeStatCard(
-            icon: 'users',
-            label: 'Members',
-            value: membersAsync.hasValue ? '${members.length}' : '–',
-            onTap: () => context.go(Routes.members),
-          ),
-          CeStatCard(
-            icon: 'trophy',
-            label: 'Teams',
-            value: teams == null ? '–' : '$teams',
-            onTap: () => context.go(Routes.teams),
-          ),
-          CeStatCard(
-            icon: 'calendar',
-            label: 'Upcoming',
-            value: '$upcoming',
-            onTap: () => context.go(Routes.matchManagement(MatchTab.scheduled)),
-          ),
-        ]),
+        CeStatGroup(
+          margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 0),
+          cells: [
+            CeStatCell(
+              label: 'Members',
+              value: membersAsync.hasValue ? '${members.length}' : '–',
+              onTap: () => context.go(Routes.members),
+            ),
+            CeStatCell(
+              label: 'Teams',
+              value: teams == null ? '–' : '$teams',
+              onTap: () => context.go(Routes.teams),
+            ),
+            CeStatCell(
+              label: 'Upcoming',
+              value: '$upcoming',
+              onTap: () => context.go(Routes.matchManagement(MatchTab.scheduled)),
+            ),
+          ],
+        ),
         // The preview shows the first 8; "View All" opens the full list.
         CeSectionHeader(
           'Members',

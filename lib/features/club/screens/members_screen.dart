@@ -8,6 +8,7 @@ import '../../../core/models/models.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_indicators.dart';
 import '../../../shared/widgets/ce_inputs.dart';
+import '../../../shared/widgets/ce_rows.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
 import '../club_providers.dart';
 
@@ -71,7 +72,7 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
           padding: const EdgeInsets.only(bottom: 24),
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 4),
+              padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 4),
               child: CeSearchField(
                 hint: 'Search members...',
                 controller: _search,
@@ -128,44 +129,17 @@ class MemberRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final m = member;
     final isOwner = m.role == MemberRole.owner;
-    return Container(
-      margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(CeRadius.row),
-        border: Border.all(color: CeColors.line),
-        boxShadow: CeShadows.card,
-      ),
-      child: Row(children: [
-        CeAvatar(m.name, size: 42, background: CeColors.primary, foreground: Colors.white),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(m.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: CeColors.ink)),
-            if (compact)
-              Padding(
-                padding: const EdgeInsets.only(top: 1),
-                child: Text(m.role.label, style: const TextStyle(fontSize: 12, color: CeColors.muted)),
-              )
-            else ...[
-              if (m.phone.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 1),
-                  child: Text(m.phone, style: const TextStyle(fontSize: 12, color: CeColors.muted)),
-                ),
-              if (!isOwner) ...[
-                const SizedBox(height: 5),
-                _Tag(m.role.label),
-              ],
-            ],
-          ]),
-        ),
-        if (isOwner && !compact) ...[
-          const SizedBox(width: 8),
-          const CeStatusChip('Owner', icon: 'crown'),
-        ],
-      ]),
+    // Dense row: avatar · name · phone (or role) · role tag / Owner badge on
+    // the right.
+    return CeListRow(
+      leading: CeAvatar(m.name, size: 40, background: CeColors.primary, foreground: Colors.white),
+      title: m.name,
+      subtitle: compact ? m.role.label : (m.phone.isNotEmpty ? m.phone : null),
+      trailing: compact
+          ? null
+          : isOwner
+              ? const CeStatusChip('Owner', icon: 'crown')
+              : _Tag(m.role.label),
     );
   }
 }

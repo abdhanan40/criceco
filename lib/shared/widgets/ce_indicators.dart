@@ -206,7 +206,7 @@ class CeStatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final body = _body(context);
     if (onTap == null) {
-      return Container(padding: const EdgeInsets.all(12), decoration: _decoration, child: body);
+      return Container(padding: const EdgeInsets.fromLTRB(11, 10, 11, 10), decoration: _decoration, child: body);
     }
     return Semantics(
       button: true,
@@ -215,42 +215,144 @@ class CeStatCard extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(CeRadius.row),
-          child: Ink(padding: const EdgeInsets.all(12), decoration: _decoration, child: body),
+          child: Ink(padding: const EdgeInsets.fromLTRB(11, 10, 11, 10), decoration: _decoration, child: body),
         ),
       ),
     );
   }
 
+  // Compact (reference density): value first, small label under it, the
+  // icon as a small well beside the value.
   Widget _body(BuildContext context) {
+    final valueText = FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: Text(value,
+          style: const TextStyle(
+              fontSize: 19,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.6,
+              color: CeColors.ink,
+              fontFeatures: [FontFeature.tabularFigures()])),
+    );
     return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        if (icon != null) ...[
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(color: CeColors.mint, borderRadius: BorderRadius.circular(CeRadius.sm)),
-            child: Icon(CeIcons.of(icon!), size: 17, color: CeColors.primaryDark),
-          ),
-          const SizedBox(height: 8),
-        ],
+        if (icon != null)
+          Row(children: [
+            Expanded(child: valueText),
+            const SizedBox(width: 4),
+            Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(color: CeColors.mint, borderRadius: BorderRadius.circular(CeRadius.xs)),
+              child: Icon(CeIcons.of(icon!), size: 13, color: CeColors.primaryDark),
+            ),
+          ])
+        else
+          valueText,
+        const SizedBox(height: 3),
         Text(label.toUpperCase(),
-            maxLines: 2, style: Theme.of(context).textTheme.labelSmall!.copyWith(height: 1.25)),
-        const SizedBox(height: 4),
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: Text(value,
-              style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.7,
-                  color: CeColors.ink,
-                  fontFeatures: [FontFeature.tabularFigures()])),
-        ),
+            maxLines: 2, style: Theme.of(context).textTheme.labelSmall!.copyWith(height: 1.2, fontSize: 9.5, letterSpacing: 0.4)),
         if (sub != null) ...[
           const SizedBox(height: 2),
-          Text(sub!, style: Theme.of(context).textTheme.bodySmall!.copyWith(color: CeColors.muted2, fontSize: 11)),
+          Text(sub!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall!.copyWith(color: CeColors.muted2, fontSize: 10.5)),
         ],
       ]);
+  }
+}
+
+/// One stat inside a [CeStatGroup].
+class CeStatCell {
+  const CeStatCell({required this.value, required this.label, this.sub, this.onTap});
+  final String value;
+  final String label;
+  final String? sub;
+
+  /// Opens the list behind the number; null = display only.
+  final VoidCallback? onTap;
+}
+
+/// Summary card (reference "Weekly Progress" / profile stats row): one white
+/// card, N equal stat cells split by hairlines, each optionally tappable, and
+/// an optional [header] and [footer] (e.g. a small chart). Labels render
+/// uppercase, as on the stat cards.
+class CeStatGroup extends StatelessWidget {
+  const CeStatGroup({super.key, required this.cells, this.header, this.footer, this.margin});
+  final List<CeStatCell> cells;
+  final Widget? header;
+  final Widget? footer;
+  final EdgeInsetsGeometry? margin;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget cell(CeStatCell c) {
+      final body = Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 11),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(c.value,
+                style: const TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.6,
+                    color: CeColors.ink,
+                    fontFeatures: [FontFeature.tabularFigures()])),
+          ),
+          const SizedBox(height: 2),
+          Text(c.label.toUpperCase(),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              style: Theme.of(context).textTheme.labelSmall!.copyWith(fontSize: 9.5, height: 1.2, letterSpacing: 0.4)),
+          if (c.sub != null) ...[
+            const SizedBox(height: 2),
+            Text(c.sub!,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: CeColors.primary)),
+          ],
+        ]),
+      );
+      if (c.onTap == null) return body;
+      return Semantics(
+        button: true,
+        child: InkWell(onTap: c.onTap, child: body),
+      );
+    }
+
+    return Container(
+      margin: margin ?? const EdgeInsets.symmetric(horizontal: CeSpace.gutter),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(CeRadius.lg),
+        boxShadow: CeShadows.card,
+      ),
+      child: Material(
+        color: Colors.white,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(CeRadius.lg),
+          side: const BorderSide(color: CeColors.line),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          if (header != null) Padding(padding: const EdgeInsets.fromLTRB(14, 12, 14, 0), child: header),
+          IntrinsicHeight(
+            child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              for (var i = 0; i < cells.length; i++) ...[
+                if (i > 0) const VerticalDivider(width: 1, indent: 12, endIndent: 12, color: CeColors.hairline),
+                Expanded(child: cell(cells[i])),
+              ],
+            ]),
+          ),
+          if (footer != null) ...[
+            const Divider(height: 1, color: CeColors.hairline),
+            Padding(padding: const EdgeInsets.fromLTRB(14, 10, 14, 12), child: footer),
+          ],
+        ]),
+      ),
+    );
   }
 }
 
@@ -266,7 +368,7 @@ class CeStatsRow extends StatelessWidget {
         child: IntrinsicHeight(
           child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             for (var i = 0; i < children.length; i++) ...[
-              if (i > 0) const SizedBox(width: 10),
+              if (i > 0) const SizedBox(width: 8),
               Expanded(child: children[i]),
             ],
           ]),
