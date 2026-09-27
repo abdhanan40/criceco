@@ -67,8 +67,8 @@ void main() {
       expect(find.text('Club Owner'), findsOneWidget);
       expect(find.text('Shalimar Cricket Club'), findsOneWidget);
       expect(find.textContaining('35HLWZ', findRichText: true), findsOneWidget);
-      // Members 1 · Teams 2 · Requests 3 (seed).
-      for (final (value, label) in [('1', 'MEMBERS'), ('2', 'TEAMS'), ('3', 'REQUESTS')]) {
+      // Members 21 · Teams 2 · Requests 3 (seed: owner, 18 players, 2 staff).
+      for (final (value, label) in [('21', 'MEMBERS'), ('2', 'TEAMS'), ('3', 'REQUESTS')]) {
         expect(find.text(label), findsOneWidget);
         expect(find.text(value), findsWidgets);
       }
@@ -141,20 +141,48 @@ void main() {
   });
 
   group('Teams', () {
+    testWidgets('team card: squad stats and avatars; Add Players (Back → Teams); View Team', (tester) async {
+      final c = await _pumpOwner(tester);
+      final pool = await c.read(clubPlayerPoolProvider.future);
+      final open = pool.where((p) => !p.locked).toList();
+      await c.read(teamsProvider.notifier).saveMembers('team_cs', [
+        for (final (i, p) in open.take(8).indexed)
+          TeamMember(playerId: p.id, selection: i < 6 ? SelectionRole.playing : SelectionRole.sub),
+      ]);
+      await _go(tester, c, Routes.teams);
+      expect(find.text('8/15'), findsOneWidget);
+      expect(find.text('6/11'), findsOneWidget);
+      expect(find.text('2/4'), findsOneWidget);
+      expect(find.text('+3'), findsOneWidget, reason: '5 avatars, then +3');
+      await tester.scrollUntilVisible(find.text('T20 · 0 players'), 150, scrollable: find.byType(Scrollable).first);
+      expect(find.text('T20 · 0 players'), findsOneWidget, reason: 'BS IT XI is empty');
+      await tester.fling(find.byType(Scrollable).first, const Offset(0, 3000), 4000);
+      await tester.pumpAndSettle();
+
+      await _tap(tester, find.bySemanticsLabel('Add Players to BS CS XI'));
+      expect(_loc(c), Routes.addTeamPlayers('team_cs'));
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pumpAndSettle();
+      expect(_loc(c), Routes.teams);
+
+      await _tap(tester, _button('View Team').first);
+      expect(_loc(c), Routes.teamSquad('team_cs'));
+    });
+
     testWidgets('Create Team (bottom sheet) validates inline and stores format + custom overs', (tester) async {
       final c = await _pumpOwner(tester);
       await _go(tester, c, Routes.teams);
       // The team list comes first; the form opens in a sheet.
       expect(find.text('BS CS XI'), findsOneWidget);
       expect(find.byKey(const Key('teams.name')), findsNothing);
-      await _tap(tester, find.bySemanticsLabel(RegExp('^New Team')));
+      await _tap(tester, find.bySemanticsLabel(RegExp('^Create New Team')));
       expect(find.byKey(const Key('teams.name')), findsOneWidget);
       // Cancel closes without creating anything.
       final before = c.read(teamsProvider).value!.length;
       await _tap(tester, _button('Cancel'));
       expect(find.byKey(const Key('teams.name')), findsNothing);
       expect(c.read(teamsProvider).value!.length, before);
-      await _tap(tester, find.bySemanticsLabel(RegExp('^New Team')));
+      await _tap(tester, find.bySemanticsLabel(RegExp('^Create New Team')));
       await _tap(tester, _button('Create Team'));
       expect(find.text('Please enter a team name'), findsOneWidget);
       expect(find.text('Please select a format'), findsOneWidget);
@@ -180,7 +208,7 @@ void main() {
       expect(find.byKey(const Key('teams.name')), findsNothing, reason: 'sheet closes on success');
       expect(_loc(c), Routes.teams);
       await tester.scrollUntilVisible(find.text('Team A (First XI)'), 150, scrollable: find.byType(Scrollable).first);
-      expect(find.text('0 players · Custom · 15 overs'), findsOneWidget);
+      expect(find.text('Custom · 15 overs · 0 players'), findsOneWidget);
     });
   });
 
@@ -290,7 +318,7 @@ void main() {
       await _go(tester, c, Routes.members);
       expect(find.text('Aman Ali'), findsOneWidget);
       expect(find.text('OWNER'), findsOneWidget);
-      expect(find.bySemanticsLabel('1 members'), findsOneWidget);
+      expect(find.bySemanticsLabel('21 members'), findsOneWidget);
 
       await tester.enterText(find.byType(TextField), 'zz');
       await tester.pumpAndSettle();
@@ -350,7 +378,10 @@ void main() {
         }
         // Create Team sheet: Custom format field + validation errors.
         await _go(tester, c, Routes.teams);
-        await _tap(tester, find.bySemanticsLabel(RegExp('^New Team')));
+        // The Teams list keeps its scroll offset; the banner is at the top.
+        await tester.fling(find.byType(Scrollable).first, const Offset(0, 3000), 4000);
+        await tester.pumpAndSettle();
+        await _tap(tester, find.bySemanticsLabel(RegExp('^Create New Team')));
         await tester.tap(find.text('Custom'));
         await tester.pump();
         await _tap(tester, _button('Create Team'));

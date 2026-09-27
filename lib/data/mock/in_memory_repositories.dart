@@ -71,7 +71,8 @@ class InMemoryClubRepository implements ClubRepository {
         _clubs = Map.of(seed.clubs),
         _members = {SeedData.ownClubId: [...seed.members]},
         _requests = {SeedData.ownClubId: [...seed.joinRequests]},
-        _pool = {SeedData.ownClubId: [...seed.squad]};
+        _pool = {SeedData.ownClubId: [...seed.squad]},
+        _activity = {SeedData.ownClubId: Map.of(seed.memberActivity)};
 
   final Club _seedClub;
   final Map<String, Club> _owned = {};
@@ -79,6 +80,7 @@ class InMemoryClubRepository implements ClubRepository {
   final Map<String, List<ClubMember>> _members;
   final Map<String, List<JoinRequest>> _requests;
   final Map<String, List<SquadPlayer>> _pool;
+  final Map<String, Map<String, List<MatchLogEntry>>> _activity;
 
   @override
   Future<Club?> ownClub(String accountId) async => _owned[accountId];
@@ -124,8 +126,24 @@ class InMemoryClubRepository implements ClubRepository {
   Future<List<ClubMember>> members(String clubId) async => [...?_members[clubId]];
 
   @override
-  Future<ClubMember> addMember(String clubId, {required String name, required String phone, required MemberRole role}) async {
-    final m = ClubMember(id: _id('mem'), name: name, phone: phone, role: role);
+  Future<ClubMember> addMember(
+    String clubId, {
+    required String name,
+    required String phone,
+    required MemberRole role,
+    PlayerRole? playingRole,
+    BattingStyle? battingStyle,
+    BowlingStyle? bowlingStyle,
+  }) async {
+    final m = ClubMember(
+      id: _id('mem'),
+      name: name,
+      phone: phone,
+      role: role,
+      playingRole: playingRole,
+      battingStyle: battingStyle,
+      bowlingStyle: bowlingStyle,
+    );
     (_members[clubId] ??= []).add(m);
     return m;
   }
@@ -153,12 +171,27 @@ class InMemoryClubRepository implements ClubRepository {
         ? current.decided(JoinRequestReview.approved, role: role, at: at)
         : current.decided(JoinRequestReview.declined, at: at);
     list[i] = decided;
-    if (approve) await addMember(clubId, name: current.name, phone: current.phone, role: role);
+    if (approve) {
+      // Approved as a Player: the applicant's cricket profile comes along.
+      final player = role == MemberRole.player;
+      await addMember(
+        clubId,
+        name: current.name,
+        phone: current.phone,
+        role: role,
+        playingRole: player ? current.role : null,
+        battingStyle: player ? current.battingStyle : null,
+        bowlingStyle: player ? current.bowlingStyle : null,
+      );
+    }
     return decided;
   }
 
   @override
   Future<List<SquadPlayer>> playerPool(String clubId) async => [...?_pool[clubId]];
+
+  @override
+  Future<Map<String, List<MatchLogEntry>>> memberActivity(String clubId) async => {...?_activity[clubId]};
 
   @override
   Future<ClubJoinRequest> requestToJoin(String code) async {

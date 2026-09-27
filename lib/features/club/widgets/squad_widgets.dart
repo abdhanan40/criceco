@@ -49,11 +49,21 @@ class SelectionBadge extends StatelessWidget {
 
 /// Player scouting sheet (prototype `ceOpenPlayerSheet`, :7734).
 Future<void> showPlayerStatsSheet(BuildContext context, {required SquadPlayer player, required PlayerStats stats}) {
-  return showCeSheet<void>(context, builder: (ctx) => _PlayerStatsSheet(player: player, stats: stats));
+  return showCeSheet<void>(context, builder: (ctx) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          PlayerScoutingDetails(player: player, stats: stats),
+          const SizedBox(height: 16),
+          CeButton(label: 'Close', onPressed: () => Navigator.of(ctx).pop()),
+        ],
+      ));
 }
 
-class _PlayerStatsSheet extends StatelessWidget {
-  const _PlayerStatsSheet({required this.player, required this.stats});
+/// Scouting details (identity, rating, batting, bowling, recent form, last
+/// match) — the Player Stats sheet body, also used on Member Profile.
+class PlayerScoutingDetails extends StatelessWidget {
+  const PlayerScoutingDetails({super.key, required this.player, required this.stats});
   final SquadPlayer player;
   final PlayerStats stats;
 
@@ -184,8 +194,6 @@ class _PlayerStatsSheet extends StatelessWidget {
           ),
         ]),
       ),
-      const SizedBox(height: 16),
-      CeButton(label: 'Close', onPressed: () => Navigator.of(context).pop()),
     ]);
   }
 }
@@ -232,11 +240,23 @@ class SquadCounter extends StatelessWidget {
 /// playing / sub / locked states. Scouting meta and the Stats button only
 /// show when [onStats] is given (Add Players; prototype parity).
 class SquadPickRow extends ConsumerWidget {
-  const SquadPickRow({super.key, required this.player, required this.role, required this.onTap, this.onStats});
+  const SquadPickRow({
+    super.key,
+    required this.player,
+    required this.role,
+    required this.onTap,
+    this.onStats,
+    this.badge,
+    this.margin = const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 0),
+  });
   final SquadPlayer player;
   final SelectionRole? role;
   final VoidCallback onTap;
   final VoidCallback? onStats;
+
+  /// Optional extra line under the position (Suggest Team: fitness).
+  final Widget? badge;
+  final EdgeInsetsGeometry margin;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -262,7 +282,7 @@ class SquadPickRow extends ConsumerWidget {
     return Opacity(
       opacity: locked ? 0.72 : 1,
       child: Container(
-        margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 0),
+        margin: margin,
         child: Material(
           color: bg,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(CeRadius.row), side: BorderSide(color: border)),
@@ -301,6 +321,7 @@ class SquadPickRow extends ConsumerWidget {
                     ]),
                     const SizedBox(height: 1),
                     Text(p.position, style: const TextStyle(fontSize: 12, color: CeColors.muted)),
+                    if (badge != null) ...[const SizedBox(height: 5), badge!],
                     if (scouting) ...[
                       const SizedBox(height: 6),
                       Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [

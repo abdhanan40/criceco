@@ -29,8 +29,14 @@ class TeamsController extends AsyncNotifier<List<Team>> {
 
   Team? byId(String id) => state.value?.where((t) => t.id == id).firstOrNull;
 
-  /// Returns an error to show, or `null` on success.
-  Future<CreateTeamError?> create({required String name, MatchFormat? format, int? customOvers}) async {
+  /// Returns an error to show, or `null` on success. [members] (Suggest
+  /// Team, reviewed by the owner) become the new team's saved squad.
+  Future<CreateTeamError?> create({
+    required String name,
+    MatchFormat? format,
+    int? customOvers,
+    List<TeamMember> members = const [],
+  }) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return CreateTeamError.nameRequired;
     if (format == null) return CreateTeamError.formatRequired;
@@ -38,9 +44,9 @@ class TeamsController extends AsyncNotifier<List<Team>> {
     final existing = state.value ?? const [];
     if (existing.any((t) => t.name.toLowerCase() == trimmed.toLowerCase())) return CreateTeamError.duplicateName;
     final clubId = ref.read(currentClubProvider)!.id;
-    final team = await ref
-        .read(teamRepositoryProvider)
-        .create(clubId: clubId, name: trimmed, format: format, customOvers: customOvers);
+    final repo = ref.read(teamRepositoryProvider);
+    var team = await repo.create(clubId: clubId, name: trimmed, format: format, customOvers: customOvers);
+    if (members.isNotEmpty) team = await repo.save(team.copyWith(members: members));
     state = AsyncData([...existing, team]);
     return null;
   }

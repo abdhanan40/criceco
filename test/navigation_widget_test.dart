@@ -158,7 +158,7 @@ void main() {
       Routes.myRegistrations, Routes.registrationDetails('r_1'), Routes.registrationSuccess('r_1'),
       Routes.notifications, Routes.settings, Routes.privacySettings, Routes.securitySettings, Routes.roleSetup,
       Routes.continueAs, Routes.roleSelection, Routes.roleDetails, Routes.clubSetup, Routes.createClub,
-      Routes.clubDetails, Routes.enterClubCode,
+      Routes.clubDetails, Routes.enterClubCode, Routes.memberProfile('mem_sp_10'),
       Routes.waitingApproval, Routes.joinApproved,
     ];
     // Screen consolidation Phase A: pre-consolidation routes still resolve,

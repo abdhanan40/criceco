@@ -16,6 +16,8 @@ import '../../../shared/widgets/ce_match_widgets.dart';
 import '../../../shared/widgets/ce_quick_actions.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
+import '../../fitness/fitness_providers.dart';
+import '../../fitness/fitness_widgets.dart';
 import '../../notifications/notifications_controller.dart';
 import '../player_providers.dart';
 import 'performance_workspace.dart';
@@ -33,6 +35,7 @@ class PlayerDashboardScreen extends ConsumerWidget {
     final upcoming = ref.watch(playerMatchesByStatusProvider(PlayerMatchStatus.upcoming));
     final next = ref.watch(nextPlayerMatchProvider);
     final notifCount = ref.watch(unreadNotificationCountProvider(UserRole.player));
+    final fitness = ref.watch(playerFitnessProvider);
     final name = account?.fullName ?? 'Player';
     final available = availability.status == PlayerAvailability.available;
     final top = MediaQuery.paddingOf(context).top;
@@ -181,6 +184,12 @@ class PlayerDashboardScreen extends ConsumerWidget {
           else
             _NextMatchCard(match: next),
 
+          // ---- Fitness Meter (after the next match, before performance) ----
+          if (fitness != null) ...[
+            const SizedBox(height: CeSpace.section),
+            FitnessMeterCard(report: fitness, onTap: () => showFitnessSheet(context, fitness)),
+          ],
+
           // ---- Performance snapshot (only once there is data: no empty header) ----
           if (perf != null) ...[
             CeSectionHeader('Your Performance Snapshot',
@@ -287,9 +296,9 @@ class _HeroPill extends StatelessWidget {
       );
 }
 
-/// Recent form inside the season summary (reference "weekly progress" bars):
-/// one bar per recent match, height = runs, green won / red lost, opponent
-/// below. Same data as My Performance → Recent Form.
+/// Recent form inside the season summary: the W–L tally, then one tinted
+/// tile per recent match (W / L badge, opponent below). Same data as My
+/// Performance → Recent Form.
 class _RecentFormBars extends StatelessWidget {
   const _RecentFormBars({required this.form, required this.wins, required this.losses});
   final List<FormEntry> form;
@@ -298,42 +307,66 @@ class _RecentFormBars extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final maxRuns = form.map((f) => f.runs).fold<int>(0, (a, b) => b > a ? b : a);
     final spoken = form
         .map((f) => '${f.result == MatchResult.won ? 'Won' : 'Lost'} against ${f.opponentAbbr}, ${f.runs} runs')
         .join('; ');
     return Semantics(
       label: 'Recent form, $wins won $losses lost: $spoken',
       excludeSemantics: true,
-      child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-        Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-          const Text('Recent form', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: CeColors.ink)),
-          const SizedBox(height: 2),
-          Text('${wins}W - ${losses}L · runs', style: const TextStyle(fontSize: 10.5, color: CeColors.muted)),
-        ]),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            for (final (i, f) in form.indexed) ...[
-              if (i > 0) const SizedBox(width: 6),
-              Expanded(
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Container(
-                    height: 6 + 28 * (maxRuns <= 0 ? 0 : f.runs / maxRuns),
-                    decoration: BoxDecoration(
-                      color: f.result == MatchResult.won ? CeColors.fresh : CeColors.red,
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(f.opponentAbbr, style: const TextStyle(fontSize: 9, color: CeColors.muted)),
-                  ),
-                ]),
-              ),
+      child: IntrinsicHeight(
+        child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('Recent form', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: CeColors.ink)),
+              const SizedBox(height: 2),
+              Text('${wins}W • ${losses}L',
+                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: CeColors.ink2)),
+              const SizedBox(height: 2),
+              Text('Last ${form.length} matches', style: const TextStyle(fontSize: 10.5, color: CeColors.muted)),
             ],
-          ]),
+          ),
+          const VerticalDivider(width: 20, thickness: 1, color: CeColors.line),
+          Expanded(
+            child: Row(children: [
+              for (final (i, f) in form.indexed) ...[
+                if (i > 0) const SizedBox(width: 5),
+                Expanded(child: _FormTile(entry: f)),
+              ],
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+class _FormTile extends StatelessWidget {
+  const _FormTile({required this.entry});
+  final FormEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final won = entry.result == MatchResult.won;
+    final (bg, fg) = won ? (CeColors.mint, CeColors.primary) : (CeColors.redSoft, CeColors.red);
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(CeRadius.sm)),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+          width: 24,
+          height: 24,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(color: fg, shape: BoxShape.circle),
+          child: Text(won ? 'W' : 'L',
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white)),
+        ),
+        const SizedBox(height: 5),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(entry.opponentAbbr,
+              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: CeColors.ink2)),
         ),
       ]),
     );

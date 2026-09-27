@@ -13,20 +13,37 @@ import '../matches/club_matches_controller.dart';
 // ---------------------------------------------------------------------------
 
 /// The owner's club members. The Owner row shows the signed-in account (fix:
-/// the prototype hard-coded the owner as "ali").
+/// the prototype hard-coded the owner as "ali"), with its Player profile when
+/// the account has one (one account, both roles).
 final clubMembersProvider = FutureProvider<List<ClubMember>>((ref) async {
   final club = ref.watch(currentClubProvider);
   final account = ref.watch(currentAccountProvider);
   if (club == null) return const [];
   final members = await ref.read(clubRepositoryProvider).members(club.id);
+  final profile = account?.playerProfile;
+  final plays = profile?.isComplete ?? false;
   return [
     for (final m in members)
       if (m.role == MemberRole.owner && account != null)
-        ClubMember(id: m.id, name: account.fullName, phone: account.phone ?? m.phone, role: m.role)
+        ClubMember(
+          id: m.id,
+          name: account.fullName,
+          phone: account.phone ?? m.phone,
+          role: m.role,
+          playingRole: plays ? profile!.role : null,
+          isWicketkeeper: plays && profile!.isWicketkeeper,
+          battingStyle: plays ? profile!.battingStyle : null,
+          bowlingStyle: plays ? profile!.bowlingStyle : null,
+        )
       else
         m,
   ];
 });
+
+/// One member by id (Member Profile).
+final clubMemberProvider = Provider.family<ClubMember?, String>(
+  (ref, id) => ref.watch(clubMembersProvider).value?.where((m) => m.id == id).firstOrNull,
+);
 
 /// Other clubs by id (opponent names, badges).
 final clubDirectoryProvider = FutureProvider<Map<String, ClubSummary>>((ref) async {
@@ -68,6 +85,56 @@ final visibleMembersProvider = Provider<List<ClubMember>>((ref) {
     fields: [SearchField((m) => m.name), SearchField((m) => m.phone, weight: 1)],
   );
 });
+
+/// Members filter panel: playing roles (Wicket Keeper is its own option).
+enum MemberRoleFilter {
+  batsman('Batsman'),
+  bowler('Bowler'),
+  allRounder('All-Rounder'),
+  wicketKeeper('Wicket Keeper');
+
+  const MemberRoleFilter(this.label);
+  final String label;
+
+  bool matches(ClubMember m) => switch (this) {
+        MemberRoleFilter.batsman => m.playingRole == PlayerRole.batsman,
+        MemberRoleFilter.bowler => m.playingRole == PlayerRole.bowler,
+        MemberRoleFilter.allRounder => m.playingRole == PlayerRole.allRounder,
+        MemberRoleFilter.wicketKeeper => m.isWicketkeeper,
+      };
+}
+
+enum MemberSort {
+  name('Name'),
+  fitnessHigh('Fitness: high to low'),
+  fitnessLow('Fitness: low to high');
+
+  const MemberSort(this.label);
+  final String label;
+}
+
+/// Players filter (roles and fitness levels are OR within a group, AND
+/// across groups). Staff are listed separately and hidden while filtering.
+class MemberFilter {
+  const MemberFilter({this.roles = const {}, this.levels = const {}, this.sort = MemberSort.name});
+  final Set<MemberRoleFilter> roles;
+  final Set<FitnessLevel> levels;
+  final MemberSort sort;
+
+  bool get narrows => roles.isNotEmpty || levels.isNotEmpty;
+
+  /// Badge on the filter button.
+  int get activeCount => roles.length + levels.length + (sort == MemberSort.name ? 0 : 1);
+
+  bool accepts(ClubMember m, FitnessLevel? level) =>
+      (roles.isEmpty || roles.any((r) => r.matches(m))) && (levels.isEmpty || (level != null && levels.contains(level)));
+
+  MemberFilter copyWith({Set<MemberRoleFilter>? roles, Set<FitnessLevel>? levels, MemberSort? sort}) =>
+      MemberFilter(roles: roles ?? this.roles, levels: levels ?? this.levels, sort: sort ?? this.sort);
+}
+
+final memberFilterProvider =
+    NotifierProvider<SelectionController<MemberFilter>, MemberFilter>(() => SelectionController(const MemberFilter()));
 
 // ---------------------------------------------------------------------------
 // Squad filters (per team) and scouting stats

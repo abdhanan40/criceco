@@ -107,12 +107,39 @@ class ClubMember {
     required this.name,
     required this.role,
     this.phone = '',
+    this.playingRole,
+    this.isWicketkeeper = false,
+    this.battingStyle,
+    this.bowlingStyle,
+    this.poolPlayerId,
   });
 
   final String id;
   final String name;
   final String phone;
+
+  /// Club role (Owner / Player / Coach / Manager).
   final MemberRole role;
+
+  /// Cricket playing role — set for members who play (players, or an owner
+  /// with a Player profile). `null` = non-playing staff.
+  final PlayerRole? playingRole;
+  final bool isWicketkeeper;
+  final BattingStyle? battingStyle;
+  final BowlingStyle? bowlingStyle;
+
+  /// The same person in the club player pool (squads / Add Players), if any.
+  final String? poolPlayerId;
+
+  /// Has a cricket profile: fitness and player filters apply.
+  bool get plays => playingRole != null;
+
+  /// "Batsman · Wicket Keeper", or the club role for staff.
+  String get roleLine => playingRole == null
+      ? role.label
+      : isWicketkeeper
+          ? '${playingRole!.label} · Wicket Keeper'
+          : playingRole!.label;
 }
 
 class JoinRequestPerformance {

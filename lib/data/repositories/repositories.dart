@@ -34,7 +34,17 @@ abstract interface class ClubRepository {
   Future<List<ClubSummary>> otherClubs();
   Future<ClubSummary?> clubSummary(String clubId);
   Future<List<ClubMember>> members(String clubId);
-  Future<ClubMember> addMember(String clubId, {required String name, required String phone, required MemberRole role});
+  /// Adds a member. Cricket details (playing role, styles) are kept for
+  /// members who play; staff pass none.
+  Future<ClubMember> addMember(
+    String clubId, {
+    required String name,
+    required String phone,
+    required MemberRole role,
+    PlayerRole? playingRole,
+    BattingStyle? battingStyle,
+    BowlingStyle? bowlingStyle,
+  });
   Future<List<JoinRequest>> joinRequests(String clubId);
   /// Approve (with a club role) or decline a pending request. Approval adds
   /// a [ClubMember] with that role - a club membership only; it never grants
@@ -48,6 +58,9 @@ abstract interface class ClubRepository {
     required DateTime at,
   });
   Future<List<SquadPlayer>> playerPool(String clubId);
+
+  /// Recent match activity per member id (drives the Fitness Meter).
+  Future<Map<String, List<MatchLogEntry>>> memberActivity(String clubId);
 
   /// Outgoing join-by-code (membership onboarding).
   Future<ClubJoinRequest> requestToJoin(String code);

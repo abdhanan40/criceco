@@ -34,6 +34,7 @@ class SeedData {
   late final Club ownClub;
   late final Map<String, ClubSummary> clubs;
   late final List<ClubMember> members;
+  late final Map<String, List<MatchLogEntry>> memberActivity;
   late final List<JoinRequest> joinRequests;
   late final List<SquadPlayer> squad;
   late final List<Team> teams;
@@ -177,7 +178,6 @@ class SeedData {
     ];
     clubs = {for (final club in all) club.id: club};
 
-    members = const [ClubMember(id: 'mem_owner', name: 'ali', phone: '03129020000', role: MemberRole.owner)];
 
     joinRequests = const [
       JoinRequest(
@@ -222,6 +222,75 @@ class SeedData {
       for (var i = 0; i < pool.length; i++)
         SquadPlayer(id: 'sp_${i + 1}', name: pool[i].$1, position: pool[i].$2, availability: pool[i].$3),
     ];
+
+    // ---- Club members (Members screen) ----
+    // The Owner, the club's players (the same people as the player pool,
+    // linked by id — except Usman Tariq and Hamza Sheikh, who are still
+    // pending join requests) with their cricket profile, and two staff.
+    const leftHanded = {'Imran Farhan', 'Zubair Sultan', 'Faizan Riaz', 'Waqas Ahmed'};
+    BowlingStyle? bowlingFor(SquadPlayer p) {
+      final pos = p.position.toLowerCase();
+      if (pos.contains('leg spin')) return BowlingStyle.rightArmLegSpin;
+      if (pos.contains('spin')) return p.name == 'Danish Aslam' ? BowlingStyle.leftArmOrthodox : BowlingStyle.rightArmOffSpin;
+      if (pos.contains('fast')) return p.name == 'Waqas Ahmed' ? BowlingStyle.leftArmFast : BowlingStyle.rightArmFast;
+      if (p.category != SquadCategory.batsman) return BowlingStyle.rightArmMedium;
+      return null; // specialist batsmen / keepers
+    }
+
+    members = [
+      const ClubMember(id: 'mem_owner', name: 'ali', phone: '03129020000', role: MemberRole.owner),
+      for (final (i, p) in squad.indexed)
+        if (p.id != 'sp_3' && p.id != 'sp_4')
+          ClubMember(
+            id: 'mem_${p.id}',
+            name: p.name,
+            phone: '0300-55501${(i + 1).toString().padLeft(2, '0')}',
+            role: MemberRole.player,
+            playingRole: switch (p.category) {
+              SquadCategory.batsman => PlayerRole.batsman,
+              SquadCategory.bowler => PlayerRole.bowler,
+              SquadCategory.allRounder => PlayerRole.allRounder,
+            },
+            isWicketkeeper: p.position.toLowerCase().contains('keeper'),
+            battingStyle: leftHanded.contains(p.name) ? BattingStyle.leftHanded : BattingStyle.rightHanded,
+            bowlingStyle: bowlingFor(p),
+            poolPlayerId: p.id,
+          ),
+      const ClubMember(id: 'mem_coach', name: 'Tariq Mahmood', phone: '0321-4455667', role: MemberRole.coach),
+      const ClubMember(id: 'mem_manager', name: 'Nadeem Akhtar', phone: '0301-7788990', role: MemberRole.manager),
+    ];
+
+    // ---- Recent match activity (Fitness Meter demo) ----
+    // Chosen so the Members screen shows every level: Overloaded (Kamran,
+    // Moiz), Fatigued (Ali, Waqas, Zubair), Moderate (Bilal, Shayan, Saad),
+    // Fresh (everyone else).
+    MatchLogEntry act(int daysAgo, String abbr, String name, {int balls = 0, String overs = '0.0', int runs = 0}) =>
+        MatchLogEntry(
+          opponentAbbr: abbr, opponentName: name, date: _day(-daysAgo, 14), result: MatchResult.won,
+          runs: runs, balls: balls, wickets: 0, overs: overs,
+        );
+    memberActivity = {
+      'mem_sp_10': [
+        act(1, 'KK', 'Karachi Kings CC', overs: '6.0', balls: 5), act(2, 'IU', 'Islamabad United', overs: '6.0', balls: 5),
+        act(4, 'RR', 'Rawalpindi Rams', overs: '6.0', balls: 5), act(6, 'FW', 'Faisalabad Wolves', overs: '6.0', balls: 5),
+      ],
+      'mem_sp_20': [
+        act(2, 'KK', 'Karachi Kings CC', overs: '4.0'), act(4, 'GT', 'Gulberg Tigers', overs: '4.0'),
+        act(6, 'DB', 'DHA Bulls CC', overs: '4.0'),
+      ],
+      'mem_sp_1': [act(1, 'KK', 'Karachi Kings CC', balls: 45, runs: 52), act(2, 'IU', 'Islamabad United', balls: 40, runs: 38)],
+      'mem_sp_16': [act(2, 'KK', 'Karachi Kings CC', overs: '4.0'), act(3, 'RR', 'Rawalpindi Rams', overs: '4.0')],
+      'mem_sp_11': [
+        act(1, 'KK', 'Karachi Kings CC', overs: '4.0', balls: 30, runs: 31),
+        act(3, 'GT', 'Gulberg Tigers', overs: '4.0', balls: 25, runs: 22),
+      ],
+      'mem_sp_2': [act(1, 'KK', 'Karachi Kings CC', balls: 30, runs: 28), act(4, 'FW', 'Faisalabad Wolves', balls: 35, runs: 41)],
+      'mem_sp_8': [act(2, 'IU', 'Islamabad United', overs: '4.0'), act(5, 'DB', 'DHA Bulls CC', overs: '4.0')],
+      'mem_sp_6': [act(1, 'KK', 'Karachi Kings CC', balls: 25, runs: 19), act(3, 'GT', 'Gulberg Tigers', balls: 20, runs: 14)],
+      'mem_sp_5': [act(3, 'IU', 'Islamabad United', balls: 40, runs: 47)],
+      'mem_sp_13': [act(5, 'RR', 'Rawalpindi Rams', balls: 28, runs: 33)],
+      'mem_sp_14': [act(6, 'FW', 'Faisalabad Wolves', overs: '4.0')],
+    };
 
     // Prototype seeds have no format; T20 is the club's primary format.
     teams = [
@@ -359,8 +428,10 @@ class SeedData {
       // My Performance say 8 while Match History said 12. The first five are
       // the Recent Form entries.
       matchLog: [
-        ml('FC', 'Falcons CC', DateTime(2026, 7, 28), W, 45, 32, 1, '3.0'),
-        ml('SC', 'Shalimar CC', DateTime(2026, 7, 20), W, 12, 18, 2, '4.0'),
+        // The two most recent matches fall inside the Fitness Meter's 7-day
+        // window (demo: Moderate); the rest of the season is unchanged.
+        ml('FC', 'Falcons CC', _day(-1, 16), W, 45, 32, 1, '3.0'),
+        ml('SC', 'Shalimar CC', _day(-4, 16), W, 12, 18, 2, '4.0'),
         ml('IU', 'Islamabad United', DateTime(2026, 7, 12), L, 78, 54, 0, '2.0'),
         ml('KK', 'Karachi Kings CC', DateTime(2026, 7, 5), W, 8, 9, 1, '3.4'),
         ml('RR', 'Rawalpindi Rams', DateTime(2026, 6, 28), L, 23, 19, 0, '2.2'),

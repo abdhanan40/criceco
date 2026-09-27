@@ -72,6 +72,7 @@ abstract final class Routes {
   static String teamSquad(String teamId) => '/club/teams/$teamId';
   static String addTeamPlayers(String teamId) => '/club/teams/$teamId/add-players';
   static const members = '/club/members';
+  static String memberProfile(String memberId) => '/club/members/$memberId';
   static const myClub = '/club/my-club';
   static const joinRequests = '/club/requests';
   static String joinRequestProfile(String requestId) => '/club/requests/$requestId';

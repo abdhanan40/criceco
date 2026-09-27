@@ -21,6 +21,7 @@ import '../../features/club/screens/add_team_players_screen.dart';
 import '../../features/club/screens/club_dashboard_screen.dart';
 import '../../features/club/screens/join_request_profile_screen.dart';
 import '../../features/club/screens/join_requests_screen.dart';
+import '../../features/club/screens/member_profile_screen.dart';
 import '../../features/club/screens/members_screen.dart';
 import '../../features/club/screens/my_club_screen.dart';
 import '../../features/club/screens/player_hunt_screen.dart';
@@ -262,7 +263,10 @@ final List<RouteBase> appRoutes = [
         ]),
       ]),
       StatefulShellBranch(routes: [
-        GoRoute(path: Routes.members, builder: (_, _) => const MembersScreen()),
+        GoRoute(path: Routes.members, builder: (_, _) => const MembersScreen(), routes: [
+          // Member Profile: inside the Members tab, so Back returns to Members.
+          GoRoute(path: ':memberId', builder: (_, s) => MemberProfileScreen(memberId: s.pathParameters['memberId']!)),
+        ]),
       ]),
       StatefulShellBranch(routes: [
         GoRoute(path: Routes.myClub, builder: (_, _) => const MyClubScreen()),

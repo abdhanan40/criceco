@@ -310,7 +310,7 @@ void main() {
 
         // Create Team sheet with validation errors.
         await _go(tester, c, Routes.teams);
-        await _tap(tester, find.bySemanticsLabel(RegExp('^New Team')));
+        await _tap(tester, find.bySemanticsLabel(RegExp('^Create New Team')));
         await tester.tap(find.text('Custom'));
         await _settle(tester);
         await _tap(tester, _button('Create Team'));

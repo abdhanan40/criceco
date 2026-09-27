@@ -2,6 +2,7 @@ export '../enums/enums.dart';
 export 'account.dart';
 export 'challenge_hunt.dart';
 export 'club.dart';
+export 'fitness.dart';
 export 'match_booking.dart';
 export 'notification.dart';
 export 'player.dart';

@@ -11,7 +11,6 @@ import 'package:criceco/features/club/club_providers.dart';
 import 'package:criceco/features/club/requests/join_requests_controller.dart';
 import 'package:criceco/features/club/screens/members_screen.dart';
 import 'package:criceco/shared/widgets/ce_buttons.dart';
-import 'package:criceco/shared/widgets/ce_indicators.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -148,10 +147,9 @@ void main() {
 
       await _go(tester, c, Routes.members);
       expect(find.text('Bilal Ahmed'), findsOneWidget);
-      expect(find.descendant(of: find.byType(MemberRow), matching: find.text('Player')), findsOneWidget); // role tag
-      // Two roles now: the role filter chips appear (All · Owner · Player).
-      expect(find.widgetWithText(CeChip, 'Player'), findsOneWidget);
-      expect(find.bySemanticsLabel('2 members'), findsOneWidget);
+      // Approved as a Player: the applicant's cricket role and a Fitness Meter score.
+      expect(find.bySemanticsLabel(RegExp(r'^Bilal Ahmed, Batsman, Fitness 10 out of 10')), findsOneWidget);
+      expect(find.bySemanticsLabel('22 members'), findsOneWidget);
 
       await _go(tester, c, Routes.clubHome);
       expect(c.read(pendingJoinRequestCountProvider), 2);
@@ -172,7 +170,7 @@ void main() {
       expect(find.text('All requests have been reviewed'), findsOneWidget);
       await _tap(tester, find.text('Declined'));
       expect(find.text('DECLINED'), findsNWidgets(3));
-      expect((await c.read(clubMembersProvider.future)).length, 1, reason: 'only the owner');
+      expect((await c.read(clubMembersProvider.future)).length, 21, reason: 'no one added');
     });
   });
 
@@ -206,7 +204,11 @@ void main() {
       await tester.pumpAndSettle();
       await _tap(tester, _button('View Members'));
       expect(_loc(c), Routes.members);
+      await tester.enterText(find.byType(TextField), 'Hamza');
+      await tester.pumpAndSettle();
+      // A Coach is club staff: role shown, no fitness score.
       expect(find.descendant(of: find.byType(MemberRow), matching: find.text('Coach')), findsOneWidget);
+      expect(find.text('Club Staff · 1'), findsOneWidget);
     });
 
     testWidgets('Reject from profile; no-performance and not-found states', (tester) async {
