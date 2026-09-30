@@ -9,9 +9,12 @@ import '../../../core/utils/ranked_search.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
+import '../../../shared/widgets/ce_indicators.dart';
 import '../../../shared/widgets/ce_inputs.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
+import '../../fitness/fitness_providers.dart';
+import '../../fitness/fitness_widgets.dart';
 import '../club_providers.dart';
 import '../teams/teams_controller.dart';
 import '../widgets/squad_widgets.dart';
@@ -39,15 +42,28 @@ class _AddTeamPlayersScreenState extends ConsumerState<AddTeamPlayersScreen> {
     }
   }
 
-  void _tap(SquadPlayer p) {
-    final outcome = ref.read(squadEditorProvider(widget.teamId).notifier).cycle(p);
-    switch (outcome) {
-      case PickOutcome.locked:
-        showCeToast(context, "${p.name} is ${p.availability.label.toLowerCase()} and can't be added");
-      case PickOutcome.full:
-        showCeToast(context, 'Playing XI and substitutes are full');
-      case PickOutcome.changed:
-        break;
+  /// Tapping a player never adds them straight away: the Add Player sheet
+  /// asks for Playing XI or Substitute first (or lets a picked player be
+  /// moved / removed).
+  Future<void> _tap(SquadPlayer p) async {
+    if (p.locked) {
+      showCeToast(context, "${p.name} is ${p.availability.label.toLowerCase()} and can't be added");
+      return;
+    }
+    final draft = ref.read(squadEditorProvider(widget.teamId));
+    final full = draft.playing >= SquadRules.maxPlaying && draft.subs >= SquadRules.maxSubs;
+    if (full && !draft.picks.containsKey(p.id)) {
+      showCeToast(context, 'Playing XI and substitutes are full');
+      return;
+    }
+    final choice = await showCeSheet<_SquadChoice>(
+      context,
+      builder: (_) => _AddPlayerSheet(teamId: widget.teamId, player: p),
+    );
+    if (choice == null || !mounted) return;
+    final outcome = ref.read(squadEditorProvider(widget.teamId).notifier).assign(p, choice.role);
+    if (outcome == PickOutcome.full) {
+      showCeToast(context, choice.role == SelectionRole.playing ? 'Playing XI is full' : 'Substitutes are full');
     }
   }
 
@@ -130,7 +146,7 @@ class _AddTeamPlayersScreenState extends ConsumerState<AddTeamPlayersScreen> {
         const Padding(
           padding: EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 0),
           child: Text(
-            "Tap a player to mark Playing → Substitute → Unselected. Injured or unavailable players can't be selected.",
+            "Tap a player to choose Playing XI or Substitute. Injured or unavailable players can't be selected.",
             style: TextStyle(fontSize: 11.5, color: CeColors.muted, height: 1.4),
           ),
         ),
@@ -157,6 +173,173 @@ class _AddTeamPlayersScreenState extends ConsumerState<AddTeamPlayersScreen> {
               ),
             ),
       ]),
+    );
+  }
+}
+
+/// Result of the Add Player sheet: a squad position, or `null` = remove.
+class _SquadChoice {
+  const _SquadChoice(this.role);
+  final SelectionRole? role;
+}
+
+/// Add Player sheet: who the player is (name, real cricket role, details),
+/// then an explicit Squad Position — Playing XI or Substitute — before
+/// anything is added. A player already in the squad can be moved or removed.
+class _AddPlayerSheet extends ConsumerStatefulWidget {
+  const _AddPlayerSheet({required this.teamId, required this.player});
+  final String teamId;
+  final SquadPlayer player;
+
+  @override
+  ConsumerState<_AddPlayerSheet> createState() => _AddPlayerSheetState();
+}
+
+class _AddPlayerSheetState extends ConsumerState<_AddPlayerSheet> {
+  late final SelectionRole? _current = ref.read(squadEditorProvider(widget.teamId)).picks[widget.player.id];
+  late SelectionRole? _role = _current;
+  bool _remove = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.player;
+    final draft = ref.watch(squadEditorProvider(widget.teamId));
+    final stats = ref.watch(squadPlayerStatsProvider((p.name, p.position, p.availability)));
+    final fitness = ref.watch(poolFitnessProvider)[p.id];
+    // The player's real role from their member profile when they have one.
+    final member = ref.watch(clubMembersProvider).value?.where((m) => m.poolPlayerId == p.id).firstOrNull;
+    final role = member != null && member.plays ? member.roleLine : p.category.label;
+    final inSquad = _current != null;
+
+    // Room left, not counting this player's own current place.
+    bool room(SelectionRole r) =>
+        _current == r ||
+        (r == SelectionRole.playing ? draft.playing < SquadRules.maxPlaying : draft.subs < SquadRules.maxSubs);
+    final changed = _remove || _role != _current;
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+      Row(children: [
+        CeAvatar(p.name, size: 46, background: CeColors.primary, foreground: Colors.white),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(p.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: CeColors.ink)),
+            const SizedBox(height: 2),
+            Text(role, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: CeColors.ink2)),
+          ]),
+        ),
+      ]),
+      const SizedBox(height: 12),
+      Wrap(spacing: 6, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
+        SquadPill(p.position),
+        SquadPill(p.availability.label),
+        SquadPill('Rating ${stats.rating}'),
+        SquadPill('${stats.matches} matches'),
+        if (fitness != null) FitnessBadge(fitness),
+      ]),
+      const SizedBox(height: 16),
+      const Text('SQUAD POSITION',
+          style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: 0.5, color: CeColors.muted)),
+      const SizedBox(height: 8),
+      _PositionOption(
+        key: const Key('addPlayer.playing'),
+        label: 'Playing XI',
+        detail: room(SelectionRole.playing) ? '${draft.playing}/${SquadRules.maxPlaying} selected' : 'Full',
+        selected: !_remove && _role == SelectionRole.playing,
+        onTap: room(SelectionRole.playing)
+            ? () => setState(() {
+                  _role = SelectionRole.playing;
+                  _remove = false;
+                })
+            : null,
+      ),
+      const SizedBox(height: 8),
+      _PositionOption(
+        key: const Key('addPlayer.sub'),
+        label: 'Substitute',
+        detail: room(SelectionRole.sub) ? '${draft.subs}/${SquadRules.maxSubs} selected' : 'Full',
+        selected: !_remove && _role == SelectionRole.sub,
+        onTap: room(SelectionRole.sub)
+            ? () => setState(() {
+                  _role = SelectionRole.sub;
+                  _remove = false;
+                })
+            : null,
+      ),
+      if (inSquad) ...[
+        const SizedBox(height: 8),
+        _PositionOption(
+          key: const Key('addPlayer.remove'),
+          label: 'Remove from squad',
+          detail: 'Back to unselected',
+          selected: _remove,
+          onTap: () => setState(() => _remove = true),
+        ),
+      ],
+      const SizedBox(height: 16),
+      Row(children: [
+        Expanded(child: CeButton.soft(label: 'Cancel', onPressed: () => Navigator.of(context).pop())),
+        const SizedBox(width: 8),
+        Expanded(
+          child: CeButton(
+            label: inSquad ? 'Update Player' : 'Add Player',
+            onPressed: (_remove || _role != null) && changed
+                ? () => Navigator.of(context).pop(_SquadChoice(_remove ? null : _role))
+                : null,
+          ),
+        ),
+      ]),
+    ]);
+  }
+}
+
+/// One radio-style Squad Position row; disabled (no [onTap]) when full.
+class _PositionOption extends StatelessWidget {
+  const _PositionOption({super.key, required this.label, required this.detail, required this.selected, this.onTap});
+  final String label;
+  final String detail;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    return Semantics(
+      inMutuallyExclusiveGroup: true,
+      checked: selected,
+      enabled: enabled,
+      label: '$label, $detail',
+      excludeSemantics: true,
+      child: Material(
+        color: selected ? CeColors.mint : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(CeRadius.md),
+          side: BorderSide(color: selected ? CeColors.primary : CeColors.line),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(CeRadius.md),
+          onTap: onTap,
+          child: Opacity(
+            opacity: enabled ? 1 : 0.5,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+              child: Row(children: [
+                Icon(selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                    size: 20, color: selected ? CeColors.primary : CeColors.muted2),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(label,
+                      style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: CeColors.ink)),
+                ),
+                Text(detail, style: const TextStyle(fontSize: 11.5, color: CeColors.muted)),
+              ]),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

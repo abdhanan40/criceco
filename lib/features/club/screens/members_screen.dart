@@ -17,9 +17,9 @@ import '../../fitness/fitness_providers.dart';
 import '../../fitness/fitness_widgets.dart';
 import '../club_providers.dart';
 
-/// Members — the club's members only (no team listings). Search stays on the
-/// screen; the right-side filter panel narrows the players by cricket role
-/// and fitness level and sorts them. Players show their role and Fitness
+/// Members — the club's members only (no team listings). Search and the role
+/// chips (All / Batsman / Bowler / All-Rounder / Wicket Keeper) stay on the
+/// screen; the right-side filter panel narrows by fitness level and sorts. Players show their role and Fitness
 /// Meter score; non-playing staff are listed separately. Tapping any member
 /// opens their Member Profile.
 class MembersScreen extends ConsumerStatefulWidget {
@@ -105,6 +105,7 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                 onChanged: ref.read(membersQueryProvider.notifier).select,
               ),
             ),
+            _RoleChips(filter: filter),
             if (filter.activeCount > 0) _ActiveFilters(filter: filter),
             if (async.isLoading)
               const Padding(padding: EdgeInsets.all(30), child: Center(child: CircularProgressIndicator()))
@@ -117,7 +118,9 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
                 body: query.isNotEmpty
                     ? 'No results for "$query".'
                     : narrowed
-                        ? 'No players match these filters.'
+                        ? (filter.levels.isEmpty
+                            ? 'No players with this role yet.'
+                            : 'No players match these filters.')
                         : 'Share your club code so players can request to join.',
               )
             else ...[
@@ -136,6 +139,31 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Role chips near the top: All (default) or one cricket role. Staff have no
+/// cricket role, so they are listed only under All.
+class _RoleChips extends ConsumerWidget {
+  const _RoleChips({required this.filter});
+  final MemberFilter filter;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    void pick(Set<MemberRoleFilter> roles) =>
+        ref.read(memberFilterProvider.notifier).select(filter.copyWith(roles: roles));
+    return SingleChildScrollView(
+      key: const Key('members.roles'),
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 8, CeSpace.gutter, 2),
+      child: Row(children: [
+        CeChip(label: 'All', selected: filter.roles.isEmpty, onTap: () => pick(const {})),
+        for (final r in MemberRoleFilter.values) ...[
+          const SizedBox(width: 8),
+          CeChip(label: r.label, selected: filter.roles.contains(r), onTap: () => pick({r})),
+        ],
+      ]),
     );
   }
 }
@@ -176,7 +204,6 @@ class _ActiveFilters extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final parts = [
-      for (final r in filter.roles) r.label,
       for (final l in filter.levels) l.label,
       if (filter.sort != MemberSort.name) filter.sort.label,
     ];
@@ -192,7 +219,7 @@ class _ActiveFilters extends ConsumerWidget {
               style: const TextStyle(fontSize: 11.5, color: CeColors.ink2, fontWeight: FontWeight.w600)),
         ),
         TextButton(
-          onPressed: () => ref.read(memberFilterProvider.notifier).select(const MemberFilter()),
+          onPressed: () => ref.read(memberFilterProvider.notifier).select(MemberFilter(roles: filter.roles)),
           child: const Text('Clear'),
         ),
       ]),
@@ -200,8 +227,9 @@ class _ActiveFilters extends ConsumerWidget {
   }
 }
 
-/// Right-side slide-in filter panel (architecture drawing): Role, Fitness
-/// level and Sort; Apply commits, Reset clears.
+/// Right-side slide-in filter panel (architecture drawing): Fitness level and
+/// Sort (the role is picked with the chips on the screen); Apply commits,
+/// Reset clears.
 class _MemberFilterPanel extends ConsumerStatefulWidget {
   const _MemberFilterPanel();
 
@@ -242,15 +270,6 @@ class _MemberFilterPanelState extends ConsumerState<_MemberFilterPanel> {
           ),
           Expanded(
             child: ListView(padding: const EdgeInsets.fromLTRB(18, 0, 18, 12), children: [
-              _label('Role'),
-              Wrap(spacing: 7, runSpacing: 7, children: [
-                for (final r in MemberRoleFilter.values)
-                  CeChip(
-                    label: r.label,
-                    selected: _f.roles.contains(r),
-                    onTap: () => setState(() => _f = _f.copyWith(roles: _toggle(_f.roles, r))),
-                  ),
-              ]),
               _label('Fitness level'),
               Wrap(spacing: 7, runSpacing: 7, children: [
                 for (final l in FitnessLevel.values)
@@ -266,7 +285,7 @@ class _MemberFilterPanelState extends ConsumerState<_MemberFilterPanel> {
                   CeChip(label: s.label, selected: _f.sort == s, onTap: () => setState(() => _f = _f.copyWith(sort: s))),
               ]),
               const SizedBox(height: 14),
-              const Text('Role and fitness filters apply to players; club staff show when no filter is set.',
+              const Text('Fitness filters apply to players; club staff show when no role or fitness filter is set.',
                   style: TextStyle(fontSize: 11, color: CeColors.muted, height: 1.4)),
             ]),
           ),
@@ -278,7 +297,7 @@ class _MemberFilterPanelState extends ConsumerState<_MemberFilterPanel> {
                 child: CeButton.soft(
                   label: 'Reset',
                   dense: true,
-                  onPressed: () => setState(() => _f = const MemberFilter()),
+                  onPressed: () => setState(() => _f = MemberFilter(roles: _f.roles)),
                 ),
               ),
               const SizedBox(width: 8),

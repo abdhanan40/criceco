@@ -412,6 +412,26 @@ void main() {
       expect(_loc(c), Routes.playerHome, reason: 'no expansion for a completed Player');
     });
 
+    testWidgets('Role Selection: Log out (top right) confirms first; Cancel stays, confirm goes to Login', (tester) async {
+      final c = await _profiled(tester);
+      final logout = find.byTooltip('Log out');
+      expect(logout, findsOneWidget);
+      expect(tester.getCenter(logout).dx, greaterThan(375 / 2), reason: 'top-right of the header');
+      expect(find.text('Not you?'), findsNothing, reason: 'one logout control only');
+      await tester.tap(logout);
+      await tester.pumpAndSettle();
+      expect(find.text('Log out?'), findsOneWidget);
+      await _tap(tester, _button('Cancel'));
+      expect(_loc(c), Routes.roleSelection);
+      expect(c.read(currentAccountProvider), isNotNull, reason: 'still signed in');
+
+      await tester.tap(logout);
+      await tester.pumpAndSettle();
+      await _tap(tester, _button('Log out'));
+      expect(_loc(c), Routes.login);
+      expect(c.read(currentAccountProvider), isNull, reason: 'session cleared');
+    });
+
     testWidgets('profile-complete user without a role lands on Role Selection', (tester) async {
       final c = await _profiled(tester);
       c.read(sessionProvider.notifier).logout();
@@ -456,13 +476,18 @@ void main() {
     });
   });
 
-  group('Join a Club (membership by code, from Club Setup)', () {
+  group('Join a Club (membership by code)', () {
     testWidgets('grants membership only and lands in Player context', (tester) async {
       final c = await _pump(tester);
       await _login(tester);
       c.read(routerProvider).go(Routes.clubSetup);
       await tester.pumpAndSettle();
-      await _tap(tester, find.text('Enter club code'));
+      // Club Setup no longer offers "Join an existing club".
+      expect(find.text('Enter club code'), findsNothing);
+      expect(find.textContaining('Joining an existing club'), findsNothing);
+      expect(_button('Create Club'), findsOneWidget);
+      c.read(routerProvider).go(Routes.enterClubCode);
+      await tester.pumpAndSettle();
       await _tap(tester, _button('Send Join Request'));
       expect(find.text('Please enter a club code'), findsOneWidget);
       await _enter(tester, 'join.code', 'krc001');
@@ -480,9 +505,8 @@ void main() {
     testWidgets('Cancel Request returns to Club Setup', (tester) async {
       final c = await _pump(tester);
       await _login(tester);
-      c.read(routerProvider).go(Routes.clubSetup);
+      c.read(routerProvider).go(Routes.enterClubCode);
       await tester.pumpAndSettle();
-      await _tap(tester, find.text('Enter club code'));
       await _enter(tester, 'join.code', 'ABCD12');
       await _tap(tester, _button('Send Join Request'));
       await _tap(tester, _button('Cancel Request'));

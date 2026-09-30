@@ -6,6 +6,7 @@ import '../../../app/router/routes.dart';
 import '../../../app/session/session_controller.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
+import '../../../shared/media/photo_picker.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
@@ -21,6 +22,15 @@ class MyClubScreen extends ConsumerWidget {
   const MyClubScreen({super.key});
 
   static const _previewCount = 8; // prototype shows the first 8 members
+
+  /// Add / change / remove the club picture; saved on the club right away.
+  Future<void> _changePicture(BuildContext context, WidgetRef ref) async {
+    final hasPicture = ref.read(currentClubProvider)?.logoPath != null;
+    final change = await choosePhoto(context, ref, title: 'Club picture', hasPhoto: hasPicture);
+    if (change == null || !context.mounted) return;
+    await ref.read(sessionProvider.notifier).updateClub((c) => c.withLogo(change.path));
+    if (context.mounted) showCeToast(context, change.path == null ? 'Club picture removed' : 'Club picture updated');
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -40,12 +50,23 @@ class MyClubScreen extends ConsumerWidget {
           radius: CeRadius.lg,
           padding: const EdgeInsets.all(16),
           child: Row(children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(CeRadius.lg)),
-              child: Icon(CeIcons.of('shield'), size: 26, color: Colors.white),
+            CeEditablePhoto(
+              key: const Key('club.photo'),
+              size: 52,
+              semanticLabel: club?.logoPath == null ? 'Add club picture' : 'Change club picture',
+              onTap: () => _changePicture(context, ref),
+              child: CePhotoImage(
+                path: club?.logoPath,
+                size: 52,
+                square: true,
+                fallback: Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(CeRadius.lg)),
+                  child: Icon(CeIcons.of('shield'), size: 26, color: Colors.white),
+                ),
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(

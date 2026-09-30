@@ -40,9 +40,14 @@ class ChallengesController extends AsyncNotifier<List<Challenge>> {
 
   /// Send a challenge. It is always created PENDING; in Demo Mode the
   /// opponent then accepts instantly (the approved prototype flow).
-  Future<Challenge> send(String opponentClubId, {MatchFormat? format}) async {
-    final sent =
-        await ref.read(challengeRepositoryProvider).send(opponentClubId: opponentClubId, format: format, at: _now);
+  Future<Challenge> send(String opponentClubId, {MatchFormat? format, String? groundName, DateTime? proposedAt}) async {
+    final sent = await ref.read(challengeRepositoryProvider).send(
+          opponentClubId: opponentClubId,
+          format: format,
+          groundName: groundName,
+          proposedAt: proposedAt,
+          at: _now,
+        );
     _put(sent);
     if (ref.read(demoModeProvider)) {
       return await const DemoChallengeResponder().respond(sent, accept) ?? sent;
@@ -136,7 +141,7 @@ final challengeableClubsProvider = FutureProvider<List<ClubSummary>>((ref) async
   return [for (final id in ids) if (dir[id] != null) dir[id]!];
 });
 
-/// Find Match "Teams Looking for Opponents". The section count is derived
+/// Find Opponent "Teams Looking for Opponents". The section count is derived
 /// (fix: the prototype said "5 Teams" but listed 2).
 final matchSeekersProvider = FutureProvider<List<MatchSeekerListing>>((ref) {
   return ref.read(challengeRepositoryProvider).matchSeekers();

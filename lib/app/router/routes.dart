@@ -82,7 +82,13 @@ abstract final class Routes {
   static const findMatch = '/club/challenges/find';
   static const createAvailabilitySlot = '/club/challenges/slots/new';
   static String challengeAccepted(String challengeId) => '/club/challenges/$challengeId/accepted';
-  static String clubProfile(String clubId) => '/club/clubs/$clubId';
+  /// Opponent Club Profile. [challengeId]: opened from that challenge (My
+  /// Challenges), so its actions / status show at the bottom. [fromFind]:
+  /// opened from Find Opponent, where the CTA reads "Send Match Request".
+  static String clubProfile(String clubId, {String? challengeId, bool fromFind = false}) {
+    final query = [if (challengeId != null) 'challenge=$challengeId', if (fromFind) 'from=find'].join('&');
+    return query.isEmpty ? '/club/clubs/$clubId' : '/club/clubs/$clubId?$query';
+  }
   static String matchManagement([MatchTab? tab]) => tab == null ? '/club/matches' : '/club/matches?tab=${tab.name}';
   static String matchSetup(String matchId) => '/club/matches/$matchId/setup';
   static String bookGround(String matchId) => '/club/matches/$matchId/setup/ground';

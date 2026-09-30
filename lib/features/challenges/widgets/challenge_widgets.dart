@@ -2,14 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/providers/core_providers.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/ce_buttons.dart';
+import '../../../shared/widgets/ce_calendar.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
+import '../../../shared/widgets/ce_inputs.dart';
 import '../../../shared/widgets/ce_match_widgets.dart';
 import '../../../shared/widgets/ce_segmented.dart';
 import '../../club/club_providers.dart';
@@ -18,7 +21,7 @@ import '../challenges_controller.dart';
 enum ChallengesSection {
   challenges('Challenges', Routes.challenges),
   mine('My Challenges', Routes.myChallenges),
-  find('Find Match', Routes.findMatch);
+  find('Find Opponent', Routes.findMatch);
 
   const ChallengesSection(this.label, this.location);
   final String label;
@@ -46,23 +49,52 @@ class ChallengesTabs extends ConsumerWidget {
   }
 }
 
+/// What a challenge / match request proposes. All three are required before
+/// anything is sent.
+class ChallengeRequest {
+  const ChallengeRequest({required this.format, required this.ground, required this.date});
+  final MatchFormat format;
+  final Ground ground;
+  final DateTime date;
+}
+
 /// Sends a challenge and routes by the resulting state: Demo Mode accepts it
 /// instantly → Challenge Accepted; otherwise it stays pending → My Challenges
 /// ("Sent", approved P9).
 ///
-/// Without a [format] (Challenges list, Club Profile) the user first picks
-/// one in a sheet; a Find Match listing already fixes its format.
+/// Nothing is sent until the setup sheet is completed: Match Format → Ground
+/// → Date → Review → Send. [matchRequest] only changes the wording (Find
+/// Opponent: "Send Match Request"); a Find Opponent listing prefills its own
+/// [format], [date] and — when it names a listed ground — [groundName], all
+/// of which can still be changed.
 Future<void> sendChallenge(
   BuildContext context,
   WidgetRef ref,
   ClubSummary club, {
+  bool matchRequest = false,
   MatchFormat? format,
-  VoidCallback? onSending, // called once a format is chosen, before sending
+  DateTime? date,
+  String? groundName,
+  VoidCallback? onSending, // called once the request is confirmed, before sending
 }) async {
-  final chosen = format ?? await pickChallengeFormat(context, club);
-  if (chosen == null || !context.mounted) return; // cancelled: nothing is sent
+  final request = await showCeSheet<ChallengeRequest>(
+    context,
+    builder: (_) => _ChallengeSetupSheet(
+      club: club,
+      matchRequest: matchRequest,
+      format: format,
+      date: date,
+      groundName: groundName,
+    ),
+  );
+  if (request == null || !context.mounted) return; // cancelled: nothing is sent
   onSending?.call();
-  final c = await ref.read(challengesProvider.notifier).send(club.id, format: chosen);
+  final c = await ref.read(challengesProvider.notifier).send(
+        club.id,
+        format: request.format,
+        groundName: request.ground.name,
+        proposedAt: request.date,
+      );
   if (!context.mounted) return;
   if (c.status == ChallengeStatus.accepted) {
     showCeToast(context, 'Challenge sent to ${club.name}!');
@@ -77,39 +109,221 @@ Future<void> sendChallenge(
 /// challenge doesn't carry; it is set later in Match Setup).
 const challengeFormats = [MatchFormat.t20, MatchFormat.odi, MatchFormat.t10, MatchFormat.test];
 
-/// Format sheet before sending a challenge. Preselects the opponent's
-/// preferred format; resolves to `null` on Cancel.
-Future<MatchFormat?> pickChallengeFormat(BuildContext context, ClubSummary club) {
-  var selected = challengeFormats.contains(club.preferredFormat) ? club.preferredFormat! : MatchFormat.t20;
-  return showCeSheet<MatchFormat>(
-    context,
-    builder: (ctx) => StatefulBuilder(
-      builder: (ctx, setState) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text('Challenge ${club.name}', style: Theme.of(ctx).textTheme.titleLarge),
-        const SizedBox(height: 4),
-        Text(
-            'Choose the match format. ${club.name} plays '
-            '${club.formats.trim().toLowerCase() == 'any' ? 'any format' : club.formats}.',
-            style: const TextStyle(fontSize: 12.5, color: CeColors.muted)),
-        const SizedBox(height: 14),
-        const Text('Match Format',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: CeColors.ink2)),
-        const SizedBox(height: 8),
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          for (final f in challengeFormats)
-            CeChip(label: f.label, selected: f == selected, onTap: () => setState(() => selected = f)),
-        ]),
-        const SizedBox(height: 20),
-        CeButton(
-          label: 'Send ${selected.label} Challenge',
-          icon: CeIcons.of('swords'),
-          onPressed: () => Navigator.of(ctx).pop(selected),
-        ),
-        const SizedBox(height: 10),
-        CeButton.soft(label: 'Cancel', onPressed: () => Navigator.of(ctx).pop()),
+/// Challenge / match-request setup in one sheet. Step 1: Match Format, Ground
+/// and Date ("Review" stays disabled until all three are chosen). Step 2: a
+/// summary and the final confirmation. Resolves to `null` on Cancel.
+class _ChallengeSetupSheet extends ConsumerStatefulWidget {
+  const _ChallengeSetupSheet({
+    required this.club,
+    required this.matchRequest,
+    this.format,
+    this.date,
+    this.groundName,
+  });
+  final ClubSummary club;
+  final bool matchRequest;
+  final MatchFormat? format;
+  final DateTime? date;
+  final String? groundName;
+
+  @override
+  ConsumerState<_ChallengeSetupSheet> createState() => _ChallengeSetupSheetState();
+}
+
+class _ChallengeSetupSheetState extends ConsumerState<_ChallengeSetupSheet> {
+  late MatchFormat? _format = challengeFormats.contains(widget.format) ? widget.format : null;
+  Ground? _ground;
+  bool _groundSeeded = false;
+  late DateTime? _date =
+      widget.date == null || widget.date!.isBefore(_today) ? null : CeFormat.dateOnly(widget.date!);
+  late DateTime _month = _date ?? _today;
+  bool _pickerOpen = false;
+  bool _review = false;
+
+  DateTime get _today => CeFormat.dateOnly(ref.read(clockProvider).now());
+  bool get _complete => _format != null && _ground != null && _date != null;
+
+  Widget _label(String t) => Padding(
+        padding: const EdgeInsets.only(top: 14, bottom: 8),
+        child: Text(t, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: CeColors.ink2)),
+      );
+
+  @override
+  Widget build(BuildContext context) => _review ? _buildReview(context) : _buildDetails(context);
+
+  Widget _buildDetails(BuildContext context) {
+    final club = widget.club;
+    final grounds = (ref.watch(groundDirectoryProvider).value ?? const <String, Ground>{}).values.toList();
+    // A listing that names a listed ground starts with it selected.
+    if (!_groundSeeded && grounds.isNotEmpty) {
+      _groundSeeded = true;
+      _ground = grounds.where((g) => g.name == widget.groundName).firstOrNull;
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+      Text(widget.matchRequest ? 'Match request to ${club.name}' : 'Challenge ${club.name}',
+          style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 4),
+      Text(
+          'Choose the match format, ground and date. ${club.name} plays '
+          '${club.formats.trim().toLowerCase() == 'any' ? 'any format' : club.formats}.',
+          style: const TextStyle(fontSize: 12.5, color: CeColors.muted, height: 1.4)),
+      _label('Match Format'),
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        for (final f in challengeFormats)
+          CeChip(label: f.label, selected: f == _format, onTap: () => setState(() => _format = f)),
       ]),
-    ),
-  );
+      _label('Ground'),
+      CeSelectField<Ground>(
+        fieldKey: const Key('challenge.ground'),
+        items: grounds,
+        value: _ground,
+        labelOf: (g) => '${g.name} — ${g.city}',
+        onChanged: (g) => setState(() => _ground = g),
+        sheetTitle: 'Ground',
+        hint: 'Select ground',
+        icon: 'flag',
+        itemIcon: 'flag',
+      ),
+      // CeSelectField already leaves a gap below itself.
+      const Text('Date', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: CeColors.ink2)),
+      const SizedBox(height: 8),
+      CeDateRow(
+        key: const Key('challenge.date'),
+        date: _date,
+        open: _pickerOpen,
+        hasError: false,
+        onTap: () => setState(() {
+          _pickerOpen = !_pickerOpen;
+          if (_pickerOpen) _month = _date ?? _today;
+        }),
+      ),
+      if (_pickerOpen)
+        CeMonthCalendar(
+          margin: const EdgeInsets.only(top: 8),
+          visibleMonth: _month,
+          today: _today,
+          selected: _date,
+          isEnabled: (d) => !d.isBefore(_today),
+          onMonthChanged: (m) => setState(() => _month = m),
+          onSelected: (d) => setState(() {
+            _date = d;
+            _pickerOpen = false;
+          }),
+        ),
+      const SizedBox(height: 18),
+      Row(children: [
+        Expanded(child: CeButton.soft(label: 'Cancel', onPressed: () => Navigator.of(context).pop())),
+        const SizedBox(width: 8),
+        Expanded(
+          child: CeButton(
+            label: 'Review',
+            trailingIcon: CeIcons.of('arrow-right'),
+            onPressed: _complete ? () => setState(() => _review = true) : null,
+          ),
+        ),
+      ]),
+    ]);
+  }
+
+  Widget _buildReview(BuildContext context) {
+    final request = widget.matchRequest;
+    Widget row(String label, String value) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            SizedBox(width: 84, child: Text(label, style: const TextStyle(fontSize: 12.5, color: CeColors.muted))),
+            Expanded(
+              child: Text(value,
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: CeColors.ink)),
+            ),
+          ]),
+        );
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
+      Row(children: [
+        Expanded(
+          child: Text(request ? 'Send Match Request?' : 'Send Challenge?', style: Theme.of(context).textTheme.titleLarge),
+        ),
+        TextButton(onPressed: () => setState(() => _review = false), child: const Text('Edit')),
+      ]),
+      const SizedBox(height: 6),
+      Container(
+        key: const Key('challenge.summary'),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(color: CeColors.mint, borderRadius: BorderRadius.circular(CeRadius.row)),
+        child: Column(children: [
+          row('Opponent', widget.club.name),
+          row('Format', _format!.label),
+          row('Ground', _ground!.name),
+          row('Date', CeFormat.dayDate(_date!)),
+        ]),
+      ),
+      const SizedBox(height: 12),
+      Text(
+          request
+              ? 'Are you sure you want to send this match request?'
+              : 'Are you sure you want to send this challenge?',
+          style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: CeColors.muted, height: 1.45)),
+      const SizedBox(height: 16),
+      Row(children: [
+        Expanded(child: CeButton.soft(label: 'Cancel', onPressed: () => Navigator.of(context).pop())),
+        const SizedBox(width: 8),
+        Expanded(
+          child: CeButton(
+            label: request ? 'Send Request' : 'Send Challenge',
+            onPressed: () =>
+                Navigator.of(context).pop(ChallengeRequest(format: _format!, ground: _ground!, date: _date!)),
+          ),
+        ),
+      ]),
+    ]);
+  }
+}
+
+/// Accept / Decline a received challenge — always confirmed first. Accept
+/// creates ONE pending match and hands off to Match Management (Waiting);
+/// Decline resolves the challenge. Returns the updated challenge, or `null`
+/// when the confirmation was cancelled.
+Future<Challenge?> respondToChallenge(
+  BuildContext context,
+  WidgetRef ref,
+  Challenge c, {
+  required bool accept,
+  VoidCallback? onResponding, // called once confirmed, before saving
+}) async {
+  final name = ref.read(clubDirectoryProvider).value?[c.opponentClubId]?.name ?? 'this club';
+  final ok = accept
+      ? await showCeConfirmSheet(
+          context,
+          title: 'Accept Challenge?',
+          body: 'Are you sure you want to accept this match challenge?',
+          confirmLabel: 'Accept Challenge',
+          icon: 'check-circle',
+        )
+      : await showCeConfirmSheet(
+          context,
+          title: 'Decline this challenge?',
+          body: '$name will be told you declined. You can still challenge them later.',
+          confirmLabel: 'Decline Challenge',
+          destructive: true,
+          icon: 'x-circle',
+        );
+  if (!ok || !context.mounted) return null;
+  onResponding?.call();
+  final ctrl = ref.read(challengesProvider.notifier);
+  final result = accept ? await ctrl.accept(c.id) : await ctrl.decline(c.id);
+  if (!context.mounted) return result;
+  switch (result?.status) {
+    case ChallengeStatus.accepted:
+      showCeToast(context, 'Challenge accepted!');
+      context.go(Routes.matchManagement(MatchTab.waiting));
+    case ChallengeStatus.declined:
+      showCeToast(context, 'Challenge declined');
+    case ChallengeStatus.expired:
+      showCeToast(context, 'This challenge has expired');
+    case ChallengeStatus.pending || null:
+      break;
+  }
+  return result;
 }
 
 /// `.avail-box`: dashed mint call-to-action for Create Availability Slot.
@@ -188,7 +402,7 @@ class MySlotsList extends ConsumerWidget {
                   final ok = await showCeConfirmSheet(
                     context,
                     title: 'Remove this slot?',
-                    body: 'Clubs will no longer see your ${CeFormat.dayDate(s.date)} slot in Find Match.',
+                    body: 'Clubs will no longer see your ${CeFormat.dayDate(s.date)} slot in Find Opponent.',
                     confirmLabel: 'Remove Slot',
                     destructive: true,
                     icon: 'x-circle',

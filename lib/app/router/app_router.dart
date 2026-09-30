@@ -313,7 +313,11 @@ final List<RouteBase> _clubFullRoutes = [
   GoRoute(
     path: 'clubs/:clubId',
     parentNavigatorKey: rootNavigatorKey,
-    builder: (_, s) => ClubProfileScreen(clubId: s.pathParameters['clubId']!),
+    builder: (_, s) => ClubProfileScreen(
+      clubId: s.pathParameters['clubId']!,
+      challengeId: s.uri.queryParameters['challenge'],
+      fromFind: s.uri.queryParameters['from'] == 'find',
+    ),
   ),
   GoRoute(
     path: 'matches',

@@ -8,6 +8,7 @@ import '../../../app/session/session_controller.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../shared/media/photo_picker.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
@@ -76,15 +77,22 @@ class ClubDashboardScreen extends ConsumerWidget {
                   padding: const EdgeInsets.only(left: 12, top: 4),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                     Row(children: [
-                      Container(
-                        width: 46,
-                        height: 46,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(CeRadius.md),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
+                      // The club picture when one is set (My Club), else the badge.
+                      CePhotoImage(
+                        path: club?.logoPath,
+                        size: 46,
+                        square: true,
+                        radius: CeRadius.md,
+                        fallback: Container(
+                          width: 46,
+                          height: 46,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(CeRadius.md),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
+                          ),
+                          child: Icon(CeIcons.of('shield'), size: 21, color: Colors.white),
                         ),
-                        child: Icon(CeIcons.of('shield'), size: 21, color: Colors.white),
                       ),
                       const SizedBox(width: 12),
                       Expanded(

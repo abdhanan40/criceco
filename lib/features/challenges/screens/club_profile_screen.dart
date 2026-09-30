@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/providers/core_providers.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../core/models/models.dart';
+import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
@@ -19,9 +22,20 @@ String _initials(String name) =>
 
 /// Opponent Club Profile (prototype `screens.clubProfile`, :6073), keyed by
 /// club id (the prototype used a global abbreviation).
+///
+/// The pinned bottom area is the one place a challenge with this club is
+/// acted on: a pending incoming challenge shows Decline / Accept, a resolved
+/// one shows its status, and otherwise the CTA starts a new one ("Challenge
+/// This Club", or "Send Match Request" when opened from Find Opponent).
 class ClubProfileScreen extends ConsumerStatefulWidget {
-  const ClubProfileScreen({super.key, required this.clubId});
+  const ClubProfileScreen({super.key, required this.clubId, this.challengeId, this.fromFind = false});
   final String clubId;
+
+  /// The challenge this profile was opened from (My Challenges), if any.
+  final String? challengeId;
+
+  /// Opened from Find Opponent: the CTA reads "Send Match Request".
+  final bool fromFind;
 
   @override
   ConsumerState<ClubProfileScreen> createState() => _ClubProfileScreenState();
@@ -29,6 +43,20 @@ class ClubProfileScreen extends ConsumerStatefulWidget {
 
 class _ClubProfileScreenState extends ConsumerState<ClubProfileScreen> {
   bool _busy = false;
+
+  /// A challenge answered on this screen: keeps showing its status afterwards.
+  String? _answeredId;
+
+  Future<void> _respond(Challenge challenge, {required bool accept}) async {
+    if (_busy) return;
+    await respondToChallenge(context, ref, challenge,
+        accept: accept,
+        onResponding: () => setState(() {
+              _busy = true;
+              _answeredId = challenge.id;
+            }));
+    if (mounted) setState(() => _busy = false);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +77,15 @@ class _ClubProfileScreenState extends ConsumerState<ClubProfileScreen> {
       );
     }
     final waiting = ref.watch(pendingSentClubIdsProvider).contains(c.id);
+    final now = ref.read(clockProvider).now();
+    // The challenge in focus: the one this profile was opened from (or just
+    // answered here); failing that, a pending incoming challenge from this
+    // club — so it is answered rather than crossed with a new one.
+    final focusId = _answeredId ?? widget.challengeId;
+    final linked = focusId == null ? null : ref.watch(challengeProvider(focusId));
+    final challenge = linked != null && linked.opponentClubId == c.id
+        ? linked
+        : ref.watch(myChallengeSectionsProvider).awaitingDecision.where((x) => x.opponentClubId == c.id).firstOrNull;
 
     Widget stat(String n, String l, Color color) => Expanded(
           child: Container(
@@ -62,9 +99,60 @@ class _ClubProfileScreenState extends ConsumerState<ClubProfileScreen> {
           ),
         );
 
+    // Missing owner / coach: say so plainly rather than guess a name.
+    Widget person(String? name) => name == null || name.trim().isEmpty
+        ? CeSummaryCard.value(context, 'Not listed', color: CeColors.muted)
+        : CeSummaryCard.value(context, name.trim());
+
+    final Widget action;
+    if (challenge != null && challenge.direction == ChallengeDirection.received) {
+      action = challenge.statusAt(now) == ChallengeStatus.pending
+          ? _IncomingChallengeActions(
+              challenge: challenge,
+              busy: _busy,
+              onDecline: () => _respond(challenge, accept: false),
+              onAccept: () => _respond(challenge, accept: true),
+            )
+          : _ChallengeStatusLine(challenge: challenge, status: challenge.statusAt(now));
+    } else if (challenge != null && challenge.statusAt(now) != ChallengeStatus.pending) {
+      action = _ChallengeStatusLine(challenge: challenge, status: challenge.statusAt(now));
+    } else if (waiting) {
+      action = CeButton.soft(label: 'Challenge Sent', icon: CeIcons.of('hourglass'));
+    } else {
+      action = CeButton(
+        label: widget.fromFind ? 'Send Match Request' : 'Challenge This Club',
+        icon: CeIcons.of('swords'),
+        loading: _busy,
+        onPressed: _busy
+            ? null
+            : () async {
+                await sendChallenge(context, ref, c,
+                    matchRequest: widget.fromFind, onSending: () => setState(() => _busy = true));
+                if (mounted) setState(() => _busy = false);
+              },
+      );
+    }
+
     return Scaffold(
       appBar: bar,
-      body: ListView(padding: const EdgeInsets.only(bottom: 28), children: [
+      // Pinned, so the decision / CTA is in reach without scrolling the profile.
+      bottomNavigationBar: Container(
+        key: const Key('clubProfile.actions'),
+        decoration: const BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: CeColors.line))),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 10),
+            // Column(min): a full-width button must not stretch the bar's height.
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [action],
+            ),
+          ),
+        ),
+      ),
+      body: ListView(padding: const EdgeInsets.only(bottom: 20), children: [
         // ---- Identity, form, win rate ----
         CeCard(
           margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 0),
@@ -128,14 +216,12 @@ class _ClubProfileScreenState extends ConsumerState<ClubProfileScreen> {
           ]),
         ),
 
-        // ---- About / preferences ----
-        const CeSectionHeader('About'),
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: CeSpace.gutter),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: CeColors.mint, borderRadius: BorderRadius.circular(CeRadius.row)),
-          child: Text(c.about, style: const TextStyle(fontSize: 12.5, color: CeColors.ink2, height: 1.45)),
-        ),
+        // ---- Owner / coach (names only, never contact details) ----
+        const CeSectionHeader('Club Management'),
+        CeSummaryCard(rows: [
+          ('Club Owner', person(c.ownerName)),
+          ('Club Coach', person(c.coachName)),
+        ]),
         const CeSectionHeader('Match Preferences'),
         CeSummaryCard(rows: [
           ('Formats', CeSummaryCard.value(context, c.formats)),
@@ -195,24 +281,88 @@ class _ClubProfileScreenState extends ConsumerState<ClubProfileScreen> {
               if (p.isCaptain) const CeStatusChip('Captain', tone: CeTone.amber),
             ]),
           ),
-
-        Padding(
-          padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
-          child: waiting
-              ? CeButton.soft(label: 'Challenge Sent', icon: CeIcons.of('hourglass'))
-              : CeButton(
-                  label: 'Challenge This Club',
-                  icon: CeIcons.of('swords'),
-                  loading: _busy,
-                  onPressed: _busy
-                      ? null
-                      : () async {
-                          await sendChallenge(context, ref, c, onSending: () => setState(() => _busy = true));
-                          if (mounted) setState(() => _busy = false);
-                        },
-                ),
-        ),
       ]),
     );
+  }
+}
+
+String _challengeLine(Challenge c) => [
+      if (c.format != null) c.format!.display(),
+      if (c.proposedAt != null) CeFormat.dayDate(c.proposedAt!),
+      if (c.groundName != null) c.groundName!,
+    ].join(' · ');
+
+/// A pending incoming challenge from this club: Decline / Accept (each
+/// confirmed before anything changes).
+class _IncomingChallengeActions extends StatelessWidget {
+  const _IncomingChallengeActions({
+    required this.challenge,
+    required this.busy,
+    required this.onDecline,
+    required this.onAccept,
+  });
+  final Challenge challenge;
+  final bool busy;
+  final VoidCallback onDecline;
+  final VoidCallback onAccept;
+
+  @override
+  Widget build(BuildContext context) {
+    final line = _challengeLine(challenge);
+    return Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Row(children: [
+        Icon(CeIcons.of('swords'), size: 13, color: CeColors.amberInk),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(line.isEmpty ? 'This club has challenged you' : 'Challenge received · $line',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: CeColors.amberInk)),
+        ),
+      ]),
+      const SizedBox(height: 8),
+      Row(children: [
+        Expanded(child: CeButton.danger(label: 'Decline', onPressed: busy ? null : onDecline)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: CeButton(label: 'Accept', icon: CeIcons.of('check'), loading: busy, onPressed: busy ? null : onAccept),
+        ),
+      ]),
+    ]);
+  }
+}
+
+/// A challenge that is no longer open: its status, no actions.
+class _ChallengeStatusLine extends StatelessWidget {
+  const _ChallengeStatusLine({required this.challenge, required this.status});
+  final Challenge challenge;
+  final ChallengeStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final received = challenge.direction == ChallengeDirection.received;
+    final text = switch (status) {
+      ChallengeStatus.accepted => received ? 'You accepted this challenge' : 'Your challenge was accepted',
+      ChallengeStatus.declined => received ? 'You declined this challenge' : 'Your challenge was declined',
+      ChallengeStatus.expired => 'This challenge has expired',
+      ChallengeStatus.pending => 'Awaiting a reply',
+    };
+    final line = _challengeLine(challenge);
+    return Row(children: [
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Text(text, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: CeColors.ink)),
+          if (line.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(line,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 11.5, color: CeColors.muted)),
+          ],
+        ]),
+      ),
+      const SizedBox(width: 10),
+      challengeStatusChip(status, challenge.direction),
+    ]);
   }
 }

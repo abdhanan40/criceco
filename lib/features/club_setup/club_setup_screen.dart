@@ -8,15 +8,12 @@ import '../../app/session/role_controller.dart';
 import '../../app/theme/tokens.dart';
 import '../../core/models/models.dart';
 import '../../core/utils/validators.dart';
-import '../../demo/seed_data.dart';
 import '../../shared/widgets/ce_buttons.dart';
 import '../../shared/widgets/ce_feedback.dart';
 import '../../shared/widgets/ce_form_widgets.dart';
 import '../../shared/widgets/ce_icons.dart';
 import '../../shared/widgets/ce_inputs.dart';
-import '../../shared/widgets/ce_surfaces.dart';
 import '../../shared/widgets/ce_top_bar.dart';
-import '../../shared/widgets/demo_widgets.dart';
 import '../auth/widgets/auth_widgets.dart';
 import 'club_setup_controller.dart';
 
@@ -249,19 +246,6 @@ class _ClubSetupScreenState extends ConsumerState<ClubSetupScreen> {
               const SizedBox(height: 20),
               if (_error != null) CeErrorBanner(_error!),
               CeButton(label: 'Create Club', loading: _creating, onPressed: _creating ? null : _create),
-              // Membership by code lived beside club creation before; kept
-              // reachable here (it adds a membership, never Club Owner).
-              CeSwitchLine(
-                prompt: 'Joining an existing club?',
-                action: 'Enter club code',
-                onTap: () => context.push('${Routes.enterClubCode}?from=clubSetup'),
-              ),
-              const DemoOnly(
-                child: CeInfoNote(
-                  margin: EdgeInsets.only(top: 4),
-                  text: 'Try club code ${SeedData.demoJoinCode} to explore a pre-built club',
-                ),
-              ),
             ]),
           ),
         ),

@@ -25,9 +25,16 @@ class JoinRequestsController extends AsyncNotifier<List<JoinRequest>> {
   Future<JoinRequest?> approve(String requestId, {MemberRole role = MemberRole.player}) =>
       _decide(requestId, approve: true, role: role);
 
-  Future<JoinRequest?> decline(String requestId) => _decide(requestId, approve: false);
+  /// Decline, optionally with a short [reason] for the applicant.
+  Future<JoinRequest?> decline(String requestId, {String? reason}) =>
+      _decide(requestId, approve: false, reason: reason);
 
-  Future<JoinRequest?> _decide(String requestId, {required bool approve, MemberRole role = MemberRole.player}) async {
+  Future<JoinRequest?> _decide(
+    String requestId, {
+    required bool approve,
+    MemberRole role = MemberRole.player,
+    String? reason,
+  }) async {
     final clubId = ref.read(currentClubProvider)?.id;
     final current = state.value?.where((r) => r.id == requestId).firstOrNull;
     if (clubId == null || current == null) return null;
@@ -38,6 +45,7 @@ class JoinRequestsController extends AsyncNotifier<List<JoinRequest>> {
           approve: approve,
           role: role,
           at: ref.read(clockProvider).now(),
+          reason: reason,
         );
     state = AsyncData([for (final r in state.value ?? const <JoinRequest>[]) r.id == requestId ? decided : r]);
     // The new member appears in Members, My Club and the dashboard count.

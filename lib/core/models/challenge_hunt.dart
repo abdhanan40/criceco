@@ -89,7 +89,7 @@ class AvailabilitySlot {
   final String notes;
 }
 
-/// "Teams Looking for Opponents" entry on Find Match.
+/// "Teams Looking for Opponents" entry on Find Opponent.
 class MatchSeekerListing {
   const MatchSeekerListing({
     required this.clubId,

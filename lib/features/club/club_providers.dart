@@ -86,7 +86,7 @@ final visibleMembersProvider = Provider<List<ClubMember>>((ref) {
   );
 });
 
-/// Members filter panel: playing roles (Wicket Keeper is its own option).
+/// Members role chips: playing roles (Wicket Keeper is its own option).
 enum MemberRoleFilter {
   batsman('Batsman'),
   bowler('Bowler'),
@@ -123,8 +123,9 @@ class MemberFilter {
 
   bool get narrows => roles.isNotEmpty || levels.isNotEmpty;
 
-  /// Badge on the filter button.
-  int get activeCount => roles.length + levels.length + (sort == MemberSort.name ? 0 : 1);
+  /// Badge on the filter button: what the panel sets (the role is already
+  /// visible in the chips at the top of the screen).
+  int get activeCount => levels.length + (sort == MemberSort.name ? 0 : 1);
 
   bool accepts(ClubMember m, FitnessLevel? level) =>
       (roles.isEmpty || roles.any((r) => r.matches(m))) && (levels.isEmpty || (level != null && levels.contains(level)));

@@ -7,7 +7,6 @@ import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
-import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
@@ -16,54 +15,15 @@ import '../../club/club_providers.dart';
 import '../challenges_controller.dart';
 import '../widgets/challenge_widgets.dart';
 
-/// My Challenges (prototype `screens.myChallenges`, :7044). Accept / Decline
-/// are real state changes (fix: Decline did nothing in the prototype):
-/// Accept creates ONE pending match and hands off to Match Management
-/// (Waiting); Decline moves the card to Resolved.
-class MyChallengesScreen extends ConsumerStatefulWidget {
+/// My Challenges (prototype `screens.myChallenges`, :7044): incoming and
+/// outgoing challenges. The cards carry no Accept / Decline buttons — a card
+/// opens the opponent's Club Profile, where a pending incoming challenge is
+/// answered (one place, no duplicated actions).
+class MyChallengesScreen extends ConsumerWidget {
   const MyChallengesScreen({super.key});
 
   @override
-  ConsumerState<MyChallengesScreen> createState() => _MyChallengesScreenState();
-}
-
-class _MyChallengesScreenState extends ConsumerState<MyChallengesScreen> {
-  final _busy = <String>{};
-
-  Future<void> _respond(Challenge c, {required bool accept}) async {
-    if (_busy.contains(c.id)) return;
-    if (!accept) {
-      final name = ref.read(clubDirectoryProvider).value?[c.opponentClubId]?.name ?? 'this club';
-      final ok = await showCeConfirmSheet(
-        context,
-        title: 'Decline this challenge?',
-        body: '$name will be told you declined. You can still challenge them later.',
-        confirmLabel: 'Decline Challenge',
-        destructive: true,
-        icon: 'x-circle',
-      );
-      if (!ok || !mounted) return;
-    }
-    setState(() => _busy.add(c.id));
-    final ctrl = ref.read(challengesProvider.notifier);
-    final result = accept ? await ctrl.accept(c.id) : await ctrl.decline(c.id);
-    if (!mounted) return;
-    setState(() => _busy.remove(c.id));
-    switch (result?.status) {
-      case ChallengeStatus.accepted:
-        showCeToast(context, 'Challenge accepted!');
-        context.go(Routes.matchManagement(MatchTab.waiting));
-      case ChallengeStatus.declined:
-        showCeToast(context, 'Challenge declined');
-      case ChallengeStatus.expired:
-        showCeToast(context, 'This challenge has expired');
-      case ChallengeStatus.pending || null:
-        break;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(challengesProvider);
     final sections = ref.watch(myChallengeSectionsProvider);
     final dir = ref.watch(clubDirectoryProvider).value ?? const <String, ClubSummary>{};
@@ -79,6 +39,7 @@ class _MyChallengesScreenState extends ConsumerState<MyChallengesScreen> {
           if (c.proposedAt != null) InlineInfo(icon: 'calendar', text: CeFormat.dayDate(c.proposedAt!)),
           if (c.groundName != null) InlineInfo(icon: 'map-pin', text: c.groundName!),
         ];
+    void open(Challenge c) => context.push(Routes.clubProfile(c.opponentClubId, challengeId: c.id));
 
     return Scaffold(
       appBar: const CeTopBar(title: 'Challenges', fallbackLocation: Routes.challenges),
@@ -102,25 +63,8 @@ class _MyChallengesScreenState extends ConsumerState<MyChallengesScreen> {
                 nameTrailing: c.isNew ? const NewPill() : null,
                 meta: Text('${club.city} · W${club.wins}, L${club.losses}'),
                 details: details(c),
-                onTap: () => context.push(Routes.clubProfile(club.id)),
-                actions: _busy.contains(c.id)
-                    ? const Center(child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)))
-                    : Row(children: [
-                        Expanded(
-                          // Label only: an icon makes "Decline" wrap in the 1/3 column.
-                          child: CeButton.danger(label: 'Decline', dense: true, onPressed: () => _respond(c, accept: false)),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          flex: 2,
-                          child: CeButton(
-                            label: 'Accept Challenge',
-                            dense: true,
-                            icon: CeIcons.of('check'),
-                            onPressed: () => _respond(c, accept: true),
-                          ),
-                        ),
-                      ]),
+                onTap: () => open(c),
+                actions: const _RespondHint(),
               ),
 
           // ---- Sent, awaiting their reply (Demo OFF — approved P9) ----
@@ -136,7 +80,7 @@ class _MyChallengesScreenState extends ConsumerState<MyChallengesScreen> {
                       '${c.expiresAt == null ? '' : ' · expires ${CeFormat.dayMonth(c.expiresAt!)}'}'),
                   trailing: challengeStatusChip(ChallengeStatus.pending, c.direction),
                   details: details(c),
-                  onTap: () => context.push(Routes.clubProfile(club.id)),
+                  onTap: () => open(c),
                 ),
           ],
 
@@ -155,10 +99,24 @@ class _MyChallengesScreenState extends ConsumerState<MyChallengesScreen> {
                   c.direction == ChallengeDirection.sent ? 'Sent' : 'Received',
                 ].join(' · ')),
                 trailing: challengeStatusChip(c.statusAt(now), c.direction),
-                onTap: () => context.push(Routes.clubProfile(club.id)),
+                onTap: () => open(c),
               ),
         ],
       ]),
     );
   }
+}
+
+/// Where the answer happens, in place of the old Accept / Decline buttons.
+class _RespondHint extends StatelessWidget {
+  const _RespondHint();
+
+  @override
+  Widget build(BuildContext context) => Row(children: [
+        const Expanded(
+          child: Text('Open the club profile to accept or decline',
+              style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: CeColors.primaryDark)),
+        ),
+        Icon(CeIcons.of('chevron-right'), size: 15, color: CeColors.primaryDark),
+      ]);
 }

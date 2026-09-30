@@ -157,6 +157,15 @@ class SessionController extends Notifier<SessionState> {
     return club;
   }
 
+  /// My Club → club picture: saves the change and updates the session.
+  Future<void> updateClub(Club Function(Club c) change) async {
+    final account = state.account;
+    final current = state.ownClub;
+    if (account == null || current == null) return;
+    final saved = await ref.read(clubRepositoryProvider).updateClub(account.id, change(current));
+    state = state.copyWith(ownClub: saved);
+  }
+
   /// Join approval adds a membership only — never the Club Owner role (fix C).
   Future<void> addMembership(ClubMembership membership) =>
       updateAccount((a) => a.copyWith(memberships: [...a.memberships.where((m) => m.clubId != membership.clubId), membership]));

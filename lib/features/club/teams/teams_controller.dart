@@ -141,6 +141,24 @@ class SquadEditor extends Notifier<SquadDraft> {
     return outcome;
   }
 
+  /// Explicit choice from the Add Player sheet: put [player] in the Playing
+  /// XI or the Substitutes, or take them out (`null`). Same limits as [cycle].
+  PickOutcome assign(SquadPlayer player, SelectionRole? role) {
+    if (player.locked) return PickOutcome.locked;
+    final picks = Map.of(state.picks);
+    if (role == null) {
+      if (picks.remove(player.id) == null) return PickOutcome.changed;
+    } else {
+      if (picks[player.id] == role) return PickOutcome.changed;
+      final taken = picks.values.where((r) => r == role).length;
+      final max = role == SelectionRole.playing ? SquadRules.maxPlaying : SquadRules.maxSubs;
+      if (taken >= max) return PickOutcome.full;
+      picks[player.id] = role;
+    }
+    state = SquadDraft(picks, dirty: true);
+    return PickOutcome.changed;
+  }
+
   /// "Save Squad": commit to the team, then the draft equals the saved state.
   Future<void> save() async {
     await ref.read(teamsProvider.notifier).saveMembers(teamId, state.toMembers());

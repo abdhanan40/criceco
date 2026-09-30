@@ -10,6 +10,7 @@ import '../../../core/constants/cities.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/validators.dart';
+import '../../../shared/media/photo_picker.dart';
 import '../../../shared/widgets/ce_availability.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
@@ -107,6 +108,18 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
     _endEdit();
   }
 
+  /// Add / change / remove the profile picture (works in view and edit mode;
+  /// saved on the account right away, independent of the Details form).
+  Future<void> _changePhoto() async {
+    final hasPhoto = ref.read(currentAccountProvider)?.photoPath != null;
+    final change = await choosePhoto(context, ref, title: 'Profile picture', hasPhoto: hasPhoto);
+    if (change == null || !mounted) return;
+    await ref.read(sessionProvider.notifier).updateAccount((a) => change.path == null
+        ? a.copyWith(hasPhoto: false, clearPhoto: true)
+        : a.copyWith(hasPhoto: true, photoPath: change.path));
+    if (mounted) showCeToast(context, change.path == null ? 'Profile picture removed' : 'Profile picture updated');
+  }
+
   @override
   Widget build(BuildContext context) {
     final account = ref.watch(currentAccountProvider);
@@ -150,17 +163,27 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
                 radius: CeRadius.lg,
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
                 child: Row(children: [
-                  Container(
-                    width: 56,
-                    height: 56,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withValues(alpha: 0.18),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 2),
+                  CeEditablePhoto(
+                    key: const Key('profile.photo'),
+                    size: 56,
+                    semanticLabel: account?.photoPath == null ? 'Add profile picture' : 'Change profile picture',
+                    onTap: _changePhoto,
+                    child: CePhotoImage(
+                      path: account?.photoPath,
+                      size: 56,
+                      fallback: Container(
+                        width: 56,
+                        height: 56,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withValues(alpha: 0.18),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 2),
+                        ),
+                        child: Text(account?.initial ?? 'A',
+                            style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: Colors.white)),
+                      ),
                     ),
-                    child: Text(account?.initial ?? 'A',
-                        style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: Colors.white)),
                   ),
                   const SizedBox(width: 14),
                   Expanded(

@@ -117,6 +117,9 @@ class InMemoryClubRepository implements ClubRepository {
   }
 
   @override
+  Future<Club> updateClub(String accountId, Club club) async => _owned[accountId] = club;
+
+  @override
   Future<List<ClubSummary>> otherClubs() async => _clubs.values.toList();
 
   @override
@@ -158,6 +161,7 @@ class InMemoryClubRepository implements ClubRepository {
     required bool approve,
     MemberRole role = MemberRole.player,
     required DateTime at,
+    String? reason,
   }) async {
     final list = _requests[clubId] ?? const <JoinRequest>[];
     final i = list.indexWhere((r) => r.id == requestId);
@@ -169,7 +173,7 @@ class InMemoryClubRepository implements ClubRepository {
     }
     final decided = approve
         ? current.decided(JoinRequestReview.approved, role: role, at: at)
-        : current.decided(JoinRequestReview.declined, at: at);
+        : current.decided(JoinRequestReview.declined, at: at, reason: reason);
     list[i] = decided;
     if (approve) {
       // Approved as a Player: the applicant's cricket profile comes along.
@@ -386,7 +390,13 @@ class InMemoryChallengeRepository implements ChallengeRepository {
   Future<List<MatchSeekerListing>> matchSeekers() async => _seekers;
 
   @override
-  Future<Challenge> send({required String opponentClubId, MatchFormat? format, required DateTime at}) async {
+  Future<Challenge> send({
+    required String opponentClubId,
+    MatchFormat? format,
+    String? groundName,
+    DateTime? proposedAt,
+    required DateTime at,
+  }) async {
     final c = Challenge(
       id: _id('ch'),
       opponentClubId: opponentClubId,
@@ -394,6 +404,8 @@ class InMemoryChallengeRepository implements ChallengeRepository {
       status: ChallengeStatus.pending,
       createdAt: at,
       format: format,
+      groundName: groundName,
+      proposedAt: proposedAt,
       expiresAt: at.add(Challenge.responseWindow),
     );
     _challenges.add(c);

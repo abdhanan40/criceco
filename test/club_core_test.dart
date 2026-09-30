@@ -6,8 +6,10 @@ import 'package:criceco/app/router/routes.dart';
 import 'package:criceco/app/session/role_controller.dart';
 import 'package:criceco/app/session/session_controller.dart';
 import 'package:criceco/core/models/models.dart';
+import 'package:criceco/features/club/club_providers.dart';
 import 'package:criceco/features/club/requests/join_requests_controller.dart';
 import 'package:criceco/features/club/teams/teams_controller.dart';
+import 'package:criceco/shared/media/photo_picker.dart';
 import 'package:criceco/shared/widgets/ce_buttons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -18,7 +20,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 final _now = DateTime(2026, 9, 23, 10);
 
 Future<ProviderContainer> _pumpOwner(WidgetTester tester,
-    {double width = 375, String clubName = 'Shalimar Cricket Club'}) async {
+    {double width = 375, String clubName = 'Shalimar Cricket Club', List<dynamic> overrides = const []}) async {
   tester.view.physicalSize = Size(width * 3, 812 * 3);
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.reset);
@@ -28,6 +30,7 @@ Future<ProviderContainer> _pumpOwner(WidgetTester tester,
     sharedPreferencesProvider.overrideWithValue(prefs),
     clockProvider.overrideWithValue(Clock.fixed(_now)),
     nowProvider.overrideWith((ref) => const Stream<DateTime>.empty()),
+    ...overrides.cast(),
   ]);
   addTearDown(c.dispose);
   await tester.pumpWidget(UncontrolledProviderScope(container: c, child: const CricEcoApp()));
@@ -59,6 +62,17 @@ Future<void> _tap(WidgetTester tester, Finder f) async {
 }
 
 Finder _button(String label) => find.widgetWithText(CeButton, label);
+
+class _Picker implements PhotoPicker {
+  _Picker(this.onPick);
+  final Future<String?> Function() onPick;
+
+  @override
+  Future<String?> pick(PhotoSource source) => onPick();
+}
+
+Finder _fileImage(String path) =>
+    find.byWidgetPredicate((w) => w is Image && w.image is FileImage && (w.image as FileImage).file.path == path);
 
 void main() {
   group('Club Owner Dashboard', () {
@@ -105,14 +119,15 @@ void main() {
       }
     });
 
-    testWidgets('join request Decline confirms first; Cancel keeps it pending', (tester) async {
+    testWidgets('join request Decline asks for a reason first; Cancel keeps it pending', (tester) async {
       final c = await _pumpOwner(tester);
       await _go(tester, c, Routes.joinRequests);
       final declines = find.byTooltip(RegExp('^Decline'));
       expect(declines, findsWidgets);
       await tester.tap(declines.first);
       await tester.pumpAndSettle();
-      expect(find.textContaining('Decline Bilal Ahmed?'), findsOneWidget);
+      expect(find.text('Decline Request?'), findsOneWidget);
+      expect(find.text('Our squad is currently full.'), findsWidgets);
       await _tap(tester, _button('Cancel'));
       expect(c.read(pendingJoinRequestCountProvider), 3, reason: 'nothing declined');
       await tester.tap(declines.first);
@@ -225,7 +240,18 @@ void main() {
       expect(_loc(c), Routes.addTeamPlayers('team_cs'));
       expect(find.text('0/11'), findsOneWidget);
 
+      // Tapping a player never adds them: the Add Player sheet asks for the
+      // squad position first.
       await _tap(tester, find.bySemanticsLabel(RegExp('^Ali Raza, ')));
+      expect(c.read(squadEditorProvider('team_cs')).picks, isEmpty, reason: 'not added on tap');
+      expect(find.text('SQUAD POSITION'), findsOneWidget);
+      expect(tester.widget<CeButton>(_button('Add Player')).onPressed, isNull, reason: 'a position must be chosen');
+      await _tap(tester, _button('Cancel'));
+      expect(c.read(squadEditorProvider('team_cs')).picks, isEmpty, reason: 'Cancel adds nothing');
+
+      await _tap(tester, find.bySemanticsLabel(RegExp('^Ali Raza, ')));
+      await _tap(tester, find.byKey(const Key('addPlayer.playing')));
+      await _tap(tester, _button('Add Player'));
       expect(c.read(squadEditorProvider('team_cs')).playing, 1);
       await _tap(tester, find.bySemanticsLabel(RegExp('^Usman Tariq, ')));
       expect(find.text("Usman Tariq is injured and can't be added"), findsOneWidget);
@@ -245,8 +271,11 @@ void main() {
       await _tap(tester, _button('Add Players').first);
       expect(find.text('1/11', skipOffstage: false), findsOneWidget, reason: 'unsaved draft restored');
 
-      // Tapping again cycles Playing → Sub.
+      // A picked player opens the same sheet to move (or remove) them.
       await _tap(tester, find.bySemanticsLabel(RegExp('^Ali Raza, ')));
+      expect(find.byKey(const Key('addPlayer.remove')), findsOneWidget);
+      await _tap(tester, find.byKey(const Key('addPlayer.sub')));
+      await _tap(tester, _button('Update Player'));
       expect(c.read(squadEditorProvider('team_cs')).playing, 0);
       expect(c.read(squadEditorProvider('team_cs')).subs, 1);
       await _tap(tester, _button('Save Squad'));
@@ -293,10 +322,75 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.textContaining(RegExp(r'of \d+ players$')), findsNothing, reason: 'cleared');
       await _tap(tester, find.bySemanticsLabel(RegExp('^${open[2].name}, ')));
+      await _tap(tester, find.byKey(const Key('addPlayer.playing')));
+      await _tap(tester, _button('Add Player'));
       expect(find.text('Unsaved changes'), findsOneWidget);
       await _tap(tester, _button('Save Squad'));
       expect(c.read(teamProvider('team_cs'))!.members, hasLength(3));
     });
+
+    testWidgets('Add Player sheet: real role, XI / Substitute limits, move and remove', (tester) async {
+      final c = await _pumpOwner(tester);
+      final pool = await c.read(clubPlayerPoolProvider.future);
+      final members = await c.read(clubMembersProvider.future);
+      final editor = c.read(squadEditorProvider('team_cs').notifier);
+      final open = pool.where((p) => !p.locked).toList();
+      for (final p in open.take(11)) {
+        expect(editor.assign(p, SelectionRole.playing), PickOutcome.changed);
+      }
+      expect(editor.assign(open[11], SelectionRole.playing), PickOutcome.full, reason: 'XI is capped at 11');
+      expect(c.read(squadEditorProvider('team_cs')).playing, 11);
+
+      await _go(tester, c, Routes.addTeamPlayers('team_cs'));
+      final next = open[11];
+      await _tap(tester, find.bySemanticsLabel(RegExp('^${next.name}, ')));
+      // The role shown is the player's own profile role, not a placeholder.
+      final member = members.singleWhere((m) => m.poolPlayerId == next.id);
+      expect(find.text(member.roleLine), findsWidgets);
+      expect(find.text(next.position), findsWidgets);
+      expect(find.text('Full'), findsOneWidget, reason: 'Playing XI has no room');
+      await tester.tap(find.byKey(const Key('addPlayer.playing')));
+      await tester.pumpAndSettle();
+      expect(tester.widget<CeButton>(_button('Add Player')).onPressed, isNull, reason: 'a full XI cannot be chosen');
+      await _tap(tester, find.byKey(const Key('addPlayer.sub')));
+      await _tap(tester, _button('Add Player'));
+      expect(c.read(squadEditorProvider('team_cs')).picks[next.id], SelectionRole.sub);
+      expect(c.read(squadEditorProvider('team_cs')).playing, 11);
+
+      // Remove from the squad through the same sheet.
+      await _tap(tester, find.bySemanticsLabel(RegExp('^${next.name}, ')));
+      await _tap(tester, find.byKey(const Key('addPlayer.remove')));
+      await _tap(tester, _button('Update Player'));
+      expect(c.read(squadEditorProvider('team_cs')).picks.containsKey(next.id), isFalse);
+
+      // Substitutes are capped too; a full squad refuses another player.
+      for (final p in open.skip(11).take(4)) {
+        expect(editor.assign(p, SelectionRole.sub), PickOutcome.changed);
+      }
+      expect(editor.assign(open[15], SelectionRole.sub), PickOutcome.full);
+      await tester.pumpAndSettle();
+      await _tap(tester, find.bySemanticsLabel(RegExp('^${open[15].name}, ')));
+      expect(find.text('Playing XI and substitutes are full'), findsOneWidget);
+      expect(find.text('SQUAD POSITION'), findsNothing);
+    });
+
+    for (final width in [320.0, 360.0, 375.0, 390.0, 414.0]) {
+      testWidgets('Add Player sheet fits at ${width.toInt()} px', (tester) async {
+        final c = await _pumpOwner(tester, width: width);
+        final pool = await c.read(clubPlayerPoolProvider.future);
+        final open = pool.where((p) => !p.locked).toList();
+        c.read(squadEditorProvider('team_cs').notifier).assign(open.first, SelectionRole.playing);
+        await _go(tester, c, Routes.addTeamPlayers('team_cs'));
+        for (final p in [open.first, open[1]]) {
+          await _tap(tester, find.bySemanticsLabel(RegExp('^${p.name}, ')));
+          expect(find.text('SQUAD POSITION'), findsOneWidget);
+          expect(tester.takeException(), isNull, reason: '${p.name} sheet @ $width');
+          await _tap(tester, find.byKey(const Key('addPlayer.sub')));
+          expect(tester.takeException(), isNull, reason: 'choice @ $width');
+          await _tap(tester, _button('Cancel'));
+        }
+      });
+    }
 
     testWidgets('caps: 12th pick becomes a sub; 16th is refused', (tester) async {
       final c = await _pumpOwner(tester);
@@ -330,6 +424,62 @@ void main() {
       await tester.enterText(find.byType(TextField), '0312');
       await tester.pumpAndSettle();
       expect(find.text('Aman Ali'), findsOneWidget, reason: 'phone is a secondary search field');
+    });
+
+    testWidgets('My Club: add, change and remove the club picture; cancel and errors change nothing', (tester) async {
+      String? result;
+      Object? error;
+      final picker = _Picker(() async {
+        if (error != null) throw error;
+        return result;
+      });
+      final c = await _pumpOwner(tester, overrides: [photoPickerProvider.overrideWithValue(picker)]);
+      await _go(tester, c, Routes.myClub);
+      final photo = find.byKey(const Key('club.photo'));
+      expect(find.bySemanticsLabel('Add club picture'), findsOneWidget);
+
+      await _tap(tester, photo);
+      expect(find.text('Club picture'), findsOneWidget);
+      expect(find.text('Remove picture'), findsNothing);
+      await _tap(tester, find.text('Choose from gallery')); // picker cancelled
+      expect(c.read(currentClubProvider)!.logoPath, isNull);
+
+      result = '/photos/club.png';
+      await _tap(tester, photo);
+      await _tap(tester, find.text('Choose from gallery'));
+      expect(find.text('Club picture updated'), findsOneWidget);
+      final club = c.read(currentClubProvider)!;
+      expect((club.logoPath, club.hasLogo), ('/photos/club.png', true));
+      expect((club.name, club.code, club.city), ('Shalimar Cricket Club', '35HLWZ', 'Islamabad'), reason: 'rest unchanged');
+      expect(_fileImage('/photos/club.png'), findsOneWidget);
+      expect(find.bySemanticsLabel('Change club picture'), findsOneWidget);
+
+      // The club dashboard shows it too.
+      await _go(tester, c, Routes.clubHome);
+      expect(_fileImage('/photos/club.png'), findsOneWidget);
+
+      await _go(tester, c, Routes.myClub);
+      error = PlatformException(code: 'camera_access_denied');
+      await _tap(tester, photo);
+      await _tap(tester, find.text('Take a photo'));
+      expect(find.textContaining('access your camera'), findsOneWidget);
+      expect(c.read(currentClubProvider)!.logoPath, '/photos/club.png', reason: 'kept on error');
+
+      error = null;
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+      await _tap(tester, photo);
+      await _tap(tester, find.text('Remove picture'));
+      expect(c.read(currentClubProvider)!.logoPath, isNull);
+      expect(c.read(currentClubProvider)!.hasLogo, isFalse);
+      expect(find.bySemanticsLabel('Add club picture'), findsOneWidget);
+
+      for (final width in [320.0, 360.0, 375.0, 390.0, 414.0]) {
+        tester.view.physicalSize = Size(width * 3, 812 * 3);
+        await c.read(sessionProvider.notifier).updateClub((x) => x.withLogo('/photos/club.png'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'My Club with picture @ $width');
+      }
     });
 
     testWidgets('My Club (Profile tab) shows club identity, stats and members', (tester) async {

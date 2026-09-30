@@ -14,7 +14,8 @@ import '../../../shared/widgets/ce_inputs.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
 import '../requests/join_requests_controller.dart';
-import 'join_requests_screen.dart' show JoinRequestsScreen, joinRequestToast;
+import 'join_requests_screen.dart'
+    show JoinRequestsScreen, confirmApproveRequest, joinRequestToast, showDeclineRequestSheet;
 
 /// Join Request → Player Profile (prototype `screens.joinRequestProfile`,
 /// :5290). Keyed by request id (the prototype used an array index).
@@ -39,9 +40,21 @@ class _JoinRequestProfileScreenState extends ConsumerState<JoinRequestProfileScr
   }
 
   Future<void> _decide({required bool approve}) async {
+    final r = ref.read(joinRequestProvider(widget.requestId));
+    if (r == null) return;
+    // Same confirmation (approve) and reason (decline) sheets as the list.
+    String? reason;
+    if (approve) {
+      if (!await confirmApproveRequest(context, r, role: _role) || !mounted) return;
+    } else {
+      reason = await showDeclineRequestSheet(context, r);
+      if (reason == null || !mounted) return;
+    }
     setState(() => _busy = true);
     final ctrl = ref.read(joinRequestsProvider.notifier);
-    final decided = approve ? await ctrl.approve(widget.requestId, role: _role) : await ctrl.decline(widget.requestId);
+    final decided = approve
+        ? await ctrl.approve(widget.requestId, role: _role)
+        : await ctrl.decline(widget.requestId, reason: reason);
     if (!mounted) return;
     setState(() => _busy = false);
     if (decided == null) return;
@@ -189,7 +202,7 @@ class _Outcome extends StatelessWidget {
               child: Text(
                 approved
                     ? 'Approved as ${r.assignedRole?.label ?? 'Player'}$date. ${r.name} is now a club member.'
-                    : 'Request declined$date.',
+                    : 'Request declined$date.${r.declineReason == null ? '' : '\nReason: ${r.declineReason}'}',
                 style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,

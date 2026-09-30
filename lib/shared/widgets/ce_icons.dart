@@ -50,6 +50,8 @@ abstract final class CeIcons {
     'mail': LucideIcons.mail,
     'phone': LucideIcons.phone,
     'camera': LucideIcons.camera,
+    'image': LucideIcons.image,
+    'trash-2': LucideIcons.trash2,
     'file-text': LucideIcons.fileText,
     'clipboard-list': LucideIcons.clipboardList,
     'edit-3': LucideIcons.penLine,

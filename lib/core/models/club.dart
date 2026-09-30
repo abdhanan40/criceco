@@ -12,6 +12,7 @@ class Club {
     required this.code,
     this.shortName,
     this.hasLogo = false,
+    this.logoPath,
     this.ownerName,
     this.address,
     this.email,
@@ -26,6 +27,10 @@ class Club {
   final ClubType type;
   final String code;
   final bool hasLogo;
+
+  /// Local path of the chosen club picture (device photo picker); `null` =
+  /// the default club badge.
+  final String? logoPath;
   final String? ownerName;
   final String? address;
   final String? email;
@@ -33,6 +38,23 @@ class Club {
   final int? establishedYear;
 
   String get displayShortName => shortName ?? name;
+
+  /// Club picture set / changed / removed (the rest stays as created).
+  Club withLogo(String? path) => Club(
+        id: id,
+        name: name,
+        city: city,
+        type: type,
+        code: code,
+        shortName: shortName,
+        hasLogo: path != null,
+        logoPath: path,
+        ownerName: ownerName,
+        address: address,
+        email: email,
+        homeGroundId: homeGroundId,
+        establishedYear: establishedYear,
+      );
 }
 
 class ClubCaptain {
@@ -70,6 +92,8 @@ class ClubSummary {
     required this.played,
     required this.about,
     required this.color,
+    this.ownerName,
+    this.coachName,
   });
 
   final String id;
@@ -91,6 +115,11 @@ class ClubSummary {
   final int played;
   final String about;
   final Color color;
+
+  /// Club Owner / Club Coach shown on the Club Profile (names only — no
+  /// contact details). `null` when the club has not listed one.
+  final String? ownerName;
+  final String? coachName;
 
   MatchFormat? get preferredFormat {
     final first = formats.split(' / ').first.trim();
@@ -171,6 +200,7 @@ class JoinRequest {
     this.review = JoinRequestReview.pending,
     this.assignedRole,
     this.decidedAt,
+    this.declineReason,
   });
 
   final String id;
@@ -193,9 +223,15 @@ class JoinRequest {
   final MemberRole? assignedRole;
   final DateTime? decidedAt;
 
+  /// Short message given when the request was declined (optional).
+  final String? declineReason;
+
+  static const declineReasonMaxLength = 120;
+
   bool get isPending => review == JoinRequestReview.pending;
 
-  JoinRequest decided(JoinRequestReview review, {MemberRole? role, required DateTime at}) => JoinRequest(
+  JoinRequest decided(JoinRequestReview review, {MemberRole? role, required DateTime at, String? reason}) =>
+      JoinRequest(
         id: id,
         name: name,
         age: age,
@@ -209,5 +245,6 @@ class JoinRequest {
         review: review,
         assignedRole: role,
         decidedAt: at,
+        declineReason: review == JoinRequestReview.declined && (reason ?? '').trim().isNotEmpty ? reason!.trim() : null,
       );
 }

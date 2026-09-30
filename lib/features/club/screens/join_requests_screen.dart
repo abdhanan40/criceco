@@ -6,9 +6,11 @@ import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
+import '../../../shared/widgets/ce_inputs.dart';
 import '../../../shared/widgets/ce_segmented.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
@@ -18,6 +20,93 @@ import '../requests/join_requests_controller.dart';
 String joinRequestToast(JoinRequest r) => r.review == JoinRequestReview.approved
     ? '${r.name} added to the club as ${r.assignedRole?.label ?? MemberRole.player.label}'
     : 'Request from ${r.name} declined';
+
+/// Quick, professional reasons offered when declining a request.
+const joinDeclineReasons = [
+  'Our squad is currently full.',
+  'We are not recruiting for this role right now.',
+  'Trials are closed for this season.',
+];
+
+/// "Approve this request?" — approval only happens after this confirmation.
+Future<bool> confirmApproveRequest(BuildContext context, JoinRequest r, {MemberRole role = MemberRole.player}) =>
+    showCeConfirmSheet(
+      context,
+      title: 'Approve this request?',
+      body: 'Are you sure you want to approve this player’s request to join the club? '
+          '${r.name} will be added as ${role.label}.',
+      confirmLabel: 'Approve',
+      icon: 'check-circle',
+    );
+
+/// "Decline Request?" with a short reason: a suggested reason (preselected)
+/// or a custom message. Resolves to the reason (may be empty), or `null`
+/// when cancelled — nothing is declined.
+Future<String?> showDeclineRequestSheet(BuildContext context, JoinRequest r) =>
+    showCeSheet<String>(context, builder: (_) => _DeclineRequestSheet(request: r));
+
+class _DeclineRequestSheet extends StatefulWidget {
+  const _DeclineRequestSheet({required this.request});
+  final JoinRequest request;
+
+  @override
+  State<_DeclineRequestSheet> createState() => _DeclineRequestSheetState();
+}
+
+class _DeclineRequestSheetState extends State<_DeclineRequestSheet> {
+  late final _reason = TextEditingController(text: joinDeclineReasons.first);
+
+  @override
+  void dispose() {
+    _reason.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final r = widget.request;
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Row(children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(color: CeColors.redSoft, borderRadius: BorderRadius.circular(CeRadius.sm)),
+          child: Icon(CeIcons.of('x-circle'), size: 18, color: CeColors.red),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Text('Decline Request?', style: Theme.of(context).textTheme.titleLarge)),
+      ]),
+      const SizedBox(height: 10),
+      Text('${r.name} will be told the request was declined. They can apply again with your club code.',
+          style: Theme.of(context).textTheme.bodyMedium!.copyWith(color: CeColors.muted, height: 1.45)),
+      const SizedBox(height: 14),
+      const CeFieldLabel('Reason'),
+      Wrap(spacing: 7, runSpacing: 7, children: [
+        for (final s in joinDeclineReasons)
+          CeChip(
+            label: s,
+            selected: _reason.text.trim() == s,
+            onTap: () => setState(() => _reason.text = s),
+          ),
+      ]),
+      const SizedBox(height: 10),
+      CeTextField(
+        fieldKey: const Key('joinRequest.declineReason'),
+        controller: _reason,
+        hint: 'Short message (optional)',
+        icon: 'file-text',
+        maxLength: JoinRequest.declineReasonMaxLength,
+        maxLines: 2,
+        textCapitalization: TextCapitalization.sentences,
+        onChanged: (_) => setState(() {}),
+      ),
+      const SizedBox(height: 10),
+      CeButton.danger(label: 'Decline Request', onPressed: () => Navigator.of(context).pop(_reason.text.trim())),
+      const SizedBox(height: 10),
+      CeButton.soft(label: 'Cancel', onPressed: () => Navigator.of(context).pop()),
+    ]);
+  }
+}
 
 /// Requests (prototype `screens.joinRequests`, :5337). Pending / Approved /
 /// Declined live in `?tab=` (requests are kept after review, so the owner
@@ -41,22 +130,19 @@ class _JoinRequestsScreenState extends ConsumerState<JoinRequestsScreen> {
 
   Future<void> _decide(JoinRequest r, {required bool approve}) async {
     if (_busy.contains(r.id)) return;
-    // Declining can't be undone: confirm first. Accepting stays one tap.
-    if (!approve) {
-      final ok = await showCeConfirmSheet(
-        context,
-        title: 'Decline ${r.name}?',
-        body: '${r.name} will be told the request was declined. They can apply again with your club code.',
-        confirmLabel: 'Decline Request',
-        destructive: true,
-        icon: 'x-circle',
-      );
-      if (!ok || !mounted) return;
+    // Neither decision is immediate: approving is confirmed, declining asks
+    // for a short reason.
+    String? reason;
+    if (approve) {
+      if (!await confirmApproveRequest(context, r) || !mounted) return;
+    } else {
+      reason = await showDeclineRequestSheet(context, r);
+      if (reason == null || !mounted) return;
     }
     setState(() => _busy.add(r.id));
     final ctrl = ref.read(joinRequestsProvider.notifier);
     // Row "Accept" approves as Player, exactly as in the prototype.
-    final decided = approve ? await ctrl.approve(r.id) : await ctrl.decline(r.id);
+    final decided = approve ? await ctrl.approve(r.id) : await ctrl.decline(r.id, reason: reason);
     if (!mounted) return;
     setState(() => _busy.remove(r.id));
     if (decided != null) showCeToast(context, joinRequestToast(decided));

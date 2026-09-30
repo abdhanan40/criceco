@@ -9,6 +9,7 @@ import '../../../app/session/session_controller.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../shared/media/photo_picker.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
@@ -49,8 +50,9 @@ class PlayerDashboardScreen extends ConsumerWidget {
       return 'Next: ${CeFormat.dayMonth(next.startsAt)}';
     }
 
-    // Structure (reference dashboard): compact header → season summary with
-    // recent form → quick actions → next match → performance snapshot.
+    // Structure (reference dashboard): compact header → season summary →
+    // quick actions → next match → fitness → performance snapshot. Recent
+    // form lives in Performance only.
     return Scaffold(
       body: CeStatusBarScrim(
         child: ListView(padding: const EdgeInsets.only(bottom: 20), children: [
@@ -75,7 +77,7 @@ class PlayerDashboardScreen extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 2, 8, 0),
                   child: Row(children: [
-                    _HeroAvatar(initial: account?.initial ?? 'A', available: available),
+                    _HeroAvatar(initial: account?.initial ?? 'A', photoPath: account?.photoPath, available: available),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -129,7 +131,7 @@ class PlayerDashboardScreen extends ConsumerWidget {
             ),
           ),
 
-          // ---- Season summary: the three headline numbers + recent form ----
+          // ---- Season summary: the three headline numbers ----
           CeStatGroup(
             margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 0),
             cells: [
@@ -153,19 +155,10 @@ class PlayerDashboardScreen extends ConsumerWidget {
                 onTap: () => context.go(PerformanceView.history.location),
               ),
             ],
-            footer: perf == null || perf.recentForm.isEmpty
-                ? null
-                : _RecentFormBars(form: perf.recentForm, wins: perf.recentWins, losses: perf.recentLosses),
           ),
 
-          // ---- Quick actions ----
-          CeSectionHeader('Quick Actions', actionLabel: 'View All', onAction: () => CeTopBar.openDrawer(context)),
-          CeQuickActionGrid(actions: [
-            CeQuickAction(icon: 'calendar', label: 'My Matches', onTap: () => context.go(Routes.myMatches)),
-            CeQuickAction(icon: 'check-circle', label: 'Availability', onTap: () => context.go(Routes.availability)),
-            CeQuickAction(icon: 'trending-up', label: 'My Performance', onTap: () => context.go(Routes.myPerformance)),
-            CeQuickAction(icon: 'circle-dot', label: 'Open Matches', onTap: () => context.go(Routes.openMatches)),
-          ]),
+          // ---- Quick actions (View All expands in place; never the sidebar) ----
+          _QuickActions(fitness: fitness),
 
           // ---- Next match ----
           const CeSectionHeader('Next Match'),
@@ -231,8 +224,9 @@ class _Bell extends StatelessWidget {
 }
 
 class _HeroAvatar extends StatelessWidget {
-  const _HeroAvatar({required this.initial, required this.available});
+  const _HeroAvatar({required this.initial, required this.available, this.photoPath});
   final String initial;
+  final String? photoPath;
   final bool available;
 
   @override
@@ -240,16 +234,21 @@ class _HeroAvatar extends StatelessWidget {
         width: 54,
         height: 54,
         child: Stack(children: [
-          Container(
-            width: 54,
-            height: 54,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white.withValues(alpha: 0.2),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 2.5),
+          // The profile picture when one is set (My Profile), else the initial.
+          CePhotoImage(
+            path: photoPath,
+            size: 54,
+            fallback: Container(
+              width: 54,
+              height: 54,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.2),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 2.5),
+              ),
+              child: Text(initial, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: Colors.white)),
             ),
-            child: Text(initial, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: Colors.white)),
           ),
           Positioned(
             right: 0,
@@ -266,6 +265,54 @@ class _HeroAvatar extends StatelessWidget {
           ),
         ]),
       );
+}
+
+/// Player Quick Actions. The compact set shows by default; "View All"
+/// expands the section in place to every Player quick action and "Show
+/// Less" folds it back. (My Matches is left out: it has its own bottom
+/// navigation tab.)
+class _QuickActions extends StatefulWidget {
+  const _QuickActions({required this.fitness});
+  final FitnessReport? fitness;
+
+  @override
+  State<_QuickActions> createState() => _QuickActionsState();
+}
+
+class _QuickActionsState extends State<_QuickActions> {
+  bool _all = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final fitness = widget.fitness;
+    final compact = [
+      CeQuickAction(icon: 'check-circle', label: 'Availability', onTap: () => context.go(Routes.availability)),
+      CeQuickAction(icon: 'trending-up', label: 'My Performance', onTap: () => context.go(Routes.myPerformance)),
+      CeQuickAction(icon: 'circle-dot', label: 'Open Matches', onTap: () => context.go(Routes.openMatches)),
+    ];
+    final more = [
+      CeQuickAction(
+          icon: 'clock', label: 'Match History', onTap: () => context.go(PerformanceView.history.location)),
+      if (fitness != null)
+        CeQuickAction(icon: 'activity', label: 'Fitness Meter', onTap: () => showFitnessSheet(context, fitness)),
+      CeQuickAction(icon: 'sliders', label: 'Settings', onTap: () => context.go(Routes.settings)),
+    ];
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      CeSectionHeader(
+        'Quick Actions',
+        actionLabel: _all ? 'Show Less' : 'View All',
+        onAction: () => setState(() => _all = !_all),
+      ),
+      AnimatedSize(
+        duration: CeMotion.base,
+        alignment: Alignment.topCenter,
+        child: CeQuickActionGrid(
+          key: const Key('player.quickActions'),
+          actions: [...compact, if (_all) ...more],
+        ),
+      ),
+    ]);
+  }
 }
 
 class _HeroPill extends StatelessWidget {
@@ -294,83 +341,6 @@ class _HeroPill extends StatelessWidget {
           ),
         ]),
       );
-}
-
-/// Recent form inside the season summary: the W–L tally, then one tinted
-/// tile per recent match (W / L badge, opponent below). Same data as My
-/// Performance → Recent Form.
-class _RecentFormBars extends StatelessWidget {
-  const _RecentFormBars({required this.form, required this.wins, required this.losses});
-  final List<FormEntry> form;
-  final int wins;
-  final int losses;
-
-  @override
-  Widget build(BuildContext context) {
-    final spoken = form
-        .map((f) => '${f.result == MatchResult.won ? 'Won' : 'Lost'} against ${f.opponentAbbr}, ${f.runs} runs')
-        .join('; ');
-    return Semantics(
-      label: 'Recent form, $wins won $losses lost: $spoken',
-      excludeSemantics: true,
-      child: IntrinsicHeight(
-        child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('Recent form', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: CeColors.ink)),
-              const SizedBox(height: 2),
-              Text('${wins}W • ${losses}L',
-                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: CeColors.ink2)),
-              const SizedBox(height: 2),
-              Text('Last ${form.length} matches', style: const TextStyle(fontSize: 10.5, color: CeColors.muted)),
-            ],
-          ),
-          const VerticalDivider(width: 20, thickness: 1, color: CeColors.line),
-          Expanded(
-            child: Row(children: [
-              for (final (i, f) in form.indexed) ...[
-                if (i > 0) const SizedBox(width: 5),
-                Expanded(child: _FormTile(entry: f)),
-              ],
-            ]),
-          ),
-        ]),
-      ),
-    );
-  }
-}
-
-class _FormTile extends StatelessWidget {
-  const _FormTile({required this.entry});
-  final FormEntry entry;
-
-  @override
-  Widget build(BuildContext context) {
-    final won = entry.result == MatchResult.won;
-    final (bg, fg) = won ? (CeColors.mint, CeColors.primary) : (CeColors.redSoft, CeColors.red);
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 7),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(CeRadius.sm)),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(
-          width: 24,
-          height: 24,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(color: fg, shape: BoxShape.circle),
-          child: Text(won ? 'W' : 'L',
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white)),
-        ),
-        const SizedBox(height: 5),
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(entry.opponentAbbr,
-              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: CeColors.ink2)),
-        ),
-      ]),
-    );
-  }
 }
 
 /// `.pd-next-match`, compact: gradient body (teams, status, when/where) +

@@ -145,9 +145,9 @@ class PlayerScoutingDetails extends StatelessWidget {
       ]),
       const SizedBox(height: 12),
       Wrap(spacing: 6, runSpacing: 6, children: [
-        _Pill(player.category.label),
-        _Pill(player.availability.label),
-        _Pill('${s.matches} matches'),
+        SquadPill(player.category.label),
+        SquadPill(player.availability.label),
+        SquadPill('${s.matches} matches'),
       ]),
       _label('Batting'),
       _grid([
@@ -198,8 +198,9 @@ class PlayerScoutingDetails extends StatelessWidget {
   }
 }
 
-class _Pill extends StatelessWidget {
-  const _Pill(this.label);
+/// Small outlined detail pill (scouting sheet, Add Player sheet).
+class SquadPill extends StatelessWidget {
+  const SquadPill(this.label, {super.key});
   final String label;
 
   @override

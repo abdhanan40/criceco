@@ -8,12 +8,14 @@ import 'package:criceco/app/session/session_controller.dart';
 import 'package:criceco/core/models/models.dart';
 import 'package:criceco/core/utils/fitness_meter.dart';
 import 'package:criceco/features/club/club_providers.dart';
+import 'package:criceco/features/club/screens/members_screen.dart';
 import 'package:criceco/features/club/teams/team_suggestion.dart';
 import 'package:criceco/features/club/teams/teams_controller.dart';
 import 'package:criceco/features/club/widgets/squad_widgets.dart';
 import 'package:criceco/features/fitness/fitness_providers.dart';
 import 'package:criceco/features/player/player_providers.dart';
 import 'package:criceco/shared/widgets/ce_buttons.dart';
+import 'package:criceco/shared/widgets/ce_indicators.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -82,6 +84,10 @@ Finder _button(String label) => find.widgetWithText(CeButton, label);
 /// A chip inside the Members filter panel.
 Finder _inPanel(String label) =>
     find.descendant(of: find.byKey(const Key('members.filters')), matching: find.text(label));
+
+/// A role chip in the row at the top of the Members screen.
+Finder _roleChip(String label) =>
+    find.descendant(of: find.byKey(const Key('members.roles')), matching: find.widgetWithText(CeChip, label));
 
 Future<void> _scrollAll(WidgetTester tester) async {
   final count = find.byType(Scrollable).evaluate().length;
@@ -217,7 +223,7 @@ void main() {
       final g = f.copyWith(levels: {FitnessLevel.overloaded});
       expect(g.accepts(bowler, FitnessLevel.fresh), isFalse);
       expect(g.accepts(bowler, FitnessLevel.overloaded), isTrue);
-      expect(g.activeCount, 3);
+      expect(g.activeCount, 1, reason: 'the filter-button badge counts the panel filters, not the role chips');
       expect(keeper.roleLine, 'Batsman · Wicket Keeper');
     });
   });
@@ -275,28 +281,51 @@ void main() {
   });
 
   group('Members screen', () {
-    testWidgets('players with role + fitness, staff section, right-side filter panel', (tester) async {
+    testWidgets('players with role + fitness, staff section, role chips, right-side filter panel', (tester) async {
       final c = await _pump(tester);
       await _go(tester, c, Routes.members);
       expect(find.bySemanticsLabel('21 members'), findsOneWidget);
       expect(find.text('Players · 19'), findsOneWidget);
       expect(find.bySemanticsLabel(RegExp(r'^Aman Ali, Batsman, Owner, Fitness 6 out of 10')), findsOneWidget);
 
+      // Role chips near the top: All (default) + the four cricket roles.
+      for (final label in ['All', 'Batsman', 'Bowler', 'All-Rounder', 'Wicket Keeper']) {
+        expect(_roleChip(label), findsOneWidget, reason: label);
+      }
+      expect(tester.widget<CeChip>(_roleChip('All')).selected, isTrue, reason: 'All by default');
+      expect(tester.getTopLeft(_roleChip('All')).dy, lessThan(tester.getTopLeft(find.text('Players · 19')).dy));
+
+      await _tap(tester, _roleChip('Wicket Keeper'));
+      expect(tester.widget<CeChip>(_roleChip('Wicket Keeper')).selected, isTrue);
+      expect(tester.widget<CeChip>(_roleChip('All')).selected, isFalse);
+      final keepers = (await c.read(clubMembersProvider.future)).where((m) => m.isWicketkeeper).length;
+      expect(find.text('Players · $keepers of 19'), findsOneWidget);
+      expect(find.textContaining('Club Staff'), findsNothing, reason: 'staff have no cricket role');
+
+      await _tap(tester, _roleChip('Bowler'));
+      expect(tester.widget<CeChip>(_roleChip('Wicket Keeper')).selected, isFalse, reason: 'one role at a time');
+      expect(find.text('Players · 6 of 19'), findsOneWidget);
+      for (final row in tester.widgetList<MemberRow>(find.byType(MemberRow))) {
+        expect(row.member.playingRole, PlayerRole.bowler);
+      }
+
       await tester.tap(find.byTooltip('Filter members'));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('members.filters')), findsOneWidget);
       expect(tester.getTopLeft(find.byKey(const Key('members.filters'))).dx, greaterThan(0), reason: 'slides in from the right');
-      await tester.tap(_inPanel('Bowler'));
+      expect(_inPanel('Bowler'), findsNothing, reason: 'roles are picked with the chips, not in the panel');
       await tester.tap(_inPanel('Fitness: low to high'));
       await tester.tap(_button('Apply'));
       await tester.pumpAndSettle();
-      expect(find.byTooltip('Filter members, 2 active'), findsOneWidget);
+      expect(find.byTooltip('Filter members, 1 active'), findsOneWidget);
       expect(find.text('Players · 6 of 19'), findsOneWidget);
       expect(find.textContaining('Club Staff'), findsNothing, reason: 'staff hidden while filtering');
       expect(tester.getTopLeft(find.text('Kamran Iqbal')).dy, lessThan(tester.getTopLeft(find.text('Moiz Yousuf')).dy),
           reason: 'lowest fitness first');
 
-      await tester.tap(find.byTooltip('Filter members, 2 active'));
+      await _tap(tester, _roleChip('All'));
+      expect(find.text('Players · 19'), findsOneWidget);
+      await tester.tap(find.byTooltip('Filter members, 1 active'));
       await tester.pumpAndSettle();
       await tester.tap(_button('Reset'));
       await tester.pump();
@@ -391,11 +420,15 @@ void main() {
       testWidgets('club owner screens fit at ${width.toInt()} px', (tester) async {
         final c = await _pump(tester, width: width);
         await _go(tester, c, Routes.members);
+        for (final label in ['All-Rounder', 'Wicket Keeper', 'All']) {
+          await _tap(tester, _roleChip(label));
+          expect(tester.takeException(), isNull, reason: '$label chip @ $width');
+        }
         await _scrollAll(tester);
         expect(tester.takeException(), isNull, reason: 'members @ $width');
         await tester.tap(find.byTooltip('Filter members'));
         await tester.pumpAndSettle();
-        for (final label in ['Wicket Keeper', 'Overloaded', 'Fitness: high to low']) {
+        for (final label in ['Overloaded', 'Fitness: high to low']) {
           await tester.tap(_inPanel(label));
         }
         await tester.pump();

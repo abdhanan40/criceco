@@ -8,6 +8,7 @@ import '../../app/session/session_controller.dart';
 import '../../app/theme/tokens.dart';
 import '../../core/enums/enums.dart';
 import '../../shared/widgets/ce_buttons.dart';
+import '../../shared/widgets/ce_feedback.dart';
 import '../../shared/widgets/ce_form_widgets.dart';
 import '../../shared/widgets/ce_icons.dart';
 import '../../shared/widgets/ce_inputs.dart';
@@ -98,7 +99,17 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
     context.go(Routes.playerHome);
   }
 
-  void _logout() {
+  /// Confirm, then clear the session and return to Login.
+  Future<void> _logout() async {
+    final ok = await showCeConfirmSheet(
+      context,
+      title: 'Log out?',
+      body: 'You will be signed out of this account and returned to Login.',
+      confirmLabel: 'Log out',
+      destructive: true,
+      icon: 'power',
+    );
+    if (!ok || !mounted) return;
     ref.read(sessionProvider.notifier).logout();
     context.go(Routes.login);
   }
@@ -119,13 +130,25 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
       child: Scaffold(
         body: SingleChildScrollView(
           child: Column(children: [
-            AuthBanner(
-              title: 'Choose your role',
-              subtitle: firstName.isEmpty
-                  ? 'One CricEco account — pick how you want to start'
-                  : 'Hi $firstName · one account, every role',
-              bottomPadding: 26,
-            ),
+            Stack(children: [
+              AuthBanner(
+                title: 'Choose your role',
+                subtitle: firstName.isEmpty
+                    ? 'One CricEco account — pick how you want to start'
+                    : 'Hi $firstName · one account, every role',
+                bottomPadding: 26,
+              ),
+              // Compact logout, top-right: easy to find, out of the cards' way.
+              Positioned(
+                top: MediaQuery.paddingOf(context).top + 4,
+                right: 6,
+                child: IconButton(
+                  tooltip: 'Log out',
+                  onPressed: _logout,
+                  icon: Icon(CeIcons.of('power'), size: 19, color: Colors.white),
+                ),
+              ),
+            ]),
             Padding(
               padding: const EdgeInsets.all(CeSpace.gutter),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -154,8 +177,6 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
                   margin: EdgeInsets.zero,
                   text: 'One account, no second login — you can set up the other role any time from the menu.',
                 ),
-                const SizedBox(height: 8),
-                CeSwitchLine(prompt: 'Not you?', action: 'Log out', onTap: _logout),
               ]),
             ),
           ]),

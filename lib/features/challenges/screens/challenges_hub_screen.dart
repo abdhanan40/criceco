@@ -17,11 +17,15 @@ import '../widgets/challenge_widgets.dart';
 
 /// "Challenge" / "Send Match Request" button; shows "Challenge Sent" while a
 /// sent challenge to that club is still awaiting a reply (no duplicates).
+/// Either way nothing is sent before the setup sheet (format, ground, date)
+/// is reviewed and confirmed.
 class _SendButton extends ConsumerStatefulWidget {
-  const _SendButton({required this.club, required this.label, this.format, this.expand = true});
+  const _SendButton({required this.club, required this.label, this.listing, this.expand = true});
   final ClubSummary club;
   final String label;
-  final MatchFormat? format;
+
+  /// Find Opponent listing: a match request, prefilled with its format/date.
+  final MatchSeekerListing? listing;
 
   /// false = a compact inline action sized to its label.
   final bool expand;
@@ -49,7 +53,11 @@ class _SendButtonState extends ConsumerState<_SendButton> {
           ? null
           : () async {
               await sendChallenge(context, ref, widget.club,
-                  format: widget.format, onSending: () => setState(() => _busy = true));
+                  matchRequest: widget.listing != null,
+                  format: widget.listing?.format,
+                  date: widget.listing?.startsAt,
+                  groundName: widget.listing?.venue,
+                  onSending: () => setState(() => _busy = true));
               if (mounted) setState(() => _busy = false);
             },
     );
@@ -67,8 +75,6 @@ class ChallengesHubScreen extends ConsumerWidget {
       appBar: const CeTopBar(title: 'Challenges', fallbackLocation: Routes.clubHome),
       body: ListView(padding: const EdgeInsets.only(bottom: 24), children: [
         const ChallengesTabs(active: ChallengesSection.challenges),
-        const AvailabilitySlotCta(),
-        const MySlotsList(),
         if (clubsAsync.isLoading)
           const Padding(padding: EdgeInsets.all(30), child: Center(child: CircularProgressIndicator()))
         else
@@ -92,7 +98,8 @@ class ChallengesHubScreen extends ConsumerWidget {
   }
 }
 
-/// Find a Match (prototype `screens.findMatch`, :7104).
+/// Find Opponent (prototype `screens.findMatch`, :7104): discover clubs and
+/// start a match request. Create Availability Slot lives here only.
 class FindMatchScreen extends ConsumerWidget {
   const FindMatchScreen({super.key});
 
@@ -105,7 +112,7 @@ class FindMatchScreen extends ConsumerWidget {
         if (dir[s.clubId] != null) (listing: s, club: dir[s.clubId]!),
     ];
     return Scaffold(
-      appBar: const CeTopBar(title: 'Find a Match', fallbackLocation: Routes.challenges),
+      appBar: const CeTopBar(title: 'Find Opponent', fallbackLocation: Routes.challenges),
       body: ListView(padding: const EdgeInsets.only(bottom: 24), children: [
         const ChallengesTabs(active: ChallengesSection.find),
         const AvailabilitySlotCta(),
@@ -142,8 +149,8 @@ class FindMatchScreen extends ConsumerWidget {
                     text: '${CeFormat.date(e.listing.startsAt)} · ${CeFormat.time(e.listing.startsAt)}'),
                 InlineInfo(icon: 'map-pin', text: e.listing.venue),
               ],
-              actions: _SendButton(club: e.club, label: 'Send Match Request', format: e.listing.format),
-              onTap: () => context.push(Routes.clubProfile(e.club.id)),
+              actions: _SendButton(club: e.club, label: 'Send Match Request', listing: e.listing),
+              onTap: () => context.push(Routes.clubProfile(e.club.id, fromFind: true)),
             ),
       ]),
     );

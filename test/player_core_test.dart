@@ -11,10 +11,12 @@ import 'package:criceco/features/player/screens/availability_screen.dart';
 import 'package:criceco/features/player/screens/performance_screens.dart';
 import 'package:criceco/features/player/screens/performance_workspace.dart';
 import 'package:criceco/features/player/screens/player_match_workspace.dart';
+import 'package:criceco/shared/media/photo_picker.dart';
 import 'package:criceco/shared/widgets/ce_buttons.dart';
 import 'package:criceco/shared/widgets/ce_indicators.dart';
 import 'package:criceco/shared/widgets/ce_match_widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,7 +24,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Wednesday 23 Sep 2026, 10:00 — seed "tomorrow" match is Thu 24 Sep 08:00.
 final _now = DateTime(2026, 9, 23, 10);
 
-Future<ProviderContainer> _pumpPlayer(WidgetTester tester, {double width = 375, String? fullName}) async {
+Future<ProviderContainer> _pumpPlayer(
+  WidgetTester tester, {
+  double width = 375,
+  String? fullName,
+  List<dynamic> overrides = const [],
+}) async {
   tester.view.physicalSize = Size(width * 3, 812 * 3);
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.reset);
@@ -32,6 +39,7 @@ Future<ProviderContainer> _pumpPlayer(WidgetTester tester, {double width = 375, 
     sharedPreferencesProvider.overrideWithValue(prefs),
     clockProvider.overrideWithValue(Clock.fixed(_now)),
     nowProvider.overrideWith((ref) => const Stream<DateTime>.empty()),
+    ...overrides.cast(),
   ]);
   addTearDown(c.dispose);
   await tester.pumpWidget(UncontrolledProviderScope(container: c, child: const CricEcoApp()));
@@ -69,6 +77,30 @@ Future<void> _tap(WidgetTester tester, Finder f) async {
 
 Finder _button(String label) => find.widgetWithText(CeButton, label);
 
+/// Stands in for the device photo picker: returns [result] (a path, `null`
+/// for "cancelled") or throws it when it is an exception.
+class FakePhotoPicker implements PhotoPicker {
+  FakePhotoPicker([this.result]);
+  Object? result;
+  final sources = <PhotoSource>[];
+
+  @override
+  Future<String?> pick(PhotoSource source) async {
+    sources.add(source);
+    final r = result;
+    if (r is Exception) throw r;
+    return r as String?;
+  }
+}
+
+/// An [Image] showing the local file at [path].
+Finder _fileImage(String path) =>
+    find.byWidgetPredicate((w) => w is Image && w.image is FileImage && (w.image as FileImage).file.path == path);
+
+/// The Player Dashboard quick-action tiles (by their spoken label).
+Finder _quickAction(String label) => find.descendant(
+    of: find.byKey(const Key('player.quickActions')), matching: find.bySemanticsLabel(label));
+
 void main() {
   group('Player Dashboard', () {
     testWidgets('shows account, club, stats and next match from real state', (tester) async {
@@ -99,13 +131,12 @@ void main() {
     testWidgets('quick actions, See All and bell navigate to real routes', (tester) async {
       final c = await _pumpPlayer(tester);
       for (final (label, route) in [
-        ('My Matches', Routes.myMatches),
         ('Availability', Routes.availability),
         ('My Performance', Routes.myPerformance),
         ('Open Matches', Routes.openMatches),
       ]) {
         await _go(tester, c, Routes.playerHome);
-        await _tap(tester, find.bySemanticsLabel(label).first);
+        await _tap(tester, _quickAction(label));
         expect(_loc(c), route, reason: label);
       }
       await _go(tester, c, Routes.playerHome);
@@ -122,11 +153,122 @@ void main() {
       expect(_loc(c), Routes.notifications);
     });
 
-    testWidgets('Quick Actions "View All" opens the drawer', (tester) async {
-      await _pumpPlayer(tester);
-      await tester.tap(find.text('View All'));
+    testWidgets('Quick Actions: no My Matches; View All expands in place (no sidebar), Show Less folds back',
+        (tester) async {
+      final c = await _pumpPlayer(tester);
+      // My Matches has its own bottom-navigation tab: not a quick action.
+      expect(_quickAction('My Matches'), findsNothing);
+      expect(find.bySemanticsLabel('Matches'), findsWidgets, reason: 'bottom navigation still has it');
+      const compact = ['Availability', 'My Performance', 'Open Matches'];
+      const more = ['Match History', 'Fitness Meter', 'Settings'];
+      for (final l in compact) {
+        expect(_quickAction(l), findsOneWidget, reason: l);
+      }
+      // The compact set fills one row: no empty slot.
+      final tops = {for (final l in compact) tester.getTopLeft(_quickAction(l)).dy};
+      expect(tops, hasLength(1));
+      final right = tester.getRect(_quickAction('Open Matches')).right;
+      expect(right, closeTo(375 - 16, 1), reason: 'the row spans the full width');
+      for (final l in more) {
+        expect(_quickAction(l), findsNothing, reason: '$l hidden until View All');
+      }
+
+      await _tap(tester, find.text('View All'));
+      expect(find.byType(Drawer), findsNothing, reason: 'View All never opens the sidebar');
+      expect(_loc(c), Routes.playerHome, reason: 'expanded inline, no new screen');
+      for (final l in [...compact, ...more]) {
+        expect(_quickAction(l), findsOneWidget, reason: l);
+      }
+      expect(find.text('Show Less'), findsOneWidget);
+
+      // The extra actions work too.
+      await _tap(tester, _quickAction('Fitness Meter'));
+      expect(find.widgetWithText(CeButton, 'Close'), findsOneWidget, reason: 'Fitness Meter sheet');
+      await _tap(tester, _button('Close'));
+      await _tap(tester, _quickAction('Match History'));
+      expect(_loc(c), PerformanceView.history.location);
+
+      await _go(tester, c, Routes.playerHome);
+      await _tap(tester, find.text('Show Less'));
+      expect(find.text('View All'), findsOneWidget);
+      for (final l in more) {
+        expect(_quickAction(l), findsNothing, reason: '$l folded away');
+      }
+      expect(find.byType(Drawer), findsNothing);
+    });
+
+    testWidgets('Recent Form is gone from the dashboard but still in Performance', (tester) async {
+      final c = await _pumpPlayer(tester);
+      final perf = await c.read(performanceProvider.future);
+      expect(perf.recentForm, isNotEmpty, reason: 'the data is untouched');
+      await tester.scrollUntilVisible(find.text('Your Performance Snapshot'), 150, scrollable: _mainList);
+      expect(find.text('Recent form', skipOffstage: false), findsNothing);
+      expect(find.text('Recent Form', skipOffstage: false), findsNothing);
+      expect(find.bySemanticsLabel(RegExp('^Recent form')), findsNothing);
+
+      await _go(tester, c, Routes.myPerformance);
+      await tester.scrollUntilVisible(find.text('Recent Form').last, 150, scrollable: _mainList);
+      expect(find.text('Recent Form'), findsWidgets);
+      expect(find.text('${perf.recentWins}W - ${perf.recentLosses}L'), findsOneWidget);
+    });
+
+    testWidgets('My Profile: add, change and remove the profile picture; cancel and errors change nothing',
+        (tester) async {
+      final picker = FakePhotoPicker();
+      final c = await _pumpPlayer(tester, overrides: [photoPickerProvider.overrideWithValue(picker)]);
+      await _go(tester, c, Routes.playerProfile);
+      final photo = find.byKey(const Key('profile.photo'));
+      expect(find.bySemanticsLabel('Add profile picture'), findsOneWidget);
+
+      // Cancel at the sheet, then cancel in the picker: nothing changes.
+      await _tap(tester, photo);
+      expect(find.text('Choose from gallery'), findsOneWidget);
+      expect(find.text('Take a photo'), findsOneWidget);
+      expect(find.text('Remove picture'), findsNothing, reason: 'nothing to remove yet');
+      await tester.tapAt(const Offset(10, 10));
       await tester.pumpAndSettle();
-      expect(find.byType(Drawer), findsOneWidget);
+      await _tap(tester, photo);
+      await _tap(tester, find.text('Choose from gallery'));
+      expect(picker.sources, [PhotoSource.gallery]);
+      expect(c.read(currentAccountProvider)!.photoPath, isNull, reason: 'picker cancelled');
+
+      // Pick from the gallery: shown at once, kept on the account.
+      picker.result = '/photos/me.jpg';
+      await _tap(tester, photo);
+      await _tap(tester, find.text('Choose from gallery'));
+      expect(find.text('Profile picture updated'), findsOneWidget);
+      expect(c.read(currentAccountProvider)!.photoPath, '/photos/me.jpg');
+      expect(c.read(currentAccountProvider)!.hasPhoto, isTrue);
+      expect(_fileImage('/photos/me.jpg'), findsOneWidget);
+      expect(find.bySemanticsLabel('Change profile picture'), findsOneWidget);
+
+      // Change it with the camera.
+      picker.result = '/photos/selfie.jpg';
+      await _tap(tester, photo);
+      await _tap(tester, find.text('Take a photo'));
+      expect(picker.sources.last, PhotoSource.camera);
+      expect(_fileImage('/photos/selfie.jpg'), findsOneWidget);
+      expect(_fileImage('/photos/me.jpg'), findsNothing);
+
+      // Denied permission: explained, the picture is kept.
+      picker.result = PlatformException(code: 'photo_access_denied');
+      await _tap(tester, photo);
+      await _tap(tester, find.text('Choose from gallery'));
+      expect(find.textContaining('Allow access in Settings'), findsOneWidget);
+      expect(c.read(currentAccountProvider)!.photoPath, '/photos/selfie.jpg');
+
+      // Also shown on the dashboard and in the sidebar.
+      await _go(tester, c, Routes.playerHome);
+      expect(_fileImage('/photos/selfie.jpg'), findsOneWidget);
+
+      // Remove it: back to the initial.
+      await _go(tester, c, Routes.playerProfile);
+      await _tap(tester, photo);
+      await _tap(tester, find.text('Remove picture'));
+      expect(c.read(currentAccountProvider)!.photoPath, isNull);
+      expect(c.read(currentAccountProvider)!.hasPhoto, isFalse);
+      expect(find.bySemanticsLabel('Add profile picture'), findsOneWidget);
+      expect(_fileImage('/photos/selfie.jpg'), findsNothing);
     });
   });
 
@@ -526,6 +668,26 @@ void main() {
         await _go(tester, c, Routes.availability);
         await _tap(tester, find.bySemanticsLabel('Select Date'));
         expect(tester.takeException(), isNull, reason: 'availability calendar @ $width');
+
+        // Quick Actions expanded (View All), then folded back.
+        await _go(tester, c, Routes.playerHome);
+        await tester.fling(_mainList, const Offset(0, 3000), 4000);
+        await tester.pumpAndSettle();
+        await _tap(tester, find.text('View All'));
+        expect(tester.takeException(), isNull, reason: 'quick actions expanded @ $width');
+        await _tap(tester, find.text('Show Less'));
+        expect(tester.takeException(), isNull, reason: 'quick actions folded @ $width');
+
+        // A profile picture on the profile hero, dashboard and the picture sheet.
+        await c.read(sessionProvider.notifier).updateAccount((a) => a.copyWith(hasPhoto: true, photoPath: '/p/me.jpg'));
+        await _go(tester, c, Routes.playerProfile);
+        await _tap(tester, find.byKey(const Key('profile.photo')));
+        expect(find.text('Remove picture'), findsOneWidget);
+        expect(tester.takeException(), isNull, reason: 'picture sheet @ $width');
+        await tester.tapAt(const Offset(10, 10));
+        await tester.pumpAndSettle();
+        await _go(tester, c, Routes.playerHome);
+        expect(tester.takeException(), isNull, reason: 'dashboard with picture @ $width');
       });
     }
   });

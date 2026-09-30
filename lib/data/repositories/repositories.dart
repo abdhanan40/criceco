@@ -31,6 +31,9 @@ abstract interface class ClubRepository {
     String? homeGroundId,
     bool hasLogo = false,
   });
+
+  /// Saves changes to the account's own club (e.g. its picture).
+  Future<Club> updateClub(String accountId, Club club);
   Future<List<ClubSummary>> otherClubs();
   Future<ClubSummary?> clubSummary(String clubId);
   Future<List<ClubMember>> members(String clubId);
@@ -56,6 +59,7 @@ abstract interface class ClubRepository {
     required bool approve,
     MemberRole role = MemberRole.player,
     required DateTime at,
+    String? reason,
   });
   Future<List<SquadPlayer>> playerPool(String clubId);
 
@@ -127,7 +131,13 @@ abstract interface class ChallengeRepository {
   Future<List<MatchSeekerListing>> matchSeekers();
   /// Always creates a PENDING sent challenge (expires after
   /// [Challenge.responseWindow]). Demo Mode may then accept it instantly.
-  Future<Challenge> send({required String opponentClubId, MatchFormat? format, required DateTime at});
+  Future<Challenge> send({
+    required String opponentClubId,
+    MatchFormat? format,
+    String? groundName,
+    DateTime? proposedAt,
+    required DateTime at,
+  });
   Future<Challenge> save(Challenge challenge);
   Future<List<AvailabilitySlot>> availabilitySlots();
   Future<AvailabilitySlot> postAvailabilitySlot(AvailabilitySlot slot);

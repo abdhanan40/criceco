@@ -9,6 +9,7 @@ import '../../app/session/session_controller.dart';
 import '../../app/theme/tokens.dart';
 import '../../core/enums/enums.dart';
 import '../../demo/seed_data.dart';
+import '../media/photo_picker.dart';
 import '../widgets/ce_feedback.dart';
 import '../widgets/ce_icons.dart';
 import '../widgets/ce_indicators.dart';
@@ -65,7 +66,11 @@ class RoleDrawer extends ConsumerWidget {
               ),
             ),
             Row(children: [
-              CeAvatar(name, size: 46, background: CeColors.primary),
+              CePhotoImage(
+                path: account?.photoPath,
+                size: 46,
+                fallback: CeAvatar(name, size: 46, background: CeColors.primary),
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

@@ -16,6 +16,7 @@ class UserAccount {
     this.memberships = const [],
     this.profileComplete = false,
     this.hasPhoto = false,
+    this.photoPath,
     this.settings = const AccountSettings(),
   });
 
@@ -45,6 +46,10 @@ class UserAccount {
   /// the account, not to a role.
   final bool hasPhoto;
 
+  /// Local path of the chosen profile picture (device photo picker). Kept in
+  /// the session's account state; `null` = show the initial.
+  final String? photoPath;
+
   /// Privacy and sign-in preferences (Settings → Privacy / Password & security).
   final AccountSettings settings;
 
@@ -63,6 +68,8 @@ class UserAccount {
     List<ClubMembership>? memberships,
     bool? profileComplete,
     bool? hasPhoto,
+    String? photoPath,
+    bool clearPhoto = false,
     AccountSettings? settings,
   }) =>
       UserAccount(
@@ -79,6 +86,7 @@ class UserAccount {
         memberships: memberships ?? this.memberships,
         profileComplete: profileComplete ?? this.profileComplete,
         hasPhoto: hasPhoto ?? this.hasPhoto,
+        photoPath: clearPhoto ? null : (photoPath ?? this.photoPath),
         settings: settings ?? this.settings,
       );
 }

@@ -125,7 +125,7 @@ void main() {
   });
 
   group('Requests screen', () {
-    testWidgets('row Accept approves as Player; dashboard, tabs and Members update', (tester) async {
+    testWidgets('row Accept asks "Approve this request?" then approves as Player; dashboard, tabs and Members update', (tester) async {
       final c = await _pumpOwner(tester);
       expect(find.text('3'), findsWidgets); // dashboard Requests stat
       await _tap(tester, find.bySemanticsLabel('Requests').first);
@@ -134,8 +134,18 @@ void main() {
       expect(find.text('Bilal Ahmed'), findsOneWidget);
       expect(find.text('Batsman · Applied 2 days ago'), findsOneWidget);
 
+      // Approve is never immediate: Cancel leaves the request pending.
       await tester.tap(find.byTooltip('Accept Bilal Ahmed'));
       await tester.pumpAndSettle();
+      expect(find.text('Approve this request?'), findsOneWidget);
+      expect(find.textContaining('Are you sure you want to approve this player'), findsOneWidget);
+      await _tap(tester, _button('Cancel'));
+      expect(c.read(pendingJoinRequestCountProvider), 3, reason: 'nothing approved');
+      expect(find.text('Bilal Ahmed'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Accept Bilal Ahmed'));
+      await tester.pumpAndSettle();
+      await _tap(tester, _button('Approve'));
       expect(find.text('Bilal Ahmed added to the club as Player'), findsOneWidget);
       expect(find.text('Bilal Ahmed'), findsNothing, reason: 'moved out of Pending');
       expect(find.bySemanticsLabel('2 pending requests'), findsOneWidget);
@@ -157,15 +167,30 @@ void main() {
       expect(find.text('2', skipOffstage: false), findsWidgets);
     });
 
-    testWidgets('row ✕ declines; Declined tab lists it; Pending empties with the prototype copy', (tester) async {
+    testWidgets('row ✕ asks for a reason, then declines; Declined tab lists it; Pending empties with the prototype copy',
+        (tester) async {
       final c = await _pumpOwner(tester);
       await _go(tester, c, Routes.joinRequests);
+      // Not immediate: the sheet offers a suggested reason and a short message.
+      await tester.tap(find.byTooltip('Decline Usman Tariq'));
+      await tester.pumpAndSettle();
+      expect(find.text('Decline Request?'), findsOneWidget);
+      expect(find.text('Our squad is currently full.'), findsWidgets);
+      await _tap(tester, _button('Cancel'));
+      expect(c.read(pendingJoinRequestCountProvider), 3, reason: 'nothing declined');
       for (final name in ['Usman Tariq', 'Hamza Sheikh', 'Bilal Ahmed']) {
         await tester.tap(find.byTooltip('Decline $name'));
         await tester.pumpAndSettle();
-        await _tap(tester, _button('Decline Request')); // confirm sheet
+        if (name == 'Hamza Sheikh') {
+          await tester.enterText(find.byKey(const Key('joinRequest.declineReason')), '  Trials reopen in March. ');
+          await tester.pumpAndSettle();
+        }
+        await _tap(tester, _button('Decline Request')); // reason sheet
         expect(find.text('Request from $name declined'), findsOneWidget);
       }
+      // Suggested reason by default; a custom short message when typed.
+      expect(c.read(joinRequestProvider('jr_3'))!.declineReason, 'Our squad is currently full.');
+      expect(c.read(joinRequestProvider('jr_2'))!.declineReason, 'Trials reopen in March.');
       expect(find.text('No pending requests'), findsOneWidget);
       expect(find.text('All requests have been reviewed'), findsOneWidget);
       await _tap(tester, find.text('Declined'));
@@ -189,6 +214,10 @@ void main() {
       await tester.tap(find.text('Coach').last);
       await tester.pumpAndSettle();
       await _tap(tester, _button('Approve'));
+      expect(find.text('Approve this request?'), findsOneWidget);
+      expect(find.textContaining('will be added as Coach'), findsOneWidget);
+      expect(c.read(joinRequestProvider('jr_2'))!.isPending, isTrue, reason: 'not approved before confirming');
+      await _tap(tester, _button('Approve').last);
       expect(_loc(c), Routes.joinRequests, reason: 'back to Requests like the prototype');
       expect(find.text('Hamza Sheikh added to the club as Coach'), findsOneWidget);
 
@@ -217,11 +246,17 @@ void main() {
       await _tap(tester, find.text('Usman Tariq'));
       expect(find.text('No performance data available yet.'), findsOneWidget);
       await _tap(tester, _button('Reject'));
+      expect(find.text('Decline Request?'), findsOneWidget);
+      expect(c.read(joinRequestProvider('jr_3'))!.isPending, isTrue, reason: 'not declined before confirming');
+      await _tap(tester, find.text('Trials are closed for this season.'));
+      await _tap(tester, _button('Decline Request'));
       expect(find.text('Request from Usman Tariq declined'), findsOneWidget);
+      expect(c.read(joinRequestProvider('jr_3'))!.declineReason, 'Trials are closed for this season.');
       expect(c.read(joinRequestProvider('jr_3'))!.review, JoinRequestReview.declined);
 
       await _go(tester, c, Routes.joinRequestProfile('jr_3'));
       expect(find.textContaining('Request declined'), findsOneWidget);
+      expect(find.textContaining('Reason: Trials are closed for this season.'), findsOneWidget);
       expect(_button('Reject'), findsNothing);
 
       await _go(tester, c, Routes.joinRequestProfile('nope'));
@@ -235,7 +270,17 @@ void main() {
         final c = await _pumpOwner(tester, width: width);
         final ctrl = c.read(joinRequestsProvider.notifier);
         await ctrl.approve('jr_1', role: MemberRole.manager);
-        await ctrl.decline('jr_3');
+        await ctrl.decline('jr_3', reason: 'Our squad is currently full.');
+        // Review sheets: decline reason (list) and approve confirmation (profile).
+        await _go(tester, c, Routes.joinRequests);
+        await tester.tap(find.byTooltip('Decline Hamza Sheikh'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'decline sheet @ $width');
+        await _tap(tester, _button('Cancel'));
+        await _go(tester, c, Routes.joinRequestProfile('jr_2'));
+        await _tap(tester, _button('Approve'));
+        expect(tester.takeException(), isNull, reason: 'approve sheet @ $width');
+        await _tap(tester, _button('Cancel'));
         for (final loc in [
           Routes.joinRequests,
           '${Routes.joinRequests}?tab=approved',
