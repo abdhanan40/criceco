@@ -50,6 +50,8 @@ Project screenshots will be added here.
 - Performance Prediction
 
 
+## Author
+
 **Abdul Hanan**
 
 Full-Stack Developer
