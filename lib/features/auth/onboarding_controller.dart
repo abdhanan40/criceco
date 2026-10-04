@@ -12,7 +12,7 @@ class OnboardingDraft {
     this.fullName = '',
     this.dateOfBirth,
     this.phone = '',
-    this.hasPhoto = false,
+    this.photoPath,
     this.role,
     this.battingStyle,
     this.bowlingStyle,
@@ -23,7 +23,10 @@ class OnboardingDraft {
   final String fullName;
   final DateTime? dateOfBirth;
   final String phone;
-  final bool hasPhoto;
+
+  /// Local path of the picture chosen on Profile Setup (device picker).
+  final String? photoPath;
+  bool get hasPhoto => photoPath != null;
 
   // ---- Player role profile ----
   final PlayerRole? role;
@@ -37,7 +40,8 @@ class OnboardingDraft {
     String? fullName,
     DateTime? dateOfBirth,
     String? phone,
-    bool? hasPhoto,
+    String? photoPath,
+    bool clearPhoto = false,
     PlayerRole? role,
     BattingStyle? battingStyle,
     BowlingStyle? bowlingStyle,
@@ -47,7 +51,7 @@ class OnboardingDraft {
         fullName: fullName ?? this.fullName,
         dateOfBirth: dateOfBirth ?? this.dateOfBirth,
         phone: phone ?? this.phone,
-        hasPhoto: hasPhoto ?? this.hasPhoto,
+        photoPath: clearPhoto ? null : (photoPath ?? this.photoPath),
         role: role ?? this.role,
         battingStyle: battingStyle ?? this.battingStyle,
         bowlingStyle: bowlingStyle ?? this.bowlingStyle,
@@ -71,7 +75,7 @@ class OnboardingController extends Notifier<OnboardingDraft> {
       fullName: account.fullName,
       dateOfBirth: account.dateOfBirth,
       phone: account.phone ?? '',
-      hasPhoto: account.hasPhoto,
+      photoPath: account.photoPath,
       role: p.role,
       battingStyle: p.battingStyle,
       bowlingStyle: p.bowlingStyle,
@@ -82,7 +86,8 @@ class OnboardingController extends Notifier<OnboardingDraft> {
   void setFullName(String v) => state = state.copyWith(fullName: v);
   void setDateOfBirth(DateTime v) => state = state.copyWith(dateOfBirth: v);
   void setPhone(String v) => state = state.copyWith(phone: v);
-  void togglePhoto() => state = state.copyWith(hasPhoto: !state.hasPhoto);
+  /// A picture from the device picker, or `null` to remove it.
+  void setPhoto(String? path) => state = state.copyWith(photoPath: path, clearPhoto: path == null);
   void setRole(PlayerRole v) => state = state.copyWith(role: v);
   void setBattingStyle(BattingStyle v) => state = state.copyWith(battingStyle: v);
   void setBowlingStyle(BowlingStyle v) => state = state.copyWith(bowlingStyle: v);
@@ -93,7 +98,7 @@ class OnboardingController extends Notifier<OnboardingDraft> {
         fullName: state.fullName.trim(),
         phone: phone,
         dateOfBirth: state.dateOfBirth!,
-        hasPhoto: state.hasPhoto,
+        photoPath: state.photoPath,
       );
 
   /// Role Selection → Player → Continue: saves the Player profile and makes

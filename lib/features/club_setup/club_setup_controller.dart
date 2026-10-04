@@ -14,7 +14,7 @@ class ClubSetupDraft {
     this.type,
     this.hasHomeGround,
     this.homeGroundId,
-    this.hasLogo = false,
+    this.logoPath,
   });
 
   final String name;
@@ -30,7 +30,10 @@ class ClubSetupDraft {
 
   /// The ground chosen when [hasHomeGround] is Yes.
   final String? homeGroundId;
-  final bool hasLogo;
+
+  /// Local path of the club picture chosen here (device photo picker).
+  final String? logoPath;
+  bool get hasLogo => logoPath != null;
 
   ClubSetupDraft copyWith({
     String? name,
@@ -40,7 +43,8 @@ class ClubSetupDraft {
     ClubType? type,
     bool? hasHomeGround,
     String? homeGroundId,
-    bool? hasLogo,
+    String? logoPath,
+    bool clearLogo = false,
   }) =>
       ClubSetupDraft(
         name: name ?? this.name,
@@ -50,7 +54,7 @@ class ClubSetupDraft {
         type: type ?? this.type,
         hasHomeGround: hasHomeGround ?? this.hasHomeGround,
         homeGroundId: homeGroundId ?? this.homeGroundId,
-        hasLogo: hasLogo ?? this.hasLogo,
+        logoPath: clearLogo ? null : (logoPath ?? this.logoPath),
       );
 }
 
@@ -83,9 +87,14 @@ class ClubSetupController extends Notifier<ClubSetupDraft> {
           homeGroundId: d.hasHomeGround == true ? d.homeGroundId : null,
           hasLogo: d.hasLogo,
         );
+    // The chosen picture is stored on the club the same way My Club does it.
+    if (d.logoPath != null) {
+      await ref.read(sessionProvider.notifier).updateClub((c) => c.withLogo(d.logoPath));
+    }
+    final saved = ref.read(currentClubProvider) ?? club;
     ref.read(roleControllerProvider.notifier).becomeClubOwner();
     ref.invalidateSelf();
-    return club;
+    return saved;
   }
 }
 

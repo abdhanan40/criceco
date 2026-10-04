@@ -8,6 +8,7 @@ import '../../app/session/role_controller.dart';
 import '../../app/theme/tokens.dart';
 import '../../core/models/models.dart';
 import '../../core/utils/validators.dart';
+import '../../shared/media/photo_picker.dart';
 import '../../shared/widgets/ce_buttons.dart';
 import '../../shared/widgets/ce_feedback.dart';
 import '../../shared/widgets/ce_form_widgets.dart';
@@ -134,11 +135,16 @@ class _ClubSetupScreenState extends ConsumerState<ClubSetupScreen> {
               Center(
                 child: CePhotoPicker(
                   placeholderIcon: 'shield',
-                  caption: 'Club picture (optional)',
-                  hasPhoto: draft.hasLogo,
-                  initial: draft.name.trim().isEmpty ? null : draft.name.trim()[0].toUpperCase(),
-                  semanticLabel: draft.hasLogo ? 'Remove club picture' : 'Add club picture',
-                  onTap: () => setup.update((d) => d.copyWith(hasLogo: !d.hasLogo)),
+                  caption: draft.hasLogo ? 'Tap to change' : 'Club picture (optional)',
+                  imagePath: draft.logoPath,
+                  semanticLabel: draft.hasLogo ? 'Change club picture' : 'Add club picture',
+                  // Gallery / camera (and Remove once set) — the same picker as My Club.
+                  onTap: () async {
+                    final change = await choosePhoto(context, ref, title: 'Club picture', hasPhoto: draft.hasLogo);
+                    if (change != null) {
+                      setup.update((d) => d.copyWith(logoPath: change.path, clearLogo: change.path == null));
+                    }
+                  },
                 ),
               ),
               const SizedBox(height: 18),

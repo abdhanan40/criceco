@@ -12,6 +12,7 @@ import 'package:criceco/data/repositories/repositories.dart';
 import 'package:criceco/features/auth/onboarding_controller.dart';
 import 'package:criceco/features/auth/role_selection_screen.dart';
 import 'package:criceco/features/auth/widgets/auth_widgets.dart';
+import 'package:criceco/shared/media/photo_picker.dart';
 import 'package:criceco/shared/widgets/ce_brand_logo.dart';
 import 'package:criceco/shared/widgets/ce_buttons.dart';
 import 'package:flutter/material.dart';
@@ -45,6 +46,7 @@ Future<ProviderContainer> _pump(WidgetTester tester, {double width = 375, List<d
   final c = ProviderContainer(overrides: [
     sharedPreferencesProvider.overrideWithValue(prefs),
     nowProvider.overrideWith((ref) => const Stream<DateTime>.empty()),
+    photoPickerProvider.overrideWithValue(_picker),
     ...overrides.cast(),
   ]);
   addTearDown(c.dispose);
@@ -77,6 +79,21 @@ Future<void> _enter(WidgetTester tester, String key, String text) async {
   await tester.pump();
 }
 
+/// Stands in for the device photo picker: gallery and camera return fixed
+/// files; [nextResult] can be set to `null` (cancelled).
+class _FakePicker implements PhotoPicker {
+  bool cancel = false;
+
+  @override
+  Future<String?> pick(PhotoSource source) async =>
+      cancel ? null : (source == PhotoSource.camera ? '/photos/camera.jpg' : '/photos/gallery.jpg');
+}
+
+final _picker = _FakePicker();
+
+Finder _fileImage(String path) =>
+    find.byWidgetPredicate((w) => w is Image && w.image is FileImage && (w.image as FileImage).file.path == path);
+
 Finder _button(String label) => label == 'Continue with Google'
     ? find.byType(GoogleButton)
     : find.widgetWithText(CeButton, label);
@@ -102,7 +119,7 @@ Future<ProviderContainer> _newUser(WidgetTester tester, {double width = 375}) as
 Future<ProviderContainer> _profiled(WidgetTester tester, {double width = 375, String name = 'Hamza Sheikh'}) async {
   final c = await _newUser(tester, width: width);
   await c.read(sessionProvider.notifier).completeProfile(
-      fullName: name, phone: '0333 9876543', dateOfBirth: DateTime(2000, 5, 1), hasPhoto: false);
+      fullName: name, phone: '0333 9876543', dateOfBirth: DateTime(2000, 5, 1));
   c.read(routerProvider).go(Routes.roleSelection);
   await tester.pumpAndSettle();
   return c;
@@ -223,15 +240,40 @@ void main() {
       await _enter(tester, 'profile.phone', '0333-9876543');
       await _tap(tester, find.byKey(const Key('profile.dob')));
       await _tap(tester, find.text('OK'));
+      // Profile picture: the real picker (gallery here); shown right away.
       await _tap(tester, find.bySemanticsLabel('Add profile picture'));
+      expect(find.text('Choose from gallery'), findsOneWidget);
+      await _tap(tester, find.text('Choose from gallery'));
+      expect(_fileImage('/photos/gallery.jpg'), findsOneWidget);
+      expect(find.bySemanticsLabel('Change profile picture'), findsOneWidget);
       await _tap(tester, _button('Continue'));
 
       expect(_loc(c), Routes.roleSelection);
       final a = c.read(currentAccountProvider)!;
       expect((a.fullName, a.phone, a.hasPhoto, a.profileComplete), ('Hamza Sheikh', '0333 9876543', true, true));
+      expect(a.photoPath, '/photos/gallery.jpg', reason: 'saved on the account (My Profile, dashboard, sidebar)');
       expect(a.dateOfBirth, isNotNull);
       expect(c.read(sessionProvider).status, SessionStatus.signedIn);
       expect(c.read(activeRoleProvider), isNull, reason: 'no role yet — the user chooses');
+    });
+
+    testWidgets('profile picture: cancel changes nothing; change with the camera; remove', (tester) async {
+      final c = await _newUser(tester);
+      _picker.cancel = true;
+      await _tap(tester, find.bySemanticsLabel('Add profile picture'));
+      await _tap(tester, find.text('Choose from gallery'));
+      expect(c.read(onboardingProvider).photoPath, isNull, reason: 'picker cancelled');
+      expect(find.text('Remove picture'), findsNothing);
+      _picker.cancel = false;
+
+      await _tap(tester, find.bySemanticsLabel('Add profile picture'));
+      await _tap(tester, find.text('Take a photo'));
+      expect(_fileImage('/photos/camera.jpg'), findsOneWidget);
+      await _tap(tester, find.bySemanticsLabel('Change profile picture'));
+      await _tap(tester, find.text('Remove picture'));
+      expect(c.read(onboardingProvider).photoPath, isNull);
+      expect(_fileImage('/photos/camera.jpg'), findsNothing);
+      expect(find.bySemanticsLabel('Add profile picture'), findsOneWidget);
     });
 
     testWidgets('an incomplete profile is always sent back to Profile Setup', (tester) async {
@@ -347,6 +389,8 @@ void main() {
       await _tap(tester, _button('Select Home Ground'));
       await _tap(tester, find.text('Pindi Cricket Ground'));
       await _tap(tester, find.bySemanticsLabel('Add club picture'));
+      await _tap(tester, find.text('Take a photo'));
+      expect(_fileImage('/photos/camera.jpg'), findsOneWidget);
       await _tap(tester, _button('Create Club'));
 
       expect(_loc(c), Routes.clubHome);
@@ -354,6 +398,7 @@ void main() {
       final club = c.read(currentClubProvider)!;
       expect((club.name, club.city, club.type, club.homeGroundId, club.ownerName, club.address),
           ('Lahore Lions CC', 'Lahore', ClubType.corporate, 'g_pindi', 'Hamza Sheikh', 'Mian Mir Road'));
+      expect((club.logoPath, club.hasLogo), ('/photos/camera.jpg', true), reason: 'club picture saved on the club');
       expect(c.read(routerProvider).canPop(), isFalse, reason: 'setup screens are not in the back stack');
     });
 
@@ -532,7 +577,7 @@ void main() {
             fullName: 'Muhammad Abdul Rehman Chaudhry Al-Pakistani the Third',
             phone: '0300 1234567',
             dateOfBirth: DateTime(1999),
-            hasPhoto: true);
+            photoPath: '/photos/gallery.jpg');
         router.go(Routes.roleSelection);
         await tester.pumpAndSettle();
         await _tap(tester, _playerCard); // expanded Player details

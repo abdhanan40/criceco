@@ -112,13 +112,15 @@ class SessionController extends Notifier<SessionState> {
     required String fullName,
     required String phone,
     required DateTime dateOfBirth,
-    required bool hasPhoto,
+    String? photoPath,
   }) async {
     await updateAccount((a) => a.copyWith(
           fullName: fullName,
           phone: phone,
           dateOfBirth: dateOfBirth,
-          hasPhoto: hasPhoto,
+          hasPhoto: photoPath != null,
+          photoPath: photoPath,
+          clearPhoto: photoPath == null,
           profileComplete: true,
         ));
     state = state.copyWith(status: SessionStatus.signedIn);

@@ -8,6 +8,7 @@ import '../../app/session/session_controller.dart';
 import '../../app/theme/tokens.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/validators.dart';
+import '../../shared/media/photo_picker.dart';
 import '../../shared/widgets/ce_buttons.dart';
 import '../../shared/widgets/ce_form_widgets.dart';
 import '../../shared/widgets/ce_inputs.dart';
@@ -120,11 +121,14 @@ class _UserProfileSetupScreenState extends ConsumerState<UserProfileSetupScreen>
                   Center(
                     child: CePhotoPicker(
                       placeholderIcon: 'user',
-                      caption: 'Profile picture (optional)',
-                      hasPhoto: draft.hasPhoto,
-                      initial: draft.fullName.trim().isEmpty ? null : draft.fullName.trim()[0].toUpperCase(),
-                      semanticLabel: draft.hasPhoto ? 'Remove profile picture' : 'Add profile picture',
-                      onTap: notifier.togglePhoto,
+                      caption: draft.hasPhoto ? 'Tap to change' : 'Profile picture (optional)',
+                      imagePath: draft.photoPath,
+                      semanticLabel: draft.hasPhoto ? 'Change profile picture' : 'Add profile picture',
+                      // Gallery / camera (and Remove once set) — the same picker as My Profile.
+                      onTap: () async {
+                        final change = await choosePhoto(context, ref, title: 'Profile picture', hasPhoto: draft.hasPhoto);
+                        if (change != null) notifier.setPhoto(change.path);
+                      },
                     ),
                   ),
                   const SizedBox(height: 20),

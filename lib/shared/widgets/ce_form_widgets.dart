@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/theme/tokens.dart';
+import '../media/photo_picker.dart';
 import 'ce_icons.dart';
 import 'ce_indicators.dart';
 
@@ -37,7 +38,8 @@ class CeStepProgress extends StatelessWidget {
 }
 
 /// Circular photo / logo picker with camera badge (`Complete Profile`,
-/// `Create Club`). Shows [initial] on a filled circle once a photo is set.
+/// `Create Club`). Shows the chosen picture ([imagePath]); without one, a
+/// dashed placeholder (or [initial] on a filled circle when [hasPhoto]).
 class CePhotoPicker extends StatelessWidget {
   const CePhotoPicker({
     super.key,
@@ -46,6 +48,7 @@ class CePhotoPicker extends StatelessWidget {
     required this.onTap,
     this.hasPhoto = false,
     this.initial,
+    this.imagePath,
     this.semanticLabel = 'Choose photo',
   });
 
@@ -54,6 +57,9 @@ class CePhotoPicker extends StatelessWidget {
   final VoidCallback onTap;
   final bool hasPhoto;
   final String? initial;
+
+  /// Local file of the chosen picture (device photo picker).
+  final String? imagePath;
   final String semanticLabel;
 
   @override
@@ -69,19 +75,23 @@ class CePhotoPicker extends StatelessWidget {
             height: 84,
             child: Stack(clipBehavior: Clip.none, children: [
               CustomPaint(
-                foregroundPainter: hasPhoto ? null : _DashedCirclePainter(),
-                child: Container(
-                  width: 84,
-                  height: 84,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: hasPhoto ? CeColors.primary : CeColors.mint,
+                foregroundPainter: hasPhoto || imagePath != null ? null : _DashedCirclePainter(),
+                child: CePhotoImage(
+                  path: imagePath,
+                  size: 84,
+                  fallback: Container(
+                    width: 84,
+                    height: 84,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: hasPhoto ? CeColors.primary : CeColors.mint,
+                    ),
+                    child: hasPhoto && initial != null
+                        ? Text(initial!,
+                            style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: Colors.white))
+                        : Icon(CeIcons.of(placeholderIcon), size: 30, color: hasPhoto ? Colors.white : CeColors.primaryDark),
                   ),
-                  child: hasPhoto && initial != null
-                      ? Text(initial!,
-                          style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: Colors.white))
-                      : Icon(CeIcons.of(placeholderIcon), size: 30, color: hasPhoto ? Colors.white : CeColors.primaryDark),
                 ),
               ),
               Positioned(
