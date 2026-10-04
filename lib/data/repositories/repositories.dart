@@ -67,6 +67,8 @@ abstract interface class ClubRepository {
   Future<Map<String, List<MatchLogEntry>>> memberActivity(String clubId);
 
   /// Outgoing join-by-code (membership onboarding).
+  /// The club behind a join code, or `null` when no club uses it.
+  Future<ClubCodePreview?> findClubByCode(String code);
   Future<ClubJoinRequest> requestToJoin(String code);
 }
 
@@ -171,4 +173,13 @@ abstract interface class TournamentRepository {
 
 abstract interface class NotificationRepository {
   Future<List<NotificationItem>> forRole(UserRole role);
+
+  /// Adds notifications raised in the app (e.g. a club announcement).
+  Future<void> deliver(List<NotificationItem> items);
+}
+
+/// Club announcements (in-app only; no push service yet).
+abstract interface class AnnouncementRepository {
+  Future<ClubAnnouncement> publish(ClubAnnouncement announcement);
+  Future<ClubAnnouncement?> byId(String id);
 }

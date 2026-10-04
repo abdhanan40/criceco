@@ -198,6 +198,26 @@ class InMemoryClubRepository implements ClubRepository {
   Future<Map<String, List<MatchLogEntry>>> memberActivity(String clubId) async => {...?_activity[clubId]};
 
   @override
+  Future<ClubCodePreview?> findClubByCode(String code) async {
+    final upper = code.trim().toUpperCase();
+    // The demo club players join (shown on the Player Dashboard as
+    // "Club KRC001 • Islamabad"); its type and size aren't in the data.
+    if (upper == SeedData.demoJoinCode) {
+      return const ClubCodePreview(code: SeedData.demoJoinCode, name: SeedData.demoJoinClubName, city: 'Islamabad');
+    }
+    final owned = [_seedClub, ..._owned.values];
+    final club = owned.where((c) => c.code.toUpperCase() == upper).firstOrNull;
+    if (club == null) return null;
+    return ClubCodePreview(
+      code: club.code,
+      name: club.name,
+      city: club.city,
+      type: club.type,
+      memberCount: _members[club.id]?.length,
+    );
+  }
+
+  @override
   Future<ClubJoinRequest> requestToJoin(String code) async {
     final upper = code.trim().toUpperCase();
     final name = upper == SeedData.demoJoinCode ? SeedData.demoJoinClubName : 'Club $upper';
@@ -517,11 +537,24 @@ class InMemoryTournamentRepository implements TournamentRepository {
 }
 
 class InMemoryNotificationRepository implements NotificationRepository {
-  InMemoryNotificationRepository(SeedData seed) : _items = seed.notifications;
+  InMemoryNotificationRepository(SeedData seed) : _items = [...seed.notifications];
   final List<NotificationItem> _items;
 
   @override
   Future<List<NotificationItem>> forRole(UserRole role) async => _items.where((n) => n.role == role).toList();
+
+  @override
+  Future<void> deliver(List<NotificationItem> items) async => _items.addAll(items);
+}
+
+class InMemoryAnnouncementRepository implements AnnouncementRepository {
+  final Map<String, ClubAnnouncement> _items = {};
+
+  @override
+  Future<ClubAnnouncement> publish(ClubAnnouncement announcement) async => _items[announcement.id] = announcement;
+
+  @override
+  Future<ClubAnnouncement?> byId(String id) async => _items[id];
 }
 
 /// Generates a unique id for new client-side entities.

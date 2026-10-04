@@ -183,7 +183,9 @@ final List<RouteBase> appRoutes = [
     GoRoute(path: 'approved', builder: (_, _) => const JoinApprovedScreen()),
   ]),
 
-  // ---- Player shell: Home · Matches · Performance · Profile (Phase 2: migrated) ----
+  // ---- Player shell: Home · Matches · Availability · Performance ----
+  // My Profile stays at /player/profile inside the Home branch (reached from
+  // the dashboard avatar and the sidebar).
   StatefulShellRoute.indexedStack(
     builder: (_, _, shell) => RoleShellScaffold(shell: shell, items: RoleNavItems.player),
     branches: [
@@ -192,8 +194,13 @@ final List<RouteBase> appRoutes = [
           path: Routes.playerHome,
           pageBuilder: (_, s) => _fade(const PlayerDashboardScreen(), s),
           routes: [
-            GoRoute(path: 'availability', builder: (_, _) => const AvailabilityScreen()),
             GoRoute(path: 'open-matches', builder: (_, _) => const OpenMatchesScreen()),
+            // My Profile with inline edit mode (`?edit=1`).
+            GoRoute(
+              path: 'profile',
+              builder: (_, s) => PlayerProfileScreen(editing: s.uri.queryParameters['edit'] == '1'),
+              routes: [_legacy('edit', (_) => '${Routes.playerProfile}?edit=1')],
+            ),
           ],
         ),
       ]),
@@ -217,6 +224,9 @@ final List<RouteBase> appRoutes = [
         ),
       ]),
       StatefulShellBranch(routes: [
+        GoRoute(path: Routes.availability, builder: (_, _) => const AvailabilityScreen()),
+      ]),
+      StatefulShellBranch(routes: [
         // Performance workspace: Overview | History in `?tab=`.
         GoRoute(
           path: Routes.myPerformance,
@@ -224,18 +234,12 @@ final List<RouteBase> appRoutes = [
           routes: [_legacy('history', (_) => PerformanceView.history.location)],
         ),
       ]),
-      StatefulShellBranch(routes: [
-        // My Profile with inline edit mode (`?edit=1`).
-        GoRoute(
-          path: Routes.playerProfile,
-          builder: (_, s) => PlayerProfileScreen(editing: s.uri.queryParameters['edit'] == '1'),
-          routes: [_legacy('edit', (_) => '${Routes.playerProfile}?edit=1')],
-        ),
-      ]),
     ],
   ),
 
-  // ---- Club Owner shell: Home · Teams · Members · Profile (→ My Club) ----
+  // ---- Club Owner shell: Home · Matches (Match Management) · Teams · Members ----
+  // My Club stays at /club/my-club inside the Home branch (reached from the
+  // dashboard header and the sidebar).
   StatefulShellRoute.indexedStack(
     builder: (_, _, shell) => RoleShellScaffold(shell: shell, items: RoleNavItems.club),
     branches: [
@@ -243,9 +247,13 @@ final List<RouteBase> appRoutes = [
         GoRoute(
           path: Routes.clubHome,
           pageBuilder: (_, s) => _fade(const ClubDashboardScreen(), s),
-          routes: _clubFullRoutes,
+          routes: [
+            GoRoute(path: 'my-club', builder: (_, _) => const MyClubScreen()),
+            ..._clubFullRoutes,
+          ],
         ),
       ]),
+      StatefulShellBranch(routes: [_matchManagementRoute]),
       StatefulShellBranch(routes: [
         GoRoute(path: Routes.teams, builder: (_, _) => const TeamsScreen(), routes: [
           GoRoute(path: 'new', redirect: (_, _) => Routes.teams), // legacy createTeam (P17)
@@ -267,9 +275,6 @@ final List<RouteBase> appRoutes = [
           // Member Profile: inside the Members tab, so Back returns to Members.
           GoRoute(path: ':memberId', builder: (_, s) => MemberProfileScreen(memberId: s.pathParameters['memberId']!)),
         ]),
-      ]),
-      StatefulShellBranch(routes: [
-        GoRoute(path: Routes.myClub, builder: (_, _) => const MyClubScreen()),
       ]),
     ],
   ),
@@ -319,93 +324,95 @@ final List<RouteBase> _clubFullRoutes = [
       fromFind: s.uri.queryParameters['from'] == 'find',
     ),
   ),
-  GoRoute(
-    path: 'matches',
-    parentNavigatorKey: rootNavigatorKey,
-    builder: (_, s) => MatchManagementScreen(tab: MatchManagementScreen.parseTab(s.uri.queryParameters['tab'])),
-    routes: [
-      GoRoute(
-        path: ':matchId/setup',
-        parentNavigatorKey: rootNavigatorKey,
-        builder: (_, s) => MatchSetupScreen(matchId: s.pathParameters['matchId']!),
-        routes: [
-          GoRoute(
-            path: 'ground',
-            parentNavigatorKey: rootNavigatorKey,
-            builder: (_, s) => BookGroundScreen(matchId: s.pathParameters['matchId']!),
-            routes: [
-              GoRoute(
-                path: ':groundId',
-                parentNavigatorKey: rootNavigatorKey,
-                builder: (_, s) =>
-                    GroundDetailsScreen(matchId: s.pathParameters['matchId']!, groundId: s.pathParameters['groundId']!),
-                routes: [
-                  GoRoute(
-                    path: 'schedule',
-                    parentNavigatorKey: rootNavigatorKey,
-                    builder: (_, s) =>
-                        SelectDateScreen(matchId: s.pathParameters['matchId']!, groundId: s.pathParameters['groundId']!),
-                    routes: [
-                      GoRoute(
-                        path: 'summary',
-                        parentNavigatorKey: rootNavigatorKey,
-                        builder: (_, s) => BookingSummaryScreen(
-                            matchId: s.pathParameters['matchId']!, groundId: s.pathParameters['groundId']!),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
-      GoRoute(
-        path: ':matchId/payment',
-        parentNavigatorKey: rootNavigatorKey,
-        builder: (_, s) => PaymentScreen(matchId: s.pathParameters['matchId']!),
-      ),
-      GoRoute(
-        path: ':matchId/waiting',
-        parentNavigatorKey: rootNavigatorKey,
-        builder: (_, s) => WaitingForOpponentScreen(matchId: s.pathParameters['matchId']!),
-      ),
-      GoRoute(
-        path: ':matchId/opponent-payment',
-        parentNavigatorKey: rootNavigatorKey,
-        builder: (_, s) => OpponentPaymentScreen(matchId: s.pathParameters['matchId']!),
-      ),
-      GoRoute(
-        path: ':matchId/confirmed',
-        parentNavigatorKey: rootNavigatorKey,
-        builder: (_, s) => BookingConfirmedScreen(matchId: s.pathParameters['matchId']!),
-      ),
-      GoRoute(
-        path: ':matchId/expired',
-        parentNavigatorKey: rootNavigatorKey,
-        builder: (_, s) => ReservationExpiredScreen(matchId: s.pathParameters['matchId']!),
-      ),
-      GoRoute(
-        path: ':matchId/lineup',
-        parentNavigatorKey: rootNavigatorKey,
-        builder: (_, s) => SelectTeamScreen(matchId: s.pathParameters['matchId']!),
-        routes: [
-          GoRoute(
-            path: 'build',
-            parentNavigatorKey: rootNavigatorKey,
-            builder: (_, s) => TeamBuilderScreen(matchId: s.pathParameters['matchId']!),
-          ),
-          GoRoute(
-            path: 'pick',
-            parentNavigatorKey: rootNavigatorKey,
-            builder: (_, s) => TeamPickerScreen(matchId: s.pathParameters['matchId']!),
-          ),
-        ],
-      ),
-    ],
-  ),
   ..._tournamentRoutes,
 ];
+
+/// Match Management — the Club Owner "Matches" tab (bottom navigation). Its
+/// booking / payment / line-up steps still open full-screen above the shell.
+final GoRoute _matchManagementRoute = GoRoute(
+  path: Routes.matchManagementPath,
+  builder: (_, s) => MatchManagementScreen(tab: MatchManagementScreen.parseTab(s.uri.queryParameters['tab'])),
+  routes: [
+    GoRoute(
+      path: ':matchId/setup',
+      parentNavigatorKey: rootNavigatorKey,
+      builder: (_, s) => MatchSetupScreen(matchId: s.pathParameters['matchId']!),
+      routes: [
+        GoRoute(
+          path: 'ground',
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (_, s) => BookGroundScreen(matchId: s.pathParameters['matchId']!),
+          routes: [
+            GoRoute(
+              path: ':groundId',
+              parentNavigatorKey: rootNavigatorKey,
+              builder: (_, s) =>
+                  GroundDetailsScreen(matchId: s.pathParameters['matchId']!, groundId: s.pathParameters['groundId']!),
+              routes: [
+                GoRoute(
+                  path: 'schedule',
+                  parentNavigatorKey: rootNavigatorKey,
+                  builder: (_, s) =>
+                      SelectDateScreen(matchId: s.pathParameters['matchId']!, groundId: s.pathParameters['groundId']!),
+                  routes: [
+                    GoRoute(
+                      path: 'summary',
+                      parentNavigatorKey: rootNavigatorKey,
+                      builder: (_, s) => BookingSummaryScreen(
+                          matchId: s.pathParameters['matchId']!, groundId: s.pathParameters['groundId']!),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    ),
+    GoRoute(
+      path: ':matchId/payment',
+      parentNavigatorKey: rootNavigatorKey,
+      builder: (_, s) => PaymentScreen(matchId: s.pathParameters['matchId']!),
+    ),
+    GoRoute(
+      path: ':matchId/waiting',
+      parentNavigatorKey: rootNavigatorKey,
+      builder: (_, s) => WaitingForOpponentScreen(matchId: s.pathParameters['matchId']!),
+    ),
+    GoRoute(
+      path: ':matchId/opponent-payment',
+      parentNavigatorKey: rootNavigatorKey,
+      builder: (_, s) => OpponentPaymentScreen(matchId: s.pathParameters['matchId']!),
+    ),
+    GoRoute(
+      path: ':matchId/confirmed',
+      parentNavigatorKey: rootNavigatorKey,
+      builder: (_, s) => BookingConfirmedScreen(matchId: s.pathParameters['matchId']!),
+    ),
+    GoRoute(
+      path: ':matchId/expired',
+      parentNavigatorKey: rootNavigatorKey,
+      builder: (_, s) => ReservationExpiredScreen(matchId: s.pathParameters['matchId']!),
+    ),
+    GoRoute(
+      path: ':matchId/lineup',
+      parentNavigatorKey: rootNavigatorKey,
+      builder: (_, s) => SelectTeamScreen(matchId: s.pathParameters['matchId']!),
+      routes: [
+        GoRoute(
+          path: 'build',
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (_, s) => TeamBuilderScreen(matchId: s.pathParameters['matchId']!),
+        ),
+        GoRoute(
+          path: 'pick',
+          parentNavigatorKey: rootNavigatorKey,
+          builder: (_, s) => TeamPickerScreen(matchId: s.pathParameters['matchId']!),
+        ),
+      ],
+    ),
+  ],
+);
 
 /// Tournaments (revised architecture §9). Every screen is a full route over
 /// the club shell; ids travel in the path, tabs / filters in the query.

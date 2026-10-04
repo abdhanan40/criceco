@@ -22,6 +22,8 @@ String? notificationLocation(NotificationTarget? target) => switch (target) {
       RegistrationTarget(:final registrationId) => Routes.registrationDetails(registrationId),
       TournamentRequestTarget(:final tournamentId, :final registrationId) =>
         Routes.teamRequestDetail(tournamentId, registrationId),
+      // Read in place (bottom sheet), not a route.
+      AnnouncementTarget() => null,
     };
 
 /// Club Owner notifications raised by tournament events: decisions on my
@@ -72,13 +74,26 @@ final tournamentNotificationsProvider = Provider<List<NotificationItem>>((ref) {
   ];
 });
 
+/// Club member records that are this account (its own member row in the club
+/// it owns). Items delivered to a club member reach the account through these.
+final ownMemberIdsProvider = FutureProvider<Set<String>>((ref) async {
+  final members = await ref.watch(clubMembersProvider.future);
+  return {for (final m in members) if (m.role == MemberRole.owner) m.id};
+});
+
 /// One role's inbox, newest first: the seeded items plus live event items.
-/// Player and Club Owner inboxes never mix.
+/// Player and Club Owner inboxes never mix. Items addressed to a club member
+/// (announcements) show only to that member.
 final roleNotificationsProvider = FutureProvider.family<List<NotificationItem>, UserRole>((ref, role) async {
   ref.watch(currentAccountProvider.select((a) => a?.id));
   final live = role == UserRole.clubOwner ? ref.watch(tournamentNotificationsProvider) : const <NotificationItem>[];
-  final seeded = await ref.read(notificationRepositoryProvider).forRole(role);
-  return [...seeded, ...live]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  final stored = await ref.read(notificationRepositoryProvider).forRole(role);
+  final mine = stored.any((n) => n.recipientMemberId != null) ? await ref.watch(ownMemberIdsProvider.future) : const <String>{};
+  return [
+    for (final n in stored)
+      if (n.recipientMemberId == null || mine.contains(n.recipientMemberId)) n,
+    ...live,
+  ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 });
 
 /// Read state (session). Opening a row marks it read; "Mark all as read".

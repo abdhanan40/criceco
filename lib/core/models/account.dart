@@ -199,6 +199,17 @@ class ClubJoinRequest {
       );
 }
 
+/// What a club code resolves to before a join request is sent (Join Club
+/// sheet). Only facts the app has; unknown ones stay `null`.
+class ClubCodePreview {
+  const ClubCodePreview({required this.code, required this.name, this.city, this.type, this.memberCount});
+  final String code;
+  final String name;
+  final String? city;
+  final ClubType? type;
+  final int? memberCount;
+}
+
 /// The single source of truth for a player's availability (fixes the
 /// prototype divergence between the dashboard pill and the status screen).
 class PlayerAvailabilityRecord {

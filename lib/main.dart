@@ -14,5 +14,5 @@ Future<void> main() async {
   );
   // Restore a remembered session so the persisted active role (P21) applies.
   await container.read(sessionProvider.notifier).restore();
-  runApp(UncontrolledProviderScope(container: container, child: const CricEcoApp()));
+  runApp(UncontrolledProviderScope(container: container, child: const CricEcoApp(showSplash: true)));
 }

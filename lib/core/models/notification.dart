@@ -52,6 +52,13 @@ class TournamentRequestTarget extends NotificationTarget {
   final String registrationId;
 }
 
+// ---- Club members (Player inbox) ----
+/// A club announcement: opens its full text in place (no route).
+class AnnouncementTarget extends NotificationTarget {
+  const AnnouncementTarget(this.announcementId);
+  final String announcementId;
+}
+
 /// One inbox row. [target] `null` = non-navigating (approved default P16).
 class NotificationItem {
   const NotificationItem({
@@ -63,6 +70,7 @@ class NotificationItem {
     required this.createdAt,
     required this.tone,
     this.target,
+    this.recipientMemberId,
   });
   final String id;
   final UserRole role;
@@ -72,4 +80,8 @@ class NotificationItem {
   final DateTime createdAt;
   final NotificationTone tone;
   final NotificationTarget? target;
+
+  /// Delivered to one club member (e.g. an announcement); `null` = the
+  /// account's own inbox item.
+  final String? recipientMemberId;
 }

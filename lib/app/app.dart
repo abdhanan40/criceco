@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/booking/booking_controller.dart';
 import 'router/app_router.dart';
+import 'splash/criceco_splash.dart';
 import 'theme/app_theme.dart';
 import 'theme/tokens.dart';
 
@@ -11,7 +12,11 @@ import 'theme/tokens.dart';
 final rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 class CricEcoApp extends ConsumerWidget {
-  const CricEcoApp({super.key});
+  const CricEcoApp({super.key, this.showSplash = false});
+
+  /// Play the launch animation over the first screen (the real app start;
+  /// tests pump the app without it).
+  final bool showSplash;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -44,6 +49,7 @@ class CricEcoApp extends ConsumerWidget {
       // Manrope is bundled in assets/fonts (see pubspec.yaml).
       theme: AppTheme.light(),
       routerConfig: router,
+      builder: showSplash ? (context, child) => SplashGate(child: child ?? const SizedBox.shrink()) : null,
     );
   }
 }

@@ -16,6 +16,7 @@ import '../../../shared/widgets/ce_match_widgets.dart';
 import '../../../shared/widgets/ce_quick_actions.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
+import '../announcements/announcements.dart';
 import '../club_providers.dart';
 import '../requests/join_requests_controller.dart';
 import '../teams/teams_controller.dart';
@@ -76,36 +77,48 @@ class ClubDashboardScreen extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.only(left: 12, top: 4),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                    Row(children: [
-                      // The club picture when one is set (My Club), else the badge.
-                      CePhotoImage(
-                        path: club?.logoPath,
-                        size: 46,
-                        square: true,
-                        radius: CeRadius.md,
-                        fallback: Container(
-                          width: 46,
-                          height: 46,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.18),
-                            borderRadius: BorderRadius.circular(CeRadius.md),
-                            border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
+                    // Club picture + name open My Club (also in the sidebar).
+                    Semantics(
+                      container: true,
+                      button: true,
+                      label: 'Open My Club, ${club?.name ?? 'My Club'}',
+                      excludeSemantics: true,
+                      child: GestureDetector(
+                        key: const Key('club.header'),
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => context.go(Routes.myClub),
+                        child: Row(children: [
+                          // The club picture when one is set (My Club), else the badge.
+                          CePhotoImage(
+                            path: club?.logoPath,
+                            size: 46,
+                            square: true,
+                            radius: CeRadius.md,
+                            fallback: Container(
+                              width: 46,
+                              height: 46,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(CeRadius.md),
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
+                              ),
+                              child: Icon(CeIcons.of('shield'), size: 21, color: Colors.white),
+                            ),
                           ),
-                          child: Icon(CeIcons.of('shield'), size: 21, color: Colors.white),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(club?.name ?? 'My Club',
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  fontSize: 19, fontWeight: FontWeight.w800, height: 1.2, letterSpacing: -0.5, color: Colors.white)),
-                          Text(club?.city ?? '', style: const TextStyle(fontSize: 12, color: CeColors.mint2)),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text(club?.name ?? 'My Club',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontSize: 19, fontWeight: FontWeight.w800, height: 1.2, letterSpacing: -0.5, color: Colors.white)),
+                              Text(club?.city ?? '', style: const TextStyle(fontSize: 12, color: CeColors.mint2)),
+                            ]),
+                          ),
                         ]),
                       ),
-                    ]),
+                    ),
                     const SizedBox(height: 12),
                     if (club != null) _CodeRow(code: club.code, onShare: () => _shareCode(context, club.code)),
                   ]),
@@ -114,7 +127,7 @@ class ClubDashboardScreen extends ConsumerWidget {
             ),
           ),
 
-          // ---- Club summary ----
+          // ---- Club summary (each stat opens its list) ----
           CeStatGroup(
             margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 0),
             cells: [
@@ -127,17 +140,14 @@ class ClubDashboardScreen extends ConsumerWidget {
           // ---- Pending join requests: the one thing waiting on the owner ----
           if ((requests ?? 0) > 0) _PendingRequestsBanner(count: requests!),
 
-          // ---- Quick actions (out-of-phase destinations keep their routes) ----
+          // ---- Quick actions: secondary actions only (no bottom-nav tabs) ----
           const CeSectionHeader('Quick Actions'),
-          CeQuickActionGrid(actions: [
+          CeQuickActionGrid(key: const Key('club.quickActions'), actions: [
             CeQuickAction(icon: 'user-plus', label: 'Requests', onTap: () => context.go(Routes.joinRequests)),
-            CeQuickAction(icon: 'users', label: 'Members', onTap: () => context.go(Routes.members)),
-            CeQuickAction(icon: 'trophy', label: 'Teams', onTap: () => context.go(Routes.teams)),
             CeQuickAction(icon: 'swords', label: 'Challenges', onTap: () => context.go(Routes.challenges)),
             CeQuickAction(icon: 'user', label: 'Open Player', onTap: () => context.go(Routes.playerHunt)),
-            CeQuickAction(
-                icon: 'calendar', label: 'Upcoming Matches', onTap: () => context.go(Routes.matchManagement())),
             CeQuickAction(icon: 'trophy', label: 'Tournament', onTap: () => context.go(Routes.tournamentHub)),
+            CeQuickAction(icon: 'megaphone', label: 'Announcement', onTap: () => showCreateAnnouncementSheet(context)),
           ]),
 
           // ---- Next match (only when one is confirmed, as in the prototype) ----

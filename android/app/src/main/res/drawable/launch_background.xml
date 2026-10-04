@@ -1,10 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- CricEco launch screen (before Android 12): tile colour with the glyph centred. -->
+<!-- CricEco launch window (before Android 12): just the splash colour, no logo,
+     so the app opens straight into the animated Flutter splash, which starts
+     from this same colour. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/splash_background" />
-    <item>
-        <bitmap
-            android:gravity="center"
-            android:src="@drawable/splash_logo" />
-    </item>
 </layer-list>

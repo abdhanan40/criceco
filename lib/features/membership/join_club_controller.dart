@@ -14,6 +14,9 @@ class JoinClubController extends Notifier<ClubJoinRequest?> {
     return null;
   }
 
+  /// The club behind [code] (Join Club sheet preview), or `null` if unknown.
+  Future<ClubCodePreview?> lookup(String code) => ref.read(clubRepositoryProvider).findClubByCode(code);
+
   Future<ClubJoinRequest> send(String code) async {
     final request = await ref.read(clubRepositoryProvider).requestToJoin(code);
     state = request;

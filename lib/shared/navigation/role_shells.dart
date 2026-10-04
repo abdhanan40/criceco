@@ -13,20 +13,22 @@ class NavItem {
 
 /// One fixed bottom-nav set per role (approved decision 3).
 abstract final class RoleNavItems {
-  /// Player: Home · Matches · Performance · Profile.
+  /// Player: Home · Matches · Availability · Performance (most-used first;
+  /// My Profile is reached from the dashboard avatar and the sidebar).
   static const player = [
     NavItem('home', 'Home'),
     NavItem('calendar', 'Matches'),
+    NavItem('check-circle', 'Availability'),
     NavItem('bar-chart', 'Performance'),
-    NavItem('user', 'Profile'),
   ];
 
-  /// Club Owner: Home · Teams · Members · Profile (→ My Club, approved P7).
+  /// Club Owner: Home · Matches (Match Management) · Teams · Members. My Club
+  /// is reached from the dashboard header and the sidebar.
   static const club = [
     NavItem('home', 'Home'),
+    NavItem('calendar', 'Matches'),
     NavItem('shield', 'Teams'),
     NavItem('users', 'Members'),
-    NavItem('user', 'Profile'),
   ];
 }
 

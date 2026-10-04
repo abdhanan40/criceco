@@ -21,6 +21,9 @@ import '../../fitness/fitness_providers.dart';
 import '../../fitness/fitness_widgets.dart';
 import '../../notifications/notifications_controller.dart';
 import '../player_providers.dart';
+import '../widgets/join_club_sheet.dart';
+import '../widgets/match_availability_sheet.dart';
+import '../widgets/share_profile_sheet.dart';
 import 'performance_workspace.dart';
 
 /// Player Dashboard (prototype `screens.playerDashboard`, :3961).
@@ -74,35 +77,51 @@ class PlayerDashboardScreen extends ConsumerWidget {
                   const Spacer(),
                   _Bell(count: notifCount, onTap: () => context.push(Routes.notifications)),
                 ]),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 2, 8, 0),
-                  child: Row(children: [
-                    _HeroAvatar(initial: account?.initial ?? 'A', photoPath: account?.photoPath, available: available),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text('Welcome back,',
-                            style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.85))),
-                        Text(name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white, height: 1.2, letterSpacing: -0.5)),
-                        const SizedBox(height: 2),
-                        Row(children: [
-                          Flexible(
-                            child: Text('Club ${club.code} • ${club.city}',
+                // Avatar + name open My Profile (also in the sidebar).
+                Semantics(
+                  container: true,
+                  button: true,
+                  label: 'Open my profile, $name',
+                  excludeSemantics: true,
+                  child: GestureDetector(
+                    key: const Key('player.header'),
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => context.go(Routes.playerProfile),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 2, 8, 0),
+                      child: Row(children: [
+                        _HeroAvatar(initial: account?.initial ?? 'A', photoPath: account?.photoPath, available: available),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text('Welcome back,',
+                                style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.85))),
+                            Text(name,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: TextStyle(fontSize: 11.5, color: Colors.white.withValues(alpha: 0.85))),
-                          ),
-                          Text(' · Est. ${club.established}',
-                              maxLines: 1,
-                              style: TextStyle(fontSize: 11.5, color: Colors.white.withValues(alpha: 0.6))),
-                        ]),
+                                style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                    height: 1.2,
+                                    letterSpacing: -0.5)),
+                            const SizedBox(height: 2),
+                            Row(children: [
+                              Flexible(
+                                child: Text('Club ${club.code} • ${club.city}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(fontSize: 11.5, color: Colors.white.withValues(alpha: 0.85))),
+                              ),
+                              Text(' · Est. ${club.established}',
+                                  maxLines: 1,
+                                  style: TextStyle(fontSize: 11.5, color: Colors.white.withValues(alpha: 0.6))),
+                            ]),
+                          ]),
+                        ),
                       ]),
                     ),
-                  ]),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Padding(
@@ -131,7 +150,7 @@ class PlayerDashboardScreen extends ConsumerWidget {
             ),
           ),
 
-          // ---- Season summary: the three headline numbers ----
+          // ---- Season summary: the three headline numbers (each opens its list) ----
           CeStatGroup(
             margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 0),
             cells: [
@@ -157,8 +176,15 @@ class PlayerDashboardScreen extends ConsumerWidget {
             ],
           ),
 
-          // ---- Quick actions (View All expands in place; never the sidebar) ----
-          _QuickActions(fitness: fitness),
+          // ---- Quick actions: secondary actions only (no bottom-nav tabs) ----
+          const CeSectionHeader('Quick Actions'),
+          CeQuickActionGrid(key: const Key('player.quickActions'), actions: [
+            CeQuickAction(icon: 'circle-dot', label: 'Open Matches', onTap: () => context.go(Routes.openMatches)),
+            CeQuickAction(icon: 'share-2', label: 'Share Profile', onTap: () => showShareProfileSheet(context)),
+            CeQuickAction(icon: 'user-plus', label: 'Join Club', onTap: () => showJoinClubSheet(context)),
+            CeQuickAction(
+                icon: 'calendar-check', label: 'Match Availability', onTap: () => showMatchAvailabilitySheet(context)),
+          ]),
 
           // ---- Next match ----
           const CeSectionHeader('Next Match'),
@@ -265,54 +291,6 @@ class _HeroAvatar extends StatelessWidget {
           ),
         ]),
       );
-}
-
-/// Player Quick Actions. The compact set shows by default; "View All"
-/// expands the section in place to every Player quick action and "Show
-/// Less" folds it back. (My Matches is left out: it has its own bottom
-/// navigation tab.)
-class _QuickActions extends StatefulWidget {
-  const _QuickActions({required this.fitness});
-  final FitnessReport? fitness;
-
-  @override
-  State<_QuickActions> createState() => _QuickActionsState();
-}
-
-class _QuickActionsState extends State<_QuickActions> {
-  bool _all = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final fitness = widget.fitness;
-    final compact = [
-      CeQuickAction(icon: 'check-circle', label: 'Availability', onTap: () => context.go(Routes.availability)),
-      CeQuickAction(icon: 'trending-up', label: 'My Performance', onTap: () => context.go(Routes.myPerformance)),
-      CeQuickAction(icon: 'circle-dot', label: 'Open Matches', onTap: () => context.go(Routes.openMatches)),
-    ];
-    final more = [
-      CeQuickAction(
-          icon: 'clock', label: 'Match History', onTap: () => context.go(PerformanceView.history.location)),
-      if (fitness != null)
-        CeQuickAction(icon: 'activity', label: 'Fitness Meter', onTap: () => showFitnessSheet(context, fitness)),
-      CeQuickAction(icon: 'sliders', label: 'Settings', onTap: () => context.go(Routes.settings)),
-    ];
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      CeSectionHeader(
-        'Quick Actions',
-        actionLabel: _all ? 'Show Less' : 'View All',
-        onAction: () => setState(() => _all = !_all),
-      ),
-      AnimatedSize(
-        duration: CeMotion.base,
-        alignment: Alignment.topCenter,
-        child: CeQuickActionGrid(
-          key: const Key('player.quickActions'),
-          actions: [...compact, if (_all) ...more],
-        ),
-      ),
-    ]);
-  }
 }
 
 class _HeroPill extends StatelessWidget {

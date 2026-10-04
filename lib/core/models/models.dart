@@ -1,5 +1,6 @@
 export '../enums/enums.dart';
 export 'account.dart';
+export 'announcement.dart';
 export 'challenge_hunt.dart';
 export 'club.dart';
 export 'fitness.dart';

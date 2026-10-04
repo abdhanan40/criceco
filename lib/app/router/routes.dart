@@ -89,7 +89,10 @@ abstract final class Routes {
     final query = [if (challengeId != null) 'challenge=$challengeId', if (fromFind) 'from=find'].join('&');
     return query.isEmpty ? '/club/clubs/$clubId' : '/club/clubs/$clubId?$query';
   }
-  static String matchManagement([MatchTab? tab]) => tab == null ? '/club/matches' : '/club/matches?tab=${tab.name}';
+  /// Match Management — the Club Owner "Matches" bottom-navigation tab.
+  static const matchManagementPath = '/club/matches';
+  static String matchManagement([MatchTab? tab]) =>
+      tab == null ? matchManagementPath : '$matchManagementPath?tab=${tab.name}';
   static String matchSetup(String matchId) => '/club/matches/$matchId/setup';
   static String bookGround(String matchId) => '/club/matches/$matchId/setup/ground';
   static String groundDetails(String matchId, String groundId) => '/club/matches/$matchId/setup/ground/$groundId';

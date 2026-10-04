@@ -15,9 +15,10 @@ class CeQuickAction {
 /// short centred label, several tiles per row.
 ///
 /// Columns adapt to the width so labels never clip: 4 when a tile is at least
-/// [_minTile] wide, otherwise 3 — except a 4-action set, which becomes 2 × 2
-/// horizontal tiles instead of a lopsided 3 + 1, and a set of 3 or fewer,
-/// which fills one row (no empty slot). Rows size to their content,
+/// [_minTile] wide, otherwise 3 — except a 4-action set, which is always a
+/// balanced 2 × 2 of horizontal tiles (never 4 across or 3 + 1), a 5-action
+/// set, which is always 3 + 2 (never 4 + a lone tile), and a set of 3 or
+/// fewer, which fills one row (no empty slot). Rows size to their content,
 /// so large text scales never clip.
 class CeQuickActionGrid extends StatelessWidget {
   const CeQuickActionGrid({super.key, required this.actions});
@@ -33,8 +34,13 @@ class CeQuickActionGrid extends StatelessWidget {
       child: LayoutBuilder(builder: (context, c) {
         if (actions.isEmpty) return const SizedBox.shrink();
         final fourFit = (c.maxWidth - 3 * _gap) / 4 >= _minTile;
-        final horizontal = !fourFit && actions.length == 4;
-        final columns = actions.length <= 3 ? actions.length : (fourFit ? 4 : (horizontal ? 2 : 3));
+        final horizontal = actions.length == 4;
+        final columns = switch (actions.length) {
+          <= 3 => actions.length,
+          4 => 2,
+          5 => 3,
+          _ => fourFit ? 4 : 3,
+        };
         final rows = <Widget>[];
         for (var i = 0; i < actions.length; i += columns) {
           if (i > 0) rows.add(const SizedBox(height: _gap));

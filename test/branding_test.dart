@@ -39,7 +39,7 @@ void main() {
     expect(find.byType(CeBrandLogo), findsOneWidget);
   });
 
-  test('Android launcher: adaptive icon + legacy mipmaps + CricEco splash are wired', () {
+  test('Android launcher: adaptive icon + legacy mipmaps; plain launch window before the animated splash', () {
     const res = 'android/app/src/main/res';
     final adaptive = File('$res/mipmap-anydpi-v26/ic_launcher.xml').readAsStringSync();
     expect(adaptive, contains('@mipmap/ic_launcher_foreground'));
@@ -49,11 +49,22 @@ void main() {
       for (final f in ['ic_launcher', 'ic_launcher_round', 'ic_launcher_foreground', 'ic_launcher_monochrome']) {
         expect(File('$res/mipmap-$d/$f.png').existsSync(), isTrue, reason: '$d/$f');
       }
-      expect(File('$res/drawable-$d/splash_logo.png').existsSync(), isTrue, reason: 'splash $d');
     }
     expect(File('$res/values/colors.xml').readAsStringSync(), contains('#0C262B'));
-    expect(File('$res/drawable/launch_background.xml').readAsStringSync(), contains('@drawable/splash_logo'));
-    expect(File('$res/values-v31/styles.xml').readAsStringSync(), contains('windowSplashScreenAnimatedIcon'));
+    // No logo screen before the Flutter splash: the native window is just the
+    // splash colour the animation starts from (Android 12+: an empty icon).
+    for (final f in ['drawable/launch_background.xml', 'drawable-v21/launch_background.xml']) {
+      final xml = File('$res/$f').readAsStringSync();
+      expect(xml, contains('@color/splash_background'), reason: f);
+      expect(xml, isNot(contains('bitmap')), reason: f);
+    }
+    for (final f in ['values-v31/styles.xml', 'values-night-v31/styles.xml']) {
+      final xml = File('$res/$f').readAsStringSync();
+      expect(xml, contains('windowSplashScreenAnimatedIcon">@drawable/splash_transparent'), reason: f);
+      expect(xml, contains('windowSplashScreenBackground">@color/splash_background'), reason: f);
+    }
+    expect(File('ios/Runner/Base.lproj/LaunchScreen.storyboard').readAsStringSync(),
+        contains('red="0.047058823529411764" green="0.14901960784313725" blue="0.16862745098039217"'));
     final manifest = File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
     expect(manifest, contains('android:label="CricEco"'));
     expect(manifest, contains('android:roundIcon="@mipmap/ic_launcher_round"'));

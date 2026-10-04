@@ -44,6 +44,8 @@ final tournamentRepositoryProvider =
     Provider<TournamentRepository>((ref) => InMemoryTournamentRepository(ref.watch(seedDataProvider)));
 final notificationRepositoryProvider =
     Provider<NotificationRepository>((ref) => InMemoryNotificationRepository(ref.watch(seedDataProvider)));
+final announcementRepositoryProvider =
+    Provider<AnnouncementRepository>((ref) => InMemoryAnnouncementRepository());
 
 /// Scouting stats per player name. Backed by the demo generator for now;
 /// swap for a repository call when a backend exists (screens don't change).

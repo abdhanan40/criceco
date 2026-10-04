@@ -115,6 +115,27 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // The tab stays alive: when the record changes elsewhere (dashboard pill,
+    // Match Availability sheet), the form follows the saved values.
+    // (The "list me" toggle alone leaves an unsaved draft untouched.)
+    ref.listen(playerAvailabilityProvider, (prev, r) {
+      if (prev != null &&
+          prev.status == r.status &&
+          prev.reason == r.reason &&
+          prev.until == r.until &&
+          prev.untilDate == r.untilDate &&
+          prev.notes == r.notes) {
+        return;
+      }
+      setState(() {
+        _status = r.status;
+        _reason = r.reason;
+        _until = r.until;
+        _customDate = r.until == AvailabilityUntil.custom ? r.untilDate : null;
+        _notes.text = r.notes;
+        _dateError = null;
+      });
+    });
     final record = ref.watch(playerAvailabilityProvider);
     final (curColor, curIcon) = availabilityStyle(record.status);
     final resolved = resolveUntil(_until, _today, _customDate);
