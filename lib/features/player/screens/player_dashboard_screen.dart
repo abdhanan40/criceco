@@ -204,10 +204,15 @@ class PlayerDashboardScreen extends ConsumerWidget {
             _NextMatchCard(match: next),
 
           // ---- Fitness Meter (after the next match, before performance) ----
-          if (fitness != null) ...[
-            const SizedBox(height: CeSpace.section),
-            FitnessMeterCard(report: fitness, onTap: () => showFitnessSheet(context, fitness)),
-          ],
+          if (fitness != null)
+            FitnessMeterView(
+              report: fitness,
+              log: perf?.matchLog ?? const [],
+              now: ref.read(clockProvider).now(),
+              nextMatch: next == null ? null : (startsAt: next.startsAt, opponent: next.opponentName),
+              // A club owner sees their members' fitness (Members, Member Profile).
+              sharedWithClub: account?.memberships.firstOrNull?.clubName,
+            ),
 
           // ---- Performance snapshot (only once there is data: no empty header) ----
           if (perf != null) ...[

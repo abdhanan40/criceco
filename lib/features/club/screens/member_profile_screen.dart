@@ -66,8 +66,11 @@ class MemberProfileScreen extends ConsumerWidget {
           if (m.phone.isNotEmpty) ('Phone', CeSummaryCard.value(context, m.phone)),
         ]),
         if (fitness != null) ...[
-          const CeSectionHeader('Fitness', padding: EdgeInsets.fromLTRB(CeSpace.gutter, CeSpace.section, CeSpace.gutter, 8)),
-          FitnessMeterCard(report: fitness, expanded: true),
+          FitnessMeterView(
+            report: fitness,
+            log: ref.watch(memberRecentMatchesProvider(memberId)),
+            now: ref.read(clockProvider).now(),
+          ),
           _RecentMatches(memberId: memberId),
           if (isOwner) const _OwnCareer() else _Scouting(member: m),
         ],
