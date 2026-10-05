@@ -41,6 +41,7 @@ class CeQuickActionGrid extends StatelessWidget {
           5 => 3,
           _ => fourFit ? 4 : 3,
         };
+        final tileWidth = (c.maxWidth - (columns - 1) * _gap) / columns;
         final rows = <Widget>[];
         for (var i = 0; i < actions.length; i += columns) {
           if (i > 0) rows.add(const SizedBox(height: _gap));
@@ -50,7 +51,7 @@ class CeQuickActionGrid extends StatelessWidget {
                 if (j > 0) const SizedBox(width: _gap),
                 Expanded(
                   child: i + j < actions.length
-                      ? _Tile(actions[i + j], horizontal: horizontal)
+                      ? _Tile(actions[i + j], horizontal: horizontal, width: tileWidth)
                       : const SizedBox.shrink(),
                 ),
               ],
@@ -64,11 +65,34 @@ class CeQuickActionGrid extends StatelessWidget {
 }
 
 class _Tile extends StatelessWidget {
-  const _Tile(this.action, {required this.horizontal});
+  const _Tile(this.action, {required this.horizontal, required this.width});
   final CeQuickAction action;
   final bool horizontal;
+  final double width; // the tile's width in the grid
 
   static const _label = TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: CeColors.ink2, height: 1.2);
+
+  /// Never breaks or clips a word: when the longest word of the label is wider
+  /// than the label area (e.g. "Opportunities" on a 320 px phone), the font
+  /// shrinks just enough for it to fit.
+  TextStyle _fit(BuildContext context, TextStyle style) {
+    final available = horizontal
+        ? width - 2 - 10 - 8 - 34 - 9 // border, padding, icon well, gap
+        : width - 2 - 4 - 4; // border, padding
+    final base = DefaultTextStyle.of(context).style.merge(style);
+    var longest = 0.0;
+    for (final word in action.label.split(' ')) {
+      final p = TextPainter(
+        text: TextSpan(text: word, style: base),
+        textDirection: TextDirection.ltr,
+        textScaler: MediaQuery.textScalerOf(context),
+      )..layout();
+      longest = longest < p.width ? p.width : longest;
+      p.dispose();
+    }
+    if (available <= 0 || longest <= available) return style;
+    return style.copyWith(fontSize: style.fontSize! * (available / longest) * 0.98);
+  }
 
   @override
   Widget build(BuildContext context) => Semantics(
@@ -84,7 +108,7 @@ class _Tile extends StatelessWidget {
                   CeIconWell(action.icon, size: 34, iconSize: 16),
                   const SizedBox(width: 9),
                   Expanded(
-                    child: Text(action.label, maxLines: 2, overflow: TextOverflow.ellipsis, style: _label),
+                    child: Text(action.label, maxLines: 2, overflow: TextOverflow.ellipsis, style: _fit(context, _label)),
                   ),
                 ])
               : Column(mainAxisSize: MainAxisSize.min, children: [
@@ -94,7 +118,7 @@ class _Tile extends StatelessWidget {
                       textAlign: TextAlign.center,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: _label.copyWith(fontSize: 11)),
+                      style: _fit(context, _label.copyWith(fontSize: 11))),
                 ]),
         ),
       );

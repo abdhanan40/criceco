@@ -22,7 +22,7 @@ import '../../../shared/widgets/demo_widgets.dart';
 import '../hunt/player_hunt_controller.dart';
 
 enum HuntTab {
-  find('Find Players'),
+  find('Post Requirement'),
   available('Available Players');
 
   const HuntTab(this.label);
@@ -56,7 +56,7 @@ class PlayerHuntScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      appBar: const CeTopBar(title: 'Open Players', fallbackLocation: Routes.clubHome),
+      appBar: const CeTopBar(title: 'Find Player', fallbackLocation: Routes.clubHome),
       body: ListView(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: const EdgeInsets.only(bottom: 28),
@@ -469,7 +469,7 @@ class _PublishedSlot extends ConsumerWidget {
             final ok = await showCeConfirmSheet(
               context,
               title: 'Remove this slot?',
-              body: 'Players will no longer see your ${p.role.label} requirement in Open Matches.',
+              body: 'Players will no longer see your ${p.role.label} requirement in Playing Opportunities.',
               confirmLabel: 'Remove Slot',
               destructive: true,
               icon: 'x-circle',

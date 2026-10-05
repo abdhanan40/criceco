@@ -87,6 +87,36 @@ Future<void> _clearToast(WidgetTester tester) async {
 
 Finder _button(String label) => find.widgetWithText(CeButton, label);
 
+Future<void> _closeSheet(WidgetTester tester) async {
+  await tester.tapAt(const Offset(10, 10)); // the barrier above the sheet
+  await tester.pumpAndSettle();
+}
+
+/// Gives a seed team a real squad: [playing] in the XI, the next [subs] as subs.
+Future<void> _fillTeam(ProviderContainer c, String teamId, {int playing = 11, int subs = 2, int skip = 0}) async {
+  final pool = await c.read(clubPlayerPoolProvider.future);
+  await c.read(teamsProvider.future);
+  await c.read(teamsProvider.notifier).saveMembers(teamId, [
+    for (final (i, p) in pool.where((p) => !p.locked).skip(skip).take(playing + subs).indexed)
+      TeamMember(playerId: p.id, selection: i < playing ? SelectionRole.playing : SelectionRole.sub),
+  ]);
+}
+
+/// m_2 without a line-up (Case A: no team selected yet).
+Future<void> _clearLineup(ProviderContainer c) async {
+  await c.read(clubMatchesProvider.future);
+  final m = c.read(clubMatchProvider('m_2'))!;
+  await c.read(clubMatchesProvider.notifier).save(ClubMatch(
+      id: m.id, opponentClubId: m.opponentClubId, status: m.status, format: m.format,
+      city: m.city, groundId: m.groundId, startsAt: m.startsAt));
+}
+
+/// Team rosters as plain data, to prove the sheet never edits a team.
+Future<Map<String, List<(String, SelectionRole)>>> _rosters(ProviderContainer c) async => {
+      for (final t in await c.read(teamsProvider.future))
+        t.id: [for (final m in t.members) (m.playerId, m.selection)],
+    };
+
 void main() {
   group('Line-up rules', () {
     test('shares the squad pick rule: locked players refused, 11 + 4 caps', () async {
@@ -163,11 +193,16 @@ void main() {
   });
 
   group('Line-up screens', () {
-    testWidgets('Scheduled card → Select Team; Back returns to Scheduled (app bar and system)', (tester) async {
+    testWidgets('Scheduled card opens the line-up sheet (no new screen); Select Team: Back returns to Scheduled',
+        (tester) async {
       final c = await _pumpOwner(tester);
       await _go(tester, c, Routes.matchManagement(MatchTab.scheduled));
       await _tap(tester, find.text('View / Edit Line-up'));
-      expect(_loc(c), Routes.matchLineup('m_2'));
+      expect(_loc(c), Routes.matchManagement(MatchTab.scheduled), reason: 'a sheet, not a route');
+      expect(find.byKey(const Key('lineupSheet.current')), findsOneWidget);
+      await _closeSheet(tester);
+
+      await _go(tester, c, Routes.matchLineup('m_2'));
       expect(find.text('Confirmed Line-up'), findsOneWidget);
       expect(find.text('BS CS XI'), findsOneWidget);
       expect(find.text('No players picked yet'), findsOneWidget);
@@ -226,9 +261,11 @@ void main() {
       expect(find.text(Lineup.newMatchDaySquadName), findsOneWidget, reason: '"Playing: …" on the card');
 
       await _tap(tester, find.text('View / Edit Line-up'));
-      expect(find.text('11 Playing XI · 4 Substitutes'), findsOneWidget);
-      expect(find.text('Ali Raza'), findsOneWidget);
-      await _tap(tester, _button('Edit Playing XI'));
+      expect(find.byKey(const Key('lineupSheet.current')), findsOneWidget);
+      expect(find.descendant(of: find.byKey(const Key('lineupSheet.currentTeam')), matching: find.text('11 Playing XI · 4 Subs')),
+          findsOneWidget);
+      await _tap(tester, _button('Edit Line-up'));
+      expect(_loc(c), Routes.matchLineupBuild('m_2'));
       expect(find.text('11/11', skipOffstage: false), findsOneWidget);
       expect(find.text('4/4', skipOffstage: false), findsOneWidget);
     });
@@ -275,6 +312,116 @@ void main() {
       await _go(tester, c, Routes.matchLineup('m_3'));
       expect(find.text('Booking not confirmed yet'), findsOneWidget);
     });
+  });
+
+  group('Scheduled line-up sheet', () {
+    Future<void> openSheet(WidgetTester tester, ProviderContainer c) async {
+      await _go(tester, c, Routes.matchManagement(MatchTab.scheduled));
+      await _tap(tester, find.textContaining(RegExp(r'^(View / Edit Line-up|Select Your Playing XI)$')));
+    }
+
+    testWidgets('Case A: no team yet → Select Team lists teams; the chosen team becomes the line-up', (tester) async {
+      final c = await _pumpOwner(tester);
+      await _fillTeam(c, 'team_it');
+      await _clearLineup(c);
+      final before = await _rosters(c);
+      await openSheet(tester, c);
+      final sheet = find.byKey(const Key('lineupSheet.select'));
+      expect(sheet, findsOneWidget);
+      expect(_loc(c), Routes.matchManagement(MatchTab.scheduled), reason: 'no new route');
+      // Each team: name, squad size and Playing XI status.
+      final it = find.byKey(const Key('lineupSheet.team.team_it'));
+      final cs = find.byKey(const Key('lineupSheet.team.team_cs'));
+      expect(find.descendant(of: it, matching: find.text('BS IT XI')), findsOneWidget);
+      expect(find.descendant(of: it, matching: find.text('11 Playing XI · 2 Subs · T20')), findsOneWidget);
+      expect(find.descendant(of: it, matching: find.text('XI READY')), findsOneWidget);
+      expect(find.descendant(of: cs, matching: find.text('No players yet · T20')), findsOneWidget);
+      expect(find.descendant(of: cs, matching: find.text('XI 0/11')), findsOneWidget);
+
+      // Nothing chosen / an empty team: refused with a reason.
+      await _tap(tester, _button('Select Team'));
+      expect(find.text('Please select a team'), findsOneWidget);
+      await _tap(tester, cs);
+      await _tap(tester, _button('Select Team'));
+      expect(find.text('BS CS XI has no players yet — add players in My Teams first'), findsOneWidget);
+      expect(c.read(clubMatchProvider('m_2'))!.lineup, isNull);
+
+      await _tap(tester, it);
+      await _tap(tester, _button('Select Team'));
+      final lineup = c.read(clubMatchProvider('m_2'))!.lineup!;
+      expect((lineup.name, lineup.sourceTeamId, lineup.members.length), ('BS IT XI', 'team_it', 13));
+      // Same sheet, now Case B: continue to line-up editing from here.
+      expect(find.byKey(const Key('lineupSheet.current')), findsOneWidget);
+      expect(find.text('BS IT XI selected for this match.'), findsOneWidget);
+      expect(await _rosters(c), before, reason: 'teams are never modified');
+      await _tap(tester, _button('Edit Line-up'));
+      expect(_loc(c), Routes.matchLineupBuild('m_2'));
+      expect(find.text('11/11', skipOffstage: false), findsOneWidget);
+    });
+
+    testWidgets('Case B: Replace Team lists the other teams and asks before replacing', (tester) async {
+      final c = await _pumpOwner(tester);
+      await _fillTeam(c, 'team_it', playing: 11, subs: 4);
+      final before = await _rosters(c);
+      await openSheet(tester, c);
+      expect(find.byKey(const Key('lineupSheet.current')), findsOneWidget);
+      expect(find.descendant(of: find.byKey(const Key('lineupSheet.currentTeam')), matching: find.text('BS CS XI')),
+          findsOneWidget);
+      expect(_button('Edit Line-up'), findsOneWidget);
+
+      await _tap(tester, _button('Replace Team'));
+      expect(find.byKey(const Key('lineupSheet.replace')), findsOneWidget);
+      expect(find.byKey(const Key('lineupSheet.team.team_cs')), findsNothing, reason: 'the current team is not offered');
+      await _tap(tester, find.byKey(const Key('lineupSheet.team.team_it')));
+      await _tap(tester, _button('Replace Team'));
+      // Confirmation first; Cancel keeps the current team.
+      expect(find.text('Replace current team?'), findsOneWidget);
+      expect(find.text('This will replace the currently selected team for this match.'), findsOneWidget);
+      await _tap(tester, _button('Cancel').last);
+      expect(c.read(clubMatchProvider('m_2'))!.lineup!.sourceTeamId, 'team_cs');
+
+      await _tap(tester, _button('Replace Team'));
+      await _tap(tester, _button('Replace Team').last);
+      final lineup = c.read(clubMatchProvider('m_2'))!.lineup!;
+      expect((lineup.name, lineup.sourceTeamId, lineup.members.length), ('BS IT XI', 'team_it', 15));
+      expect(find.byKey(const Key('lineupSheet.current')), findsOneWidget);
+      expect(find.text('BS IT XI now plays this match.'), findsOneWidget);
+      expect(await _rosters(c), before, reason: 'teams are never modified or deleted');
+      expect((await c.read(teamsProvider.future)).length, 2);
+
+      // The Scheduled card shows the new team.
+      await _closeSheet(tester);
+      expect(find.text('BS IT XI'), findsOneWidget);
+    });
+
+    testWidgets('Replace Team: Cancel goes back to the current team; an empty team is refused', (tester) async {
+      final c = await _pumpOwner(tester);
+      await openSheet(tester, c);
+      await _tap(tester, _button('Replace Team'));
+      await _tap(tester, find.byKey(const Key('lineupSheet.team.team_it')));
+      await _tap(tester, _button('Replace Team'));
+      expect(find.text('BS IT XI has no players yet — add players in My Teams first'), findsOneWidget);
+      expect(find.text('Replace current team?'), findsNothing, reason: 'refused before asking');
+      await _tap(tester, _button('Cancel'));
+      expect(find.byKey(const Key('lineupSheet.current')), findsOneWidget);
+    });
+
+    for (final width in [320.0, 360.0, 375.0, 390.0, 414.0]) {
+      testWidgets('line-up sheet fits at ${width.toInt()} px', (tester) async {
+        final c = await _pumpOwner(tester, width: width);
+        await _fillTeam(c, 'team_it');
+        await openSheet(tester, c);
+        expect(tester.takeException(), isNull, reason: 'current @ $width');
+        await _tap(tester, _button('Replace Team'));
+        expect(tester.takeException(), isNull, reason: 'replace @ $width');
+        await _closeSheet(tester);
+        await _clearLineup(c);
+        await tester.pumpAndSettle();
+        await openSheet(tester, c);
+        expect(find.byKey(const Key('lineupSheet.select')), findsOneWidget);
+        expect(tester.takeException(), isNull, reason: 'select @ $width');
+      });
+    }
   });
 
   group('Responsive', () {

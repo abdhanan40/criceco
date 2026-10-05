@@ -7,6 +7,8 @@ import '../../app/theme/tokens.dart';
 import '../../core/models/models.dart';
 import '../../core/utils/fitness_meter.dart';
 import '../../core/utils/formatters.dart';
+import '../../shared/widgets/ce_buttons.dart';
+import '../../shared/widgets/ce_feedback.dart';
 import '../../shared/widgets/ce_icons.dart';
 import '../../shared/widgets/ce_indicators.dart';
 import '../../shared/widgets/ce_surfaces.dart';
@@ -39,13 +41,20 @@ class FitnessBadge extends StatelessWidget {
 /// balls faced. Presentation only (the score itself comes from the report).
 double fitnessMatchLoad(MatchLogEntry m) => 2 + FitnessMeter.ballsIn(m.overs) / 24 + 0.5 * m.balls / 30;
 
-/// One day of the 7-day window.
+/// One day of the 7-day window: its matches and logged workouts.
 class _Day {
-  _Day(this.date, this.matches);
+  _Day(this.date, this.matches, this.workouts);
   final DateTime date;
   final List<MatchLogEntry> matches;
+  final List<WorkoutEntry> workouts;
   bool get played => matches.isNotEmpty;
-  double get load => matches.fold(0.0, (s, m) => s + fitnessMatchLoad(m));
+  bool get trained => workouts.isNotEmpty;
+
+  /// Any match or workout — otherwise a rest day.
+  bool get active => played || trained;
+  double get matchLoad => matches.fold(0.0, (s, m) => s + fitnessMatchLoad(m));
+  double get trainingLoad => workouts.fold(0.0, (s, w) => s + FitnessMeter.workoutLoad(w));
+  double get load => matchLoad + trainingLoad;
 }
 
 String _loadLabel(double v) => v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
@@ -67,9 +76,18 @@ class FitnessMeterView extends StatefulWidget {
     required this.now,
     this.nextMatch,
     this.sharedWithClub,
+    this.onTap,
+    this.workouts = const [],
+    this.onAddWorkout,
   });
 
   final FitnessReport report;
+
+  /// Workouts the report included (logged with Add Workout).
+  final List<WorkoutEntry> workouts;
+
+  /// "Add Workout" in the header (Player Dashboard).
+  final VoidCallback? onAddWorkout;
 
   /// The match log the report was computed from (for the daily bars).
   final List<MatchLogEntry> log;
@@ -80,6 +98,10 @@ class FitnessMeterView extends StatefulWidget {
 
   /// The club whose owner can see this player's fitness, if any.
   final String? sharedWithClub;
+
+  /// Tapping the card (outside the day bars) — the Player Dashboard opens
+  /// the details sheet ([showFitnessSheet]).
+  final VoidCallback? onTap;
 
   @override
   State<FitnessMeterView> createState() => _FitnessMeterViewState();
@@ -94,7 +116,11 @@ class _FitnessMeterViewState extends State<FitnessMeterView> {
       for (var i = FitnessReport.window - 1; i >= 0; i--)
         () {
           final d = today.subtract(Duration(days: i));
-          return _Day(d, [for (final m in widget.log) if (CeFormat.dateOnly(m.date) == d) m]);
+          return _Day(
+            d,
+            [for (final m in widget.log) if (CeFormat.dateOnly(m.date) == d) m],
+            [for (final w in widget.workouts) if (CeFormat.dateOnly(w.date) == d) w],
+          );
         }(),
     ];
   }
@@ -103,27 +129,42 @@ class _FitnessMeterViewState extends State<FitnessMeterView> {
   Widget build(BuildContext context) {
     final r = widget.report;
     final days = _days();
-    // Default selection: the latest day with a match, else today.
-    final latest = days.lastIndexWhere((d) => d.played);
+    // Default selection: the latest day with a match or workout, else today.
+    final latest = days.lastIndexWhere((d) => d.active);
     final selectedIndex = _selected ?? (latest == -1 ? days.length - 1 : latest);
     final blocked = r.alerts.isNotEmpty && r.alerts.first.startsWith('Marked ');
-    final restThisWeek = days.where((d) => !d.played).length;
+    final restThisWeek = days.where((d) => !d.active).length;
 
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       // ---- 1. Header ----
       Padding(
         padding: const EdgeInsets.fromLTRB(CeSpace.gutter, CeSpace.section, CeSpace.gutter, 8),
-        child: Row(children: [
-          Expanded(child: Text('Fitness Meter', style: Theme.of(context).textTheme.titleMedium)),
-          const Text('Last 7 days', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: CeColors.muted)),
-        ]),
+        child: widget.onAddWorkout == null
+            ? Row(children: [
+                Expanded(child: Text('Fitness Meter', style: Theme.of(context).textTheme.titleMedium)),
+                const Text('Last 7 days',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: CeColors.muted)),
+              ])
+            : Row(children: [
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Fitness Meter', style: Theme.of(context).textTheme.titleMedium),
+                    const Text('Last 7 days',
+                        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: CeColors.muted)),
+                  ]),
+                ),
+                const SizedBox(width: 8),
+                _AddWorkoutButton(onTap: widget.onAddWorkout!),
+              ]),
       ),
       // ---- 2–5. Score, metrics, workload, day detail ----
       Semantics(
         label: 'Fitness Meter, ${r.score} out of 10, ${r.level.label}. ${r.recommendation}',
+        button: widget.onTap != null,
         child: CeCard(
           key: const Key('fitness.card'),
           margin: const EdgeInsets.symmetric(horizontal: CeSpace.gutter),
+          onTap: widget.onTap,
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             _ScoreRow(report: r, blocked: blocked, restThisWeek: restThisWeek),
             const SizedBox(height: 14),
@@ -145,6 +186,14 @@ class _FitnessMeterViewState extends State<FitnessMeterView> {
             const _Legend(),
             const SizedBox(height: 10),
             _DayDetail(day: days[selectedIndex]),
+            if (widget.onTap != null) ...[
+              const SizedBox(height: 8),
+              Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                const Text('Details',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: CeColors.primary)),
+                Icon(CeIcons.of('chevron-right'), size: 13, color: CeColors.primary),
+              ]),
+            ],
           ]),
         ),
       ),
@@ -154,7 +203,7 @@ class _FitnessMeterViewState extends State<FitnessMeterView> {
         blocked: blocked,
         restThisWeek: restThisWeek,
         today: CeFormat.dateOnly(widget.now),
-        playedToday: days.last.played,
+        playedToday: days.last.active,
         nextMatch: widget.nextMatch,
       ),
       // ---- 9. Shared note + disclaimer ----
@@ -211,9 +260,13 @@ class _ScoreRow extends StatelessWidget {
             FitnessLevel.fatigued => 'High fatigue',
             FitnessLevel.overloaded => 'Overloaded',
           };
-    final summary = r.matches == 0
+    final activity = [
+      if (r.matches > 0) _plural(r.matches, 'match', 'matches'),
+      if (r.trainingSessions > 0) _plural(r.trainingSessions, 'training session'),
+    ];
+    final summary = activity.isEmpty
         ? 'No matches in the last 7 days.'
-        : '${_plural(r.matches, 'match', 'matches')} and ${_plural(restThisWeek, 'rest day')} this week.';
+        : '${activity.join(', ')} and ${_plural(restThisWeek, 'rest day')} this week.';
     return Row(children: [
       _Gauge(score: r.score, color: fg),
       const SizedBox(width: 14),
@@ -335,7 +388,7 @@ class _WorkloadBars extends StatelessWidget {
             selected: i == selected,
             onTap: () => onSelect(i),
             label: '${DateFormat('EEEE d').format(d.date)}, '
-                '${d.played ? 'load ${_loadLabel(d.load)}' : 'rest day'}',
+                '${d.active ? 'load ${_loadLabel(d.load)}' : 'rest day'}',
             excludeSemantics: true,
             child: InkWell(
               key: Key('fitness.day.$i'),
@@ -355,13 +408,11 @@ class _WorkloadBars extends StatelessWidget {
                       alignment: Alignment.bottomCenter,
                       child: FractionallySizedBox(
                         widthFactor: 0.62,
-                        child: d.played
-                            ? Container(
+                        child: d.active
+                            ? _StackedBar(
                                 height: math.max(8, _barArea * (d.load / scale)),
-                                decoration: BoxDecoration(
-                                  color: i == selected ? CeColors.primaryDark : CeColors.primary,
-                                  borderRadius: BorderRadius.circular(5),
-                                ),
+                                matchShare: d.load == 0 ? 0 : d.matchLoad / d.load,
+                                selected: i == selected,
                               )
                             : Container(
                                 height: 6,
@@ -403,6 +454,8 @@ class _Legend extends StatelessWidget {
     return Wrap(spacing: 14, runSpacing: 4, children: [
       item(Container(width: 8, height: 8, decoration: const BoxDecoration(color: CeColors.primary, shape: BoxShape.circle)),
           'Match'),
+      item(Container(width: 8, height: 8, decoration: const BoxDecoration(color: CeColors.sage, shape: BoxShape.circle)),
+          'Training'),
       item(
           Container(
             width: 9,
@@ -422,7 +475,7 @@ class _DayDetail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final lines = day.played
+    final lines = day.active
         ? [
             for (final m in day.matches)
               [
@@ -430,6 +483,7 @@ class _DayDetail extends StatelessWidget {
                 '${m.balls} balls faced',
                 if (FitnessMeter.ballsIn(m.overs) > 0) '${m.overs} overs bowled',
               ].join(' · '),
+            for (final w in day.workouts) '${w.type.label} · ${w.minutes} min · ${w.intensity.label}',
           ]
         : ['Rest day · recovery'];
     return Container(
@@ -450,7 +504,7 @@ class _DayDetail extends StatelessWidget {
               style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
-                  color: day.played ? CeColors.primaryDark : CeColors.muted)),
+                  color: day.active ? CeColors.primaryDark : CeColors.muted)),
         ]),
         const SizedBox(height: 3),
         for (final l in lines) Text(l, style: const TextStyle(fontSize: 12, color: CeColors.ink2, height: 1.35)),
@@ -624,4 +678,140 @@ class _RecoveryPlan extends StatelessWidget {
       }),
     ]);
   }
+}
+
+/// Player Dashboard → Fitness Meter details (no navigation): score and
+/// status, the recommendation, the 7-day breakdown (with days since the last
+/// match), every alert, suggested rest, and the note.
+Future<void> showFitnessSheet(
+  BuildContext context,
+  FitnessReport report, {
+  required List<MatchLogEntry> log,
+  required DateTime now,
+  List<WorkoutEntry> workouts = const [],
+}) {
+  final today = CeFormat.dateOnly(now);
+  final from = today.subtract(const Duration(days: FitnessReport.window - 1));
+  bool inWindow(DateTime d) => !CeFormat.dateOnly(d).isBefore(from) && !CeFormat.dateOnly(d).isAfter(today);
+  // Days with a match or a workout (the rest are rest days).
+  final matchDays = {
+    for (final m in log) if (inWindow(m.date)) CeFormat.dateOnly(m.date),
+    for (final w in workouts) if (inWindow(w.date)) CeFormat.dateOnly(w.date),
+  };
+  final r = report;
+  final blocked = r.alerts.isNotEmpty && r.alerts.first.startsWith('Marked ');
+  final since = r.daysSinceLastMatch;
+  return showCeSheet<void>(
+    context,
+    builder: (ctx) => Column(
+      key: const Key('fitness.sheet'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('Fitness Meter', style: Theme.of(ctx).textTheme.titleLarge),
+        const SizedBox(height: 12),
+        _ScoreRow(report: r, blocked: blocked, restThisWeek: FitnessReport.window - matchDays.length),
+        const SizedBox(height: 12),
+        Text(r.recommendation,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: CeColors.ink, height: 1.3)),
+        const SizedBox(height: 12),
+        CeStatGroup(
+          margin: EdgeInsets.zero,
+          cells: [
+            CeStatCell(value: '${r.matches}', label: 'Matches'),
+            CeStatCell(value: r.oversBowled, label: 'Overs bowled'),
+            CeStatCell(value: '${r.ballsFaced}', label: 'Balls faced'),
+            CeStatCell(value: since == null ? '–' : '$since', label: since == 1 ? 'Day since last' : 'Days since last'),
+          ],
+        ),
+        if (r.alerts.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          for (final a in r.alerts)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 5),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 1),
+                  child: Icon(CeIcons.of('info'), size: 13, color: CeColors.amberInk),
+                ),
+                const SizedBox(width: 6),
+                Expanded(child: Text(a, style: const TextStyle(fontSize: 12, color: CeColors.ink2, height: 1.3))),
+              ]),
+            ),
+        ],
+        if (r.restDays > 0) ...[
+          const SizedBox(height: 4),
+          Text('Suggested rest: ${_plural(r.restDays, 'day')}',
+              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: CeColors.ink)),
+        ],
+        const SizedBox(height: 10),
+        const Text(fitnessNote, style: TextStyle(fontSize: 10.5, color: CeColors.muted2, height: 1.35)),
+        const SizedBox(height: 16),
+        CeButton(label: 'Close', onPressed: () => Navigator.of(ctx).pop()),
+      ],
+    ),
+  );
+}
+
+/// A day's bar: match load (green) with any training load (sage) on top.
+class _StackedBar extends StatelessWidget {
+  const _StackedBar({required this.height, required this.matchShare, required this.selected});
+  final double height;
+
+  /// Fraction of the day's load from matches (the rest is training).
+  final double matchShare;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final match = height * matchShare;
+    final training = height - match;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(5),
+      child: SizedBox(
+        height: height,
+        child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
+          if (training > 0.5)
+            Container(
+              key: const Key('fitness.bar.training'),
+              height: training,
+              color: selected ? CeColors.primary : CeColors.sage,
+            ),
+          if (match > 0.5)
+            Container(height: match, color: selected ? CeColors.primaryDark : CeColors.primary),
+        ]),
+      ),
+    );
+  }
+}
+
+/// Compact secondary "+ Add Workout" pill in the Fitness Meter header.
+class _AddWorkoutButton extends StatelessWidget {
+  const _AddWorkoutButton({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        label: 'Add Workout',
+        excludeSemantics: true,
+        child: Material(
+          color: CeColors.mint,
+          shape: const StadiumBorder(side: BorderSide(color: CeColors.mint2)),
+          child: InkWell(
+            key: const Key('fitness.addWorkout'),
+            customBorder: const StadiumBorder(),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(CeIcons.of('plus'), size: 13, color: CeColors.primaryDark),
+                const SizedBox(width: 4),
+                const Text('Add Workout',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: CeColors.primaryDark)),
+              ]),
+            ),
+          ),
+        ),
+      );
 }

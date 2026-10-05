@@ -8,8 +8,42 @@ import '../club/club_providers.dart';
 import '../club/teams/teams_controller.dart';
 import '../player/player_providers.dart';
 
-/// The signed-in player's Fitness Meter: their own match log + availability.
-/// `null` while performance loads.
+/// Workouts the signed-in player logged (Add Workout). Kept for the session,
+/// per account; newest last.
+class PlayerWorkoutsController extends Notifier<List<WorkoutEntry>> {
+  @override
+  List<WorkoutEntry> build() {
+    ref.watch(currentAccountProvider.select((a) => a?.id));
+    return const [];
+  }
+
+  int _seq = 0;
+
+  WorkoutEntry add({
+    required DateTime date,
+    required WorkoutType type,
+    required int minutes,
+    required WorkoutIntensity intensity,
+    String notes = '',
+  }) {
+    final entry = WorkoutEntry(
+      id: 'wk_${date.millisecondsSinceEpoch}_${_seq++}',
+      date: date,
+      type: type,
+      minutes: minutes,
+      intensity: intensity,
+      notes: notes.trim(),
+    );
+    state = [...state, entry];
+    return entry;
+  }
+}
+
+final playerWorkoutsProvider =
+    NotifierProvider<PlayerWorkoutsController, List<WorkoutEntry>>(PlayerWorkoutsController.new);
+
+/// The signed-in player's Fitness Meter: their own match log, logged
+/// workouts and availability. `null` while performance loads.
 final playerFitnessProvider = Provider<FitnessReport?>((ref) {
   final log = ref.watch(performanceProvider).value?.matchLog;
   if (log == null) return null;
@@ -17,6 +51,7 @@ final playerFitnessProvider = Provider<FitnessReport?>((ref) {
     log,
     now: ref.read(clockProvider).now(),
     availability: ref.watch(playerAvailabilityProvider.select((a) => a.status)),
+    workouts: ref.watch(playerWorkoutsProvider),
   );
 });
 

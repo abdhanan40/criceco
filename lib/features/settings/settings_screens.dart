@@ -241,7 +241,7 @@ class _PrivacySection extends ConsumerWidget {
                     CeToggleRow(
                       icon: 'eye',
                       title: 'Public profile',
-                      subtitle: 'Clubs can find you in Player Hunt',
+                      subtitle: 'Clubs can find you in Find Player',
                       value: s.publicProfile,
                       onChanged: (v) => session.updateSettings((x) => x.copyWith(publicProfile: v)),
                     ),
@@ -264,8 +264,8 @@ class _PrivacySection extends ConsumerWidget {
                       margin: const EdgeInsets.only(bottom: 10),
                       icon: s.publicProfile ? 'eye' : 'eye-off',
                       text: s.publicProfile
-                          ? 'When you list yourself as available, clubs see you under Player Hunt → Available Players.'
-                          : 'Hidden: clubs won\'t see you under Player Hunt → Available Players, even when you\'re available.',
+                          ? 'When you list yourself as available, clubs see you under Find Player → Available Players.'
+                          : 'Hidden: clubs won\'t see you under Find Player → Available Players, even when you\'re available.',
                     ),
                   ]),
                 ),

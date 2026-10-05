@@ -17,6 +17,7 @@ import '../../booking/booking_controller.dart';
 import '../../booking/widgets/booking_widgets.dart';
 import '../../club/club_providers.dart';
 import '../club_matches_controller.dart';
+import '../widgets/match_lineup_sheet.dart';
 
 /// Match Management / Upcoming Matches (prototype `screens.upcomingMatches`,
 /// :6863). Tabs Waiting / Scheduled / History live in `?tab=`. Accepted
@@ -284,13 +285,14 @@ class _ScheduledCard extends ConsumerWidget {
       ground: ground == null ? 'Ground TBD' : '${ground.name}, ${ground.city}',
       groundDirections: ground != null,
       playingTeam: m.lineup?.name,
-      onTap: () => context.go(Routes.matchLineup(m.id)),
+      // A sheet first: select a team, or edit / replace the current one.
+      onTap: () => showMatchLineupSheet(context, m.id),
       footer: Semantics(
         button: true,
         label: m.lineup == null ? 'Select Your Playing XI' : 'View or edit line-up',
         excludeSemantics: true,
         child: InkWell(
-          onTap: () => context.go(Routes.matchLineup(m.id)),
+          onTap: () => showMatchLineupSheet(context, m.id),
           child: m.lineup == null
               ? const _Cta(icon: 'circle-dot', label: 'Select Your Playing XI')
               : const _Cta(icon: 'users', label: 'View / Edit Line-up'),

@@ -56,7 +56,7 @@ void main() {
   testWidgets('signed-in user lands on Continue As; Player lands on the dashboard', (tester) async {
     final c = await _pumpApp(tester);
     expect(_location(c), Routes.playerHome);
-    expect(find.text('Welcome back,'), findsOneWidget);
+    expect(find.byKey(const Key('player.greeting')), findsOneWidget);
     expect(_navSelected(tester, 'Home'), isTrue);
   });
 

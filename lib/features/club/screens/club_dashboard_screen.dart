@@ -3,23 +3,27 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/providers/core_providers.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/session/session_controller.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/media/photo_picker.dart';
+import '../../../shared/widgets/ce_dashboard_hero.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
 import '../../../shared/widgets/ce_match_widgets.dart';
 import '../../../shared/widgets/ce_quick_actions.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
-import '../../../shared/widgets/ce_top_bar.dart';
+import '../../matches/club_matches_controller.dart';
+import '../../notifications/notifications_controller.dart';
 import '../announcements/announcements.dart';
 import '../club_providers.dart';
 import '../requests/join_requests_controller.dart';
 import '../teams/teams_controller.dart';
+import '../widgets/club_insights.dart';
 
 /// Club Owner Dashboard (prototype `screens.clubHome`, :4199).
 class ClubDashboardScreen extends ConsumerWidget {
@@ -38,103 +42,76 @@ class ClubDashboardScreen extends ConsumerWidget {
     final teams = ref.watch(teamsProvider).value?.length;
     final requests = ref.watch(pendingJoinRequestCountProvider);
     final next = ref.watch(nextClubMatchProvider);
-    final top = MediaQuery.paddingOf(context).top;
+    final upcoming = ref.watch(upcomingClubMatchesProvider).length;
+    final memberList = ref.watch(clubMembersProvider).value;
+    final matchList = ref.watch(clubMatchesProvider).value;
+    final notifCount = ref.watch(unreadNotificationCountProvider(UserRole.clubOwner));
+    final ownerName = ref.watch(currentAccountProvider)?.fullName.trim() ?? '';
+    final ownerFirstName = ownerName.isEmpty ? 'Club Owner' : ownerName.split(RegExp(r'\s+')).first;
     String n(int? v) => v == null ? '–' : '$v';
 
-    // Structure (reference dashboard): compact club identity header → club
-    // summary → the pending action → quick actions → next match.
+    // Structure: hero (greeting, glass club card with club stats) → the
+    // pending action → quick actions → next match → member growth → results.
     return Scaffold(
       body: CeStatusBarScrim(
         child: ListView(padding: const EdgeInsets.only(bottom: 20), children: [
-          // ---- Compact header: club identity + code ----
-          AnnotatedRegion<SystemUiOverlayStyle>(
-            value: SystemUiOverlayStyle.light,
-            child: CeBrandHero(
-              bottomRadius: 24,
-              padding: EdgeInsets.fromLTRB(4, top + 2, CeSpace.gutter, 16),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Row(children: [
-                  Builder(
-                    builder: (ctx) => IconButton(
-                      tooltip: 'Open menu',
-                      icon: Icon(CeIcons.of('menu'), color: Colors.white, size: 20),
-                      onPressed: () => CeTopBar.openDrawer(ctx),
-                    ),
+          // ---- Hero: greeting + glass club card (identity, chips, club stats) ----
+          CeDashboardHero(
+            keyPrefix: 'club',
+            greeting: ceGreeting(ref.read(clockProvider).now()),
+            name: ownerFirstName,
+            notificationCount: notifCount,
+            onNotifications: () => context.push(Routes.notifications),
+            card: CeHeroGlassCard(
+              keyPrefix: 'club',
+              semanticLabel: 'Open My Club, ${club?.name ?? 'My Club'}',
+              onTap: () => context.go(Routes.myClub),
+              // The club picture when one is set (My Club), else the badge.
+              leading: CePhotoImage(
+                path: club?.logoPath,
+                size: 54,
+                fallback: Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withValues(alpha: 0.2),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 2.5),
                   ),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(CeRadius.pill)),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(CeIcons.of('crown'), size: 12, color: Colors.white),
-                      const SizedBox(width: 5),
-                      const Text('Club Owner',
-                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.white)),
-                    ]),
-                  ),
-                ]),
-                Padding(
-                  padding: const EdgeInsets.only(left: 12, top: 4),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                    // Club picture + name open My Club (also in the sidebar).
-                    Semantics(
-                      container: true,
-                      button: true,
-                      label: 'Open My Club, ${club?.name ?? 'My Club'}',
-                      excludeSemantics: true,
-                      child: GestureDetector(
-                        key: const Key('club.header'),
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => context.go(Routes.myClub),
-                        child: Row(children: [
-                          // The club picture when one is set (My Club), else the badge.
-                          CePhotoImage(
-                            path: club?.logoPath,
-                            size: 46,
-                            square: true,
-                            radius: CeRadius.md,
-                            fallback: Container(
-                              width: 46,
-                              height: 46,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.18),
-                                borderRadius: BorderRadius.circular(CeRadius.md),
-                                border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
-                              ),
-                              child: Icon(CeIcons.of('shield'), size: 21, color: Colors.white),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text(club?.name ?? 'My Club',
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                      fontSize: 19, fontWeight: FontWeight.w800, height: 1.2, letterSpacing: -0.5, color: Colors.white)),
-                              Text(club?.city ?? '', style: const TextStyle(fontSize: 12, color: CeColors.mint2)),
-                            ]),
-                          ),
-                        ]),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (club != null) _CodeRow(code: club.code, onShare: () => _shareCode(context, club.code)),
-                  ]),
+                  child: Icon(CeIcons.of('shield'), size: 22, color: Colors.white),
                 ),
-              ]),
+              ),
+              title: club?.name ?? 'My Club',
+              subtitle: [
+                if (club != null) club.city,
+                if (club != null) club.type.label,
+                if (club?.establishedYear != null) 'Est. ${club!.establishedYear}',
+              ].join(' · '),
+              chips: [
+                const CeHeroPill(icon: 'crown', label: 'Club Owner'),
+                if (club != null)
+                  // Same as before: copies the code to share with players.
+                  Semantics(
+                    container: true,
+                    button: true,
+                    label: 'Share club code ${club.code} with players',
+                    excludeSemantics: true,
+                    child: GestureDetector(
+                      key: const Key('club.code'),
+                      onTap: () => _shareCode(context, club.code),
+                      child: CeHeroPill(icon: 'key', label: 'Code ${club.code}', trailingIcon: 'share-2'),
+                    ),
+                  ),
+              ],
+              // Information only — Members / Teams / Matches are tabs and
+              // Requests has its banner and Quick Action.
+              stats: [
+                (n(members), 'Members'),
+                (n(teams), 'Teams'),
+                ('$upcoming', 'Upcoming'),
+                (n(requests), 'Requests'),
+              ],
             ),
-          ),
-
-          // ---- Club summary (each stat opens its list) ----
-          CeStatGroup(
-            margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 0),
-            cells: [
-              CeStatCell(value: n(members), label: 'Members', onTap: () => context.go(Routes.members)),
-              CeStatCell(value: n(teams), label: 'Teams', onTap: () => context.go(Routes.teams)),
-              CeStatCell(value: n(requests), label: 'Requests', onTap: () => context.go(Routes.joinRequests)),
-            ],
           ),
 
           // ---- Pending join requests: the one thing waiting on the owner ----
@@ -145,7 +122,7 @@ class ClubDashboardScreen extends ConsumerWidget {
           CeQuickActionGrid(key: const Key('club.quickActions'), actions: [
             CeQuickAction(icon: 'user-plus', label: 'Requests', onTap: () => context.go(Routes.joinRequests)),
             CeQuickAction(icon: 'swords', label: 'Challenges', onTap: () => context.go(Routes.challenges)),
-            CeQuickAction(icon: 'user', label: 'Open Player', onTap: () => context.go(Routes.playerHunt)),
+            CeQuickAction(icon: 'user', label: 'Find Player', onTap: () => context.go(Routes.playerHunt)),
             CeQuickAction(icon: 'trophy', label: 'Tournament', onTap: () => context.go(Routes.tournamentHub)),
             CeQuickAction(icon: 'megaphone', label: 'Announcement', onTap: () => showCreateAnnouncementSheet(context)),
           ]),
@@ -157,6 +134,16 @@ class ClubDashboardScreen extends ConsumerWidget {
                 onAction: () => context.go(Routes.matchManagement(MatchTab.scheduled)),
                 padding: const EdgeInsets.fromLTRB(CeSpace.gutter, CeSpace.section, CeSpace.gutter, 0)),
             _NextMatch(match: next, clubShortName: club?.displayShortName ?? 'My Club'),
+          ],
+
+          // ---- Insights: member growth (bars) and match results (donut) ----
+          if (memberList != null) ...[
+            const CeSectionHeader('Member Growth'),
+            MemberGrowthChart(growth: MemberGrowth.of(memberList, ref.read(clockProvider).now())),
+          ],
+          if (matchList != null) ...[
+            const CeSectionHeader('Match Results'),
+            MatchResultsChart(summary: MatchResultsSummary.of(matchList)),
           ],
         ]),
       ),
@@ -215,59 +202,6 @@ class _PendingRequestsBanner extends StatelessWidget {
       ),
     );
   }
-}
-
-class _CodeRow extends StatelessWidget {
-  const _CodeRow({required this.code, required this.onShare});
-  final String code;
-  final VoidCallback onShare;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.14),
-          borderRadius: BorderRadius.circular(CeRadius.md),
-        ),
-        child: Row(children: [
-          Icon(CeIcons.of('key'), size: 14, color: Colors.white),
-          const SizedBox(width: 6),
-          Expanded(
-            flex: 3,
-            child: Text.rich(
-              TextSpan(children: [
-                const TextSpan(text: 'Club Code: '),
-                TextSpan(text: code, style: const TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1)),
-              ]),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12.5, color: Colors.white),
-            ),
-          ),
-          const SizedBox(width: 8),
-          // Narrow phones: the pill scales down rather than overflowing.
-          Flexible(
-            flex: 2,
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerRight,
-              child: Material(
-                color: Colors.white,
-                shape: const StadiumBorder(),
-                child: InkWell(
-                  customBorder: const StadiumBorder(),
-                  onTap: onShare,
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    child: Text('Share with players',
-                        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: CeColors.primaryDark)),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ]),
-      );
 }
 
 class _NextMatch extends ConsumerWidget {

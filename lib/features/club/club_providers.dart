@@ -34,6 +34,7 @@ final clubMembersProvider = FutureProvider<List<ClubMember>>((ref) async {
           isWicketkeeper: plays && profile!.isWicketkeeper,
           battingStyle: plays ? profile!.battingStyle : null,
           bowlingStyle: plays ? profile!.bowlingStyle : null,
+          joinedAt: m.joinedAt,
         )
       else
         m,

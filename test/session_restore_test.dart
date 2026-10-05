@@ -2,6 +2,7 @@ import 'package:criceco/app/app.dart';
 import 'package:criceco/app/providers/core_providers.dart';
 import 'package:criceco/app/router/app_router.dart';
 import 'package:criceco/app/session/session_controller.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -26,6 +27,6 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
     }
     expect(c.read(routerProvider).state.uri.toString(), '/player');
-    expect(find.text('Welcome back,'), findsOneWidget);
+    expect(find.byKey(const Key('player.greeting')), findsOneWidget);
   });
 }

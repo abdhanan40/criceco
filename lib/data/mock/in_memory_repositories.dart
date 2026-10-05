@@ -137,6 +137,7 @@ class InMemoryClubRepository implements ClubRepository {
     PlayerRole? playingRole,
     BattingStyle? battingStyle,
     BowlingStyle? bowlingStyle,
+    DateTime? joinedAt,
   }) async {
     final m = ClubMember(
       id: _id('mem'),
@@ -146,6 +147,7 @@ class InMemoryClubRepository implements ClubRepository {
       playingRole: playingRole,
       battingStyle: battingStyle,
       bowlingStyle: bowlingStyle,
+      joinedAt: joinedAt,
     );
     (_members[clubId] ??= []).add(m);
     return m;
@@ -186,6 +188,7 @@ class InMemoryClubRepository implements ClubRepository {
         playingRole: player ? current.role : null,
         battingStyle: player ? current.battingStyle : null,
         bowlingStyle: player ? current.bowlingStyle : null,
+        joinedAt: at, // approval date = join date (Member Growth)
       );
     }
     return decided;

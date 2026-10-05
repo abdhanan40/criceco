@@ -47,6 +47,7 @@ abstract interface class ClubRepository {
     PlayerRole? playingRole,
     BattingStyle? battingStyle,
     BowlingStyle? bowlingStyle,
+    DateTime? joinedAt,
   });
   Future<List<JoinRequest>> joinRequests(String clubId);
   /// Approve (with a club role) or decline a pending request. Approval adds

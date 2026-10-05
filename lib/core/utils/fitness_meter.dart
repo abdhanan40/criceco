@@ -8,7 +8,13 @@ import 'formatters.dart';
 ///   match. Rounded and kept within 0–10.
 /// * 8–10 Fresh · 6–7 Moderate · 4–5 Fatigued · 0–3 Overloaded.
 /// * Injured / Unavailable (Availability) always means "Avoid playing".
+/// * Logged workouts add training load only: duration in hours × the
+///   intensity's points per hour (Light 0.5, Moderate 1, High 1.5). They don't
+///   count as matches and don't change the rest-day recovery.
 abstract final class FitnessMeter {
+  /// Training load of one workout: hours × points per hour of its intensity.
+  static double workoutLoad(WorkoutEntry w) => w.minutes / 60 * w.intensity.pointsPerHour;
+
   /// Balls in an overs figure: "3.4" = 3 overs 4 balls = 22.
   static int ballsIn(String overs) {
     final parts = overs.trim().split('.');
@@ -21,6 +27,7 @@ abstract final class FitnessMeter {
     List<MatchLogEntry> log, {
     required DateTime now,
     PlayerAvailability availability = PlayerAvailability.available,
+    List<WorkoutEntry> workouts = const [],
   }) {
     final today = CeFormat.dateOnly(now);
     final from = today.subtract(const Duration(days: FitnessReport.window - 1));
@@ -29,6 +36,11 @@ abstract final class FitnessMeter {
         if (!CeFormat.dateOnly(m.date).isBefore(from) && !CeFormat.dateOnly(m.date).isAfter(today)) m,
     ];
     final days = {for (final m in recent) CeFormat.dateOnly(m.date)}.toList()..sort();
+    final training = [
+      for (final w in workouts)
+        if (!CeFormat.dateOnly(w.date).isBefore(from) && !CeFormat.dateOnly(w.date).isAfter(today)) w,
+    ];
+    final trainingLoad = training.fold<double>(0, (s, w) => s + workoutLoad(w));
 
     final matches = recent.length;
     final balls = recent.fold<int>(0, (s, m) => s + ballsIn(m.overs));
@@ -39,9 +51,12 @@ abstract final class FitnessMeter {
     }
     final sinceLast = days.isEmpty ? null : today.difference(days.last).inDays;
 
-    final load = 2.0 * matches + (balls ~/ 24) + 0.5 * (faced ~/ 30) + backToBack;
+    final load = 2.0 * matches + (balls ~/ 24) + 0.5 * (faced ~/ 30) + backToBack + trainingLoad;
     final recovery = sinceLast ?? 0;
-    final score = matches == 0 ? FitnessReport.max : (10 - load + recovery).round().clamp(0, FitnessReport.max);
+    // No matches and no training: fully fresh (unchanged rule).
+    final score = matches == 0 && training.isEmpty
+        ? FitnessReport.max
+        : (10 - load + recovery).round().clamp(0, FitnessReport.max);
     final level = FitnessLevel.ofScore(score);
     final restDays = level.index >= FitnessLevel.fatigued.index ? (7 - score).clamp(1, 7) : 0;
     final blocked = availability.locksSelection;
@@ -74,6 +89,8 @@ abstract final class FitnessMeter {
       backToBack: backToBack,
       daysSinceLastMatch: sinceLast,
       avoidPlaying: blocked || level == FitnessLevel.overloaded,
+      trainingSessions: training.length,
+      trainingLoad: trainingLoad,
     );
   }
 }

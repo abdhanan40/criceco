@@ -24,7 +24,7 @@ int _seq = 0;
 List<ClubMember> announcementRecipients(List<ClubMember> members, AnnouncementAudience audience) =>
     [for (final m in members) if (audience.includes(m)) m];
 
-/// Stores the announcement and delivers a "New Club Announcement"
+/// Stores the announcement and delivers a "Club Announcement"
 /// notification to every selected member. Returns it (with its recipients).
 Future<ClubAnnouncement> publishAnnouncement(
   WidgetRef ref, {
@@ -53,8 +53,8 @@ Future<ClubAnnouncement> publishAnnouncement(
         id: 'n_${announcement.id}_${m.id}',
         role: UserRole.player, // a member's (player-side) inbox
         icon: 'megaphone',
-        title: 'New Club Announcement',
-        subtitle: '${club.name} · ${announcement.message}',
+        title: 'Club Announcement',
+        subtitle: '${club.name} · ${announcementPreview(announcement)}',
         createdAt: now,
         tone: NotificationTone.green,
         target: AnnouncementTarget(announcement.id),
@@ -63,6 +63,13 @@ Future<ClubAnnouncement> publishAnnouncement(
   ]);
   ref.invalidate(roleNotificationsProvider(UserRole.player));
   return announcement;
+}
+
+/// The short preview a member sees in Notifications: the title, then the start
+/// of the message (the full text opens in [showAnnouncementSheet]).
+String announcementPreview(ClubAnnouncement a, {int max = 64}) {
+  final text = '${a.title} — ${a.message}'.replaceAll(RegExp(r'\s+'), ' ');
+  return text.length <= max ? text : '${text.substring(0, max - 1).trimRight()}…';
 }
 
 /// Create Announcement sheet (Club Owner Dashboard quick action).
@@ -171,7 +178,7 @@ class _CreateAnnouncementSheetState extends ConsumerState<_CreateAnnouncementShe
 Future<void> showAnnouncementSheet(BuildContext context, ClubAnnouncement a) => showCeSheet<void>(
       context,
       builder: (ctx) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
-        Row(children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Container(
             width: 38,
             height: 38,
@@ -181,11 +188,22 @@ Future<void> showAnnouncementSheet(BuildContext context, ClubAnnouncement a) => 
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(a.title, style: Theme.of(ctx).textTheme.titleLarge),
-              Text('${a.clubName} · ${CeFormat.dayDate(a.createdAt)}',
-                  style: const TextStyle(fontSize: 11.5, color: CeColors.muted)),
+              const Text('CLUB ANNOUNCEMENT',
+                  style: TextStyle(
+                      fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: 0.6, color: CeColors.primaryDark)),
+              const SizedBox(height: 2),
+              Text(a.title, key: const Key('announcement.title.view'), style: Theme.of(ctx).textTheme.titleLarge),
             ]),
           ),
+        ]),
+        const SizedBox(height: 12),
+        // Club name and when it was published (date and time).
+        Wrap(spacing: 14, runSpacing: 6, children: [
+          _AnnouncementMeta(key: const Key('announcement.club'), icon: 'shield', label: a.clubName),
+          _AnnouncementMeta(
+              key: const Key('announcement.when'),
+              icon: 'calendar',
+              label: '${CeFormat.dayDate(a.createdAt)} · ${CeFormat.time(a.createdAt)}'),
         ]),
         const SizedBox(height: 14),
         Text(a.message,
@@ -195,3 +213,19 @@ Future<void> showAnnouncementSheet(BuildContext context, ClubAnnouncement a) => 
         CeButton(label: 'Close', onPressed: () => Navigator.of(ctx).pop()),
       ]),
     );
+
+class _AnnouncementMeta extends StatelessWidget {
+  const _AnnouncementMeta({super.key, required this.icon, required this.label});
+  final String icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(CeIcons.of(icon), size: 13, color: CeColors.muted),
+        const SizedBox(width: 5),
+        Flexible(
+          child: Text(label,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: CeColors.ink2)),
+        ),
+      ]);
+}

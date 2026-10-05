@@ -181,17 +181,11 @@ void main() {
       expect(find.byType(PerMatchChart), findsOneWidget);
     });
 
-    testWidgets('Dashboard stat cards open their lists; Matches Played → History tab', (tester) async {
+    testWidgets('Dashboard: no season stats card (numbers live in Matches and Performance)', (tester) async {
       final c = await _pump(tester);
-      await tester.tap(find.text('UPCOMING MATCHES'));
-      await tester.pumpAndSettle();
-      expect(_loc(c), Routes.myMatches);
-      await _go(tester, c, Routes.playerHome);
-      await tester.fling(find.byType(Scrollable).first, const Offset(0, 3000), 4000);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('MATCHES PLAYED'));
-      await tester.pumpAndSettle();
-      expect(_loc(c), PerformanceView.history.location);
+      for (final label in ['UPCOMING MATCHES', 'PERFORMANCE RATING', 'MATCHES PLAYED']) {
+        expect(find.text(label, skipOffstage: false), findsNothing, reason: label);
+      }
       expect(c.read(activeRoleProvider), UserRole.player);
     });
 
@@ -228,12 +222,13 @@ void main() {
       expect(_loc(c), Routes.payment('m_3'), reason: 'no extra screen');
     });
 
-    testWidgets('Scheduled card shows line-up status in words and opens the line-up', (tester) async {
+    testWidgets('Scheduled card shows line-up status in words and opens the line-up sheet', (tester) async {
       final c = await _pump(tester, club: true);
       await _go(tester, c, Routes.matchManagement(MatchTab.scheduled));
       expect(find.text('Line-up set'), findsOneWidget);
       await _tap(tester, find.text('Line-up set'));
-      expect(_loc(c), Routes.matchLineup('m_2'));
+      expect(_loc(c), Routes.matchManagement(MatchTab.scheduled), reason: 'a bottom sheet, no new screen');
+      expect(find.byKey(const Key('lineupSheet.current')), findsOneWidget);
     });
 
     testWidgets('Line-up builder: pinned bar with live counts and role balance', (tester) async {

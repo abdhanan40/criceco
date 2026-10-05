@@ -457,10 +457,19 @@ class _LineupTeamPickerViewState extends ConsumerState<LineupTeamPickerView> {
 
 /// `.team-radio-row`: a selectable club team with its squad counts.
 class TeamRadioRow extends StatelessWidget {
-  const TeamRadioRow({super.key, required this.team, required this.selected, required this.onTap});
+  const TeamRadioRow({
+    super.key,
+    required this.team,
+    required this.selected,
+    required this.onTap,
+    this.margin = const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 0),
+    this.trailing,
+  });
   final Team team;
   final bool selected;
   final VoidCallback onTap;
+  final EdgeInsetsGeometry margin;
+  final Widget? trailing; // e.g. the Playing XI status in the line-up sheet
 
   @override
   Widget build(BuildContext context) {
@@ -469,7 +478,7 @@ class TeamRadioRow extends StatelessWidget {
         ? 'No players yet'
         : '${t.playingCount} Playing XI · ${t.subCount} Sub${t.subCount == 1 ? '' : 's'}';
     return Container(
-      margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 0),
+      margin: margin,
       child: Semantics(
         button: true,
         selected: selected,
@@ -503,6 +512,7 @@ class TeamRadioRow extends StatelessWidget {
                         style: const TextStyle(fontSize: 12, color: CeColors.muted)),
                   ]),
                 ),
+                if (trailing != null) ...[const SizedBox(width: 8), trailing!],
               ]),
             ),
           ),

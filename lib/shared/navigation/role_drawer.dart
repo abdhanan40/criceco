@@ -9,6 +9,7 @@ import '../../app/session/session_controller.dart';
 import '../../app/theme/tokens.dart';
 import '../../core/enums/enums.dart';
 import '../../demo/seed_data.dart';
+import '../../features/player/widgets/share_profile_sheet.dart';
 import '../media/photo_picker.dart';
 import '../widgets/ce_feedback.dart';
 import '../widgets/ce_icons.dart';
@@ -139,6 +140,18 @@ class RoleDrawer extends ConsumerWidget {
                   onTap: () => navigate(d.location),
                 ),
             ],
+            // Player: Share Profile opens the existing share sheet (no route).
+            if (role == UserRole.player)
+              _DrawerItem(
+                icon: 'share-2',
+                label: 'Share Profile',
+                active: false,
+                onTap: () {
+                  final rootContext = Navigator.of(context, rootNavigator: true).context;
+                  Navigator.of(context).pop(); // close the drawer first
+                  showShareProfileSheet(rootContext);
+                },
+              ),
             _DrawerItem(
               icon: 'sliders',
               label: 'Settings',

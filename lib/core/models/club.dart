@@ -141,11 +141,16 @@ class ClubMember {
     this.battingStyle,
     this.bowlingStyle,
     this.poolPlayerId,
+    this.joinedAt,
   });
 
   final String id;
   final String name;
   final String phone;
+
+  /// When the member joined the club (`null` = unknown, counted as a founding
+  /// member). Drives the Club Dashboard's Member Growth chart.
+  final DateTime? joinedAt;
 
   /// Club role (Owner / Player / Coach / Manager).
   final MemberRole role;

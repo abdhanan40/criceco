@@ -6,14 +6,18 @@ import 'package:criceco/app/router/routes.dart';
 import 'package:criceco/app/session/role_controller.dart';
 import 'package:criceco/app/session/session_controller.dart';
 import 'package:criceco/core/models/models.dart';
+import 'package:criceco/core/utils/formatters.dart';
 import 'package:criceco/features/club/club_providers.dart';
 import 'package:criceco/features/club/requests/join_requests_controller.dart';
 import 'package:criceco/features/club/teams/teams_controller.dart';
+import 'package:criceco/features/club/widgets/club_insights.dart';
+import 'package:criceco/features/matches/club_matches_controller.dart';
 import 'package:criceco/features/matches/screens/match_management_screen.dart';
 import 'package:criceco/features/notifications/notifications_controller.dart';
 import 'package:criceco/shared/media/photo_picker.dart';
 import 'package:criceco/shared/navigation/role_shells.dart';
 import 'package:criceco/shared/widgets/ce_buttons.dart';
+import 'package:criceco/shared/widgets/ce_indicators.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -79,22 +83,37 @@ Finder _fileImage(String path) =>
 
 void main() {
   group('Club Owner Dashboard', () {
-    testWidgets('hero, stats and next match come from real club state', (tester) async {
-      await _pumpOwner(tester);
-      expect(find.text('Club Owner'), findsOneWidget);
-      expect(find.text('Shalimar Cricket Club'), findsOneWidget);
-      expect(find.textContaining('35HLWZ', findRichText: true), findsOneWidget);
-      // Members 21 · Teams 2 · Requests 3 (seed: owner, 18 players, 2 staff).
-      for (final (value, label) in [('21', 'MEMBERS'), ('2', 'TEAMS'), ('3', 'REQUESTS')]) {
-        expect(find.text(label), findsOneWidget);
-        expect(find.text(value), findsWidgets);
+    testWidgets('hero: greeting, glass club card with real identity, chips and club stats; next match', (tester) async {
+      final c = await _pumpOwner(tester);
+      final club = c.read(currentClubProvider)!;
+      final hero = find.byKey(const Key('club.hero'));
+      final card = find.byKey(const Key('club.card'));
+      // Top row: menu · greeting / owner's first name · notifications.
+      expect(find.byTooltip('Open menu'), findsOneWidget);
+      expect(find.descendant(of: hero, matching: find.text('Good morning')), findsOneWidget, reason: '10:00 test clock');
+      expect(find.descendant(of: hero, matching: find.text('Aman')), findsOneWidget);
+      expect(find.byTooltip(RegExp('^Notifications')), findsOneWidget);
+      // Card: club name, City · Type · Est., chips.
+      expect(find.descendant(of: card, matching: find.text('Shalimar Cricket Club')), findsOneWidget);
+      expect(find.descendant(of: card, matching: find.text('Islamabad · ${club.type.label} · Est. ${club.establishedYear}')),
+          findsOneWidget);
+      expect(find.descendant(of: card, matching: find.text('Club Owner')), findsOneWidget);
+      expect(find.descendant(of: card, matching: find.text('Code 35HLWZ')), findsOneWidget);
+      expect(find.textContaining('Verified'), findsNothing, reason: 'no verified state exists');
+      // Members 21 · Teams 2 · Upcoming · Requests 3 (seed: owner, 18 players, 2 staff).
+      final upcoming = c.read(upcomingClubMatchesProvider).length;
+      final stats = find.byKey(const Key('club.stats'));
+      for (final (value, label) in [('21', 'Members'), ('2', 'Teams'), ('$upcoming', 'Upcoming'), ('3', 'Requests')]) {
+        expect(find.descendant(of: stats, matching: find.text(label)), findsOneWidget, reason: label);
+        expect(find.descendant(of: stats, matching: find.text(value)), findsOneWidget, reason: label);
       }
+      expect(find.byType(CeStatGroup), findsNothing, reason: 'the old summary card moved into the hero');
       await tester.scrollUntilVisible(find.text('BS CS XI'), 150, scrollable: find.byType(Scrollable).first);
       expect(find.text('Shalimar Cricket Club vs Karachi Kings CC'), findsOneWidget);
       expect(find.text('BS CS XI'), findsOneWidget);
     });
 
-    testWidgets('"Share with players" copies the club code', (tester) async {
+    testWidgets('the club code chip copies the code to share with players', (tester) async {
       String? copied;
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
         if (call.method == 'Clipboard.setData') copied = (call.arguments as Map<Object?, Object?>)['text'] as String?;
@@ -102,29 +121,42 @@ void main() {
       });
       addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
       await _pumpOwner(tester);
-      await tester.tap(find.text('Share with players'));
+      await tester.tap(find.byKey(const Key('club.code')));
       await tester.pump();
       expect(copied, '35HLWZ');
       expect(find.text('Club code copied!'), findsOneWidget);
     });
 
-    testWidgets('pending requests banner and tappable stats open their lists', (tester) async {
+    testWidgets('pending requests banner opens Requests; hero stats are information, the card opens My Club', (tester) async {
       final c = await _pumpOwner(tester);
       expect(find.bySemanticsLabel('3 join requests waiting. Review'), findsOneWidget);
       await _tap(tester, find.bySemanticsLabel('3 join requests waiting. Review'));
       expect(_loc(c), Routes.joinRequests);
-      for (final (label, route) in [
-        ('MEMBERS', Routes.members),
-        ('TEAMS', Routes.teams),
-        ('REQUESTS', Routes.joinRequests),
-      ]) {
-        await _go(tester, c, Routes.clubHome);
-        await tester.fling(find.byType(Scrollable).first, const Offset(0, 3000), 4000); // branch keeps its offset
-        await tester.pumpAndSettle();
-        await _tap(tester, find.text(label));
-        expect(_loc(c), route, reason: label);
-      }
+      // The stats sit on the card (no buttons of their own): tapping one opens My Club.
+      await _go(tester, c, Routes.clubHome);
+      await tester.fling(find.byType(Scrollable).first, const Offset(0, 3000), 4000); // branch keeps its offset
+      await tester.pumpAndSettle();
+      final stats = find.byKey(const Key('club.stats'));
+      expect(find.descendant(of: stats, matching: find.byType(InkWell)), findsNothing);
+      await tester.tap(find.descendant(of: stats, matching: find.text('Members')));
+      await tester.pumpAndSettle();
+      expect(_loc(c), Routes.myClub);
     });
+
+    for (final width in [320.0, 360.0, 375.0, 390.0, 414.0]) {
+      testWidgets('club hero fits at ${width.toInt()} px with a long club name', (tester) async {
+        await _pumpOwner(tester, width: width, clubName: 'Royal Rawalpindi Gymkhana Cricket & Sports Club of Excellence');
+        expect(tester.takeException(), isNull, reason: 'hero @ $width');
+        final stats = find.byKey(const Key('club.stats'));
+        final tops = {
+          for (final l in ['Members', 'Teams', 'Upcoming', 'Requests'])
+            tester.getTopLeft(find.descendant(of: stats, matching: find.text(l))).dy,
+        };
+        expect(tops, hasLength(1), reason: 'four stats in one row @ $width');
+        expect(tester.getCenter(find.byTooltip('Open menu')).dy,
+            closeTo(tester.getCenter(find.byTooltip(RegExp('^Notifications'))).dy, 1));
+      });
+    }
 
     testWidgets('join request Decline asks for a reason first; Cancel keeps it pending', (tester) async {
       final c = await _pumpOwner(tester);
@@ -150,21 +182,21 @@ void main() {
         for (final s in tester.widgetList<Semantics>(find.descendant(of: grid, matching: find.byType(Semantics))))
           if (s.properties.button == true && s.properties.label != null) s.properties.label!,
       ];
-      expect(tiles, ['Requests', 'Challenges', 'Open Player', 'Tournament', 'Announcement']);
+      expect(tiles, ['Requests', 'Challenges', 'Find Player', 'Tournament', 'Announcement']);
       for (final nav in ['Members', 'Teams', 'Upcoming Matches']) {
         expect(tiles, isNot(contains(nav)), reason: '$nav is a bottom-nav tab');
       }
       // Five tiles lay out 3 + 2 (never 4 + a lone tile).
       Finder tile(String l) => find.descendant(of: grid, matching: find.bySemanticsLabel(l));
       final firstRow = tester.getTopLeft(tile('Requests')).dy;
-      expect([for (final l in ['Challenges', 'Open Player']) tester.getTopLeft(tile(l)).dy], [firstRow, firstRow]);
+      expect([for (final l in ['Challenges', 'Find Player']) tester.getTopLeft(tile(l)).dy], [firstRow, firstRow]);
       final secondRow = tester.getTopLeft(tile('Tournament')).dy;
       expect(secondRow, greaterThan(firstRow));
       expect(tester.getTopLeft(tile('Announcement')).dy, secondRow);
       for (final (label, route) in [
         ('Requests', Routes.joinRequests),
         ('Challenges', Routes.challenges),
-        ('Open Player', Routes.playerHunt),
+        ('Find Player', Routes.playerHunt),
         ('Tournament', Routes.tournamentHub),
       ]) {
         await _go(tester, c, Routes.clubHome);
@@ -173,6 +205,116 @@ void main() {
         expect(c.read(activeRoleProvider), UserRole.clubOwner);
       }
     });
+
+    testWidgets('Member Growth: members per month from join dates, "+N since <month>"', (tester) async {
+      final c = await _pumpOwner(tester);
+      final chart = find.byKey(const Key('club.memberGrowth'));
+      await _tap(tester, chart);
+      // Seed (demo join dates): 3 founders + 18 players two weeks apart; the
+      // 10:00 23 Sep clock shows Apr–Sep.
+      expect(find.descendant(of: chart, matching: find.text('+11')), findsOneWidget);
+      expect(find.descendant(of: chart, matching: find.text('since April')), findsOneWidget);
+      expect(find.descendant(of: chart, matching: find.text('21 members')), findsOneWidget);
+      final bars = [
+        for (var i = 0; i < 6; i++)
+          [
+            for (final t in tester.widgetList<Text>(
+                find.descendant(of: find.byKey(Key('club.memberGrowth.bar.$i')), matching: find.byType(Text))))
+              t.data,
+          ],
+      ];
+      expect(bars, [
+        ['12', 'Apr'], ['14', 'May'], ['16', 'Jun'], ['18', 'Jul'], ['20', 'Aug'], ['21', 'Sep'],
+      ]);
+      // Bars grow with the count, all on one baseline.
+      final heights = [
+        for (var i = 0; i < 6; i++)
+          tester.getSize(find.descendant(of: find.byKey(Key('club.memberGrowth.bar.$i')), matching: find.byType(Container)).last).height,
+      ];
+      expect(heights, orderedEquals([...heights]..sort()));
+      expect({
+        for (var i = 0; i < 6; i++)
+          tester.getBottomLeft(find.descendant(of: find.byKey(Key('club.memberGrowth.bar.$i')), matching: find.byType(Container)).last).dy,
+      }, hasLength(1));
+
+      // An approval is a real join today: this month's bar and the total grow.
+      final pending = (await c.read(joinRequestsProvider.future)).firstWhere((r) => r.isPending);
+      await c.read(joinRequestsProvider.notifier).approve(pending.id);
+      await tester.pumpAndSettle();
+      final joined = (await c.read(clubMembersProvider.future)).firstWhere((m) => m.name == pending.name);
+      expect(joined.joinedAt, _now);
+      expect(find.descendant(of: chart, matching: find.text('+12')), findsOneWidget);
+      expect(find.descendant(of: find.byKey(const Key('club.memberGrowth.bar.5')), matching: find.text('22')), findsOneWidget);
+    });
+
+    test('MemberGrowth: a member without a join date counts as a founding member', () {
+      final growth = MemberGrowth.of([
+        const ClubMember(id: 'a', name: 'A', role: MemberRole.owner),
+        ClubMember(id: 'b', name: 'B', role: MemberRole.player, joinedAt: DateTime(2026, 8, 10)),
+        ClubMember(id: 'c', name: 'C', role: MemberRole.player, joinedAt: DateTime(2026, 2, 1)),
+      ], _now);
+      expect([for (final b in growth.bars) b.$2], [2, 2, 2, 2, 3, 3]);
+      expect((growth.before, growth.current, growth.gained), (2, 3, 1));
+    });
+
+    testWidgets('Match Results: donut of completed club matches — Won / Lost / Draw-NR with counts and %',
+        (tester) async {
+      final c = await _pumpOwner(tester);
+      final chart = find.byKey(const Key('club.matchResults'));
+      await _tap(tester, chart);
+      Finder row(String label) => find.byKey(Key('club.matchResults.$label'));
+      List<String?> texts(String label) =>
+          [for (final t in tester.widgetList<Text>(find.descendant(of: row(label), matching: find.byType(Text)))) t.data];
+      // Seed: one completed match, "Won by 18 runs".
+      expect(find.descendant(of: chart, matching: find.text('1')), findsWidgets);
+      expect(tester.widget<Text>(find.byKey(const Key('club.matchResults.total'))).data, '1');
+      expect(texts('Won'), ['Won', '1', '100%']);
+      expect(texts('Lost'), ['Lost', '0', '0%']);
+      expect(texts('Draw / NR'), ['Draw / NR', '0', '0%']);
+
+      // More results recorded → the chart follows the data.
+      final matches = c.read(clubMatchesProvider.notifier);
+      final base = c.read(clubMatchProvider('m_1'))!;
+      for (final (id, result) in [('r_1', 'Lost by 5 runs'), ('r_2', 'Match tied'), ('r_3', 'No result (rain)')]) {
+        await matches.save(ClubMatch(
+            id: id, opponentClubId: base.opponentClubId, status: MatchStatus.completed, format: base.format,
+            city: base.city, startsAt: base.startsAt, resultText: result));
+      }
+      await tester.pumpAndSettle();
+      expect(tester.widget<Text>(find.byKey(const Key('club.matchResults.total'))).data, '4');
+      expect(texts('Won'), ['Won', '1', '25%']);
+      expect(texts('Lost'), ['Lost', '1', '25%']);
+      expect(texts('Draw / NR'), ['Draw / NR', '2', '50%']);
+    });
+
+    test('MatchResultsSummary counts completed matches only', () {
+      ClubMatch m(MatchStatus s, String? r) => ClubMatch(id: '$s$r', opponentClubId: 'x', status: s, resultText: r);
+      final s = MatchResultsSummary.of([
+        m(MatchStatus.completed, 'Won by 3 wickets'),
+        m(MatchStatus.completed, 'won by 1 run'),
+        m(MatchStatus.completed, 'Lost by 20 runs'),
+        m(MatchStatus.completed, null),
+        m(MatchStatus.confirmed, 'Won by 9 runs'),
+        m(MatchStatus.pending, null),
+      ]);
+      expect((s.won, s.lost, s.drawn, s.total), (2, 1, 1, 4));
+    });
+
+    for (final width in [320.0, 360.0, 375.0, 390.0, 414.0]) {
+      testWidgets('Member Growth and Match Results fit at ${width.toInt()} px', (tester) async {
+        await _pumpOwner(tester, width: width);
+        await _tap(tester, find.byKey(const Key('club.matchResults')));
+        expect(tester.takeException(), isNull, reason: 'charts @ $width');
+        final growth = find.byKey(const Key('club.memberGrowth'));
+        final results = find.byKey(const Key('club.matchResults'));
+        expect(tester.getTopLeft(results).dy, greaterThan(tester.getBottomLeft(growth).dy), reason: 'results under growth');
+        for (final f in [growth, results]) {
+          expect(tester.getSize(f).width, lessThanOrEqualTo(width), reason: "within the screen (incl. gutters)");
+        }
+        expect(tester.getSize(results).height, lessThan(140), reason: 'compact');
+        expect(tester.getSize(growth).height, lessThan(200), reason: 'compact');
+      });
+    }
   });
 
   group('Teams', () {
@@ -504,8 +646,8 @@ void main() {
 
     testWidgets('My Club (from the dashboard header) shows club identity, stats and members', (tester) async {
       final c = await _pumpOwner(tester);
-      expect(find.bySemanticsLabel('Open My Club, Shalimar Cricket Club'), findsOneWidget);
-      await tester.tap(find.byKey(const Key('club.header')));
+      expect(find.bySemanticsLabel(RegExp(r'^Open My Club, Shalimar Cricket Club')), findsOneWidget);
+      await tester.tap(find.descendant(of: find.byKey(const Key('club.header')), matching: find.text('Shalimar Cricket Club')));
       await tester.pumpAndSettle();
       expect(_loc(c), Routes.myClub);
       expect(find.text('Club 35HLWZ · Islamabad'), findsOneWidget);
@@ -609,8 +751,8 @@ void main() {
           .where((n) => n.target is AnnouncementTarget)
           .toList();
       expect({for (final n in sent) n.recipientMemberId}, staffIds, reason: 'staff only');
-      expect(sent.every((n) => n.title == 'New Club Announcement'), isTrue);
-      expect(sent.first.subtitle, 'Shalimar Cricket Club · Coaches and managers: 6 PM at the pavilion.');
+      expect(sent.every((n) => n.title == 'Club Announcement'), isTrue);
+      expect(sent.first.subtitle, 'Shalimar Cricket Club · Staff meeting — Coaches and managers: 6 PM at the pavilion.');
       final a = await c.read(announcementRepositoryProvider).byId((sent.first.target! as AnnouncementTarget).announcementId);
       expect((a!.title, a.audience, a.clubId, a.createdBy), ('Staff meeting', AnnouncementAudience.staff, c.read(currentClubProvider)!.id, c.read(currentAccountProvider)!.id));
       // The owner is not staff: nothing in their own (player-side) inbox.
@@ -633,14 +775,24 @@ void main() {
       final nav = c.read(roleControllerProvider.notifier).switchTo(UserRole.player);
       await _go(tester, c, (nav as GoToLocation).location);
       await _go(tester, c, Routes.notifications);
-      expect(find.text('New Club Announcement'), findsOneWidget);
-      await tester.tap(find.text('New Club Announcement'));
+      // Type, club name and a short preview in the inbox row.
+      expect(find.text('Club Announcement'), findsOneWidget);
+      expect(find.text('Shalimar Cricket Club · Training update — Training session tomorrow at 5:00 PM.'), findsOneWidget);
+      await tester.tap(find.text('Club Announcement'));
       await tester.pumpAndSettle();
       expect(_loc(c), Routes.notifications, reason: 'read in place, no new screen');
+      // Full announcement: club name, title, full message, date and time.
+      final now = c.read(clockProvider).now();
       expect(find.text('Training update'), findsOneWidget);
+      expect(find.descendant(of: find.byKey(const Key('announcement.club')), matching: find.text('Shalimar Cricket Club')),
+          findsOneWidget);
+      expect(
+          find.descendant(
+              of: find.byKey(const Key('announcement.when')),
+              matching: find.text('${CeFormat.dayDate(now)} · ${CeFormat.time(now)}')),
+          findsOneWidget);
       expect(find.byKey(const Key('announcement.body')), findsOneWidget);
       expect(find.text('Training session tomorrow at 5:00 PM.'), findsOneWidget);
-      expect(find.textContaining('Shalimar Cricket Club ·'), findsWidgets);
       expect(c.read(notificationReadProvider), contains(startsWith('n_ann_')), reason: 'marked read');
       await _tap(tester, _button('Close'));
 

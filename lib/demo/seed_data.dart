@@ -237,11 +237,18 @@ class SeedData {
       return null; // specialist batsmen / keepers
     }
 
+    // DEMO join history (seeded, not real data): the owner and staff founded
+    // the club; players joined two weeks apart, the first ~8½ months ago, so
+    // the Club Dashboard's Member Growth chart has a history to show.
+    var joinedSeq = 0;
+    DateTime demoJoinedAt() => _day(-260 + 14 * joinedSeq++, 18);
+
     members = [
-      const ClubMember(id: 'mem_owner', name: 'ali', phone: '03129020000', role: MemberRole.owner),
+      ClubMember(id: 'mem_owner', name: 'ali', phone: '03129020000', role: MemberRole.owner, joinedAt: _day(-400)),
       for (final (i, p) in squad.indexed)
         if (p.id != 'sp_3' && p.id != 'sp_4')
           ClubMember(
+            joinedAt: demoJoinedAt(),
             id: 'mem_${p.id}',
             name: p.name,
             phone: '0300-55501${(i + 1).toString().padLeft(2, '0')}',
@@ -256,8 +263,8 @@ class SeedData {
             bowlingStyle: bowlingFor(p),
             poolPlayerId: p.id,
           ),
-      const ClubMember(id: 'mem_coach', name: 'Tariq Mahmood', phone: '0321-4455667', role: MemberRole.coach),
-      const ClubMember(id: 'mem_manager', name: 'Nadeem Akhtar', phone: '0301-7788990', role: MemberRole.manager),
+      ClubMember(id: 'mem_coach', name: 'Tariq Mahmood', phone: '0321-4455667', role: MemberRole.coach, joinedAt: _day(-390)),
+      ClubMember(id: 'mem_manager', name: 'Nadeem Akhtar', phone: '0301-7788990', role: MemberRole.manager, joinedAt: _day(-390)),
     ];
 
     // ---- Recent match activity (Fitness Meter demo) ----

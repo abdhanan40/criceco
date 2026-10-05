@@ -165,6 +165,57 @@ void main() {
       expect(FitnessMeter.ballsIn('4.0'), 24);
       expect(FitnessMeter.ballsIn('0'), 0);
     });
+
+    WorkoutEntry wk(int daysAgo, int minutes, WorkoutIntensity intensity) => WorkoutEntry(
+          id: 'w$daysAgo$minutes',
+          date: _now.subtract(Duration(days: daysAgo)),
+          type: WorkoutType.training,
+          minutes: minutes,
+          intensity: intensity,
+        );
+
+    test('workout load = hours × intensity points (Light 0.5 · Moderate 1 · High 1.5)', () {
+      expect(FitnessMeter.workoutLoad(wk(0, 60, WorkoutIntensity.light)), 0.5);
+      expect(FitnessMeter.workoutLoad(wk(0, 60, WorkoutIntensity.moderate)), 1.0);
+      expect(FitnessMeter.workoutLoad(wk(0, 90, WorkoutIntensity.high)), 2.25);
+      expect(FitnessMeter.workoutLoad(wk(0, 30, WorkoutIntensity.moderate)), 0.5);
+    });
+
+    test('match-only results are unchanged; workouts only add training load', () {
+      final matches = [_m(2, overs: '4.0'), _m(3, overs: '4.0')];
+      final base = FitnessMeter.evaluate(matches, now: _now);
+      final same = FitnessMeter.evaluate(matches, now: _now, workouts: const []);
+      expect((same.score, same.level, same.recommendation, same.restDays),
+          (base.score, base.level, base.recommendation, base.restDays));
+      expect(same.alerts, base.alerts);
+      expect((base.score, base.restDays), (5, 2), reason: "same numbers as the existing rule test");
+      expect((base.trainingSessions, base.trainingLoad), (0, 0.0));
+
+      // 2 h high (3) on top of the match load (7) with 2 rest days → 10 − 10 + 2 = 2.
+      final trained = FitnessMeter.evaluate(matches, now: _now, workouts: [wk(1, 120, WorkoutIntensity.high)]);
+      expect((trained.trainingSessions, trained.trainingLoad), (1, 3.0));
+      expect(trained.score, 2);
+      expect(trained.level, FitnessLevel.overloaded);
+      expect((trained.matches, trained.daysSinceLastMatch, trained.backToBack), (2, 2, 1),
+          reason: 'workouts are not matches and do not change recovery');
+    });
+
+    test('no matches: training alone lowers the score; old workouts are ignored', () {
+      final r = FitnessMeter.evaluate(const [], now: _now, workouts: [
+        wk(0, 60, WorkoutIntensity.high),
+        wk(2, 60, WorkoutIntensity.high),
+        wk(9, 600, WorkoutIntensity.high), // outside the 7 days
+      ]);
+      expect((r.trainingSessions, r.trainingLoad), (2, 3.0));
+      expect(r.score, 7);
+      expect(r.level, FitnessLevel.moderate);
+      expect(r.matches, 0);
+      // Thresholds are untouched.
+      expect([for (final s in [10, 8, 7, 6, 5, 4, 3, 0]) FitnessLevel.ofScore(s)], [
+        FitnessLevel.fresh, FitnessLevel.fresh, FitnessLevel.moderate, FitnessLevel.moderate,
+        FitnessLevel.fatigued, FitnessLevel.fatigued, FitnessLevel.overloaded, FitnessLevel.overloaded,
+      ]);
+    });
   });
 
   // =========================================================================
@@ -304,6 +355,24 @@ void main() {
       expect(find.byKey(const Key('fitness.recoveryPlan')), findsNothing, reason: 'no rest advised');
       expect(find.textContaining('not a medical assessment'), findsOneWidget);
 
+      // Tapping a day bar stays in place; tapping the card opens the details sheet.
+      expect(find.byKey(const Key('fitness.sheet')), findsNothing, reason: 'day taps never open the sheet');
+      await tester.ensureVisible(find.byKey(const Key('fitness.gauge')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('fitness.gauge')));
+      await tester.pumpAndSettle();
+      final sheet = find.byKey(const Key('fitness.sheet'));
+      expect(sheet, findsOneWidget);
+      expect(_loc(c), loc, reason: 'a sheet, no navigation');
+      for (final label in ['MATCHES', 'OVERS BOWLED', 'BALLS FACED']) {
+        expect(find.descendant(of: sheet, matching: find.text(label)), findsOneWidget, reason: label);
+      }
+      expect(find.descendant(of: sheet, matching: find.textContaining(RegExp(r'DAYS? SINCE LAST'))), findsOneWidget);
+      expect(find.descendant(of: sheet, matching: find.text(report.recommendation)), findsOneWidget);
+      expect(find.descendant(of: sheet, matching: find.textContaining('not a medical assessment')), findsOneWidget);
+      await _tap(tester, _button('Close'));
+      expect(find.byKey(const Key('fitness.sheet')), findsNothing);
+
       c.read(playerAvailabilityProvider.notifier).update(status: PlayerAvailability.unavailable);
       await tester.pumpAndSettle();
       expect(find.text('Avoid playing — marked unavailable'), findsOneWidget);
@@ -386,6 +455,43 @@ void main() {
         expect(find.text('Shared with your club owner at Karachi Ravians CC'), findsOneWidget);
       });
     }
+
+    testWidgets('a match and a workout on the same day: one stacked bar, both in the day detail', (tester) async {
+      tester.view.physicalSize = const Size(375 * 3, 2400 * 3);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      final log = [entry(2, balls: 30)];
+      final workouts = [
+        WorkoutEntry(
+            id: 'w1', date: now.subtract(const Duration(days: 2)), type: WorkoutType.nets, minutes: 60,
+            intensity: WorkoutIntensity.moderate),
+        WorkoutEntry(
+            id: 'w2', date: now.subtract(const Duration(days: 4)), type: WorkoutType.running, minutes: 30,
+            intensity: WorkoutIntensity.light),
+      ];
+      final report = FitnessMeter.evaluate(log, now: now, workouts: workouts);
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: FitnessMeterView(report: report, log: log, now: now, workouts: workouts),
+          ),
+        ),
+      ));
+      expect(find.text('1 match, 2 training sessions and 5 rest days this week.'), findsOneWidget);
+      expect(find.byKey(const Key('fitness.bar.training')), findsNWidgets(2), reason: 'two days with training');
+      for (final l in ['Match', 'Training', 'Rest']) {
+        expect(find.text(l), findsOneWidget, reason: 'legend $l');
+      }
+      // Default selection: the latest active day (match + nets on Thu 24).
+      Finder detail(String t) => find.descendant(of: find.byKey(const Key('fitness.dayDetail')), matching: find.text(t));
+      expect(detail('Match vs HH · 30 balls faced'), findsOneWidget);
+      expect(detail('Nets / Practice · 60 min · Moderate'), findsOneWidget);
+      expect(detail('Load 3.5'), findsOneWidget, reason: 'match 2.5 + training 1');
+      await tester.tap(find.byKey(const Key('fitness.day.2'))); // Tue 22: a light run only
+      await tester.pumpAndSettle();
+      expect(detail('Running / Cardio · 30 min · Light'), findsOneWidget);
+      expect(detail('Load 0.3'), findsOneWidget, reason: '0.25 rounded to one decimal');
+    });
 
     testWidgets('tap a day: highlight + detail; rest days say so; no next match → no row', (tester) async {
       await pumpView(tester, 'moderate', next: false);
@@ -488,6 +594,8 @@ void main() {
       expect(find.byKey(const Key('fitness.recoveryPlan')), findsOneWidget, reason: 'rest advised');
       expect(find.byKey(const Key('fitness.nextMatch')), findsNothing, reason: 'owner view: no next match');
       expect(find.byKey(const Key('fitness.shared')), findsNothing);
+      expect(find.descendant(of: find.byKey(const Key('fitness.card')), matching: find.text('Details')), findsNothing,
+          reason: 'the details sheet is a Player Dashboard affordance');
       await tester.scrollUntilVisible(find.text('Last 7 days · 4 matches'), 200, scrollable: find.byType(Scrollable).first);
       expect(find.text('Last 7 days · 4 matches'), findsOneWidget);
       await tester.scrollUntilVisible(find.text('Player Stats'), 200, scrollable: find.byType(Scrollable).first);
@@ -553,6 +661,13 @@ void main() {
         expect(tester.takeException(), isNull, reason: 'dashboard @ $width');
         await _tap(tester, find.byKey(const Key('fitness.day.2')));
         expect(tester.takeException(), isNull, reason: 'selected day @ $width');
+        await tester.ensureVisible(find.byKey(const Key('fitness.gauge')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('fitness.gauge')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('fitness.sheet')), findsOneWidget);
+        await _scrollAll(tester);
+        expect(tester.takeException(), isNull, reason: 'details sheet @ $width');
       });
 
       testWidgets('club owner screens fit at ${width.toInt()} px', (tester) async {

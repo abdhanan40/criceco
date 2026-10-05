@@ -3,6 +3,7 @@ import 'package:criceco/app/app.dart';
 import 'package:criceco/app/config/demo_mode.dart';
 import 'package:criceco/app/providers/core_providers.dart';
 import 'package:criceco/app/router/app_router.dart';
+import 'package:criceco/app/router/role_destinations.dart';
 import 'package:criceco/app/router/routes.dart';
 import 'package:criceco/app/session/role_controller.dart';
 import 'package:criceco/app/session/session_controller.dart';
@@ -19,6 +20,7 @@ import 'package:criceco/features/tournaments/tournament_demo_actions.dart';
 import 'package:criceco/features/tournaments/tournaments_controller.dart';
 import 'package:criceco/shared/widgets/ce_buttons.dart';
 import 'package:criceco/shared/widgets/ce_rows.dart';
+import 'package:criceco/shared/widgets/ce_top_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -371,13 +373,23 @@ void main() {
       await _tap(tester, find.text('Public profile'));
       expect(c.read(currentAccountProvider)!.settings.publicProfile, isFalse);
       expect((await c.read(openPlayersProvider.future)).where((p) => p.isMe), isEmpty);
-      expect(find.textContaining("Hidden: clubs won't see you"), findsOneWidget);
+      expect(find.text("Hidden: clubs won't see you under Find Player → Available Players, even when you're available."),
+          findsOneWidget);
+      expect(find.text('Clubs can find you in Find Player'), findsOneWidget);
+      expect(find.textContaining('Player Hunt'), findsNothing, reason: 'same name as the club side');
       expect(c.read(activeRoleProvider), UserRole.player, reason: 'no role change');
     });
 
     testWidgets('Player Hunt: post a requirement, remove it; browse and invite available players', (tester) async {
       final c = await _pump(tester, club: true);
       await _go(tester, c, Routes.playerHunt);
+      // Same name as the dashboard quick action; the posting tab is "Post Requirement".
+      expect(find.descendant(of: find.byType(CeTopBar), matching: find.text('Find Player')), findsOneWidget);
+      expect(find.text('Post Requirement'), findsOneWidget);
+      expect(find.text('Open Players'), findsNothing);
+      final sidebar = [for (final g in RoleDestinations.club) for (final d in g.items) d.label];
+      expect(sidebar, contains('Find Player'));
+      expect(sidebar, isNot(contains('Player Hunt')));
       await _tap(tester, _button('Post Player Requirement'));
       expect(find.text('Please select the role you need'), findsOneWidget);
       await _tap(tester, find.bySemanticsLabel('Wicket-Keeper'));

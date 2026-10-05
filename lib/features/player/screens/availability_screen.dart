@@ -217,7 +217,7 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
 
             CeToggleCard(
               icon: 'circle-dot',
-              title: 'Available for Open Matches',
+              title: 'Available for Playing Opportunities',
               subtitle: record.openToOffers
                   ? "You're visible in other clubs' Available Players list"
                   : "Turn this on to appear in other clubs' Available Players list",
@@ -546,7 +546,7 @@ class _AboutAvailability extends StatelessWidget {
           style: TextStyle(fontSize: 12.5, color: CeColors.muted)),
       point('users', 'Your club sees it when picking the Playing XI; injured or unavailable players can\'t be selected.'),
       point('calendar', 'For any status other than Available, set how long it applies with Unavailable Until.'),
-      point('eye', 'Clubs outside yours only see you under Player Hunt when you list yourself and your profile is public.'),
+      point('eye', 'Clubs outside yours only see you under Find Player when you list yourself and your profile is public.'),
       const SizedBox(height: 18),
       CeButton(label: 'Got it', onPressed: () => Navigator.of(context).pop()),
     ]);

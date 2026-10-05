@@ -87,7 +87,7 @@ class _OpenMatchesScreenState extends ConsumerState<OpenMatchesScreen> {
     }
 
     return Scaffold(
-      appBar: CeTopBar(title: 'Open Matches', onBack: () => context.go(Routes.playerHome)),
+      appBar: CeTopBar(title: 'Playing Opportunities', onBack: () => context.go(Routes.playerHome)),
       body: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
         behavior: HitTestBehavior.translucent,

@@ -27,7 +27,7 @@ abstract final class RoleDestinations {
     ]),
     DestinationGroup('Cricket', [
       RoleDestination('calendar', 'My Matches', Routes.myMatches),
-      RoleDestination('circle-dot', 'Open Matches', Routes.openMatches),
+      RoleDestination('circle-dot', 'Playing Opportunities', Routes.openMatches),
       RoleDestination('check-circle', 'Availability', Routes.availability),
       RoleDestination('bell', 'Notifications', Routes.notifications),
     ]),
@@ -41,7 +41,7 @@ abstract final class RoleDestinations {
     ]),
     DestinationGroup('Manage', [
       RoleDestination('clipboard-list', 'Members', Routes.members),
-      RoleDestination('search', 'Player Hunt', Routes.playerHunt),
+      RoleDestination('search', 'Find Player', Routes.playerHunt),
       RoleDestination('swords', 'Challenges', Routes.challenges),
       RoleDestination('calendar', 'Match Management', '/club/matches'),
       RoleDestination('trophy', 'Tournaments', Routes.tournamentHub),

@@ -18,6 +18,52 @@ enum FitnessLevel {
               : overloaded;
 }
 
+/// A self-logged workout (Player Dashboard → Add Workout). Training load for
+/// the Fitness Meter; matches are still read from the match log.
+enum WorkoutType {
+  training('Training'),
+  gym('Gym / Strength'),
+  running('Running / Cardio'),
+  nets('Nets / Practice'),
+  other('Other');
+
+  const WorkoutType(this.label);
+  final String label;
+}
+
+enum WorkoutIntensity {
+  light('Light', 0.5),
+  moderate('Moderate', 1.0),
+  high('High', 1.5);
+
+  const WorkoutIntensity(this.label, this.pointsPerHour);
+  final String label;
+
+  /// Fitness Meter workload points per hour of this intensity (a match = 2).
+  final double pointsPerHour;
+}
+
+class WorkoutEntry {
+  const WorkoutEntry({
+    required this.id,
+    required this.date,
+    required this.type,
+    required this.minutes,
+    required this.intensity,
+    this.notes = '',
+  });
+
+  static const maxMinutes = 600;
+  static const notesMaxLength = 120;
+
+  final String id;
+  final DateTime date;
+  final WorkoutType type;
+  final int minutes;
+  final WorkoutIntensity intensity;
+  final String notes;
+}
+
 class FitnessReport {
   const FitnessReport({
     required this.score,
@@ -31,6 +77,8 @@ class FitnessReport {
     required this.backToBack,
     required this.daysSinceLastMatch,
     required this.avoidPlaying,
+    this.trainingSessions = 0,
+    this.trainingLoad = 0,
   });
 
   static const window = 7; // days
@@ -58,4 +106,8 @@ class FitnessReport {
 
   /// "Avoid playing" — overloaded, or marked injured / unavailable.
   final bool avoidPlaying;
+
+  /// Logged workouts in the window and the load they added (0 without any).
+  final int trainingSessions;
+  final double trainingLoad;
 }
