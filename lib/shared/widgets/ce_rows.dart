@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../app/theme/tokens.dart';
+import '../../app/theme/typography.dart';
+import 'ce_buttons.dart';
 import 'ce_icons.dart';
 
 /// Dense list-card row (reference list style, used by Teams, Members and
@@ -44,12 +46,11 @@ class CeListRow extends StatelessWidget {
     final showChevron = chevron ?? onTap != null;
     final row = Container(
       margin: margin,
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(CeRadius.row), boxShadow: CeShadows.card),
       child: Material(
         color: Colors.white,
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(CeRadius.row),
+          borderRadius: BorderRadius.circular(CeRadius.card),
           side: const BorderSide(color: CeColors.line),
         ),
         child: InkWell(
@@ -57,7 +58,7 @@ class CeListRow extends StatelessWidget {
           child: ConstrainedBox(
             constraints: const BoxConstraints(minHeight: CeSize.listRowMinHeight),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 9, 10, 9),
+              padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
               child: Row(children: [
                 if (leading != null) ...[leading!, const SizedBox(width: 11)],
                 Expanded(
@@ -65,13 +66,13 @@ class CeListRow extends StatelessWidget {
                     Text(title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: CeColors.ink)),
+                        style: CeType.listTitle),
                     if (subtitle != null) ...[
                       const SizedBox(height: 2),
                       Text(subtitle!,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 11.5, color: CeColors.muted, height: 1.3)),
+                          style: CeType.bodySmall.copyWith(fontSize: 12, height: 1.35)),
                     ],
                     if (meta != null) ...[const SizedBox(height: 5), meta!],
                   ]),
@@ -113,7 +114,6 @@ class CeSettingsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context).textTheme;
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -130,10 +130,10 @@ class CeSettingsRow extends StatelessWidget {
           const SizedBox(width: 11),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: t.titleSmall!.copyWith(fontSize: 13)),
+              Text(title, style: CeType.listTitle.copyWith(fontSize: 13.5)),
               if (subtitle != null) ...[
                 const SizedBox(height: 2),
-                Text(subtitle!, style: t.bodySmall!.copyWith(fontSize: 11)),
+                Text(subtitle!, style: CeType.caption),
               ],
             ]),
           ),
@@ -170,7 +170,7 @@ class CeToggleRow extends StatelessWidget {
         subtitle: subtitle,
         showDivider: showDivider,
         onTap: () => onChanged(!value),
-        trailing: Switch(value: value, onChanged: onChanged),
+        trailing: CeSwitch(value: value, onChanged: onChanged),
       );
 }
 
@@ -186,9 +186,8 @@ class CeGroupCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(CeRadius.lg),
+          borderRadius: BorderRadius.circular(CeRadius.card),
           border: Border.all(color: CeColors.line),
-          boxShadow: CeShadows.card,
         ),
         child: Column(children: children),
       );

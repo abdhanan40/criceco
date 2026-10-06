@@ -158,10 +158,11 @@ void main() {
               (w) => w is Image && w.image is AssetImage && (w.image as AssetImage).assetName == AuthBanner.photo));
       final banner = find.byKey(const Key('auth.stadiumBanner'));
       expect(photo(banner), findsOneWidget, reason: 'Login');
-      // Logo, title and the Login / Sign Up toggle are on top of the photo.
+      // Logo and title are on top of the photo; the Login / Sign Up toggle
+      // leads the light panel that overlaps it (reference auth layout).
       expect(find.descendant(of: banner, matching: find.byType(CeBrandLogo)), findsOneWidget);
       expect(find.descendant(of: banner, matching: find.text('Criceco')), findsOneWidget);
-      expect(find.descendant(of: banner, matching: find.text('Sign Up')), findsOneWidget);
+      expect(find.descendant(of: find.byKey(const Key('auth.tabs')), matching: find.text('Sign Up')), findsOneWidget);
       await _tap(tester, find.widgetWithText(TextButton, 'Sign Up'));
       expect(_loc(c), Routes.signup);
       expect(photo(banner), findsOneWidget, reason: 'Sign Up');
@@ -515,8 +516,7 @@ void main() {
       await _enter(tester, 'club.address', 'Mian Mir Road');
       await _tap(tester, find.byKey(const Key('club.city')));
       await _tap(tester, find.text('Lahore').last);
-      await _tap(tester, find.byKey(const Key('club.type')));
-      await _tap(tester, find.text('Corporate Club').last);
+      await _tap(tester, find.text('Corporate Club')); // one-tap type grid
       await _tap(tester, find.text('Yes'));
       await _tap(tester, _button('Create Club'));
       expect(find.text('Please select your home ground'), findsOneWidget);
@@ -543,8 +543,7 @@ void main() {
       await _enter(tester, 'club.address', 'Clifton');
       await _tap(tester, find.byKey(const Key('club.city')));
       await _tap(tester, find.text('Karachi').last);
-      await _tap(tester, find.byKey(const Key('club.type')));
-      await _tap(tester, find.text('Professional').last);
+      await _tap(tester, find.text('Professional'));
       await _tap(tester, find.text('No'));
       await _tap(tester, _button('Create Club'));
       expect(_loc(c), Routes.clubHome);

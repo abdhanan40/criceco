@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/ce_feedback.dart';
@@ -118,7 +119,7 @@ class WorkflowProgress extends StatelessWidget {
               TextSpan(children: [
                 TextSpan(
                     text: 'Step $step of $total',
-                    style: const TextStyle(fontWeight: FontWeight.w800, color: CeColors.primaryDark)),
+                    style: const TextStyle(fontWeight: FontWeight.w700, color: CeColors.primaryDark)),
                 if (_name.isNotEmpty) TextSpan(text: ' · $_name'),
               ]),
               style: const TextStyle(fontSize: 11.5, color: CeColors.muted),
@@ -159,7 +160,7 @@ class BookingHeaderCard extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: CeColors.ink)),
+              Text(title, style: const TextStyle(fontFamily: CeType.display, fontSize: 15, fontWeight: FontWeight.w700, color: CeColors.ink)),
               const SizedBox(height: 2),
               Text(meta, style: const TextStyle(fontSize: 12, color: CeColors.muted)),
             ]),
@@ -232,7 +233,7 @@ class PaymentSplitRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                           fontSize: 13.5,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w700,
                           color: paid ? CeColors.primaryDark : CeColors.ink)),
                 ),
               ]),

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/providers/core_providers.dart';
 import '../../app/theme/tokens.dart';
+import '../../app/theme/typography.dart';
 import '../../core/models/models.dart';
 import '../../core/utils/formatters.dart';
 import '../../shared/widgets/ce_feedback.dart';
@@ -112,7 +113,7 @@ class NotificationsPanel extends ConsumerWidget {
       ),
       // ---- Header: title · "N new" · Mark all read (stays put while the list scrolls) ----
       Padding(
-        padding: const EdgeInsets.fromLTRB(18, 4, 8, 8),
+        padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 4, 10, 10),
         child: Row(children: [
           // Title + badge take the room left by Mark all read; on very narrow
           // phones the title shrinks a little rather than being cut off.
@@ -122,17 +123,16 @@ class NotificationsPanel extends ConsumerWidget {
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
-                  child: Text('Notifications', maxLines: 1, style: Theme.of(context).textTheme.titleLarge),
+                  child: Text('Notifications', maxLines: 1, style: CeType.pageTitle),
                 ),
               ),
               if (unread.isNotEmpty) ...[
                 const SizedBox(width: 8),
                 Container(
                   key: const Key('notifications.panel.newBadge'),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(color: CeColors.mint, borderRadius: BorderRadius.circular(CeRadius.pill)),
-                  child: Text('${unread.length} new',
-                      style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: CeColors.primaryDark)),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: CeColors.sage, borderRadius: BorderRadius.circular(CeRadius.xs)),
+                  child: Text('${unread.length} new', style: CeType.micro.copyWith(fontSize: 11, color: CeColors.ink)),
                 ),
               ],
             ]),
@@ -141,7 +141,7 @@ class NotificationsPanel extends ConsumerWidget {
             key: const Key('notifications.panel.markAll'),
             onPressed: unread.isEmpty ? null : () => ref.read(notificationReadProvider.notifier).markAllRead(unread),
             style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8)),
-            child: const Text('Mark all read', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+            child: Text('Mark all read', style: CeType.buttonSmall.copyWith(color: unread.isEmpty ? CeColors.muted2 : CeColors.accent)),
           ),
         ]),
       ),
@@ -168,15 +168,15 @@ class _PanelRow extends StatelessWidget {
       label: '${unread ? 'Unread. ' : ''}${item.title}. ${item.subtitle}. $timeLabel',
       excludeSemantics: true,
       child: Material(
-        color: unread ? CeColors.mint.withValues(alpha: 0.45) : Colors.white,
+        color: unread ? CeColors.surfaceAlt : Colors.white,
         child: InkWell(
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 12, 16, 12),
+            padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 13, 18, 13),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Container(
-                width: 38,
-                height: 38,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(CeRadius.md)),
                 child: Icon(CeIcons.of(item.icon), size: 18, color: fg),
               ),
@@ -184,18 +184,14 @@ class _PanelRow extends StatelessWidget {
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(item.title,
-                      style: TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: unread ? FontWeight.w800 : FontWeight.w600,
-                          color: CeColors.ink,
-                          height: 1.3)),
+                      style: CeType.listTitle.copyWith(fontSize: 13.5, fontWeight: unread ? FontWeight.w700 : FontWeight.w600)),
                   const SizedBox(height: 2),
                   Text(item.subtitle,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, color: CeColors.muted, height: 1.3)),
+                      style: CeType.bodySmall.copyWith(fontSize: 12)),
                   const SizedBox(height: 4),
-                  Text(timeLabel, style: const TextStyle(fontSize: 11, color: CeColors.muted2)),
+                  Text(timeLabel, style: CeType.caption.copyWith(color: CeColors.muted2)),
                 ]),
               ),
               const SizedBox(width: 10),
@@ -206,7 +202,7 @@ class _PanelRow extends StatelessWidget {
                         key: Key('notifications.panel.dot.${item.id}'),
                         width: 9,
                         height: 9,
-                        decoration: const BoxDecoration(color: CeColors.primary, shape: BoxShape.circle),
+                        decoration: const BoxDecoration(color: CeColors.accent, shape: BoxShape.circle),
                       )
                     : const SizedBox(width: 9, height: 9),
               ),
@@ -234,12 +230,12 @@ class _Empty extends StatelessWidget {
             width: 56,
             height: 56,
             decoration: BoxDecoration(color: CeColors.mint, borderRadius: BorderRadius.circular(CeRadius.xl)),
-            child: Icon(CeIcons.of(icon), size: 24, color: CeColors.primaryDark),
+            child: Icon(CeIcons.of(icon), size: 24, color: CeColors.primary),
           ),
           const SizedBox(height: 12),
-          Text(title, textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleMedium),
+          Text(title, textAlign: TextAlign.center, style: CeType.cardTitle),
           const SizedBox(height: 4),
-          Text(body, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: CeColors.muted)),
+          Text(body, textAlign: TextAlign.center, style: CeType.body.copyWith(color: CeColors.muted)),
           ?action,
         ]),
       );

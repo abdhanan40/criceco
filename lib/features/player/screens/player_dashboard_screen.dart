@@ -7,6 +7,7 @@ import '../../../app/providers/core_providers.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/session/session_controller.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/media/photo_picker.dart';
@@ -171,7 +172,7 @@ class _HeroAvatar extends StatelessWidget {
                 color: Colors.white.withValues(alpha: 0.2),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 2.5),
               ),
-              child: Text(initial, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: Colors.white)),
+              child: Text(initial, style: CeType.heroName.copyWith(fontSize: 21, color: Colors.white)),
             ),
           ),
           Positioned(
@@ -204,15 +205,12 @@ class _NextMatchCard extends ConsumerWidget {
     final white85 = Colors.white.withValues(alpha: 0.95);
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: CeSpace.gutter),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(CeRadius.lg),
-        boxShadow: const [BoxShadow(color: Color(0x26092328), blurRadius: 14, offset: Offset(0, 4))],
-      ),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(CeRadius.card)),
       clipBehavior: Clip.antiAlias,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Container(
           decoration: const BoxDecoration(gradient: CeColors.brandGradient),
-          padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
           child: DefaultTextStyle.merge(
             style: const TextStyle(color: Colors.white),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -220,18 +218,17 @@ class _NextMatchCard extends ConsumerWidget {
                 CeTeamBadge(match.ownTeamAbbr, size: 38, color: CeColors.primaryDark),
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 6),
-                  child: Text('VS', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, letterSpacing: 1)),
+                  child: Text('VS', style: TextStyle(fontFamily: CeType.ui, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1)),
                 ),
                 CeTeamBadge(match.opponentAbbr, size: 38, color: CeColors.red),
                 const Spacer(),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.22), borderRadius: BorderRadius.circular(CeRadius.pill)),
+                  decoration: BoxDecoration(color: CeColors.sage, borderRadius: BorderRadius.circular(CeRadius.xs)),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(CeIcons.of('check'), size: 10, color: Colors.white),
+                    Icon(CeIcons.of('check'), size: 11, color: CeColors.ink),
                     const SizedBox(width: 3),
-                    const Text('CONFIRMED', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800)),
+                    Text('CONFIRMED', style: CeType.micro.copyWith(color: CeColors.ink)),
                   ]),
                 ),
               ]),
@@ -240,11 +237,11 @@ class _NextMatchCard extends ConsumerWidget {
               Text('${match.ownTeamName} vs',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: white85)),
+                  style: CeType.caption.copyWith(fontSize: 12, color: CeColors.sage)),
               Text(match.opponentName,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, letterSpacing: -0.2)),
+                  style: CeType.heroName.copyWith(fontSize: 18, color: Colors.white)),
               const SizedBox(height: 10),
               InkWell(
                 onTap: () => openDirections(context, match.ground),
@@ -253,11 +250,11 @@ class _NextMatchCard extends ConsumerWidget {
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(match.ground,
-                        overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11.5, color: white85)),
+                        overflow: TextOverflow.ellipsis, style: CeType.bodySmall.copyWith(fontSize: 12, color: white85)),
                   ),
-                  const Text('Directions',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, decoration: TextDecoration.underline, decorationColor: Colors.white)),
-                  Icon(CeIcons.of('arrow-up-right'), size: 11, color: Colors.white),
+                  Text('Directions',
+                      style: CeType.chip.copyWith(fontSize: 12, color: CeColors.sage, decoration: TextDecoration.underline, decorationColor: CeColors.sage)),
+                  Icon(CeIcons.of('arrow-up-right'), size: 12, color: CeColors.sage),
                 ]),
               ),
               const SizedBox(height: 8),
@@ -271,10 +268,10 @@ class _NextMatchCard extends ConsumerWidget {
               Row(children: [
                 Icon(CeIcons.of('users'), size: 12, color: white85),
                 const SizedBox(width: 5),
-                Text('Playing: ', style: TextStyle(fontSize: 11.5, color: white85)),
+                Text('Playing: ', style: CeType.bodySmall.copyWith(fontSize: 12, color: white85)),
                 Flexible(
                   child: Text(match.playingTeamName,
-                      overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
+                      overflow: TextOverflow.ellipsis, style: CeType.chip.copyWith(fontSize: 12, color: Colors.white)),
                 ),
               ]),
             ]),
@@ -282,20 +279,17 @@ class _NextMatchCard extends ConsumerWidget {
         ),
         Container(
           color: CeColors.mint,
-          padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
+          padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
           child: Row(children: [
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('Match starts in', style: TextStyle(fontSize: 10.5, color: CeColors.primaryDark)),
+                Text('Match starts in', style: CeType.statLabel.copyWith(color: CeColors.primary)),
                 FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
                   child: Text(remaining.isNegative ? 'Started' : CeFormat.hms(remaining),
-                      style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: CeColors.primaryDark,
-                          fontFeatures: [FontFeature.tabularFigures()])),
+                      style: CeType.statValue(15).copyWith(
+                          color: CeColors.primary, fontFeatures: const [FontFeature.tabularFigures()])),
                 ),
               ]),
             ),
@@ -307,19 +301,20 @@ class _NextMatchCard extends ConsumerWidget {
                 label: 'View Match Details',
                 excludeSemantics: true,
                 child: Material(
-                  color: CeColors.primaryDark,
-                  borderRadius: BorderRadius.circular(CeRadius.sm),
+                  color: CeColors.primary,
+                  borderRadius: BorderRadius.circular(CeRadius.tab),
                   child: InkWell(
-                    borderRadius: BorderRadius.circular(CeRadius.sm),
+                    borderRadius: BorderRadius.circular(CeRadius.tab),
+                    highlightColor: CeColors.primaryPressed,
                     // Player context: the Player Match Details route (never Club Owner Match Management).
                     onTap: () => context.go(Routes.playerMatchDetails(match.id)),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        const Flexible(
+                        Flexible(
                           child: Text('View Match Details',
                               textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
+                              style: CeType.buttonSmall.copyWith(fontSize: 12.5, color: Colors.white)),
                         ),
                         const SizedBox(width: 4),
                         Icon(CeIcons.of('chevron-right'), size: 13, color: Colors.white),
@@ -345,7 +340,7 @@ class _WhiteInfo extends StatelessWidget {
   Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(CeIcons.of(icon), size: 12, color: Colors.white),
         const SizedBox(width: 5),
-        Text(text, style: const TextStyle(fontSize: 11.5, color: Colors.white)),
+        Text(text, style: CeType.bodySmall.copyWith(fontSize: 12, color: Colors.white)),
       ]);
 }
 
@@ -355,9 +350,9 @@ class _Tag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(CeRadius.sm)),
-        child: Text(text, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white)),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(CeRadius.xs)),
+        child: Text(text, style: CeType.micro.copyWith(fontSize: 11, color: Colors.white)),
       );
 }
 

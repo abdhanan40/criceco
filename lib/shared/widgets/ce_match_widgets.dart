@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/theme/tokens.dart';
+import '../../app/theme/typography.dart';
 import '../../core/enums/enums.dart';
+import 'ce_buttons.dart';
 import 'ce_feedback.dart';
 import 'ce_icons.dart';
+import 'ce_surfaces.dart';
 
 /// Opens Google Maps for a place (prototype "Directions ↗" links).
 Future<void> openDirections(BuildContext context, String place) async {
@@ -30,7 +33,7 @@ class CeTeamBadge extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: onDark ? Colors.white.withValues(alpha: 0.18) : color,
-          borderRadius: BorderRadius.circular(size >= 44 ? CeRadius.md : CeRadius.sm),
+          borderRadius: BorderRadius.circular(size >= 44 ? CeRadius.input : (size >= 34 ? CeRadius.md : CeRadius.sm)),
           border: onDark ? Border.all(color: Colors.white.withValues(alpha: 0.3), width: 2) : null,
         ),
         child: FittedBox(
@@ -38,7 +41,7 @@ class CeTeamBadge extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 3),
             child: Text(abbr,
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: size * 0.33)),
+                style: TextStyle(fontFamily: CeType.display, color: Colors.white, fontWeight: FontWeight.w700, fontSize: size * 0.33)),
           ),
         ),
       );
@@ -52,15 +55,15 @@ class CeInfoChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        decoration: BoxDecoration(color: CeColors.mint, borderRadius: BorderRadius.circular(CeRadius.sm)),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(color: CeColors.mint, borderRadius: BorderRadius.circular(CeRadius.xs)),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(CeIcons.of(icon), size: 12, color: CeColors.primaryDark),
+          Icon(CeIcons.of(icon), size: 12, color: CeColors.primary),
           const SizedBox(width: 5),
           Flexible(
             child: Text(label,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: CeColors.ink2)),
+                style: CeType.micro.copyWith(fontSize: 11, color: CeColors.ink2)),
           ),
         ]),
       );
@@ -74,28 +77,27 @@ class CeGroundRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: CeColors.mint,
+        color: CeColors.bg,
         borderRadius: BorderRadius.circular(CeRadius.md),
         child: InkWell(
           borderRadius: BorderRadius.circular(CeRadius.md),
           onTap: directions ? () => openDirections(context, ground) : null,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
             child: Row(children: [
-              Icon(CeIcons.of('flag'), size: 14, color: CeColors.ink2),
+              Icon(CeIcons.of('map-pin'), size: 14, color: CeColors.primary),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(ground,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: CeColors.ink2)),
+                    style: CeType.bodySmall.copyWith(fontWeight: FontWeight.w600, color: CeColors.primary)),
               ),
               if (directions) ...[
                 const SizedBox(width: 8),
-                const Text('Directions',
-                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800, color: CeColors.primaryDark)),
+                Text('Directions', style: CeType.chip.copyWith(fontSize: 12, color: CeColors.accent)),
                 const SizedBox(width: 2),
-                Icon(CeIcons.of('arrow-up-right'), size: 12, color: CeColors.primaryDark),
+                Icon(CeIcons.of('arrow-up-right'), size: 12, color: CeColors.accent),
               ],
             ]),
           ),
@@ -121,6 +123,9 @@ class CeMatchCard extends StatelessWidget {
     this.footer,
     this.onTap,
     this.margin = const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 0),
+    this.date,
+    this.meta,
+    this.dimmed = false,
   });
 
   final String homeAbbr;
@@ -139,42 +144,44 @@ class CeMatchCard extends StatelessWidget {
   final VoidCallback? onTap;
   final EdgeInsetsGeometry margin;
 
+  /// Reference layout: a date block (day + date) leads the card, with [meta]
+  /// ("2:00 PM · T20") under the title and the ground + team in a dashed
+  /// footer. Without it, the badge layout below.
+  final DateTime? date;
+  final String? meta;
+
+  /// Cancelled: muted date block with the date struck through.
+  final bool dimmed;
+
   @override
   Widget build(BuildContext context) {
+    if (date != null) return _dated(context);
     return Container(
       margin: margin,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(CeRadius.lg),
-        boxShadow: const [BoxShadow(color: Color(0x0F092328), blurRadius: 10, offset: Offset(0, 2))],
-      ),
       child: Material(
         color: Colors.white,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(CeRadius.lg),
+          borderRadius: BorderRadius.circular(CeRadius.card),
           side: const BorderSide(color: CeColors.line),
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 13),
+            padding: const EdgeInsets.all(CeSpace.card),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Row(children: [
                 CeTeamBadge(homeAbbr, color: homeColor, size: 34),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8),
-                  child: Text('VS',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.1, color: CeColors.muted)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text('VS', style: CeType.micro.copyWith(letterSpacing: 1.1, color: CeColors.muted)),
                 ),
                 CeTeamBadge(awayAbbr, color: awayColor, size: 34),
                 const Spacer(),
                 status,
               ]),
-              const SizedBox(height: 8),
-              Text(title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, letterSpacing: -0.2)),
+              const SizedBox(height: 10),
+              Text(title, maxLines: 2, overflow: TextOverflow.ellipsis, style: CeType.cardTitle),
               const SizedBox(height: 8),
               Wrap(spacing: 6, runSpacing: 6, children: infoChips),
               if (ground != null) ...[const SizedBox(height: 8), CeGroundRow(ground: ground!, directions: groundDirections)],
@@ -183,16 +190,136 @@ class CeMatchCard extends StatelessWidget {
                 Row(children: [
                   Icon(CeIcons.of('users'), size: 13, color: CeColors.muted),
                   const SizedBox(width: 5),
-                  const Text('Playing: ', style: TextStyle(fontSize: 12, color: CeColors.muted)),
+                  Text('Playing: ', style: CeType.bodySmall.copyWith(fontSize: 12)),
                   Flexible(
                     child: Text(playingTeam!,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: CeColors.ink)),
+                        overflow: TextOverflow.ellipsis, style: CeType.chip.copyWith(fontSize: 12, color: CeColors.ink)),
                   ),
                 ]),
               ],
-              if (footer != null) ...[const SizedBox(height: 8), footer!],
+              if (footer != null) ...[const CeDashedDivider(padding: EdgeInsets.symmetric(vertical: 10)), footer!],
             ]),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _dated(BuildContext context) {
+    final d = date!;
+    const days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+    final dateBlock = Container(
+      width: 48,
+      height: 52,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: dimmed ? CeColors.hairline : CeColors.mint,
+        borderRadius: BorderRadius.circular(CeRadius.md),
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text(days[d.weekday - 1],
+            style: CeType.micro.copyWith(fontSize: 10, letterSpacing: 0.6, color: dimmed ? CeColors.muted : CeColors.primary)),
+        const SizedBox(height: 2),
+        Text('${d.day}',
+            style: CeType.statValue(19).copyWith(
+                height: 1,
+                color: dimmed ? CeColors.muted : CeColors.ink,
+                decoration: dimmed ? TextDecoration.lineThrough : null)),
+      ]),
+    );
+    final hasFooterRow = ground != null || playingTeam != null;
+    return Container(
+      margin: margin,
+      child: Material(
+        color: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(CeRadius.card),
+          side: const BorderSide(color: CeColors.line),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(CeSpace.card),
+            // Narrow cards (320 px phones): the status goes under the time line
+            // and the footer stacks, so the title and ground keep their room.
+            child: LayoutBuilder(builder: (context, box) {
+              final narrow = box.maxWidth < 300;
+              return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Row(children: [
+                dateBlock,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: CeType.listTitle.copyWith(fontSize: 14.5, color: dimmed ? CeColors.ink2 : CeColors.ink)),
+                    if (meta != null) ...[
+                      const SizedBox(height: 3),
+                      Text(meta!, maxLines: 1, overflow: TextOverflow.ellipsis, style: CeType.bodySmall.copyWith(fontSize: 12)),
+                    ],
+                    // Extra chips only (date, time and format are in the block / meta).
+                    if (infoChips.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Wrap(spacing: 6, runSpacing: 6, children: infoChips),
+                    ],
+                    if (narrow) ...[const SizedBox(height: 6), status],
+                  ]),
+                ),
+                if (!narrow) ...[const SizedBox(width: 8), status],
+              ]),
+              if (hasFooterRow) ...[
+                const CeDashedDivider(padding: EdgeInsets.only(top: 12, bottom: 10)),
+                Flex(
+                  direction: narrow ? Axis.vertical : Axis.horizontal,
+                  mainAxisSize: narrow ? MainAxisSize.min : MainAxisSize.max,
+                  crossAxisAlignment: narrow ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+                  children: [
+                  if (ground != null)
+                    Flexible(
+                      fit: narrow ? FlexFit.loose : FlexFit.tight,
+                      child: InkWell(
+                        onTap: groundDirections ? () => openDirections(context, ground!) : null,
+                        child: Row(children: [
+                          Icon(CeIcons.of('map-pin'), size: 13, color: CeColors.primary),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(ground!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: CeType.caption.copyWith(fontSize: 12, color: CeColors.primary)),
+                          ),
+                          if (groundDirections) ...[
+                            const SizedBox(width: 3),
+                            Icon(CeIcons.of('arrow-up-right'), size: 12, color: CeColors.accent),
+                          ],
+                        ]),
+                      ),
+                    )
+                  else if (!narrow)
+                    const Spacer(),
+                  if (playingTeam != null) ...[
+                    SizedBox(width: narrow ? 0 : 10, height: narrow ? 6 : 0),
+                    ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: narrow ? box.maxWidth : 130),
+                      // Two texts (the team name stays its own Text).
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Text('Playing: ', style: CeType.caption.copyWith(fontSize: 12)),
+                        Flexible(
+                          child: Text(playingTeam!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: CeType.caption.copyWith(fontSize: 12, fontWeight: FontWeight.w700, color: CeColors.ink)),
+                        ),
+                      ]),
+                    ),
+                  ],
+                ]),
+              ],
+              if (footer != null) ...[const CeDashedDivider(padding: EdgeInsets.symmetric(vertical: 10)), footer!],
+              ]);
+            }),
           ),
         ),
       ),
@@ -222,27 +349,27 @@ class CeToggleCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         margin: margin,
-        decoration: BoxDecoration(color: CeColors.mint, borderRadius: BorderRadius.circular(CeRadius.lg)),
+        decoration: BoxDecoration(color: CeColors.mint, borderRadius: BorderRadius.circular(CeRadius.button)),
         child: InkWell(
-          borderRadius: BorderRadius.circular(CeRadius.lg),
+          borderRadius: BorderRadius.circular(CeRadius.button),
           onTap: () => onChanged(!value),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Row(children: [
-              Icon(CeIcons.of(icon), size: 22, color: CeColors.primaryDark),
+              Icon(CeIcons.of(icon), size: 20, color: CeColors.primary),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(title, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800)),
+                  Text(title, style: CeType.listTitle),
                   const SizedBox(height: 2),
-                  Text(subtitle, style: const TextStyle(fontSize: 11.5, color: CeColors.muted, height: 1.4)),
+                  Text(subtitle, style: CeType.bodySmall.copyWith(fontSize: 12)),
                 ]),
               ),
               const SizedBox(width: 8),
               Semantics(
                 toggled: value,
                 label: title,
-                child: Switch(value: value, onChanged: onChanged),
+                child: CeSwitch(value: value, onChanged: onChanged),
               ),
             ]),
           ),
@@ -261,9 +388,8 @@ class CeSummaryStrip extends StatelessWidget {
         margin: margin ?? const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(CeRadius.lg),
+          borderRadius: BorderRadius.circular(CeRadius.card),
           border: Border.all(color: CeColors.line),
-          boxShadow: CeShadows.card,
         ),
         child: IntrinsicHeight(
           child: Row(children: [
@@ -271,23 +397,15 @@ class CeSummaryStrip extends StatelessWidget {
               if (i > 0) const VerticalDivider(width: 1, color: CeColors.hairline),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 6),
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
                   child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                     FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(items[i].$1,
-                          style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              color: CeColors.ink,
-                              fontFeatures: [FontFeature.tabularFigures()])),
+                          style: CeType.statValue(16).copyWith(fontFeatures: const [FontFeature.tabularFigures()])),
                     ),
                     const SizedBox(height: 3),
-                    Text(items[i].$2.toUpperCase(),
-                        textAlign: TextAlign.center,
-                        maxLines: 2,
-                        style: const TextStyle(
-                            fontSize: 9.5, color: CeColors.muted, fontWeight: FontWeight.w600, letterSpacing: 0.3)),
+                    Text(items[i].$2, textAlign: TextAlign.center, maxLines: 2, style: CeType.statLabel),
                   ]),
                 ),
               ),
@@ -311,16 +429,15 @@ class CeStatTile extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(10, 10, 8, 10),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(CeRadius.row),
+          borderRadius: BorderRadius.circular(CeRadius.button),
           border: Border.all(color: CeColors.line),
-          boxShadow: CeShadows.card,
         ),
         child: Row(children: [
           Container(
             width: 32,
             height: 32,
-            decoration: BoxDecoration(color: tint, borderRadius: BorderRadius.circular(CeRadius.sm)),
-            child: Icon(CeIcons.of(icon), size: 15, color: CeColors.primaryDark),
+            decoration: BoxDecoration(color: tint, borderRadius: BorderRadius.circular(9)),
+            child: Icon(CeIcons.of(icon), size: 15, color: CeColors.primary),
           ),
           const SizedBox(width: 9),
           Expanded(
@@ -329,11 +446,10 @@ class CeStatTile extends StatelessWidget {
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
                 child: Text(value,
-                    style: const TextStyle(
-                        fontSize: 17, fontWeight: FontWeight.w800, color: CeColors.ink, fontFeatures: [FontFeature.tabularFigures()])),
+                    style: CeType.statValue(17).copyWith(fontFeatures: const [FontFeature.tabularFigures()])),
               ),
               const SizedBox(height: 1),
-              Text(label, maxLines: 2, style: const TextStyle(fontSize: 10.5, color: CeColors.muted, height: 1.2)),
+              Text(label, maxLines: 2, style: CeType.statLabel),
             ]),
           ),
         ]),
@@ -347,13 +463,13 @@ class CeResultPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           color: won ? CeColors.mint : CeColors.redSoft,
-          borderRadius: BorderRadius.circular(CeRadius.pill),
+          borderRadius: BorderRadius.circular(CeRadius.xs),
         ),
         child: Text(won ? 'WON' : 'LOST',
-            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: won ? CeColors.primaryDark : CeColors.red)),
+            style: CeType.micro.copyWith(fontSize: 11, color: won ? CeColors.primary : CeColors.red)),
       );
 }
 

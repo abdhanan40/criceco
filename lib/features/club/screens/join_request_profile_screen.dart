@@ -94,7 +94,7 @@ class _JoinRequestProfileScreenState extends ConsumerState<JoinRequestProfileScr
             const SizedBox(height: 10),
             Text(r.name,
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleLarge!.copyWith(fontWeight: FontWeight.w800)),
+                style: Theme.of(context).textTheme.titleLarge!.copyWith(fontWeight: FontWeight.w700)),
             const SizedBox(height: 2),
             Text('${r.role.label} · ${r.city}',
                 textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: CeColors.muted)),

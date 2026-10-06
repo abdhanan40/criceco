@@ -110,7 +110,7 @@ class _CardShell extends StatelessWidget {
         child: Material(
           color: Colors.white,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(CeRadius.lg),
+            borderRadius: BorderRadius.circular(CeRadius.card),
             side: const BorderSide(color: CeColors.line),
           ),
           clipBehavior: Clip.antiAlias,
@@ -159,7 +159,7 @@ class _Cta extends StatelessWidget {
         child: Row(children: [
           Icon(CeIcons.of(icon), size: 15, color: color),
           const SizedBox(width: 8),
-          Expanded(child: Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: color))),
+          Expanded(child: Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: color))),
           Icon(CeIcons.of('arrow-right'), size: 15, color: color),
         ]),
       );
@@ -183,7 +183,7 @@ class _HoldLine extends ConsumerWidget {
       Icon(CeIcons.of('timer'), size: 12, color: color),
       const SizedBox(width: 4),
       if (prefix.isNotEmpty)
-        Text(prefix, style: TextStyle(fontSize: 11.5, color: color, fontWeight: FontWeight.w800)),
+        Text(prefix, style: TextStyle(fontSize: 11.5, color: color, fontWeight: FontWeight.w700)),
       HoldCountdownText(matchId: matchId, style: TextStyle(fontSize: 11.5, color: color, fontWeight: FontWeight.w700)),
       Flexible(
         child: Text(' left on this reservation',
@@ -275,10 +275,15 @@ class _ScheduledCard extends ConsumerWidget {
       awayColor: opponent.color,
       title: '$home vs ${opponent.name}',
       status: const CeStatusChip('Confirmed', icon: 'check'),
+      // Reference match card: date block, "time · format", ground footer.
+      date: start,
+      meta: start == null ? null : '${CeFormat.time(start)} · ${m.format?.display(m.customOvers) ?? 'Format TBD'}',
       infoChips: [
-        CeInfoChip(icon: 'calendar', label: start == null ? 'Date TBD' : CeFormat.dayDate(start)),
-        CeInfoChip(icon: 'clock', label: start == null ? 'Time TBD' : CeFormat.time(start)),
-        CeInfoChip(icon: 'circle-dot', label: m.format?.display(m.customOvers) ?? 'Format TBD'),
+        if (start == null) ...[
+          const CeInfoChip(icon: 'calendar', label: 'Date TBD'),
+          const CeInfoChip(icon: 'clock', label: 'Time TBD'),
+          CeInfoChip(icon: 'circle-dot', label: m.format?.display(m.customOvers) ?? 'Format TBD'),
+        ],
         // Line-up status at a glance (in words, not colour).
         CeInfoChip(icon: 'users', label: m.lineup == null ? 'Line-up needed' : 'Line-up set'),
       ],

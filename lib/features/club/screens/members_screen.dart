@@ -256,7 +256,7 @@ class _FilterButton extends StatelessWidget {
                 alignment: Alignment.center,
                 decoration: const BoxDecoration(color: CeColors.primary, shape: BoxShape.circle),
                 child: Text('$count',
-                    style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: Colors.white)),
+                    style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: Colors.white)),
               ),
             ),
         ]),
@@ -315,7 +315,7 @@ class _MemberFilterPanelState extends ConsumerState<_MemberFilterPanel> {
   Widget _label(String t) => Padding(
         padding: const EdgeInsets.only(top: 18, bottom: 8),
         child: Text(t.toUpperCase(),
-            style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: 0.5, color: CeColors.muted)),
+            style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, letterSpacing: 0.5, color: CeColors.muted)),
       );
 
   @override

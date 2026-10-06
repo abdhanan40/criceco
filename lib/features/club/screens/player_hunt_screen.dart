@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/providers/core_providers.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/constants/cities.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
@@ -217,7 +218,7 @@ class _FindPlayersTabState extends ConsumerState<_FindPlayersTab> {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('${d.playersNeeded} Player${d.playersNeeded > 1 ? 's' : ''}',
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: CeColors.ink)),
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: CeColors.ink)),
               const Text('How many players do you need?', style: TextStyle(fontSize: 11.5, color: CeColors.muted)),
             ]),
           ),
@@ -230,7 +231,7 @@ class _FindPlayersTabState extends ConsumerState<_FindPlayersTab> {
             width: 32,
             child: Text('${d.playersNeeded}',
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: CeColors.ink)),
+                style: const TextStyle(fontFamily: CeType.display, fontSize: 16, fontWeight: FontWeight.w700, color: CeColors.ink)),
           ),
           _RoundButton(
             icon: 'plus',
@@ -447,7 +448,7 @@ class _PublishedSlot extends ConsumerWidget {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Looking for ${p.playersNeeded} ${p.role.countLabel(p.playersNeeded)}',
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: CeColors.ink)),
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: CeColors.ink)),
               const SizedBox(height: 2),
               Text('${p.format.label} · ${p.location ?? 'Any location'}',
                   style: const TextStyle(fontSize: 12, color: CeColors.muted)),
@@ -465,6 +466,7 @@ class _PublishedSlot extends ConsumerWidget {
         const SizedBox(height: 12),
         CeButton.danger(
           label: 'Remove Slot',
+          dense: true,
           onPressed: () async {
             final ok = await showCeConfirmSheet(
               context,

@@ -6,6 +6,7 @@ import '../../../app/config/demo_mode.dart';
 import '../../../app/providers/core_providers.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/ce_buttons.dart';
@@ -239,7 +240,7 @@ class _HoldLine extends StatelessWidget {
           const Text('Ground held for ', style: TextStyle(fontSize: 12, color: CeColors.amberInk)),
           HoldCountdownText(
             matchId: matchId,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: CeColors.amberInk),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: CeColors.amberInk),
           ),
         ]),
       );
@@ -322,7 +323,7 @@ class _Processing extends StatelessWidget {
             const SizedBox(width: 44, height: 44, child: CircularProgressIndicator(strokeWidth: 3)),
             const SizedBox(height: 18),
             Text(title,
-                textAlign: TextAlign.center, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
+                textAlign: TextAlign.center, style: const TextStyle(fontFamily: CeType.display, fontSize: 14.5, fontWeight: FontWeight.w700)),
             const SizedBox(height: 4),
             Text(sub, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, color: CeColors.muted)),
           ]),
@@ -379,7 +380,7 @@ class WaitingForOpponentScreen extends ConsumerWidget {
                   _PulseBadge(child: opponentBadge(c.opponent, size: 62)),
                   const SizedBox(height: 14),
                   Text('Waiting for $name to pay',
-                      textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                      textAlign: TextAlign.center, style: const TextStyle(fontFamily: CeType.display, fontSize: 16, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 6),
                   Text(
                     'Your ground is reserved and your share is paid. The booking auto-confirms the moment '
@@ -407,7 +408,7 @@ class WaitingForOpponentScreen extends ConsumerWidget {
                   const SizedBox(height: 4),
                   HoldCountdownText(
                     matchId: matchId,
-                    style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: CeColors.countdownInk),
+                    style: const TextStyle(fontFamily: CeType.display, fontSize: 30, fontWeight: FontWeight.w700, color: CeColors.countdownInk),
                   ),
                   const SizedBox(height: 4),
                   const Text('If time runs out before they pay, the slot is released automatically.',
@@ -631,7 +632,7 @@ class BookingConfirmedScreen extends ConsumerWidget {
               body: Text.rich(
                 TextSpan(children: [
                   const TextSpan(text: 'Both clubs have paid. Your match vs '),
-                  TextSpan(text: c.opponent.name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                  TextSpan(text: c.opponent.name, style: const TextStyle(fontWeight: FontWeight.w700)),
                   const TextSpan(text: ' is locked in.'),
                 ]),
                 textAlign: TextAlign.center,
@@ -791,7 +792,7 @@ class _RefundOption extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+              Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
               const SizedBox(height: 2),
               Text(body, style: const TextStyle(fontSize: 12, color: CeColors.muted)),
             ]),

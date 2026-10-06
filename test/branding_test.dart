@@ -24,7 +24,7 @@ void main() {
     expect(find.byType(CeBrandLogo), findsOneWidget);
     expect(find.bySemanticsLabel('CricEco'), findsOneWidget);
     final img = tester.widget<Image>(find.byType(Image));
-    expect((img.width, img.height, img.fit), (74.0, 74.0, BoxFit.contain));
+    expect((img.width, img.height, img.fit), (64.0, 64.0, BoxFit.contain));
   });
 
   testWidgets('sign-up intro uses the logo; feature intros keep their icons', (tester) async {

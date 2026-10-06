@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import '../../shared/widgets/ce_brand_logo.dart';
 import '../theme/tokens.dart';
+import '../theme/typography.dart';
 
 /// Launch animation (≈4.2 s, portrait): a hard cricket ball drops in from the
 /// top and hits the stumps *in the stadium photo*; the photo's own bails and
@@ -551,8 +552,9 @@ class _GlassCard extends StatelessWidget {
                           fit: BoxFit.scaleDown,
                           child: Text('CricEco',
                               style: TextStyle(
+                                  fontFamily: CeType.display,
                                   fontSize: 36,
-                                  fontWeight: FontWeight.w800,
+                                  fontWeight: FontWeight.w700,
                                   letterSpacing: -0.8,
                                   height: 1.05,
                                   color: Colors.white,

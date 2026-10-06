@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/ce_feedback.dart';
@@ -71,21 +72,21 @@ class PlayerMatchCard extends StatelessWidget {
     Widget? footer;
     if (m.status == PlayerMatchStatus.past && m.resultText != null) {
       final won = m.result == MatchResult.won;
-      final color = won ? CeColors.primaryDark : CeColors.red;
+      final color = won ? CeColors.primary : CeColors.red;
       footer = Row(children: [
         Flexible(
           child: Text(m.resultText!,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: color)),
+              style: CeType.chip.copyWith(color: color)),
         ),
         if (m.hasScorecard) ...[
-          Text(' · Tap for details', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: color)),
+          Text(' · Tap for details', style: CeType.chip.copyWith(color: color)),
           const SizedBox(width: 3),
           Icon(CeIcons.of('arrow-right'), size: 13, color: color),
         ],
       ]);
     } else if (m.status == PlayerMatchStatus.cancelled && m.cancelReason != null) {
-      footer = Text('Reason: ${m.cancelReason}', style: const TextStyle(fontSize: 12, color: CeColors.muted));
+      footer = Text('Reason: ${m.cancelReason}', style: CeType.bodySmall.copyWith(fontSize: 12, fontWeight: FontWeight.w600, color: CeColors.red));
     }
     return Semantics(
       button: true,
@@ -94,12 +95,12 @@ class PlayerMatchCard extends StatelessWidget {
         homeAbbr: m.ownTeamAbbr,
         awayAbbr: m.opponentAbbr,
         title: '${m.ownTeamName} vs ${m.opponentName}',
+        // Reference match card: date block, time · format, ground in the footer.
+        date: m.startsAt,
+        meta: '${CeFormat.time(m.startsAt)} · ${m.format.display()}',
+        dimmed: m.status == PlayerMatchStatus.cancelled,
         status: playerMatchStatusChip(m.status),
-        infoChips: [
-          CeInfoChip(icon: 'calendar', label: CeFormat.dayDate(m.startsAt)),
-          CeInfoChip(icon: 'clock', label: CeFormat.time(m.startsAt)),
-          CeInfoChip(icon: 'circle-dot', label: m.format.display()),
-        ],
+        infoChips: const [],
         ground: m.ground,
         playingTeam: m.playingTeamName,
         footer: footer,

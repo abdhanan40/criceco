@@ -6,6 +6,7 @@ import 'package:criceco/app/router/role_destinations.dart';
 import 'package:criceco/app/router/routes.dart';
 import 'package:criceco/app/session/role_controller.dart';
 import 'package:criceco/app/session/session_controller.dart';
+import 'package:criceco/app/theme/tokens.dart';
 import 'package:criceco/core/models/models.dart';
 import 'package:criceco/demo/seed_data.dart';
 import 'package:criceco/features/club/club_providers.dart';
@@ -196,7 +197,7 @@ void main() {
         expect(top('Match Availability'), greaterThan(top('Playing Opportunities')));
         expect(left('Playing Opportunities'), left('Match Availability'), reason: 'column 1 @ $width');
         expect(left('My Matches'), left('Performance'), reason: 'column 2 @ $width');
-        expect(tester.getRect(_quickAction('Performance')).right, closeTo(width - 16, 1));
+        expect(tester.getRect(_quickAction('Performance')).right, closeTo(width - CeSpace.gutter, 1));
         // Every label shows in full (no ellipsis, no word split across lines).
         for (final p in tester.renderObjectList<RenderParagraph>(find.descendant(of: grid, matching: find.byType(RichText)))) {
           expect(p.didExceedMaxLines, isFalse, reason: '${p.text.toPlainText()} @ $width');
@@ -1078,7 +1079,7 @@ void main() {
       expect(find.text('${p.matches}'), findsWidgets);
       await _go(tester, c, PerformanceView.history.location);
       expect(find.text('${log.length}'), findsWidgets);
-      expect(find.text('TOTAL'), findsOneWidget);
+      expect(find.text('Total'), findsOneWidget);
     });
 
     testWidgets('legacy history route opens the Performance workspace on History', (tester) async {

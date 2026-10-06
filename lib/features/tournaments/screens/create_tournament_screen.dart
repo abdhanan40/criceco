@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/providers/core_providers.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/constants/cities.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
@@ -162,7 +163,7 @@ class _CreateTournamentScreenState extends ConsumerState<CreateTournamentScreen>
               child: const Column(children: [
                 CeIconWell('trophy', size: 48, iconSize: 22, background: Colors.white, circle: true),
                 SizedBox(height: 8),
-                Text('New Tournament', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                Text('New Tournament', style: TextStyle(fontFamily: CeType.display, fontSize: 16, fontWeight: FontWeight.w700)),
                 SizedBox(height: 2),
                 Text('Set up a tournament and invite clubs to compete',
                     textAlign: TextAlign.center, style: TextStyle(fontSize: 12.5, color: CeColors.muted)),
@@ -349,7 +350,7 @@ class TournamentPublishedScreen extends ConsumerWidget {
                       title: 'Tournament Created Successfully',
                       body: Text.rich(
                         TextSpan(children: [
-                          TextSpan(text: t.name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                          TextSpan(text: t.name, style: const TextStyle(fontWeight: FontWeight.w700)),
                           TextSpan(text: ' is now live. Clubs in ${t.city} can start registering their teams.'),
                         ]),
                         textAlign: TextAlign.center,

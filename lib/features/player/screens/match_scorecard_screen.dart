@@ -56,7 +56,7 @@ class MatchScorecardView extends ConsumerWidget {
               const SizedBox(width: 6),
               Flexible(
                 child: Text(sc.result,
-                    textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
+                    textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
               ),
             ]),
             const SizedBox(height: 4),
@@ -98,7 +98,6 @@ class _StatBox extends StatelessWidget {
           color: Colors.white,
           borderRadius: BorderRadius.circular(CeRadius.row),
           border: Border.all(color: CeColors.line),
-          boxShadow: CeShadows.card,
         ),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Text(label, style: const TextStyle(fontSize: 10, color: CeColors.muted)),
@@ -116,7 +115,7 @@ class _StatBox extends StatelessWidget {
               TextSpan(text: value),
             ]),
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, height: 1.25, color: CeColors.ink),
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, height: 1.25, color: CeColors.ink),
           ),
         ]),
       );
@@ -147,7 +146,7 @@ class _InningsCard extends StatelessWidget {
         padding: const EdgeInsets.only(top: 12, bottom: 6),
         child: Text(t.toUpperCase(),
             style: const TextStyle(
-                fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: 0.4, color: CeColors.muted)),
+                fontSize: 10.5, fontWeight: FontWeight.w700, letterSpacing: 0.4, color: CeColors.muted)),
       );
 
   @override
@@ -156,7 +155,7 @@ class _InningsCard extends StatelessWidget {
     return CeCard(
       margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 16, CeSpace.gutter, 0),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Text(inn.team, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+        Text(inn.team, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
         const SizedBox(height: 2),
         Text.rich(TextSpan(children: [
           TextSpan(text: '${inn.total}/${inn.wickets} '),
@@ -174,7 +173,7 @@ class _InningsCard extends StatelessWidget {
               const SizedBox(height: 1),
               Text(inn.batting[i].dismissal, style: const TextStyle(fontSize: 9.5, color: CeColors.muted)),
             ]),
-            Text('${inn.batting[i].runs}', style: _num.copyWith(fontWeight: FontWeight.w800)),
+            Text('${inn.batting[i].runs}', style: _num.copyWith(fontWeight: FontWeight.w700)),
             Text('${inn.batting[i].balls}', style: _num),
             Text('${inn.batting[i].fours}', style: _num),
             Text('${inn.batting[i].sixes}', style: _num),
@@ -190,7 +189,7 @@ class _InningsCard extends StatelessWidget {
             Text('${inn.bowling[i].overs}', style: _num),
             Text('${inn.bowling[i].maidens}', style: _num),
             Text('${inn.bowling[i].runs}', style: _num),
-            Text('${inn.bowling[i].wickets}', style: _num.copyWith(fontWeight: FontWeight.w800)),
+            Text('${inn.bowling[i].wickets}', style: _num.copyWith(fontWeight: FontWeight.w700)),
           ]),
       ]),
     );

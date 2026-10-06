@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
@@ -51,7 +52,7 @@ class TournamentHubScreen extends ConsumerWidget {
                     TextSpan(text: 'Tournament '),
                     TextSpan(text: 'Center', style: TextStyle(color: CeColors.sage)),
                   ]),
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  style: TextStyle(fontFamily: CeType.display, fontSize: 18, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 2),
                 Text('Organize, discover and manage tournaments with ease.',
@@ -153,7 +154,7 @@ class _Stat extends StatelessWidget {
               child: Icon(CeIcons.of(icon), size: 14, color: color),
             ),
             const SizedBox(height: 4),
-            Text('$value', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: CeColors.ink)),
+            Text('$value', style: const TextStyle(fontFamily: CeType.display, fontSize: 17, fontWeight: FontWeight.w700, color: CeColors.ink)),
             Text(label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -200,7 +201,7 @@ class _HubCard extends StatelessWidget {
             const SizedBox(width: 11),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(title, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: CeColors.ink, height: 1.25)),
+                Text(title, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: CeColors.ink, height: 1.25)),
                 const SizedBox(height: 2),
                 Text(body,
                     maxLines: 2,
@@ -216,7 +217,7 @@ class _HubCard extends StatelessWidget {
                 decoration: BoxDecoration(color: CeColors.red, borderRadius: BorderRadius.circular(CeRadius.pill)),
                 child: Text('$badge',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white)),
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
               ),
             ],
             const SizedBox(width: 4),
@@ -251,7 +252,7 @@ class _OverviewRow extends StatelessWidget {
               Expanded(
                 child: Text(label, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: CeColors.ink)),
               ),
-              Text('$value', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: CeColors.ink)),
+              Text('$value', style: const TextStyle(fontFamily: CeType.display, fontSize: 15, fontWeight: FontWeight.w700, color: CeColors.ink)),
               SizedBox(
                 width: 26,
                 child: onTap == null

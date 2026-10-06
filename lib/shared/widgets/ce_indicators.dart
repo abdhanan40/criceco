@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/theme/tokens.dart';
+import '../../app/theme/typography.dart';
 import '../../core/enums/enums.dart';
 import 'ce_icons.dart';
 
@@ -26,8 +27,8 @@ class CeStatusChip extends StatelessWidget {
     final (bg, fg) = colors(tone);
     return Container(
       constraints: const BoxConstraints(minHeight: CeSize.statusChipMinHeight),
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(CeRadius.pill)),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(CeRadius.xs)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         if (icon != null) ...[Icon(CeIcons.of(icon!), size: 11, color: fg), const SizedBox(width: 4)],
         // Flexible: a long label ellipsizes instead of overflowing a narrow parent.
@@ -35,7 +36,7 @@ class CeStatusChip extends StatelessWidget {
           child: Text(label.toUpperCase(),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, letterSpacing: 0.4, color: fg)),
+              style: CeType.micro.copyWith(letterSpacing: 0.3, height: 1.2, color: fg)),
         ),
       ]),
     );
@@ -54,19 +55,19 @@ class CeChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fg = selected ? Colors.white : CeColors.ink2;
+    final fg = selected ? Colors.white : CeColors.ink;
     return Semantics(
       selected: selected,
       button: true,
       child: Material(
         color: selected ? CeColors.primary : Colors.white,
-        shape: StadiumBorder(side: BorderSide(color: selected ? CeColors.primary : CeColors.line)),
+        shape: StadiumBorder(side: BorderSide(color: selected ? CeColors.primary : CeColors.line2, width: 1.5)),
         child: InkWell(
           customBorder: const StadiumBorder(),
           onTap: onTap,
           child: Container(
             constraints: const BoxConstraints(minHeight: CeSize.chipMinHeight),
-            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               if (icon != null) ...[Icon(CeIcons.of(icon!), size: 14, color: fg), const SizedBox(width: 6)],
               // Flexible: a long label ellipsizes in a narrow Wrap / card
@@ -75,15 +76,13 @@ class CeChip extends StatelessWidget {
                 child: Text(label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.labelMedium!.copyWith(color: fg)),
+                    style: CeType.chip.copyWith(color: fg, height: 1.2)),
               ),
               if (count != null) ...[
                 const SizedBox(width: 6),
                 Text('$count',
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: selected ? Colors.white.withValues(alpha: 0.85) : CeColors.muted)),
+                    style: CeType.micro.copyWith(
+                        fontSize: 11, color: selected ? Colors.white.withValues(alpha: 0.85) : CeColors.muted)),
               ],
             ]),
           ),
@@ -121,7 +120,7 @@ class CeChipRow<T> extends StatelessWidget {
         CeChip(label: labelOf(v), selected: v == selected, count: countOf?.call(v), onTap: () => onSelected(v)),
     ];
     if (wrap) {
-      return Padding(padding: padding, child: Wrap(spacing: 7, runSpacing: 7, children: chips));
+      return Padding(padding: padding, child: Wrap(spacing: 8, runSpacing: 8, children: chips));
     }
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -151,10 +150,10 @@ class CeAvatar extends StatelessWidget {
       decoration: BoxDecoration(shape: BoxShape.circle, color: background ?? CeColors.mint),
       child: Text(initial,
           style: TextStyle(
-              fontSize: size * 0.38,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.3,
-              color: foreground ?? (background == null ? CeColors.primaryDark : Colors.white))),
+              fontFamily: CeType.display,
+              fontSize: size * 0.34,
+              fontWeight: FontWeight.w700,
+              color: foreground ?? (background == null ? CeColors.primary : Colors.white))),
     );
   }
 }
@@ -178,7 +177,7 @@ class CeFormDots extends StatelessWidget {
               borderRadius: BorderRadius.circular(size > 16 ? 7 : 4),
             ),
             child: Text(form[i] == MatchResult.won ? 'W' : 'L',
-                style: TextStyle(color: Colors.white, fontSize: size * 0.62, fontWeight: FontWeight.w800)),
+                style: TextStyle(color: Colors.white, fontSize: size * 0.62, fontWeight: FontWeight.w700)),
           ),
         ],
       ]);
@@ -199,7 +198,6 @@ class CeStatCard extends StatelessWidget {
     color: Colors.white,
     borderRadius: BorderRadius.circular(CeRadius.row),
     border: Border.all(color: CeColors.line),
-    boxShadow: CeShadows.card,
   );
 
   @override
@@ -227,13 +225,7 @@ class CeStatCard extends StatelessWidget {
     final valueText = FittedBox(
       fit: BoxFit.scaleDown,
       alignment: Alignment.centerLeft,
-      child: Text(value,
-          style: const TextStyle(
-              fontSize: 19,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.6,
-              color: CeColors.ink,
-              fontFeatures: [FontFeature.tabularFigures()])),
+      child: Text(value, style: CeType.statValue().copyWith(fontFeatures: const [FontFeature.tabularFigures()])),
     );
     return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         if (icon != null)
@@ -250,8 +242,7 @@ class CeStatCard extends StatelessWidget {
         else
           valueText,
         const SizedBox(height: 3),
-        Text(label.toUpperCase(),
-            maxLines: 2, style: Theme.of(context).textTheme.labelSmall!.copyWith(height: 1.2, fontSize: 9.5, letterSpacing: 0.4)),
+        Text(label, maxLines: 2, style: CeType.statLabel),
         if (sub != null) ...[
           const SizedBox(height: 2),
           Text(sub!,
@@ -276,8 +267,8 @@ class CeStatCell {
 
 /// Summary card (reference "Weekly Progress" / profile stats row): one white
 /// card, N equal stat cells split by hairlines, each optionally tappable, and
-/// an optional [header] and [footer] (e.g. a small chart). Labels render
-/// uppercase, as on the stat cards.
+/// an optional [header] and [footer] (e.g. a small chart). Sora values over
+/// sentence-case Manrope labels (reference).
 class CeStatGroup extends StatelessWidget {
   const CeStatGroup({super.key, required this.cells, this.header, this.footer, this.margin});
   final List<CeStatCell> cells;
@@ -293,26 +284,17 @@ class CeStatGroup extends StatelessWidget {
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           FittedBox(
             fit: BoxFit.scaleDown,
-            child: Text(c.value,
-                style: const TextStyle(
-                    fontSize: 19,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.6,
-                    color: CeColors.ink,
-                    fontFeatures: [FontFeature.tabularFigures()])),
+            child: Text(c.value, style: CeType.statValue().copyWith(fontFeatures: const [FontFeature.tabularFigures()])),
           ),
           const SizedBox(height: 2),
-          Text(c.label.toUpperCase(),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              style: Theme.of(context).textTheme.labelSmall!.copyWith(fontSize: 9.5, height: 1.2, letterSpacing: 0.4)),
+          Text(c.label, textAlign: TextAlign.center, maxLines: 2, style: CeType.statLabel),
           if (c.sub != null) ...[
             const SizedBox(height: 2),
             Text(c.sub!,
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: CeColors.primary)),
+                style: CeType.statLabel.copyWith(color: CeColors.accent)),
           ],
         ]),
       );
@@ -325,15 +307,11 @@ class CeStatGroup extends StatelessWidget {
 
     return Container(
       margin: margin ?? const EdgeInsets.symmetric(horizontal: CeSpace.gutter),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(CeRadius.lg),
-        boxShadow: CeShadows.card,
-      ),
       child: Material(
         color: Colors.white,
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(CeRadius.lg),
+          borderRadius: BorderRadius.circular(CeRadius.card),
           side: const BorderSide(color: CeColors.line),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [

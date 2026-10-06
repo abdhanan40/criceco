@@ -6,6 +6,7 @@ import '../../app/providers/core_providers.dart';
 import '../../app/router/routes.dart';
 import '../../app/session/role_controller.dart';
 import '../../app/theme/tokens.dart';
+import '../../app/theme/typography.dart';
 import '../../core/models/models.dart';
 import '../../core/utils/validators.dart';
 import '../../shared/media/photo_picker.dart';
@@ -118,7 +119,7 @@ class _ClubSetupScreenState extends ConsumerState<ClubSetupScreen> {
         if (!didPop) _back();
       },
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: CeColors.bg,
         appBar: CeTopBar(title: 'Club Setup', onBack: _back),
         body: SingleChildScrollView(
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -130,12 +131,17 @@ class _ClubSetupScreenState extends ConsumerState<ClubSetupScreen> {
               const AuthHeading(
                 title: 'Set up your club',
                 subtitle: 'A few details and your Club Owner dashboard is ready.',
+                large: true,
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 22),
               Center(
                 child: CePhotoPicker(
+                  title: 'Club picture',
+                  square: true,
                   placeholderIcon: 'shield',
-                  caption: draft.hasLogo ? 'Tap to change' : 'Club picture (optional)',
+                  caption: draft.hasLogo
+                      ? 'Looking good. Tap the picture to change it.'
+                      : 'Optional · a square logo or photo works best.',
                   imagePath: draft.logoPath,
                   semanticLabel: draft.hasLogo ? 'Change club picture' : 'Add club picture',
                   // Gallery / camera (and Remove once set) — the same picker as My Club.
@@ -147,7 +153,7 @@ class _ClubSetupScreenState extends ConsumerState<ClubSetupScreen> {
                   },
                 ),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 22),
               const CeFieldLabel('Club Name', required: true),
               CeTextField(
                 fieldKey: const Key('club.name'),
@@ -196,19 +202,25 @@ class _ClubSetupScreenState extends ConsumerState<ClubSetupScreen> {
                 onChanged: (v) => setup.update((d) => d.copyWith(city: v)),
               ),
               const CeFieldLabel('Club Type', required: true),
-              CeSelectField<ClubType>(
-                sheetTitle: 'Club Type',
-                itemIcon: 'tag',
-                fieldKey: const Key('club.type'),
-                items: ClubType.values,
-                value: draft.type,
-                labelOf: (t) => t.label,
-                hint: 'Select club type',
-                icon: 'tag',
-                validator: (v) => v == null ? 'Please select a club type' : null,
-                onChanged: (v) => setup.update((d) => d.copyWith(type: v)),
+              // Reference club-type grid: one tap, no picker sheet.
+              FormField<ClubType>(
+                key: const Key('club.type'),
+                validator: (_) => ref.read(clubSetupProvider).type == null ? 'Please select a club type' : null,
+                builder: (field) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  CeChoiceGroup<ClubType>(
+                    columns: 2,
+                    values: ClubType.values,
+                    selected: draft.type,
+                    labelOf: (t) => t.label,
+                    onSelected: (v) {
+                      setup.update((d) => d.copyWith(type: v));
+                      if (field.hasError) WidgetsBinding.instance.addPostFrameCallback((_) => field.validate());
+                    },
+                  ),
+                  CeInlineError(field.errorText),
+                ]),
               ),
-              const CeFieldLabel('Do you have a home ground?', required: true),
+              const SizedBox(height: 18),
               // FormField so the Yes / No answer (and the ground for Yes)
               // validates inline with the rest of the form.
               FormField<bool>(
@@ -219,33 +231,47 @@ class _ClubSetupScreenState extends ConsumerState<ClubSetupScreen> {
                   if (d.hasHomeGround! && d.homeGroundId == null) return 'Please select your home ground';
                   return null;
                 },
+                // Reference home-ground card: question + Yes / No segment, then
+                // the ground picker for Yes.
                 builder: (field) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  CeChoiceGroup<bool>(
-                    values: const [true, false],
-                    selected: draft.hasHomeGround,
-                    labelOf: (v) => v ? 'Yes' : 'No',
-                    onSelected: (v) {
-                      setup.update((d) => d.copyWith(hasHomeGround: v));
-                      if (field.hasError) WidgetsBinding.instance.addPostFrameCallback((_) => field.validate());
-                    },
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(CeRadius.card),
+                      border: Border.all(color: field.hasError ? CeColors.redBorder : CeColors.line2, width: 1.5),
+                    ),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                      Row(children: [
+                        Expanded(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text('Home ground *', style: CeType.listTitle),
+                            const SizedBox(height: 3),
+                            Text('Do you have a home ground?', style: CeType.bodySmall),
+                          ]),
+                        ),
+                        const SizedBox(width: 12),
+                        _YesNo(
+                          value: draft.hasHomeGround,
+                          onChanged: (v) {
+                            setup.update((d) => d.copyWith(hasHomeGround: v));
+                            if (field.hasError) WidgetsBinding.instance.addPostFrameCallback((_) => field.validate());
+                          },
+                        ),
+                      ]),
+                      if (draft.hasHomeGround == true) ...[
+                        const SizedBox(height: 12),
+                        CeButton.soft(
+                          label: ground?.name ?? 'Select Home Ground',
+                          icon: CeIcons.of(ground == null ? 'plus' : 'flag'),
+                          onPressed: () async {
+                            await _pickGround(grounds);
+                            if (field.hasError) field.validate();
+                          },
+                        ),
+                      ],
+                    ]),
                   ),
-                  if (draft.hasHomeGround == true) ...[
-                    const SizedBox(height: 10),
-                    ground == null
-                        ? CeButton.soft(
-                            label: 'Select Home Ground',
-                            icon: CeIcons.of('plus'),
-                            onPressed: () async {
-                              await _pickGround(grounds);
-                              if (field.hasError) field.validate();
-                            },
-                          )
-                        : CeButton(
-                            label: ground.name,
-                            icon: CeIcons.of('flag'),
-                            onPressed: () => _pickGround(grounds),
-                          ),
-                  ],
                   CeInlineError(field.errorText),
                 ]),
               ),
@@ -256,6 +282,46 @@ class _ClubSetupScreenState extends ConsumerState<ClubSetupScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Yes / No segment (reference home-ground toggle: mint track, 34 px
+/// options, the chosen one filled #12544F). Nothing is chosen at first.
+class _YesNo extends StatelessWidget {
+  const _YesNo({required this.value, required this.onChanged});
+  final bool? value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget option(bool v, String label) {
+      final on = value == v;
+      return Semantics(
+        button: true,
+        selected: on,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => onChanged(v),
+          child: AnimatedContainer(
+            duration: CeMotion.base,
+            width: 52,
+            height: 34,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: on ? CeColors.primary : Colors.transparent,
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Text(label, style: CeType.buttonSmall.copyWith(color: on ? Colors.white : CeColors.muted)),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(color: CeColors.mint, borderRadius: BorderRadius.circular(CeRadius.md)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [option(true, 'Yes'), option(false, 'No')]),
     );
   }
 }

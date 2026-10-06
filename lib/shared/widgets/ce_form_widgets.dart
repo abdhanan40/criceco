@@ -1,45 +1,59 @@
 import 'package:flutter/material.dart';
 
 import '../../app/theme/tokens.dart';
+import '../../app/theme/typography.dart';
 import '../media/photo_picker.dart';
 import 'ce_icons.dart';
 import 'ce_indicators.dart';
 
-/// Step progress (`.progress-wrap`): 6 px track + "Step 2 of 3 — …" label.
+/// Step progress (reference setup header): [steps] 4 px segments — done in
+/// the accent green, the rest #D5E3DA — and the step label underneath.
 class CeStepProgress extends StatelessWidget {
-  const CeStepProgress({super.key, required this.value, required this.label});
+  const CeStepProgress({super.key, required this.value, required this.label, this.steps = 3, this.padding});
   final double value;
   final String label;
+  final int steps;
+  final EdgeInsets? padding;
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Semantics(
-            label: label,
-            value: '${(value * 100).round()}%',
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(CeRadius.pill),
-              child: TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0, end: value),
-                duration: const Duration(milliseconds: 350),
-                curve: const Cubic(.3, .8, .4, 1),
-                builder: (_, v, _) => LinearProgressIndicator(value: v, minHeight: 6),
+  Widget build(BuildContext context) {
+    final done = (value * steps).round().clamp(0, steps);
+    return Padding(
+      padding: padding ?? const EdgeInsets.fromLTRB(20, 14, 20, 0),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Semantics(
+          label: label,
+          value: '${(value * 100).round()}%',
+          child: Row(children: [
+            for (var i = 0; i < steps; i++) ...[
+              if (i > 0) const SizedBox(width: 6),
+              Expanded(
+                child: AnimatedContainer(
+                  duration: CeMotion.base,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: i < done ? CeColors.accent : CeColors.line2,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
               ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: CeColors.muted)),
-        ]),
-      );
+            ],
+          ]),
+        ),
+        const SizedBox(height: 8),
+        Text(label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: CeType.label.copyWith(color: CeColors.muted, letterSpacing: 0.48)),
+      ]),
+    );
+  }
 }
 
-/// Circular photo / logo picker with camera badge (`Complete Profile`,
-/// `Create Club`). Shows the chosen picture ([imagePath]); without one, a
-/// dashed placeholder (or [initial] on a filled circle when [hasPhoto]).
+/// Photo / crest picker (reference profile photo & club crest): an 84 px
+/// mint well with a dashed sage outline until a picture is chosen, and a
+/// 28 px green badge (+ to add, pencil to change). With [title] the hint
+/// sits beside it (reference layout); without, [caption] sits underneath.
 class CePhotoPicker extends StatelessWidget {
   const CePhotoPicker({
     super.key,
@@ -50,6 +64,8 @@ class CePhotoPicker extends StatelessWidget {
     this.initial,
     this.imagePath,
     this.semanticLabel = 'Choose photo',
+    this.title,
+    this.square = false,
   });
 
   final String placeholderIcon;
@@ -62,82 +78,108 @@ class CePhotoPicker extends StatelessWidget {
   final String? imagePath;
   final String semanticLabel;
 
+  /// Side title ("Profile photo", "Club crest"): reference row layout.
+  final String? title;
+
+  /// Rounded square (club crest, radius 24) instead of a circle.
+  final bool square;
+
+  static const double _size = 84;
+
   @override
   Widget build(BuildContext context) {
-    return Column(children: [
-      Semantics(
-        button: true,
-        label: semanticLabel,
-        child: GestureDetector(
-          onTap: onTap,
-          child: SizedBox(
-            width: 84,
-            height: 84,
-            child: Stack(clipBehavior: Clip.none, children: [
-              CustomPaint(
-                foregroundPainter: hasPhoto || imagePath != null ? null : _DashedCirclePainter(),
-                child: CePhotoImage(
-                  path: imagePath,
-                  size: 84,
-                  fallback: Container(
-                    width: 84,
-                    height: 84,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: hasPhoto ? CeColors.primary : CeColors.mint,
-                    ),
-                    child: hasPhoto && initial != null
-                        ? Text(initial!,
-                            style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: Colors.white))
-                        : Icon(CeIcons.of(placeholderIcon), size: 30, color: hasPhoto ? Colors.white : CeColors.primaryDark),
-                  ),
+    final filled = hasPhoto || imagePath != null;
+    final radius = square ? 24.0 : _size / 2;
+    final well = Container(
+      width: _size,
+      height: _size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: square ? BoxShape.rectangle : BoxShape.circle,
+        borderRadius: square ? BorderRadius.circular(radius) : null,
+        color: hasPhoto && imagePath == null ? CeColors.primary : CeColors.mint,
+      ),
+      child: hasPhoto && initial != null
+          ? Text(initial!, style: CeType.displayLarge.copyWith(color: Colors.white))
+          : Icon(CeIcons.of(placeholderIcon), size: 28, color: hasPhoto ? Colors.white : CeColors.primary),
+    );
+    final picker = Semantics(
+      button: true,
+      label: semanticLabel,
+      child: GestureDetector(
+        onTap: onTap,
+        child: SizedBox(
+          width: _size,
+          height: _size,
+          child: Stack(clipBehavior: Clip.none, children: [
+            CustomPaint(
+              foregroundPainter: filled ? null : _DashedOutlinePainter(radius: radius),
+              child: CePhotoImage(path: imagePath, size: _size, square: square, radius: radius, fallback: well),
+            ),
+            Positioned(
+              right: square ? -4 : -2,
+              bottom: square ? -4 : -2,
+              child: Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: CeColors.accent,
+                  border: Border.all(color: CeColors.bg, width: 3),
                 ),
+                child: Icon(CeIcons.of(filled ? 'edit-3' : 'plus'), size: 12, color: Colors.white),
               ),
-              Positioned(
-                right: -2,
-                bottom: -2,
-                child: Container(
-                  width: 26,
-                  height: 26,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: CeColors.primaryDark,
-                    border: Border.all(color: Colors.white, width: 2),
-                  ),
-                  child: Icon(CeIcons.of('camera'), size: 12, color: Colors.white),
-                ),
-              ),
-            ]),
-          ),
+            ),
+          ]),
         ),
       ),
-      const SizedBox(height: 8),
-      Text(caption, style: const TextStyle(fontSize: 12, color: CeColors.muted)),
+    );
+    if (title == null) {
+      return Column(children: [
+        picker,
+        const SizedBox(height: 8),
+        Text(caption, style: CeType.bodySmall.copyWith(fontSize: 12)),
+      ]);
+    }
+    return Row(children: [
+      picker,
+      const SizedBox(width: 16),
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title!, style: CeType.listTitle.copyWith(fontSize: 15)),
+          const SizedBox(height: 6),
+          Text(caption, style: CeType.body.copyWith(color: CeColors.muted, height: 1.4)),
+        ]),
+      ),
     ]);
   }
 }
 
-class _DashedCirclePainter extends CustomPainter {
+class _DashedOutlinePainter extends CustomPainter {
+  _DashedOutlinePainter({required this.radius});
+  final double radius;
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = CeColors.muted2
+      ..color = CeColors.sage
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
-    final rect = Offset.zero & size;
-    const dashes = 36;
-    const sweep = 2 * 3.1415926535 / dashes;
-    for (var i = 0; i < dashes; i++) {
-      canvas.drawArc(rect.deflate(1), i * sweep, sweep * 0.55, false, paint);
+    final rrect = RRect.fromRectAndRadius((Offset.zero & size).deflate(1), Radius.circular(radius - 1));
+    for (final metric in (Path()..addRRect(rrect)).computeMetrics()) {
+      for (double d = 0; d < metric.length; d += 9) {
+        canvas.drawPath(metric.extractPath(d, d + 5), paint);
+      }
     }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _DashedOutlinePainter oldDelegate) => oldDelegate.radius != radius;
 }
 
-/// Wrapping group of selectable pills (`.role-pill-row`) with optional error.
+/// Group of selectable options. Wrapping pills by default; with [columns]
+/// an equal-width grid of 42 px option buttons (reference role / club-type
+/// pickers: radius 12, 1.5 px border, selected filled #12544F).
 class CeChoiceGroup<T> extends StatelessWidget {
   const CeChoiceGroup({
     super.key,
@@ -146,6 +188,7 @@ class CeChoiceGroup<T> extends StatelessWidget {
     required this.labelOf,
     required this.onSelected,
     this.iconOf,
+    this.columns,
   });
 
   final List<T> values;
@@ -153,15 +196,64 @@ class CeChoiceGroup<T> extends StatelessWidget {
   final String Function(T) labelOf;
   final ValueChanged<T> onSelected;
   final String? Function(T)? iconOf;
+  final int? columns;
 
   @override
-  Widget build(BuildContext context) => Wrap(
-        spacing: 7,
-        runSpacing: 7,
+  Widget build(BuildContext context) {
+    if (columns == null) {
+      return Wrap(
+        spacing: 8,
+        runSpacing: 8,
         children: [
           for (final v in values)
             CeChip(label: labelOf(v), icon: iconOf?.call(v), selected: v == selected, onTap: () => onSelected(v)),
         ],
+      );
+    }
+    final n = columns!;
+    return LayoutBuilder(builder: (context, box) {
+      final w = (box.maxWidth - 8 * (n - 1)) / n;
+      return Wrap(spacing: 8, runSpacing: 8, children: [
+        for (final v in values)
+          SizedBox(width: w, child: CeChoiceButton(label: labelOf(v), selected: v == selected, onTap: () => onSelected(v))),
+      ]);
+    });
+  }
+}
+
+/// One option button of a grid choice (reference: 42 px, radius 12).
+class CeChoiceButton extends StatelessWidget {
+  const CeChoiceButton({super.key, required this.label, required this.selected, required this.onTap});
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        selected: selected,
+        child: Material(
+          color: selected ? CeColors.primary : Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(CeRadius.md),
+            side: BorderSide(color: selected ? CeColors.primary : CeColors.line2, width: 1.5),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(CeRadius.md),
+            onTap: onTap,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 42),
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                  child: Text(label,
+                      textAlign: TextAlign.center,
+                      style: CeType.buttonSmall.copyWith(color: selected ? Colors.white : CeColors.ink)),
+                ),
+              ),
+            ),
+          ),
+        ),
       );
 }
 
@@ -176,12 +268,11 @@ class CeSwitchLine extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(top: 6),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Flexible(child: Text('$prompt ', style: const TextStyle(fontSize: 13, color: CeColors.muted))),
+          Flexible(child: Text('$prompt ', style: CeType.body.copyWith(color: CeColors.muted))),
           TextButton(
             onPressed: onTap,
             style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
-            child: Text(action,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: CeColors.primaryDark)),
+            child: Text(action, style: CeType.buttonSmall.copyWith(color: CeColors.primary)),
           ),
         ]),
       );

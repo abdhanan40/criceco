@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/providers/core_providers.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/fitness_meter.dart';
 import '../../../core/utils/formatters.dart';
@@ -131,7 +132,7 @@ class _Identity extends StatelessWidget {
             border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 2),
           ),
           child: Text(m.name.trim().isEmpty ? '?' : m.name.trim()[0].toUpperCase(),
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white)),
+              style: const TextStyle(fontFamily: CeType.display, fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white)),
         ),
         const SizedBox(width: 14),
         Expanded(
@@ -139,7 +140,7 @@ class _Identity extends StatelessWidget {
             Text(m.name,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -0.4)),
+                style: const TextStyle(fontFamily: CeType.display, fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: -0.4)),
             const SizedBox(height: 2),
             Text(m.roleLine, style: TextStyle(fontSize: 12.5, color: Colors.white.withValues(alpha: 0.85))),
             const SizedBox(height: 7),
@@ -205,12 +206,16 @@ class _RecentMatches extends ConsumerWidget {
                     ]),
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    [
-                      if (e.balls > 0) '${e.runs} (${e.balls}b)',
-                      if (FitnessMeter.ballsIn(e.overs) > 0) '${e.overs} ov',
-                    ].join(' · '),
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: CeColors.ink2),
+                  // Flexible: wraps instead of overflowing at 320 px.
+                  Flexible(
+                    child: Text(
+                      [
+                        if (e.balls > 0) '${e.runs} (${e.balls}b)',
+                        if (FitnessMeter.ballsIn(e.overs) > 0) '${e.overs} ov',
+                      ].join(' · '),
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: CeColors.ink2),
+                    ),
                   ),
                 ]),
               ),

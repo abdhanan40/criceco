@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers/core_providers.dart';
 import '../../../app/session/session_controller.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/validators.dart';
 import '../../../shared/media/photo_picker.dart';
@@ -176,7 +177,7 @@ class _ClubProfileSheetState extends ConsumerState<_ClubProfileSheet> {
                 Text(club.name,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white)),
+                    style: const TextStyle(fontFamily: CeType.display, fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white)),
                 const SizedBox(height: 2),
                 Text('Club ${club.code} · ${club.city}',
                     style: TextStyle(fontSize: 12.5, color: Colors.white.withValues(alpha: 0.85))),

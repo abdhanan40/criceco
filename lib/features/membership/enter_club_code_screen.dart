@@ -48,7 +48,7 @@ class _EnterClubCodeScreenState extends ConsumerState<EnterClubCodeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: CeColors.bg,
       appBar: const CeTopBar(title: 'Join a Club', fallbackLocation: Routes.clubSetup),
       body: SingleChildScrollView(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,

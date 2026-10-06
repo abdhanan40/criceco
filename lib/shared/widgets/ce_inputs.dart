@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../app/theme/tokens.dart';
+import '../../app/theme/typography.dart';
 import 'ce_feedback.dart';
 import 'ce_icons.dart';
 
@@ -15,7 +16,7 @@ class CeFieldLabel extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Text(required ? '$text *' : text,
-            style: Theme.of(context).textTheme.labelMedium!.copyWith(color: CeColors.ink2, fontSize: 13)),
+            style: CeType.label),
       );
 }
 
@@ -290,6 +291,7 @@ class _CeSearchFieldState extends State<CeSearchField> {
         decoration: InputDecoration(
           hintText: widget.hint,
           constraints: const BoxConstraints(minHeight: CeSize.searchMinHeight),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           prefixIcon: Icon(CeIcons.of('search'), size: 17),
           suffixIcon: _controller.text.isEmpty
               ? null

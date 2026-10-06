@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/ce_buttons.dart';
@@ -12,6 +13,7 @@ import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
 import '../../../shared/widgets/ce_inputs.dart';
 import '../../../shared/widgets/ce_match_widgets.dart';
+import '../../../shared/widgets/ce_surfaces.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
 import '../player_providers.dart';
 
@@ -95,10 +97,10 @@ class _OpenMatchesScreenState extends ConsumerState<OpenMatchesScreen> {
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.only(bottom: 24),
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 4, CeSpace.gutter, 0),
               child: Text("Clubs looking for players — tap a slot to let them know you're interested.",
-                  style: TextStyle(fontSize: 12, color: CeColors.muted, height: 1.4)),
+                  style: CeType.body.copyWith(color: CeColors.muted)),
             ),
             CeToggleCard(
               icon: 'users',
@@ -125,12 +127,12 @@ class _OpenMatchesScreenState extends ConsumerState<OpenMatchesScreen> {
               padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 4),
+              padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 18, CeSpace.gutter, 2),
               child: Text(
                 role == null
                     ? 'Select a role above to see open requests'
                     : '${visible.length} open request${visible.length == 1 ? '' : 's'}',
-                style: const TextStyle(fontSize: 12, color: CeColors.muted, fontWeight: FontWeight.w600),
+                style: CeType.sectionTitle,
               ),
             ),
             if (loading)
@@ -165,31 +167,27 @@ class _HuntCard extends StatelessWidget {
     final p = post;
     final roleWord = p.role.countLabel(p.playersNeeded);
     return Container(
-      margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 0),
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
+      padding: const EdgeInsets.all(CeSpace.card),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(CeRadius.lg),
-        border: Border.all(color: CeColors.hairline),
-        boxShadow: const [BoxShadow(color: Color(0x0F092328), blurRadius: 10, offset: Offset(0, 2))],
+        borderRadius: BorderRadius.circular(CeRadius.card),
+        border: Border.all(color: CeColors.line),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           CeTeamBadge(p.clubAbbr, color: clubBadgeColor(p.clubAbbr), size: 42),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(p.clubName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, height: 1.25)),
-              const SizedBox(height: 2),
+              Text(p.clubName, maxLines: 2, overflow: TextOverflow.ellipsis, style: CeType.listTitle.copyWith(fontSize: 14.5)),
+              const SizedBox(height: 3),
               Row(children: [
-                Icon(CeIcons.of('map-pin'), size: 11, color: CeColors.muted),
+                Icon(CeIcons.of('map-pin'), size: 12, color: CeColors.muted),
                 const SizedBox(width: 3),
                 Flexible(
                   child: Text('${p.location ?? 'Any location'} · ${p.format.display()}',
-                      overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: CeColors.muted)),
+                      overflow: TextOverflow.ellipsis, style: CeType.bodySmall.copyWith(fontSize: 12)),
                 ),
               ]),
             ]),
@@ -197,24 +195,23 @@ class _HuntCard extends StatelessWidget {
           const SizedBox(width: 8),
           const CeStatusChip('Open'),
         ]),
-        const SizedBox(height: 11),
+        const SizedBox(height: 12),
         Align(
           alignment: Alignment.centerLeft,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            decoration: BoxDecoration(color: CeColors.mint, borderRadius: BorderRadius.circular(CeRadius.sm)),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(color: CeColors.mint, borderRadius: BorderRadius.circular(CeRadius.xs)),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(CeIcons.of(_roleIcons[p.role] ?? 'target'), size: 13, color: CeColors.primaryDark),
+              Icon(CeIcons.of(_roleIcons[p.role] ?? 'target'), size: 13, color: CeColors.primary),
               const SizedBox(width: 6),
               Flexible(
                 child: Text('${p.playersNeeded} $roleWord needed',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: CeColors.primaryDark)),
+                    style: CeType.chip.copyWith(fontSize: 12, color: CeColors.primary)),
               ),
             ]),
           ),
         ),
-        const Padding(padding: EdgeInsets.only(top: 11), child: Divider(height: 1, color: CeColors.hairline)),
-        const SizedBox(height: 11),
+        const CeDashedDivider(padding: EdgeInsets.symmetric(vertical: 12)),
         Wrap(spacing: 14, runSpacing: 6, children: [
           _Info(icon: 'calendar', text: p.date == null ? 'Flexible' : CeFormat.date(p.date!)),
           _Info(icon: 'clock', text: p.time == null ? 'Anytime' : _niceTime(p.time!)),
@@ -222,9 +219,9 @@ class _HuntCard extends StatelessWidget {
         ]),
         if (p.notes.isNotEmpty)
           Container(
-            margin: const EdgeInsets.only(top: 9),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-            decoration: BoxDecoration(color: CeColors.bg, borderRadius: BorderRadius.circular(CeRadius.sm)),
+            margin: const EdgeInsets.only(top: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(color: CeColors.bg, borderRadius: BorderRadius.circular(CeRadius.md)),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Padding(
                 padding: const EdgeInsets.only(top: 1),
@@ -232,15 +229,15 @@ class _HuntCard extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               Expanded(
-                child: Text(p.notes, style: const TextStyle(fontSize: 11.5, color: CeColors.inkSoft, height: 1.4)),
+                child: Text(p.notes, style: CeType.bodySmall.copyWith(fontSize: 12, color: CeColors.ink2)),
               ),
             ]),
           ),
         const SizedBox(height: 12),
         if (interested)
-          CeButton.soft(label: 'Interest Sent', icon: CeIcons.of('check'))
+          CeButton.soft(label: 'Interest Sent', icon: CeIcons.of('check'), dense: true)
         else
-          CeButton(label: "I'm Interested", onPressed: onInterested),
+          CeButton(label: "I'm Interested", onPressed: onInterested, dense: true),
       ]),
     );
   }
@@ -253,8 +250,8 @@ class _Info extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(CeIcons.of(icon), size: 12, color: CeColors.ink2),
-        const SizedBox(width: 4),
-        Text(text, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: CeColors.ink2)),
+        Icon(CeIcons.of(icon), size: 13, color: CeColors.primary),
+        const SizedBox(width: 5),
+        Text(text, style: CeType.caption.copyWith(fontSize: 12, color: CeColors.ink2)),
       ]);
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/theme/tokens.dart';
+import '../../app/theme/typography.dart';
 import 'ce_surfaces.dart';
 
 /// One quick action (`.quick-item`): icon well above a label.
@@ -70,14 +71,14 @@ class _Tile extends StatelessWidget {
   final bool horizontal;
   final double width; // the tile's width in the grid
 
-  static const _label = TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: CeColors.ink2, height: 1.2);
+  static final _label = CeType.label.copyWith(color: CeColors.ink, letterSpacing: 0, height: 1.2); // 12 Manrope Bold
 
   /// Never breaks or clips a word: when the longest word of the label is wider
   /// than the label area (e.g. "Opportunities" on a 320 px phone), the font
   /// shrinks just enough for it to fit.
   TextStyle _fit(BuildContext context, TextStyle style) {
     final available = horizontal
-        ? width - 2 - 10 - 8 - 34 - 9 // border, padding, icon well, gap
+        ? width - 2 - 10 - 8 - 30 - 10 // border, padding, icon well, gap
         : width - 2 - 4 - 4; // border, padding
     final base = DefaultTextStyle.of(context).style.merge(style);
     var longest = 0.0;
@@ -101,24 +102,24 @@ class _Tile extends StatelessWidget {
         excludeSemantics: true,
         child: CeCard(
           onTap: action.onTap,
-          radius: CeRadius.row,
-          padding: horizontal ? const EdgeInsets.fromLTRB(10, 9, 8, 9) : const EdgeInsets.fromLTRB(4, 11, 4, 10),
+          radius: CeRadius.lg,
+          padding: horizontal ? const EdgeInsets.fromLTRB(10, 10, 8, 10) : const EdgeInsets.fromLTRB(4, 11, 4, 10),
           child: horizontal
               ? Row(children: [
-                  CeIconWell(action.icon, size: 34, iconSize: 16),
-                  const SizedBox(width: 9),
+                  CeIconWell(action.icon, size: 30, iconSize: 15),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(action.label, maxLines: 2, overflow: TextOverflow.ellipsis, style: _fit(context, _label)),
                   ),
                 ])
               : Column(mainAxisSize: MainAxisSize.min, children: [
-                  CeIconWell(action.icon, size: 38, iconSize: 18),
+                  CeIconWell(action.icon, size: 30, iconSize: 15),
                   const SizedBox(height: 7),
                   Text(action.label,
                       textAlign: TextAlign.center,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: _fit(context, _label.copyWith(fontSize: 11))),
+                      style: _fit(context, _label)),
                 ]),
         ),
       );

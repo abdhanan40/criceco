@@ -220,7 +220,7 @@ class _CreateTeamFlowSheetState extends ConsumerState<_CreateTeamFlowSheet> {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(CeRadius.lg),
+            borderRadius: BorderRadius.circular(CeRadius.card),
             border: Border.all(color: CeColors.line),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [

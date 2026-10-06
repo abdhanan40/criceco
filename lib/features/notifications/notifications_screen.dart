@@ -6,6 +6,7 @@ import '../../app/providers/core_providers.dart';
 import '../../app/router/routes.dart';
 import '../../app/session/role_controller.dart';
 import '../../app/theme/tokens.dart';
+import '../../app/theme/typography.dart';
 import '../../core/models/models.dart';
 import '../../core/utils/formatters.dart';
 import '../../shared/widgets/ce_feedback.dart';
@@ -52,7 +53,7 @@ class NotificationsScreen extends ConsumerWidget {
           if (unread.isNotEmpty)
             TextButton(
               onPressed: () => ref.read(notificationReadProvider.notifier).markAllRead(unread.map((n) => n.id)),
-              child: const Text('Mark all read'),
+              child: Text('Mark all read', style: CeType.buttonSmall.copyWith(color: CeColors.accent)),
             ),
         ],
       ),
@@ -115,7 +116,7 @@ class NotificationRow extends StatelessWidget {
   final VoidCallback onTap;
 
   static (Color, Color) toneColors(NotificationTone t) => switch (t) {
-        NotificationTone.green => (CeColors.mint, CeColors.primaryDark),
+        NotificationTone.green => (CeColors.mint, CeColors.primary),
         NotificationTone.amber => (CeColors.amberSoft, CeColors.amberInk),
         NotificationTone.blue => (CeColors.blueSoft, CeColors.blue),
       };
@@ -131,46 +132,42 @@ class NotificationRow extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 0, CeSpace.gutter, 8),
         child: Material(
-          color: unread ? Colors.white : CeColors.historySoft,
+          color: unread ? Colors.white : CeColors.surfaceAlt,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(CeRadius.row),
+            borderRadius: BorderRadius.circular(CeRadius.card),
             side: const BorderSide(color: CeColors.line),
           ),
           child: InkWell(
-            borderRadius: BorderRadius.circular(CeRadius.row),
+            borderRadius: BorderRadius.circular(CeRadius.card),
             onTap: onTap,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+              padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Container(
-                  width: 38,
-                  height: 38,
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(CeRadius.md)),
                   child: Icon(CeIcons.of(item.icon), size: 18, color: fg),
                 ),
-                const SizedBox(width: 11),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(item.title,
-                        style: TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: unread ? FontWeight.w800 : FontWeight.w600,
-                            color: CeColors.ink,
-                            height: 1.3)),
+                        style: CeType.listTitle.copyWith(fontSize: 13.5, fontWeight: unread ? FontWeight.w700 : FontWeight.w600)),
                     const SizedBox(height: 3),
-                    Text(item.subtitle, style: const TextStyle(fontSize: 12, color: CeColors.muted, height: 1.3)),
+                    Text(item.subtitle, style: CeType.bodySmall.copyWith(fontSize: 12)),
                   ]),
                 ),
                 const SizedBox(width: 8),
                 Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  Text(timeLabel, style: const TextStyle(fontSize: 11, color: CeColors.muted2)),
+                  Text(timeLabel, style: CeType.caption.copyWith(color: CeColors.muted2)),
                   const SizedBox(height: 8),
                   Row(mainAxisSize: MainAxisSize.min, children: [
                     if (unread)
                       Container(
                         width: 8,
                         height: 8,
-                        decoration: const BoxDecoration(color: CeColors.primary, shape: BoxShape.circle),
+                        decoration: const BoxDecoration(color: CeColors.accent, shape: BoxShape.circle),
                       ),
                     if (navigable) ...[
                       const SizedBox(width: 4),

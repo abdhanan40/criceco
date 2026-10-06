@@ -1,44 +1,48 @@
 import 'package:flutter/material.dart';
 
-/// CricEco design tokens. Theme update (2026-09-25): the brand palette comes
-/// from the approved reference swatch — deep teal-black, deep teal, green and
-/// sage — on light surfaces. Every other colour below is derived from those
-/// four (tints for surfaces, teal-greys for ink and lines). Status colours
-/// (red / amber / blue) keep their meaning and are unchanged.
+/// CricEco design tokens — the CricEco Phone reference design system
+/// (`CricECo Phone.dc.html`, 380 × 812): palette #092328 / #12544F /
+/// #3A9A72 / #8BBB92 on #F3F7F5, borders #D5E3DA / #E0EAE3, compact
+/// spacing, Sora for display text and Manrope for the interface. Status
+/// colours (red / amber / blue) keep their meaning and are unchanged.
 abstract final class CeColors {
-  // Reference palette (exact swatch values)
-  static const paletteDeep = Color(0xFF092328); // deep teal-black
-  static const paletteTeal = Color(0xFF12544F); // deep teal
-  static const paletteGreen = Color(0xFF2A835F); // green
-  static const paletteSage = Color(0xFF8BBB92); // sage
+  // Reference palette (exact values)
+  static const paletteDeep = Color(0xFF092328); // deep teal-black: text, dark surfaces
+  static const paletteTeal = Color(0xFF12544F); // primary dark green: buttons, active UI
+  static const paletteGreen = Color(0xFF3A9A72); // accent: links, positive, progress
+  static const paletteSage = Color(0xFF8BBB92); // soft green: secondary accent
 
   // Brand
-  static const primary = paletteGreen; // signature / action green
+  static const primary = paletteTeal; // primary CTA / active state
+  static const primaryPressed = Color(0xFF0E4642); // CTA pressed
   static const primaryDark = paletteTeal; // headers, icon ink, text on tints
   static const primary600 = Color(0xFF1B6B58); // between teal and green
   static const primaryDeep = paletteDeep;
-  static const fresh = Color(0xFF3E9D72); // positive / "won" (a lighter green)
-  static const sage = paletteSage; // soft accent: rings, selected tracks, hero highlights
-  static const mint = Color(0xFFE8F2EB); // sage tint: chips, icon wells
-  static const mint2 = Color(0xFFD3E6D7); // stronger sage tint: borders, selected fills
+  static const accent = paletteGreen; // links, positive indicators, progress, toggles on
+  static const fresh = paletteGreen; // positive / "won"
+  static const sage = paletteSage; // soft accent: rings, highlights
+  static const mint = Color(0xFFE3ECE6); // surface muted: tab tracks, icon wells, tints
+  static const mint2 = Color(0xFFD2E0D6); // stronger tint: count pills, selected fills
 
   // Surfaces
-  static const bg = Color(0xFFF3F7F5); // faint sage-teal page background
-  static const surface = Color(0xFFFFFFFF);
-  static const hairline = Color(0xFFEDF3F0); // inner dividers on white cards
+  static const bg = Color(0xFFF3F7F5); // page background
+  static const surface = Color(0xFFFFFFFF); // cards, inputs, sheets
+  static const surfaceAlt = Color(0xFFF7FAF8); // quiet inner panels
+  static const hairline = Color(0xFFEEF3EF); // inner dividers on white cards
 
-  // Ink (teal-greys from the deep palette colour)
+  // Ink
   static const ink = paletteDeep;
-  static const ink2 = Color(0xFF24403D);
+  static const ink2 = Color(0xFF24403D); // secondary dark text, labels
   static const inkSoft = Color(0xFF41605B); // secondary body text on tints
-  static const muted = Color(0xFF5B716D);
-  static const muted2 = Color(0xFF92A6A1);
+  static const muted = Color(0xFF5B716D); // secondary text
+  static const muted2 = Color(0xFF8A9C98); // tertiary text, placeholders
 
   // Lines
-  static const line = Color(0xFFDCE7E2);
-  static const line2 = Color(0xFFCFDED8);
+  static const line = Color(0xFFE0EAE3); // card border (1px)
+  static const line2 = Color(0xFFD5E3DA); // input / button border (1.5px)
+  static const dashedBorder = Color(0xFFC9D8CE); // empty states, add-slots
 
-  // Status
+  // Status (semantic colours, unchanged)
   static const red = Color(0xFFC43B2F);
   static const redSoft = Color(0xFFFBEAE7);
   static const redBorder = Color(0xFFEFCFCB);
@@ -49,7 +53,7 @@ abstract final class CeColors {
   static const blueSoft = Color(0xFFE9F1FB);
   static const violet = Color(0xFF7C4DBA); // tournament "registered" stat
   static const historySoft = Color(0xFFEEF4F1);
-  static const toggleOff = Color(0xFFC2D3CC);
+  static const toggleOff = Color(0xFFC9D8CE);
 
   // Countdown box
   static const countdownTop = Color(0xFFFDF3E2);
@@ -65,7 +69,18 @@ abstract final class CeColors {
   static const demoBorder = Color(0xFFD9962A);
   static const demoBg = Color(0xFFFFFBF2);
 
-  /// Hero / header surface: deep teal-black → deep teal → green.
+  // Design-system names (the CricEco reference spec) for new code.
+  static const textPrimary = ink;
+  static const textSecondary = muted;
+  static const textTertiary = muted2;
+  static const surfaceMuted = mint;
+  static const border = line2;
+  static const cardBorder = line;
+  static const softGreen = sage;
+  static const danger = red;
+  static const warning = amber;
+
+  /// Hero / header surface: deep teal-black → deep teal → accent green.
   static const brandGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
@@ -74,49 +89,65 @@ abstract final class CeColors {
   );
 }
 
+/// Radius levels used deliberately by component hierarchy (no single
+/// universal radius).
 abstract final class CeRadius {
-  static const xs = 8.0;
+  static const xs = 8.0; // small elements
   static const sm = 10.0;
-  static const md = 12.0; // buttons, inputs, icon wells
-  static const row = 14.0; // list rows, stat cards
-  static const lg = 16.0; // cards
-  static const xl = 20.0; // empty-state icon
-  static const sheet = 22.0;
+  static const tab = 11.0; // segmented tabs, compact buttons
+  static const md = 12.0; // small info boxes, back button
+  static const row = 14.0; // list rows
+  static const input = 14.0; // inputs, search, tab tracks
+  static const lg = 16.0; // quick-action tiles, inner cards
+  static const button = 16.0; // primary / secondary CTA
+  static const card = 18.0; // standard card
+  static const feature = 20.0; // feature card
+  static const xl = 20.0;
+  static const hero = 22.0; // hero / glass card
+  static const sheet = 28.0; // bottom-sheet top corners
   static const pill = 999.0;
 }
 
-/// Spacing. Density pass (structural UI update): compact, data-dense layouts
-/// — tighter gutters and card padding. Colours are untouched.
+/// Spacing — compact and systematic (4 … 24).
 abstract final class CeSpace {
-  static const gutter = 16.0; // screen side padding for lists / sections
-  static const form = 20.0; // form body padding
-  static const card = 12.0; // card inner padding
-  static const section = 16.0; // gap above a section header
+  static const gutter = 20.0; // screen side padding
+  static const form = 24.0; // onboarding / auth body padding
+  static const card = 14.0; // card inner padding
+  static const section = 20.0; // gap above a section header
   static const rowGap = 8.0; // gap between list-card rows
+  static const g4 = 4.0;
   static const g6 = 6.0;
   static const g8 = 8.0;
   static const g10 = 10.0;
   static const g12 = 12.0;
   static const g14 = 14.0;
+  static const g16 = 16.0;
+  static const g20 = 20.0;
+  static const g24 = 24.0;
 }
 
 abstract final class CeSize {
-  static const buttonMinHeight = 48.0;
-  static const inputMinHeight = 48.0;
-  static const searchMinHeight = 44.0;
-  static const chipMinHeight = 32.0;
+  static const buttonMinHeight = 54.0; // primary CTA
+  static const buttonSecondaryHeight = 50.0;
+  static const buttonCompactHeight = 40.0;
+  static const inputMinHeight = 52.0;
+  static const searchMinHeight = 48.0;
+  static const chipMinHeight = 34.0;
   static const statusChipMinHeight = 22.0;
   static const touchTarget = 40.0;
   static const navItemMinHeight = 48.0;
   static const drawerItemMinHeight = 44.0;
-  static const topBarMinHeight = 52.0;
+  static const topBarMinHeight = 66.0; // 12 + 40 (back button) + 14
+  static const backButton = 40.0;
   static const listRowMinHeight = 60.0; // dense list-card row
 }
 
+/// Subtle depth only where the reference uses it — cards and rows rely on
+/// borders and background contrast instead.
 abstract final class CeShadows {
-  static const card = [
-    BoxShadow(color: Color(0x0F092328), blurRadius: 12, offset: Offset(0, 3)),
-  ];
+  static const card = <BoxShadow>[];
+  /// Selected segmented control / toggle surface.
+  static const control = [BoxShadow(color: Color(0x1F092328), blurRadius: 3, offset: Offset(0, 1))];
   static const raised = [
     BoxShadow(
         color: Color(0x38092328),
@@ -131,20 +162,16 @@ abstract final class CeShadows {
         spreadRadius: -16,
         offset: Offset(0, 16)),
   ];
-  static const primaryButton = [
-    BoxShadow(
-        color: Color(0x992A835F),
-        blurRadius: 14,
-        spreadRadius: -8,
-        offset: Offset(0, 6)),
+  /// Floating action control (raised nav buttons): 0 8px 18px -6px rgba(9,35,40,.5).
+  static const floating = [
+    BoxShadow(color: Color(0x80092328), blurRadius: 18, spreadRadius: -6, offset: Offset(0, 8)),
   ];
-  static const bottomNav = [
-    BoxShadow(
-        color: Color(0x40092328),
-        blurRadius: 16,
-        spreadRadius: -10,
-        offset: Offset(0, -4)),
+  static const primaryButton = <BoxShadow>[];
+  /// Bottom sheet: 0 -10px 30px -12px rgba(9,35,40,.3).
+  static const sheet = [
+    BoxShadow(color: Color(0x4D092328), blurRadius: 30, spreadRadius: -12, offset: Offset(0, -10)),
   ];
+  static const bottomNav = <BoxShadow>[];
 }
 
 abstract final class CeMotion {

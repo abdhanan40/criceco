@@ -350,7 +350,7 @@ class AvailabilitySlotCta extends StatelessWidget {
                 const Expanded(
                   child: Text.rich(
                     TextSpan(children: [
-                      TextSpan(text: 'Create Availability Slot', style: TextStyle(fontWeight: FontWeight.w800)),
+                      TextSpan(text: 'Create Availability Slot', style: TextStyle(fontWeight: FontWeight.w700)),
                       TextSpan(text: ' — Post your open dates, teams will send you requests'),
                     ]),
                     style: TextStyle(fontSize: 12.5, color: CeColors.primaryDark, height: 1.4),
@@ -380,7 +380,6 @@ class MySlotsList extends ConsumerWidget {
             color: Colors.white,
             borderRadius: BorderRadius.circular(CeRadius.row),
             border: Border.all(color: CeColors.mint2),
-            boxShadow: CeShadows.card,
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
@@ -388,7 +387,7 @@ class MySlotsList extends ConsumerWidget {
               const SizedBox(width: 6),
               const Expanded(
                 child: Text('Your Open Slot',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: CeColors.primaryDark)),
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: CeColors.primaryDark)),
               ),
               TextButton(
                 style: TextButton.styleFrom(
@@ -493,7 +492,7 @@ class ChallengeCard extends StatelessWidget {
         child: Material(
           color: Colors.white,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(CeRadius.lg),
+            borderRadius: BorderRadius.circular(CeRadius.card),
             side: const BorderSide(color: CeColors.line),
           ),
           clipBehavior: Clip.antiAlias,
@@ -522,11 +521,15 @@ class ChallengeCard extends StatelessWidget {
                 ]),
                 if (inlineActions && actions != null) ...[
                   const SizedBox(height: 8),
-                  Row(children: [
-                    Expanded(child: Wrap(spacing: 12, runSpacing: 6, children: details)),
-                    const SizedBox(width: 10),
-                    actions!,
-                  ]),
+                  // The action keeps its own width but never more than ~half
+                  // the row, so the details always have room (320 px, large text).
+                  LayoutBuilder(
+                    builder: (context, box) => Row(children: [
+                      Expanded(child: Wrap(spacing: 12, runSpacing: 6, children: details)),
+                      const SizedBox(width: 10),
+                      ConstrainedBox(constraints: BoxConstraints(maxWidth: box.maxWidth * 0.55), child: actions!),
+                    ]),
+                  ),
                 ] else ...[
                   if (details.isNotEmpty) ...[
                     const SizedBox(height: 8),
@@ -549,7 +552,7 @@ class NewPill extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         decoration: BoxDecoration(color: CeColors.amberSoft, borderRadius: BorderRadius.circular(CeRadius.pill)),
-        child: const Text('NEW', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: CeColors.amberInk)),
+        child: const Text('NEW', style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: CeColors.amberInk)),
       );
 }
 

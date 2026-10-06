@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/providers/core_providers.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/ce_buttons.dart';
@@ -81,7 +82,7 @@ class _HostedCard extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(t.name, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: CeColors.ink)),
+              Text(t.name, style: const TextStyle(fontFamily: CeType.display, fontSize: 14.5, fontWeight: FontWeight.w700, color: CeColors.ink)),
               const SizedBox(height: 2),
               Text(tournamentMeta(t), style: const TextStyle(fontSize: 12, color: CeColors.muted)),
             ]),
@@ -93,7 +94,7 @@ class _HostedCard extends StatelessWidget {
         Row(children: [
           const Expanded(child: Text('Teams registered', style: TextStyle(fontSize: 12, color: CeColors.muted))),
           Text('$joined/${t.maxTeams}',
-              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: CeColors.ink)),
+              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: CeColors.ink)),
         ]),
         const SizedBox(height: 6),
         ClipRRect(
@@ -416,9 +417,9 @@ class _AwardGrid extends StatelessWidget {
             CeIconWell(icon, size: 34, iconSize: 16),
             const SizedBox(height: 8),
             Text(label.toUpperCase(),
-                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.4, color: CeColors.muted)),
+                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.4, color: CeColors.muted)),
             const SizedBox(height: 4),
-            Text(a.playerName, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: CeColors.ink)),
+            Text(a.playerName, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: CeColors.ink)),
             const SizedBox(height: 2),
             Text('${a.value} $unit · ${entrantLabel(t, a.entrantId)}',
                 style: const TextStyle(fontSize: 11.5, color: CeColors.muted)),
@@ -517,7 +518,7 @@ class _TeamRequestDetailScreenState extends ConsumerState<TeamRequestDetailScree
               const SizedBox(width: 12),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: CeColors.ink)),
+                  Text(name, style: const TextStyle(fontFamily: CeType.display, fontSize: 16, fontWeight: FontWeight.w700, color: CeColors.ink)),
                   const SizedBox(height: 3),
                   Row(children: [
                     Icon(CeIcons.of('map-pin'), size: 13, color: CeColors.muted),

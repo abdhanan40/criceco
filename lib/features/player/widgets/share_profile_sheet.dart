@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/session/session_controller.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../shared/media/photo_picker.dart';
 import '../../../shared/media/share_service.dart';
@@ -121,7 +122,7 @@ class _ShareProfileSheetState extends ConsumerState<_ShareProfileSheet> {
                     border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 2),
                   ),
                   child: Text(account.initial,
-                      style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: Colors.white)),
+                      style: const TextStyle(fontFamily: CeType.display, fontSize: 21, fontWeight: FontWeight.w700, color: Colors.white)),
                 ),
               ),
               const SizedBox(width: 12),
@@ -130,7 +131,7 @@ class _ShareProfileSheetState extends ConsumerState<_ShareProfileSheet> {
                   Text(account.fullName,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Colors.white)),
+                      style: const TextStyle(fontFamily: CeType.display, fontSize: 17, fontWeight: FontWeight.w700, color: Colors.white)),
                   if (p.role != null || p.isWicketkeeper)
                     Text(
                       [if (p.role != null) p.role!.label, if (p.isWicketkeeper) 'Wicket Keeper'].join(' · '),

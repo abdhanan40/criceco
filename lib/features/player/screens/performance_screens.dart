@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/ce_feedback.dart';
@@ -164,14 +165,14 @@ class PerMatchChart extends ConsumerWidget {
         .join('; ');
     return CeCard(
       margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 0),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      padding: const EdgeInsets.all(CeSpace.card),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           Expanded(
             child: Text('${metric.label} per match',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: CeColors.ink)),
+                style: CeType.cardTitle),
           ),
           const SizedBox(width: 8),
           CeSegmented<TrendMetric>(
@@ -185,7 +186,7 @@ class PerMatchChart extends ConsumerWidget {
         Row(children: [
           Expanded(
             child: Text('Last ${chrono.length} · $total $unit · best ${metric.of(best)} vs ${best.opponentAbbr}',
-                style: const TextStyle(fontSize: 11, color: CeColors.muted)),
+                style: CeType.caption),
           ),
           const _LegendDot(color: CeColors.fresh, label: 'Won'),
           const SizedBox(width: 8),
@@ -219,9 +220,9 @@ class _LegendDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
-        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
-        const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 10.5, color: CeColors.muted)),
+        Container(width: 9, height: 9, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3))),
+        const SizedBox(width: 5),
+        Text(label, style: CeType.caption),
       ]);
 }
 
@@ -233,8 +234,9 @@ class _BarsPainter extends CustomPainter {
   /// 0 → 1 entrance (bars rise when the metric changes).
   final double grow;
 
-  static const _valueStyle = TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: CeColors.ink);
-  static const _axisStyle = TextStyle(fontSize: 8.5, color: CeColors.muted);
+  static const _valueStyle =
+      TextStyle(fontFamily: CeType.display, fontSize: 9.5, fontWeight: FontWeight.w700, color: CeColors.ink);
+  static const _axisStyle = TextStyle(fontFamily: CeType.ui, fontSize: 9, fontWeight: FontWeight.w600, color: CeColors.muted);
 
   TextPainter _text(String s, TextStyle style) =>
       TextPainter(text: TextSpan(text: s, style: style), textDirection: TextDirection.ltr)..layout();
@@ -295,7 +297,6 @@ class FormChip extends StatelessWidget {
           color: Colors.white,
           borderRadius: BorderRadius.circular(CeRadius.md),
           border: Border.all(color: CeColors.line),
-          boxShadow: CeShadows.card,
         ),
         child: Column(children: [
           Container(
@@ -306,14 +307,13 @@ class FormChip extends StatelessWidget {
               color: won ? CeColors.fresh : CeColors.red,
               borderRadius: BorderRadius.circular(6),
             ),
-            child: Text(won ? 'W' : 'L',
-                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white)),
+            child: Text(won ? 'W' : 'L', style: CeType.statValue(10.5).copyWith(color: Colors.white)),
           ),
           const SizedBox(height: 4),
           FittedBox(
             fit: BoxFit.scaleDown,
             child: Text('${entry.opponentAbbr} · ${entry.runs}r',
-                style: const TextStyle(fontSize: 9, color: CeColors.muted)),
+                style: CeType.statLabel.copyWith(fontSize: 9.5)),
           ),
         ]),
       ),
@@ -359,8 +359,7 @@ class MatchLogCard extends StatelessWidget {
     final m = entry;
     return CeCard(
       margin: const EdgeInsets.fromLTRB(CeSpace.gutter, CeSpace.rowGap, CeSpace.gutter, 0),
-      radius: CeRadius.row,
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           CeTeamBadge(m.opponentAbbr, color: clubBadgeColor(m.opponentAbbr), size: 34),
@@ -370,20 +369,22 @@ class MatchLogCard extends StatelessWidget {
               Text('vs ${m.opponentName}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: CeColors.ink)),
+                  style: CeType.listTitle),
               const SizedBox(height: 2),
               Row(children: [
-                Icon(CeIcons.of('calendar'), size: 11, color: CeColors.muted),
+                Icon(CeIcons.of('calendar'), size: 12, color: CeColors.muted),
                 const SizedBox(width: 4),
-                Text(CeFormat.date(m.date), style: const TextStyle(fontSize: 11, color: CeColors.muted)),
+                Flexible(
+                  child: Text(CeFormat.date(m.date),
+                      maxLines: 1, overflow: TextOverflow.ellipsis, style: CeType.bodySmall.copyWith(fontSize: 12)),
+                ),
               ]),
             ]),
           ),
           const SizedBox(width: 8),
           CeResultPill(won: m.result == MatchResult.won),
         ]),
-        const Padding(padding: EdgeInsets.only(top: 8), child: Divider(height: 1, color: CeColors.hairline)),
-        const SizedBox(height: 8),
+        const CeDashedDivider(padding: EdgeInsets.symmetric(vertical: 10)),
         Wrap(spacing: 14, runSpacing: 4, children: [
           _Stat(icon: 'circle-dot', strong: '${m.runs}', rest: ' (${m.balls}b)'),
           _Stat(icon: 'target', strong: '${m.wickets}', rest: '/${m.overs} ov'),
@@ -401,14 +402,14 @@ class _Stat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(CeIcons.of(icon), size: 13, color: CeColors.primaryDark),
+        Icon(CeIcons.of(icon), size: 13, color: CeColors.primary),
         const SizedBox(width: 5),
         Text.rich(
           TextSpan(children: [
-            TextSpan(text: strong, style: const TextStyle(fontWeight: FontWeight.w800, color: CeColors.ink)),
+            TextSpan(text: strong, style: const TextStyle(fontFamily: CeType.display, fontWeight: FontWeight.w700, color: CeColors.ink)),
             TextSpan(text: rest),
           ]),
-          style: const TextStyle(fontSize: 12, color: CeColors.muted),
+          style: CeType.bodySmall.copyWith(fontSize: 12),
         ),
       ]);
 }

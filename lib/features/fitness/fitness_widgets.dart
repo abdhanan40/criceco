@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../app/theme/tokens.dart';
+import '../../app/theme/typography.dart';
 import '../../core/models/models.dart';
 import '../../core/utils/fitness_meter.dart';
 import '../../core/utils/formatters.dart';
@@ -138,19 +139,18 @@ class _FitnessMeterViewState extends State<FitnessMeterView> {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       // ---- 1. Header ----
       Padding(
-        padding: const EdgeInsets.fromLTRB(CeSpace.gutter, CeSpace.section, CeSpace.gutter, 8),
+        padding: const EdgeInsets.fromLTRB(CeSpace.gutter, CeSpace.section + 4, CeSpace.gutter, 12),
         child: widget.onAddWorkout == null
             ? Row(children: [
-                Expanded(child: Text('Fitness Meter', style: Theme.of(context).textTheme.titleMedium)),
-                const Text('Last 7 days',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: CeColors.muted)),
+                Expanded(child: Text('Fitness Meter', style: CeType.sectionTitle)),
+                Text('Last 7 days', style: CeType.caption.copyWith(fontSize: 12)),
               ])
             : Row(children: [
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Fitness Meter', style: Theme.of(context).textTheme.titleMedium),
-                    const Text('Last 7 days',
-                        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: CeColors.muted)),
+                    Text('Fitness Meter', style: CeType.sectionTitle),
+                    const SizedBox(height: 2),
+                    Text('Last 7 days', style: CeType.caption.copyWith(fontSize: 12)),
                   ]),
                 ),
                 const SizedBox(width: 8),
@@ -165,9 +165,10 @@ class _FitnessMeterViewState extends State<FitnessMeterView> {
           key: const Key('fitness.card'),
           margin: const EdgeInsets.symmetric(horizontal: CeSpace.gutter),
           onTap: widget.onTap,
+          padding: const EdgeInsets.all(16),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             _ScoreRow(report: r, blocked: blocked, restThisWeek: restThisWeek),
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
             Row(children: [
               Expanded(child: _Metric(value: '${r.matches}', label: 'Matches')),
               const SizedBox(width: 8),
@@ -175,10 +176,10 @@ class _FitnessMeterViewState extends State<FitnessMeterView> {
               const SizedBox(width: 8),
               Expanded(child: _Metric(value: r.oversBowled, label: 'Overs bowled')),
             ]),
-            const SizedBox(height: 16),
+            const CeDashedDivider(padding: EdgeInsets.symmetric(vertical: 14)),
             Row(children: [
               const Expanded(child: _Caps('Daily workload')),
-              Text('Tap a day', style: TextStyle(fontSize: 11, color: CeColors.muted.withValues(alpha: 0.9))),
+              Text('Tap a day', style: CeType.caption),
             ]),
             const SizedBox(height: 10),
             _WorkloadBars(days: days, selected: selectedIndex, onSelect: (i) => setState(() => _selected = i)),
@@ -189,9 +190,8 @@ class _FitnessMeterViewState extends State<FitnessMeterView> {
             if (widget.onTap != null) ...[
               const SizedBox(height: 8),
               Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                const Text('Details',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: CeColors.primary)),
-                Icon(CeIcons.of('chevron-right'), size: 13, color: CeColors.primary),
+                Text('Details', style: CeType.chip.copyWith(fontSize: 12.5, color: CeColors.accent)),
+                Icon(CeIcons.of('chevron-right'), size: 14, color: CeColors.accent),
               ]),
             ],
           ]),
@@ -214,16 +214,16 @@ class _FitnessMeterViewState extends State<FitnessMeterView> {
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: Row(children: [
-                Icon(CeIcons.of('users'), size: 12, color: CeColors.muted),
+                Icon(CeIcons.of('eye'), size: 14, color: CeColors.primary),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text('Shared with your club owner at ${widget.sharedWithClub}',
                       key: const Key('fitness.shared'),
-                      style: const TextStyle(fontSize: 11, color: CeColors.muted)),
+                      style: CeType.caption.copyWith(fontSize: 12)),
                 ),
               ]),
             ),
-          const Text(fitnessNote, style: TextStyle(fontSize: 10.5, color: CeColors.muted2, height: 1.35)),
+          Text(fitnessNote, style: CeType.caption.copyWith(fontSize: 10.5, fontWeight: FontWeight.w500, color: CeColors.muted2)),
         ]),
       ),
     ]);
@@ -231,13 +231,13 @@ class _FitnessMeterViewState extends State<FitnessMeterView> {
 }
 
 class _Caps extends StatelessWidget {
-  const _Caps(this.text, {this.color = CeColors.muted});
+  const _Caps(this.text, {this.color = CeColors.ink2});
   final String text;
   final Color color;
 
   @override
-  Widget build(BuildContext context) => Text(text.toUpperCase(),
-      style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: 0.6, color: color));
+  Widget build(BuildContext context) =>
+      Text(text.toUpperCase(), style: CeType.label.copyWith(fontSize: 11, letterSpacing: 0.6, color: color));
 }
 
 /// Gauge + status chip + headline + one-line summary of the week.
@@ -269,16 +269,16 @@ class _ScoreRow extends StatelessWidget {
         : '${activity.join(', ')} and ${_plural(restThisWeek, 'rest day')} this week.';
     return Row(children: [
       _Gauge(score: r.score, color: fg),
-      const SizedBox(width: 14),
+      const SizedBox(width: 16),
       Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           CeStatusChip(blocked ? 'Unavailable' : r.level.label, tone: tone),
           const SizedBox(height: 6),
           Text(headline,
               key: const Key('fitness.headline'),
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: CeColors.ink, height: 1.2)),
-          const SizedBox(height: 3),
-          Text(summary, style: const TextStyle(fontSize: 12, color: CeColors.muted, height: 1.35)),
+              style: CeType.cardTitle.copyWith(height: 1.2)),
+          const SizedBox(height: 4),
+          Text(summary, style: CeType.bodySmall.copyWith(color: CeColors.ink2, height: 1.45)),
         ]),
       ),
     ]);
@@ -294,16 +294,15 @@ class _Gauge extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SizedBox(
         key: const Key('fitness.gauge'),
-        width: 76,
-        height: 76,
+        width: 88,
+        height: 88,
         child: CustomPaint(
           painter: _GaugePainter(fraction: score / FitnessReport.max, color: color),
           child: Center(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Text('$score',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, height: 1, color: color)),
+              Text('$score', style: CeType.statValue(28).copyWith(height: 1, color: CeColors.ink)),
               const SizedBox(height: 2),
-              const Text('of ${FitnessReport.max}', style: TextStyle(fontSize: 10, color: CeColors.muted)),
+              Text('of ${FitnessReport.max}', style: CeType.statLabel),
             ]),
           ),
         ),
@@ -317,13 +316,13 @@ class _GaugePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const stroke = 7.0;
+    const stroke = 10.0;
     final rect = (Offset.zero & size).deflate(stroke / 2);
     canvas.drawArc(rect, 0, 2 * math.pi, false,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = stroke
-          ..color = CeColors.line);
+          ..color = CeColors.mint);
     if (fraction > 0) {
       canvas.drawArc(rect, -math.pi / 2, 2 * math.pi * fraction.clamp(0.0, 1.0), false,
           Paint()
@@ -344,27 +343,7 @@ class _Metric extends StatelessWidget {
   final String label;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
-        decoration: BoxDecoration(
-          color: CeColors.bg,
-          borderRadius: BorderRadius.circular(CeRadius.md),
-          border: Border.all(color: CeColors.hairline),
-        ),
-        child: Column(children: [
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(value,
-                style: const TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.w800, color: CeColors.ink, fontFeatures: [FontFeature.tabularFigures()])),
-          ),
-          const SizedBox(height: 2),
-          Text(label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 10.5, color: CeColors.muted)),
-        ]),
-      );
+  Widget build(BuildContext context) => CeMiniStat(value: value, label: label);
 }
 
 /// Seven tappable workload bars (match days filled, rest days a stub).
@@ -419,7 +398,7 @@ class _WorkloadBars extends StatelessWidget {
                                 decoration: BoxDecoration(
                                   color: Colors.white,
                                   borderRadius: BorderRadius.circular(3),
-                                  border: Border.all(color: CeColors.line2),
+                                  border: Border.all(color: CeColors.dashedBorder, width: 1.5),
                                 ),
                               ),
                       ),
@@ -427,10 +406,7 @@ class _WorkloadBars extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(DateFormat('E').format(d.date)[0],
-                      style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: i == selected ? FontWeight.w800 : FontWeight.w600,
-                          color: i == selected ? CeColors.primaryDark : CeColors.muted)),
+                      style: CeType.micro.copyWith(color: i == selected ? CeColors.primary : CeColors.muted)),
                 ]),
               ),
             ),
@@ -449,19 +425,19 @@ class _Legend extends StatelessWidget {
     Widget item(Widget swatch, String label) => Row(mainAxisSize: MainAxisSize.min, children: [
           swatch,
           const SizedBox(width: 5),
-          Text(label, style: const TextStyle(fontSize: 11, color: CeColors.muted)),
+          Text(label, style: CeType.caption),
         ]);
     return Wrap(spacing: 14, runSpacing: 4, children: [
-      item(Container(width: 8, height: 8, decoration: const BoxDecoration(color: CeColors.primary, shape: BoxShape.circle)),
+      item(Container(width: 9, height: 9, decoration: BoxDecoration(color: CeColors.primary, borderRadius: BorderRadius.circular(3))),
           'Match'),
-      item(Container(width: 8, height: 8, decoration: const BoxDecoration(color: CeColors.sage, shape: BoxShape.circle)),
+      item(Container(width: 9, height: 9, decoration: BoxDecoration(color: CeColors.sage, borderRadius: BorderRadius.circular(3))),
           'Training'),
       item(
           Container(
             width: 9,
             height: 9,
             decoration: BoxDecoration(
-                color: Colors.white, borderRadius: BorderRadius.circular(2), border: Border.all(color: CeColors.line2)),
+                color: Colors.white, borderRadius: BorderRadius.circular(3), border: Border.all(color: CeColors.dashedBorder, width: 1.5)),
           ),
           'Rest'),
     ]);
@@ -489,25 +465,18 @@ class _DayDetail extends StatelessWidget {
     return Container(
       key: const Key('fitness.dayDetail'),
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      decoration: BoxDecoration(
-        color: CeColors.bg,
-        borderRadius: BorderRadius.circular(CeRadius.md),
-        border: Border.all(color: CeColors.hairline),
-      ),
+      decoration: BoxDecoration(color: CeColors.bg, borderRadius: BorderRadius.circular(CeRadius.md)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
           Expanded(
             child: Text(DateFormat('EEE d MMM').format(day.date),
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: CeColors.ink)),
+                style: CeType.listTitle.copyWith(fontSize: 13)),
           ),
           Text('Load ${_loadLabel(day.load)}',
-              style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: day.active ? CeColors.primaryDark : CeColors.muted)),
+              style: CeType.statValue(12).copyWith(color: day.active ? CeColors.primary : CeColors.muted)),
         ]),
         const SizedBox(height: 3),
-        for (final l in lines) Text(l, style: const TextStyle(fontSize: 12, color: CeColors.ink2, height: 1.35)),
+        for (final l in lines) Text(l, style: CeType.bodySmall.copyWith(fontSize: 12, height: 1.4)),
       ]),
     );
   }
@@ -563,26 +532,22 @@ class _Recommendation extends StatelessWidget {
 
     return Container(
       key: const Key('fitness.recommendationCard'),
-      margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 0),
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(CeRadius.lg),
-        border: Border.all(color: border),
-      ),
+      margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(CeRadius.xl)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         _Caps('Recommendation', color: accent),
         const SizedBox(height: 6),
         Text(r.recommendation,
             key: const Key('fitness.recommendation'),
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: CeColors.ink, height: 1.25)),
+            style: CeType.pageTitle.copyWith(fontSize: 17, height: 1.25)),
         const SizedBox(height: 4),
-        Text(body, style: const TextStyle(fontSize: 12.5, color: CeColors.ink2, height: 1.4)),
-        const SizedBox(height: 10),
+        Text(body, style: CeType.body.copyWith(color: CeColors.ink2)),
+        const SizedBox(height: 12),
         for (final reason in reasons)
           Container(
-            margin: const EdgeInsets.only(bottom: 6),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(CeRadius.md)),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Padding(
@@ -590,7 +555,7 @@ class _Recommendation extends StatelessWidget {
                 child: Icon(CeIcons.of(caution ? 'info' : 'check-circle'), size: 13, color: accent),
               ),
               const SizedBox(width: 8),
-              Expanded(child: Text(reason, style: const TextStyle(fontSize: 12, color: CeColors.ink2, height: 1.3))),
+              Expanded(child: Text(reason, style: CeType.bodySmall.copyWith(fontWeight: FontWeight.w600, color: CeColors.ink, height: 1.45))),
             ]),
           ),
         if (r.restDays > 0) ...[
@@ -598,15 +563,15 @@ class _Recommendation extends StatelessWidget {
           _RecoveryPlan(restDays: r.restDays, from: playedToday ? today.add(const Duration(days: 1)) : today, accent: accent),
         ],
         if (nextMatch case final next?) ...[
-          const SizedBox(height: 10),
+          const SizedBox(height: 4),
           Container(height: 1, color: border),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Row(key: const Key('fitness.nextMatch'), children: [
             Expanded(
               child: Text('Next: ${DateFormat('EEE d').format(next.startsAt)} · vs ${next.opponent}',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: CeColors.ink)),
+                  style: CeType.bodySmall.copyWith(fontWeight: FontWeight.w600, color: CeColors.ink)),
             ),
             const SizedBox(width: 8),
             caution
@@ -637,16 +602,15 @@ class _RecoveryPlan extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
         decoration: BoxDecoration(
           color: rest ? Colors.white : CeColors.mint,
-          borderRadius: BorderRadius.circular(CeRadius.md),
+          borderRadius: BorderRadius.circular(CeRadius.tab),
           border: Border.all(color: rest ? CeColors.redBorder : CeColors.mint2),
         ),
         child: Column(children: [
           Text(DateFormat('EEE d').format(date).toUpperCase(),
-              maxLines: 1, style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: CeColors.muted)),
-          const SizedBox(height: 3),
+              maxLines: 1, style: CeType.micro.copyWith(fontSize: 10, letterSpacing: 0.4, color: CeColors.muted)),
+          const SizedBox(height: 2),
           Text(rest ? 'Rest' : 'Ready',
-              style: TextStyle(
-                  fontSize: 12, fontWeight: FontWeight.w800, color: rest ? accent : CeColors.primaryDark)),
+              style: CeType.chip.copyWith(fontSize: 11.5, color: rest ? accent : CeColors.primaryDark)),
         ]),
       );
     }
@@ -708,12 +672,12 @@ Future<void> showFitnessSheet(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text('Fitness Meter', style: Theme.of(ctx).textTheme.titleLarge),
+        Text('Fitness Meter', style: CeType.pageTitle),
         const SizedBox(height: 12),
         _ScoreRow(report: r, blocked: blocked, restThisWeek: FitnessReport.window - matchDays.length),
         const SizedBox(height: 12),
         Text(r.recommendation,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: CeColors.ink, height: 1.3)),
+            style: CeType.cardTitle.copyWith(height: 1.3)),
         const SizedBox(height: 12),
         CeStatGroup(
           margin: EdgeInsets.zero,
@@ -735,17 +699,17 @@ Future<void> showFitnessSheet(
                   child: Icon(CeIcons.of('info'), size: 13, color: CeColors.amberInk),
                 ),
                 const SizedBox(width: 6),
-                Expanded(child: Text(a, style: const TextStyle(fontSize: 12, color: CeColors.ink2, height: 1.3))),
+                Expanded(child: Text(a, style: CeType.bodySmall.copyWith(color: CeColors.ink2))),
               ]),
             ),
         ],
         if (r.restDays > 0) ...[
           const SizedBox(height: 4),
           Text('Suggested rest: ${_plural(r.restDays, 'day')}',
-              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: CeColors.ink)),
+              style: CeType.listTitle.copyWith(fontSize: 13)),
         ],
         const SizedBox(height: 10),
-        const Text(fitnessNote, style: TextStyle(fontSize: 10.5, color: CeColors.muted2, height: 1.35)),
+        Text(fitnessNote, style: CeType.caption.copyWith(fontSize: 10.5, fontWeight: FontWeight.w500, color: CeColors.muted2)),
         const SizedBox(height: 16),
         CeButton(label: 'Close', onPressed: () => Navigator.of(ctx).pop()),
       ],
@@ -767,7 +731,7 @@ class _StackedBar extends StatelessWidget {
     final match = height * matchShare;
     final training = height - match;
     return ClipRRect(
-      borderRadius: BorderRadius.circular(5),
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(7), bottom: Radius.circular(3)),
       child: SizedBox(
         height: height,
         child: Column(mainAxisAlignment: MainAxisAlignment.end, children: [
@@ -797,18 +761,17 @@ class _AddWorkoutButton extends StatelessWidget {
         excludeSemantics: true,
         child: Material(
           color: CeColors.mint,
-          shape: const StadiumBorder(side: BorderSide(color: CeColors.mint2)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(CeRadius.tab)),
           child: InkWell(
             key: const Key('fitness.addWorkout'),
-            customBorder: const StadiumBorder(),
+            borderRadius: BorderRadius.circular(CeRadius.tab),
             onTap: onTap,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(CeIcons.of('plus'), size: 13, color: CeColors.primaryDark),
-                const SizedBox(width: 4),
-                const Text('Add Workout',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: CeColors.primaryDark)),
+                Icon(CeIcons.of('plus'), size: 14, color: CeColors.primary),
+                const SizedBox(width: 5),
+                Text('Add Workout', style: CeType.chip.copyWith(color: CeColors.primary)),
               ]),
             ),
           ),

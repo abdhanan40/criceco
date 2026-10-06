@@ -83,7 +83,8 @@ class CeListSheetFrame extends StatelessWidget {
             key: listKey,
             shrinkWrap: true,
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            padding: const EdgeInsets.only(bottom: 20),
+            // Clear of the home indicator when nothing is pinned below.
+            padding: EdgeInsets.only(bottom: 20 + (footer == null ? MediaQuery.paddingOf(context).bottom : 0)),
             children: children,
           ),
         ),
@@ -105,6 +106,6 @@ class CeCountPill extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         decoration: BoxDecoration(color: CeColors.mint, borderRadius: BorderRadius.circular(CeRadius.pill)),
         child: Text('$count',
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: CeColors.primaryDark)),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: CeColors.primaryDark)),
       );
 }

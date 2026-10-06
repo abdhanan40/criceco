@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/router/routes.dart';
 import '../../app/session/session_controller.dart';
 import '../../app/theme/tokens.dart';
+import '../../app/theme/typography.dart';
 import '../../core/utils/validators.dart';
 import '../../shared/widgets/ce_buttons.dart';
 import '../../shared/widgets/ce_feedback.dart';
@@ -71,39 +72,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: CeColors.bg,
       body: SingleChildScrollView(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        child: Column(children: [
-          AuthBanner(
-            title: 'Criceco',
-            subtitle: 'Your cricket club, organized.',
-            activeTab: AuthTab.login,
-            onTabSelected: (_) => context.go(Routes.signup),
-            stadiumPhoto: true,
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          const AuthBanner(title: 'Criceco', subtitle: 'Your cricket club, organized.', stadiumPhoto: true),
+          AuthPanel(
             child: Form(
               key: _formKey,
               child: AutofillGroup(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  AuthTabs(active: AuthTab.login, onSelected: (_) => context.go(Routes.signup)),
+                  const SizedBox(height: 18),
                   const AuthHeading(title: 'Welcome back', subtitle: 'Login to manage your cricket club'),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 18),
+                  const CeFieldLabel('Phone number'),
                   CeTextField(
                     fieldKey: const Key('login.phone'),
                     controller: _phone,
-                    hint: 'Phone number',
+                    hint: '03XX-XXXXXXX',
                     icon: 'phone',
                     keyboardType: TextInputType.phone,
                     textInputAction: TextInputAction.next,
                     autofillHints: const [AutofillHints.telephoneNumber],
                     validator: CeValidators.pkPhone,
                   ),
+                  const CeFieldLabel('Password'),
                   CeTextField(
                     fieldKey: const Key('login.password'),
                     controller: _password,
-                    hint: 'Password',
+                    hint: 'Enter your password',
                     icon: 'lock',
                     obscure: true,
                     textInputAction: TextInputAction.done,
@@ -116,11 +114,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     child: TextButton(
                       key: const Key('login.forgot'),
                       onPressed: _forgotPassword,
-                      style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
-                      child: const Text('Forgot password?',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: CeColors.primaryDark)),
+                      style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(0, 36)),
+                      child: Text('Forgot password?', style: CeType.buttonSmall.copyWith(color: CeColors.primary)),
                     ),
                   ),
+                  const SizedBox(height: 2),
                   if (_error != null) CeErrorBanner(_error!),
                   CeButton(label: 'Login', loading: _submitting, onPressed: _submit),
                   CeSwitchLine(

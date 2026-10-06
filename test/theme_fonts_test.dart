@@ -16,17 +16,29 @@ void main() {
     expect(manifest, contains('"family":"Manrope"'));
   });
 
-  test('theme uses Manrope and the reference palette (deep, teal, green, sage)', () {
+  test('Sora weights 500–700 are bundled as local assets (display font)', () async {
+    for (final w in ['Medium', 'SemiBold', 'Bold']) {
+      final data = await rootBundle.load('assets/fonts/sora/Sora-$w.ttf');
+      expect(data.lengthInBytes, greaterThan(30000), reason: w);
+    }
+    final manifest = await rootBundle.loadString('FontManifest.json');
+    expect(manifest, contains('"family":"Sora"'));
+  });
+
+  test('theme uses Sora (display) + Manrope (UI) and the reference palette', () {
     final theme = AppTheme.light();
-    expect(theme.textTheme.titleLarge!.fontFamily, 'Manrope');
+    expect(theme.textTheme.titleLarge!.fontFamily, 'Sora', reason: 'page titles');
+    expect(theme.textTheme.labelLarge!.fontFamily, 'Sora', reason: 'primary buttons');
+    expect(theme.textTheme.bodyMedium!.fontFamily, 'Manrope', reason: 'body copy');
     expect(theme.colorScheme.primary, CeColors.primary);
     expect(theme.brightness, Brightness.light, reason: 'light app on the new palette');
-    // Exact swatch values from the approved reference image.
+    // Exact swatch values from the reference design (CricECo Phone).
     expect(
       [CeColors.paletteDeep, CeColors.paletteTeal, CeColors.paletteGreen, CeColors.paletteSage],
-      const [Color(0xFF092328), Color(0xFF12544F), Color(0xFF2A835F), Color(0xFF8BBB92)],
+      const [Color(0xFF092328), Color(0xFF12544F), Color(0xFF3A9A72), Color(0xFF8BBB92)],
     );
-    expect(CeColors.primary, CeColors.paletteGreen);
+    expect(CeColors.primary, CeColors.paletteTeal, reason: 'primary CTA #12544F');
+    expect(CeColors.accent, CeColors.paletteGreen);
     expect(CeColors.primaryDark, CeColors.paletteTeal);
     expect(CeColors.ink, CeColors.paletteDeep);
     expect(CeColors.brandGradient.colors, [CeColors.paletteDeep, CeColors.paletteTeal, CeColors.paletteGreen]);

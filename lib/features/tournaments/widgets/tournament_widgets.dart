@@ -7,6 +7,7 @@ import '../../../app/providers/core_providers.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/session/session_controller.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/ce_feedback.dart';
@@ -172,11 +173,11 @@ class TournamentHero extends StatelessWidget {
               borderRadius: BorderRadius.circular(CeRadius.pill),
             ),
             child: Text('${t.format.label} ${t.type.label}'.toUpperCase(),
-                style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+                style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
           ),
           const SizedBox(height: 10),
         ],
-        Text(t.name, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, height: 1.2)),
+        Text(t.name, style: const TextStyle(fontFamily: CeType.display, fontSize: 19, fontWeight: FontWeight.w700, height: 1.2)),
         const SizedBox(height: 6),
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Padding(
@@ -318,7 +319,7 @@ class TournamentCardHeader extends ConsumerWidget {
       Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(tournament.name,
-              style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: CeColors.ink, height: 1.25)),
+              style: const TextStyle(fontFamily: CeType.display, fontSize: 14.5, fontWeight: FontWeight.w700, color: CeColors.ink, height: 1.25)),
           const SizedBox(height: 2),
           Text(subtitle, style: const TextStyle(fontSize: 12, color: CeColors.muted)),
         ]),
@@ -386,7 +387,7 @@ class _FixtureCardState extends ConsumerState<FixtureCard> {
               alignment: Alignment.center,
               decoration: BoxDecoration(color: CeColors.primaryDark, borderRadius: BorderRadius.circular(CeRadius.sm)),
               child: Text(f.roundName.characters.first,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -469,7 +470,7 @@ class PointsTable extends ConsumerWidget {
           icon: 'bar-chart', title: 'No teams yet', body: 'Standings will appear once teams register');
     }
     final demo = ref.watch(demoModeProvider);
-    const head = TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: CeColors.muted, letterSpacing: 0.3);
+    const head = TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: CeColors.muted, letterSpacing: 0.3);
     const cell = TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: CeColors.ink);
     final ownClubId = ref.watch(currentClubProvider.select((c) => c?.id));
     Widget num(String v, TextStyle s) => SizedBox(width: 32, child: Text(v, textAlign: TextAlign.center, style: s));
@@ -486,7 +487,7 @@ class PointsTable extends ConsumerWidget {
               child: Text(mine ? '$team (You)' : team,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: mine ? s.copyWith(fontWeight: FontWeight.w800, color: CeColors.primaryDark) : s),
+                  style: mine ? s.copyWith(fontWeight: FontWeight.w700, color: CeColors.primaryDark) : s),
             ),
             for (final v in values) num(v, s),
           ]),
@@ -534,7 +535,7 @@ class WinnerBanner extends StatelessWidget {
             Icon(CeIcons.of('trophy'), size: 28, color: Colors.white),
             const SizedBox(height: 8),
             Text(name,
-                textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                textAlign: TextAlign.center, style: const TextStyle(fontFamily: CeType.display, fontSize: 18, fontWeight: FontWeight.w700)),
             const SizedBox(height: 2),
             Text('Tournament Winner'.toUpperCase(),
                 style: TextStyle(

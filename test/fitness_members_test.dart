@@ -364,10 +364,10 @@ void main() {
       final sheet = find.byKey(const Key('fitness.sheet'));
       expect(sheet, findsOneWidget);
       expect(_loc(c), loc, reason: 'a sheet, no navigation');
-      for (final label in ['MATCHES', 'OVERS BOWLED', 'BALLS FACED']) {
+      for (final label in ['Matches', 'Overs bowled', 'Balls faced']) {
         expect(find.descendant(of: sheet, matching: find.text(label)), findsOneWidget, reason: label);
       }
-      expect(find.descendant(of: sheet, matching: find.textContaining(RegExp(r'DAYS? SINCE LAST'))), findsOneWidget);
+      expect(find.descendant(of: sheet, matching: find.textContaining(RegExp(r'Days? since last'))), findsOneWidget);
       expect(find.descendant(of: sheet, matching: find.text(report.recommendation)), findsOneWidget);
       expect(find.descendant(of: sheet, matching: find.textContaining('not a medical assessment')), findsOneWidget);
       await _tap(tester, _button('Close'));
@@ -580,6 +580,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Players · 19'), findsOneWidget);
       await tester.scrollUntilVisible(find.text('Club Staff · 2'), 200, scrollable: find.byType(Scrollable).first);
+      await tester.scrollUntilVisible(find.text('Tariq Mahmood'), 200, scrollable: find.byType(Scrollable).first);
       expect(find.text('Tariq Mahmood'), findsOneWidget);
     });
 

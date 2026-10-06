@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/router/routes.dart';
 import '../../app/session/session_controller.dart';
+import '../../app/theme/tokens.dart';
 import '../../shared/widgets/ce_buttons.dart';
 import '../../shared/widgets/ce_form_widgets.dart';
 import 'widgets/auth_widgets.dart';
@@ -40,25 +41,19 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
         if (!didPop) context.go(Routes.login);
       },
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: CeColors.bg,
         body: SingleChildScrollView(
-          child: Column(children: [
-            AuthBanner(
-              title: 'Criceco',
-              subtitle: 'Your cricket club, organized.',
-              activeTab: AuthTab.signUp,
-              onTabSelected: (_) => context.go(Routes.login),
-              stadiumPhoto: true,
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            const AuthBanner(title: 'Criceco', subtitle: 'Your cricket club, organized.', stadiumPhoto: true),
+            AuthPanel(
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                AuthTabs(active: AuthTab.signUp, onSelected: (_) => context.go(Routes.login)),
+                const SizedBox(height: 18),
                 const AuthHeading(
                   title: 'Create account',
                   subtitle: 'Join thousands of cricket clubs across Pakistan',
-                  center: true,
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 22),
                 CeButton(label: 'Create New Account', onPressed: () => context.go(Routes.createAccount)),
                 const AuthDivider(),
                 GoogleButton(onPressed: _google, loading: _googleLoading),

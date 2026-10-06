@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/providers/core_providers.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/ce_availability.dart';
@@ -43,13 +44,13 @@ class MatchDetailsView extends ConsumerWidget {
               CeTeamBadge(m.ownTeamAbbr, size: 48, onDark: true),
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16),
-                child: Text('VS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1)),
+                child: Text('VS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1)),
               ),
               CeTeamBadge(m.opponentAbbr, size: 48, onDark: true),
             ]),
             const SizedBox(height: 10),
             Text('${m.ownTeamName} vs ${m.opponentName}',
-                textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                textAlign: TextAlign.center, style: const TextStyle(fontFamily: CeType.display, fontSize: 15, fontWeight: FontWeight.w700)),
             if (m.matchType != null) ...[
               const SizedBox(height: 4),
               Text(m.matchType!, style: TextStyle(fontSize: 11.5, color: Colors.white.withValues(alpha: 0.85))),
@@ -149,7 +150,7 @@ class _Countdown extends ConsumerWidget {
             child: Text(remaining.isNegative ? 'Started' : CeFormat.hms(remaining),
                 style: const TextStyle(
                     fontSize: 14,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                     color: CeColors.primaryDark,
                     fontFeatures: [FontFeature.tabularFigures()])),
           ),
@@ -181,7 +182,7 @@ class _ResultBlock extends StatelessWidget {
           Expanded(
             child: Text(match.resultText ?? (won ? 'Won' : 'Lost'),
                 style: TextStyle(
-                    fontSize: 13.5, fontWeight: FontWeight.w800, color: won ? CeColors.primaryDark : CeColors.red)),
+                    fontSize: 13.5, fontWeight: FontWeight.w700, color: won ? CeColors.primaryDark : CeColors.red)),
           ),
         ]),
         if (match.hasScorecard && onViewScorecard != null) ...[

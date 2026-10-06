@@ -7,6 +7,7 @@ import '../../app/router/routes.dart';
 import '../../app/session/role_controller.dart';
 import '../../app/session/session_controller.dart';
 import '../../app/theme/tokens.dart';
+import '../../app/theme/typography.dart';
 import '../../core/enums/enums.dart';
 import '../../demo/seed_data.dart';
 import '../../features/club/widgets/club_profile_sheet.dart' show showEditClubSheet;
@@ -76,7 +77,7 @@ class RoleDrawer extends ConsumerWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(name, style: t.titleLarge, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(name, style: CeType.sectionTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 4),
                   CeRoleBadge(role),
                   const SizedBox(height: 5),

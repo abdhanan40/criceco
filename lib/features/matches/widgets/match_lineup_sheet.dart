@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
@@ -201,7 +202,7 @@ class _MatchLineupSheetState extends ConsumerState<_MatchLineupSheet> {
                 Text(lineup.name,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: CeColors.ink)),
+                    style: const TextStyle(fontFamily: CeType.display, fontSize: 15, fontWeight: FontWeight.w700, color: CeColors.ink)),
                 const SizedBox(height: 2),
                 Text('$playing Playing XI · $subs Sub${subs == 1 ? '' : 's'}',
                     style: const TextStyle(fontSize: 12, color: CeColors.muted)),

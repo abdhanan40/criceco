@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../shared/widgets/ce_availability.dart';
 import '../../../shared/widgets/ce_buttons.dart';
@@ -42,7 +43,7 @@ class SelectionBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(CeRadius.pill),
       ),
       child: Text(playing ? 'PLAYING XI' : 'SUB',
-          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.3, color: Colors.white)),
+          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.3, color: Colors.white)),
     );
   }
 }
@@ -70,7 +71,7 @@ class PlayerScoutingDetails extends StatelessWidget {
   Widget _label(String t) => Padding(
         padding: const EdgeInsets.only(top: 16, bottom: 8),
         child: Text(t.toUpperCase(),
-            style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: 0.5, color: CeColors.muted)),
+            style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, letterSpacing: 0.5, color: CeColors.muted)),
       );
 
   Widget _grid(List<(String, String)> cells) => Row(children: [
@@ -88,8 +89,8 @@ class PlayerScoutingDetails extends StatelessWidget {
                 FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text(cells[i].$2,
-                      style: const TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w800, fontFeatures: [FontFeature.tabularFigures()])),
+                      style: const TextStyle(fontFamily: CeType.display, 
+                          fontSize: 15, fontWeight: FontWeight.w700, fontFeatures: [FontFeature.tabularFigures()])),
                 ),
                 const SizedBox(height: 2),
                 Text(cells[i].$1,
@@ -126,7 +127,7 @@ class PlayerScoutingDetails extends StatelessWidget {
                     ),
                   ),
               ]),
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: CeColors.ink),
+              style: const TextStyle(fontFamily: CeType.display, fontSize: 16, fontWeight: FontWeight.w700, color: CeColors.ink),
             ),
             const SizedBox(height: 2),
             Text('${player.position} · ${s.skill.label} level',
@@ -138,7 +139,7 @@ class PlayerScoutingDetails extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(color: CeColors.mint, borderRadius: BorderRadius.circular(CeRadius.md)),
           child: Column(children: [
-            Text(s.rating, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: CeColors.primaryDark)),
+            Text(s.rating, style: const TextStyle(fontFamily: CeType.display, fontSize: 17, fontWeight: FontWeight.w700, color: CeColors.primaryDark)),
             const Text('Rating', style: TextStyle(fontSize: 9.5, color: CeColors.muted)),
           ]),
         ),
@@ -187,7 +188,7 @@ class PlayerScoutingDetails extends StatelessWidget {
             child: Text.rich(
               TextSpan(children: [
                 TextSpan(text: 'Last match vs ${s.lastMatch.opponent} — '),
-                TextSpan(text: s.lastMatch.line, style: const TextStyle(fontWeight: FontWeight.w800, color: CeColors.ink)),
+                TextSpan(text: s.lastMatch.line, style: const TextStyle(fontWeight: FontWeight.w700, color: CeColors.ink)),
               ]),
               style: const TextStyle(fontSize: 12, color: CeColors.ink2),
             ),
@@ -226,9 +227,9 @@ class SquadCounter extends StatelessWidget {
         decoration: BoxDecoration(color: CeColors.mint, borderRadius: BorderRadius.circular(CeRadius.md)),
         child: Column(children: [
           Text(value,
-              style: const TextStyle(
+              style: const TextStyle(fontFamily: CeType.display, 
                   fontSize: 16,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                   color: CeColors.primaryDark,
                   fontFeatures: [FontFeature.tabularFigures()])),
           const SizedBox(height: 2),

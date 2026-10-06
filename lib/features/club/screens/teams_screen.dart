@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
@@ -356,7 +357,7 @@ class _SuggestedTeam extends ConsumerWidget {
         Row(children: [
           const Expanded(
             child: Text('Suggested Team',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: CeColors.ink)),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: CeColors.ink)),
           ),
           TextButton(onPressed: onRemove, child: const Text('Remove')),
         ]),
@@ -406,15 +407,12 @@ class _NewTeamRow extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
           child: Material(
             color: CeColors.mint,
-            borderRadius: BorderRadius.circular(CeRadius.lg),
+            borderRadius: BorderRadius.circular(CeRadius.card),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
               onTap: onTap,
               child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(CeRadius.lg),
-                  border: Border.all(color: CeColors.mint2),
-                ),
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(CeRadius.card)),
                 child: Stack(children: [
                   // Faint sports motif behind the text (decorative).
                   Positioned(
@@ -428,24 +426,24 @@ class _NewTeamRow extends StatelessWidget {
                       Container(
                         width: 46,
                         height: 46,
-                        decoration: BoxDecoration(color: CeColors.primary, borderRadius: BorderRadius.circular(CeRadius.md)),
+                        decoration: BoxDecoration(color: CeColors.primary, borderRadius: BorderRadius.circular(CeRadius.input)),
                         child: Icon(CeIcons.of('plus'), size: 22, color: Colors.white),
                       ),
                       const SizedBox(width: 12),
                       const Expanded(
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text('Create New Team',
-                              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: CeColors.ink)),
+                              style: TextStyle(fontFamily: CeType.display, fontSize: 15, fontWeight: FontWeight.w700, color: CeColors.ink)),
                           SizedBox(height: 2),
                           Text('Build a team, then add players or use Suggest Team',
-                              style: TextStyle(fontSize: 11.5, color: CeColors.muted, height: 1.35)),
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: CeColors.muted, height: 1.4)),
                         ]),
                       ),
                       const SizedBox(width: 8),
                       Container(
                         width: 30,
                         height: 30,
-                        decoration: const BoxDecoration(color: CeColors.primaryDark, shape: BoxShape.circle),
+                        decoration: const BoxDecoration(color: CeColors.primary, shape: BoxShape.circle),
                         child: Icon(CeIcons.of('chevron-right'), size: 16, color: Colors.white),
                       ),
                     ]),
@@ -479,12 +477,11 @@ class _TeamCard extends ConsumerWidget {
 
     return Container(
       margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 0),
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(CeRadius.lg), boxShadow: CeShadows.card),
       child: Material(
         color: Colors.white,
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(CeRadius.lg),
+          borderRadius: BorderRadius.circular(CeRadius.card),
           side: const BorderSide(color: CeColors.line),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -496,21 +493,27 @@ class _TeamCard extends ConsumerWidget {
             child: InkWell(
               onTap: onView,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
                 child: Row(children: [
-                  const CeIconWell('shield', size: 46, iconSize: 21),
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                        gradient: CeColors.brandGradient, borderRadius: BorderRadius.circular(CeRadius.input)),
+                    child: Icon(CeIcons.of('shield'), size: 20, color: CeColors.sage),
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(t.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: CeColors.ink)),
+                          style: const TextStyle(fontFamily: CeType.display, fontSize: 15, fontWeight: FontWeight.w700, color: CeColors.ink)),
                       const SizedBox(height: 4),
                       Text('$format · $players',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 12, color: CeColors.muted)),
+                          style: CeType.caption.copyWith(fontSize: 12)),
                     ]),
                   ),
                   Icon(CeIcons.of('chevron-right'), size: 16, color: CeColors.muted2),
@@ -520,7 +523,7 @@ class _TeamCard extends ConsumerWidget {
           ),
           // ---- Squad stats ----
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
             child: Row(children: [
               for (final (i, (icon, value, label)) in [
                 ('users', '${t.playerCount}/$_squadMax', 'Players'),
@@ -533,9 +536,10 @@ class _TeamCard extends ConsumerWidget {
               ],
             ]),
           ),
+          const CeDashedDivider(padding: EdgeInsets.fromLTRB(14, 12, 14, 10)),
           // ---- Squad avatars + Add Players ----
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 0),
             child: Row(children: [
               Expanded(child: _AvatarStrip(names: [for (final p in squad) p.name])),
               const SizedBox(width: 8),
@@ -545,19 +549,18 @@ class _TeamCard extends ConsumerWidget {
                 excludeSemantics: true,
                 child: Material(
                   color: CeColors.mint,
-                  shape: const StadiumBorder(side: BorderSide(color: CeColors.mint2)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(CeRadius.tab)),
                   child: InkWell(
-                    customBorder: const StadiumBorder(),
+                    borderRadius: BorderRadius.circular(CeRadius.tab),
                     onTap: onAddPlayers,
                     child: ConstrainedBox(
-                      constraints: const BoxConstraints(minHeight: CeSize.touchTarget),
+                      constraints: const BoxConstraints(minHeight: CeSize.buttonCompactHeight),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          Icon(CeIcons.of('user-plus'), size: 15, color: CeColors.primaryDark),
+                          Icon(CeIcons.of('user-plus'), size: 15, color: CeColors.primary),
                           const SizedBox(width: 6),
-                          const Text('Add Players',
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: CeColors.primaryDark)),
+                          Text('Add Players', style: CeType.buttonSmall.copyWith(fontSize: 12.5, color: CeColors.primary)),
                         ]),
                       ),
                     ),
@@ -568,7 +571,7 @@ class _TeamCard extends ConsumerWidget {
           ),
           // ---- Action ----
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
             child: CeButton.soft(
               label: 'View Team',
               icon: CeIcons.of('clipboard-list'),
@@ -590,29 +593,15 @@ class _StatTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.fromLTRB(8, 8, 6, 8),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 9),
         decoration: BoxDecoration(color: CeColors.bg, borderRadius: BorderRadius.circular(CeRadius.md)),
-        child: Row(children: [
-          Icon(CeIcons.of(icon), size: 14, color: CeColors.primaryDark),
-          const SizedBox(width: 5),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text(value,
-                    style: const TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w800,
-                        color: CeColors.ink,
-                        fontFeatures: [FontFeature.tabularFigures()])),
-              ),
-              Text(label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 9.5, color: CeColors.muted)),
-            ]),
+        child: Column(children: [
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(value, style: CeType.statValue(15).copyWith(fontFeatures: const [FontFeature.tabularFigures()])),
           ),
+          const SizedBox(height: 2),
+          FittedBox(fit: BoxFit.scaleDown, child: Text(label, maxLines: 1, style: CeType.statLabel)),
         ]),
       );
 }
@@ -644,8 +633,8 @@ class _AvatarStrip extends StatelessWidget {
                     height: _size,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: CeColors.historySoft,
-                      border: Border.all(color: CeColors.line),
+                      color: CeColors.bg,
+                      border: Border.all(color: CeColors.dashedBorder, width: 1.5),
                     ),
                     child: Icon(CeIcons.of('user'), size: 13, color: CeColors.muted2),
                   ),
@@ -657,8 +646,7 @@ class _AvatarStrip extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8),
               alignment: Alignment.center,
               decoration: BoxDecoration(color: CeColors.mint, borderRadius: BorderRadius.circular(CeRadius.pill)),
-              child: Text('+$extra',
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: CeColors.primaryDark)),
+              child: Text('+$extra', style: CeType.micro.copyWith(fontSize: 11, color: CeColors.primary)),
             ),
           ],
         ]),

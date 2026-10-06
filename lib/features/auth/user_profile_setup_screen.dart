@@ -100,7 +100,7 @@ class _UserProfileSetupScreenState extends ConsumerState<UserProfileSetupScreen>
         if (!didPop) _back();
       },
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: CeColors.bg,
         body: SingleChildScrollView(
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
@@ -110,19 +110,22 @@ class _UserProfileSetupScreenState extends ConsumerState<UserProfileSetupScreen>
               title: 'Set up your profile',
               subtitle: 'This is your CricEco account — you choose Player or Club Owner next.',
               stadiumPhoto: true,
+              showLogo: false,
               onBack: _back,
             ),
-            const CeStepProgress(value: 0.66, label: 'Step 2 of 3 — Your Profile'),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(CeSpace.form, 14, CeSpace.form, CeSpace.form),
+            AuthPanel(
               child: Form(
                 key: _formKey,
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  const SizedBox(height: 4),
+                  const CeStepProgress(value: 0.66, label: 'Step 2 of 3 — Your Profile', padding: EdgeInsets.zero),
+                  const SizedBox(height: 20),
                   Center(
                     child: CePhotoPicker(
-                      placeholderIcon: 'user',
-                      caption: draft.hasPhoto ? 'Tap to change' : 'Profile picture (optional)',
+                      title: 'Profile picture',
+                      placeholderIcon: 'camera',
+                      caption: draft.hasPhoto
+                          ? 'Looking good. Tap the photo to change it.'
+                          : 'Optional · a clear face photo helps clubs recognise you.',
                       imagePath: draft.photoPath,
                       semanticLabel: draft.hasPhoto ? 'Change profile picture' : 'Add profile picture',
                       // Gallery / camera (and Remove once set) — the same picker as My Profile.
@@ -168,7 +171,7 @@ class _UserProfileSetupScreenState extends ConsumerState<UserProfileSetupScreen>
                     onTap: _pickDob,
                     validator: (_) => draft.dateOfBirth == null ? 'Date of birth is required' : null,
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 10),
                   CeButton(label: 'Continue', loading: _saving, onPressed: _saving ? null : _continue),
                 ]),
               ),

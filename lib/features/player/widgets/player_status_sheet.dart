@@ -5,6 +5,7 @@ import '../../../app/providers/core_providers.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../player_providers.dart';
@@ -136,8 +137,6 @@ class _PlayerStatusSheetState extends ConsumerState<_PlayerStatusSheet> {
                   ]),
                 ),
         ),
-        // Clear the home indicator / gesture bar on phones that have one.
-        SizedBox(height: MediaQuery.paddingOf(context).bottom),
       ],
     );
   }
@@ -181,7 +180,7 @@ class _StatusSwitch extends StatelessWidget {
                 ]),
               ),
               const SizedBox(width: 8),
-              Switch(value: value, onChanged: onChanged),
+              CeSwitch(value: value, onChanged: onChanged),
             ]),
           ),
         ),

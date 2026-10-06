@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/providers/core_providers.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/constants/cities.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
@@ -193,7 +194,7 @@ class _FormatTile extends StatelessWidget {
                     TextSpan(children: [
                       TextSpan(
                           text: format == MatchFormat.custom ? 'Custom Overs' : format.label,
-                          style: const TextStyle(fontWeight: FontWeight.w800)),
+                          style: const TextStyle(fontWeight: FontWeight.w700)),
                       TextSpan(
                           text: ' — ${formatBlurb(format)}',
                           style: TextStyle(fontWeight: FontWeight.w500, color: fg.withValues(alpha: 0.75))),
@@ -248,7 +249,7 @@ class _BookGroundScreenState extends ConsumerState<BookGroundScreen> {
                   child: Text.rich(
                     TextSpan(children: [
                       const TextSpan(text: 'Showing grounds for '),
-                      TextSpan(text: d.city ?? 'your city', style: const TextStyle(fontWeight: FontWeight.w800)),
+                      TextSpan(text: d.city ?? 'your city', style: const TextStyle(fontWeight: FontWeight.w700)),
                       if (d.format != null) TextSpan(text: ' · ${d.format!.display(d.customOvers)}'),
                     ]),
                     style: const TextStyle(fontSize: 12.5, color: CeColors.primaryDark),
@@ -345,7 +346,7 @@ class _GroundCard extends StatelessWidget {
                       fit: BoxFit.scaleDown,
                       alignment: Alignment.centerRight,
                       child: Text('${CeFormat.rupees(ground.pricePerHour)} / hr',
-                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: CeColors.primaryDark)),
+                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: CeColors.primaryDark)),
                     ),
                   ),
                 ]),
@@ -508,9 +509,9 @@ class _GroundDetailsScreenState extends ConsumerState<GroundDetailsScreen> {
               padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 0),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('${CeFormat.rupees(g.pricePerHour)} / hr',
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: CeColors.primary)),
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: CeColors.primary)),
                 const SizedBox(height: 2),
-                Text(g.name, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: CeColors.ink)),
+                Text(g.name, style: const TextStyle(fontFamily: CeType.display, fontSize: 19, fontWeight: FontWeight.w700, color: CeColors.ink)),
                 const SizedBox(height: 4),
                 Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Padding(
@@ -550,7 +551,7 @@ class _GroundDetailsScreenState extends ConsumerState<GroundDetailsScreen> {
               child: Material(
                 color: Colors.white,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(CeRadius.lg),
+                  borderRadius: BorderRadius.circular(CeRadius.card),
                   side: const BorderSide(color: CeColors.line),
                 ),
                 clipBehavior: Clip.antiAlias,
@@ -631,7 +632,7 @@ class _GroundDetailsScreenState extends ConsumerState<GroundDetailsScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
                       decoration: BoxDecoration(color: CeColors.mint, borderRadius: BorderRadius.circular(CeRadius.row)),
                       child: Column(children: [
-                        Text(v, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: CeColors.primaryDark)),
+                        Text(v, style: const TextStyle(fontFamily: CeType.display, fontSize: 17, fontWeight: FontWeight.w700, color: CeColors.primaryDark)),
                         Text(l, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: CeColors.ink2)),
                         Text(l2, style: const TextStyle(fontSize: 10, color: CeColors.muted)),
                       ]),

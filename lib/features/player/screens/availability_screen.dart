@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/providers/core_providers.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/ce_availability.dart';
@@ -161,33 +162,29 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
           children: [
             // ---- Current status ----
             Container(
-              margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 0),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: CeColors.mint,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: CeColors.mint2),
-              ),
+              margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 4, CeSpace.gutter, 0),
+              padding: const EdgeInsets.all(18),
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(color: CeColors.primary, borderRadius: BorderRadius.circular(CeRadius.hero)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Container(
                     width: 56,
                     height: 56,
                     alignment: Alignment.center,
-                    decoration: BoxDecoration(color: curColor.withValues(alpha: 0.13), shape: BoxShape.circle),
+                    decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.1), shape: BoxShape.circle),
                     child: _StatusDot(color: curColor, icon: curIcon, size: 38),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Text('Current Status',
-                          style: TextStyle(fontSize: 11, color: CeColors.muted, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 1),
-                      Text(record.status.label,
-                          style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: curColor)),
-                      const SizedBox(height: 3),
+                      Text('Current Status'.toUpperCase(),
+                          style: CeType.micro.copyWith(letterSpacing: 0.8, color: CeColors.sage)),
+                      const SizedBox(height: 4),
+                      Text(record.status.label, style: CeType.pageTitleLarge.copyWith(fontSize: 22, color: Colors.white)),
+                      const SizedBox(height: 4),
                       Text(record.status.description,
-                          style: const TextStyle(fontSize: 12, color: CeColors.inkSoft)),
+                          style: CeType.body.copyWith(fontWeight: FontWeight.w600, color: const Color(0xFFCFE3D2))),
                       if (record.reason != null || record.untilDate != null) ...[
                         const SizedBox(height: 3),
                         Text(
@@ -195,23 +192,27 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
                             if (record.reason != null) record.reason!.label,
                             if (record.untilDate != null) 'Until ${CeFormat.date(record.untilDate!)}',
                           ].join(' · '),
-                          style: const TextStyle(fontSize: 11.5, color: CeColors.inkSoft, fontWeight: FontWeight.w600),
+                          style: CeType.body.copyWith(color: CeColors.sage),
                         ),
                       ],
                       const SizedBox(height: 6),
                       Row(children: [
-                        Icon(CeIcons.of('calendar'), size: 12, color: CeColors.muted),
-                        const SizedBox(width: 4),
+                        Icon(CeIcons.of('calendar'), size: 13, color: CeColors.sage),
+                        const SizedBox(width: 5),
                         Flexible(
                           child: Text('Since ${CeFormat.date(record.since)}',
-                              style: const TextStyle(fontSize: 11, color: CeColors.muted)),
+                              style: CeType.bodySmall.copyWith(fontSize: 12, color: CeColors.sage)),
                         ),
                       ]),
                     ]),
                   ),
                 ]),
-                const SizedBox(height: 14),
-                CeButton(label: 'Change Status', icon: CeIcons.of('edit-3'), onPressed: _scrollToChoose),
+                Container(
+                  margin: const EdgeInsets.only(top: 14),
+                  padding: const EdgeInsets.only(top: 12),
+                  decoration: BoxDecoration(border: Border(top: BorderSide(color: CeColors.sage.withValues(alpha: 0.18)))),
+                  child: CeButton.soft(label: 'Change Status', icon: CeIcons.of('edit-3'), dense: true, onPressed: _scrollToChoose),
+                ),
               ]),
             ),
 
@@ -296,27 +297,24 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
                   child: Material(
                     color: Colors.white,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(CeRadius.md),
-                      side: BorderSide(color: _dateError != null ? CeColors.red : CeColors.line2),
+                      borderRadius: BorderRadius.circular(CeRadius.input),
+                      side: BorderSide(color: _dateError != null ? CeColors.red : CeColors.line2, width: 1.5),
                     ),
                     child: InkWell(
-                      borderRadius: BorderRadius.circular(CeRadius.md),
+                      borderRadius: BorderRadius.circular(CeRadius.input),
                       onTap: () => setState(() {
                         _pickerOpen = !_pickerOpen;
                         if (_pickerOpen) _pickerMonth = resolved ?? _today;
                       }),
                       child: Container(
                         constraints: const BoxConstraints(minHeight: CeSize.inputMinHeight),
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Row(children: [
-                          Icon(CeIcons.of('calendar'), size: 17, color: CeColors.muted),
+                          Icon(CeIcons.of('calendar'), size: 17, color: CeColors.primary),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(resolved == null ? 'Select a date' : CeFormat.date(resolved),
-                                style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: resolved == null ? CeColors.muted2 : CeColors.ink)),
+                                style: CeType.input.copyWith(color: resolved == null ? CeColors.muted2 : CeColors.ink)),
                           ),
                           Icon(CeIcons.of(_pickerOpen ? 'chevron-up' : 'chevron-down'),
                               size: 17, color: CeColors.muted),
@@ -365,25 +363,25 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
             // ---- Tip ----
             Container(
               margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-              decoration: BoxDecoration(color: CeColors.amberSoft, borderRadius: BorderRadius.circular(CeRadius.md)),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(color: CeColors.amberSoft, borderRadius: BorderRadius.circular(CeRadius.input)),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Icon(CeIcons.of('lightbulb'), size: 16, color: CeColors.amber),
                 const SizedBox(width: 8),
-                const Expanded(
+                Expanded(
                   child: Text.rich(
-                    TextSpan(children: [
-                      TextSpan(text: 'Tip: ', style: TextStyle(fontWeight: FontWeight.w800)),
+                    const TextSpan(children: [
+                      TextSpan(text: 'Tip: ', style: TextStyle(fontWeight: FontWeight.w700)),
                       TextSpan(text: 'Keeping your availability updated helps your coach plan better for upcoming matches.'),
                     ]),
-                    style: TextStyle(fontSize: 12, color: CeColors.amberInk, height: 1.4),
+                    style: CeType.bodySmall.copyWith(fontWeight: FontWeight.w600, color: CeColors.amberInk, height: 1.45),
                   ),
                 ),
               ]),
             ),
 
             Padding(
-              padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 18, CeSpace.gutter, 0),
+              padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 20, CeSpace.gutter, 0),
               child: CeButton(label: 'Update Availability', icon: CeIcons.of('check'), onPressed: _submit),
             ),
           ],
@@ -400,14 +398,14 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 20, CeSpace.gutter, 8),
+        padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 22, CeSpace.gutter, 10),
         child: Text.rich(
           TextSpan(children: [
             TextSpan(text: title),
             if (optional)
               const TextSpan(text: ' (Optional)', style: TextStyle(fontWeight: FontWeight.w500, color: CeColors.muted)),
           ]),
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: CeColors.ink),
+          style: CeType.label.copyWith(fontSize: 12.5),
         ),
       );
 }
@@ -442,13 +440,13 @@ class _StatusCard extends StatelessWidget {
       label: status.label,
       excludeSemantics: true,
       child: Material(
-        color: selected ? CeColors.mint : Colors.white,
+        color: Colors.white,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(CeRadius.row),
-          side: BorderSide(color: selected ? CeColors.primary : CeColors.line, width: selected ? 1.6 : 1),
+          borderRadius: BorderRadius.circular(CeRadius.button),
+          side: BorderSide(color: selected ? CeColors.primary : CeColors.line2, width: 1.5),
         ),
         child: InkWell(
-          borderRadius: BorderRadius.circular(CeRadius.row),
+          borderRadius: BorderRadius.circular(CeRadius.button),
           onTap: onTap,
           child: Stack(children: [
             Container(
@@ -461,7 +459,7 @@ class _StatusCard extends StatelessWidget {
                 Text(status.label,
                     textAlign: TextAlign.center,
                     maxLines: 2,
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: CeColors.ink2, height: 1.2)),
+                    style: CeType.caption.copyWith(fontSize: 11.5, fontWeight: FontWeight.w700, color: CeColors.ink, height: 1.2)),
               ]),
             ),
             if (selected)
@@ -490,23 +488,23 @@ class _QuickButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fg = selected ? Colors.white : CeColors.ink2;
+    final fg = selected ? Colors.white : CeColors.ink;
     return Semantics(
       button: true,
       selected: selected,
       label: label,
       excludeSemantics: true,
       child: Material(
-        color: selected ? CeColors.primaryDark : Colors.white,
+        color: selected ? CeColors.primary : Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(CeRadius.md),
-          side: BorderSide(color: selected ? CeColors.primaryDark : CeColors.line2),
+          side: BorderSide(color: selected ? CeColors.primary : CeColors.line2, width: 1.5),
         ),
         child: InkWell(
           borderRadius: BorderRadius.circular(CeRadius.md),
           onTap: onTap,
           child: Container(
-            constraints: const BoxConstraints(minHeight: 44),
+            constraints: const BoxConstraints(minHeight: 46),
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               Icon(CeIcons.of('calendar'), size: 14, color: fg),
@@ -514,7 +512,7 @@ class _QuickButton extends StatelessWidget {
               Flexible(
                 child: Text(label,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: fg)),
+                    style: CeType.buttonSmall.copyWith(color: fg)),
               ),
             ]),
           ),
@@ -534,16 +532,15 @@ class _AboutAvailability extends StatelessWidget {
     Widget point(String icon, String text) => Padding(
           padding: const EdgeInsets.only(top: 10),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(CeIcons.of(icon), size: 16, color: CeColors.primaryDark),
+            Icon(CeIcons.of(icon), size: 16, color: CeColors.primary),
             const SizedBox(width: 10),
-            Expanded(child: Text(text, style: const TextStyle(fontSize: 13, color: CeColors.ink2, height: 1.4))),
+            Expanded(child: Text(text, style: CeType.body.copyWith(color: CeColors.ink2))),
           ]),
         );
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Text('About availability', style: Theme.of(context).textTheme.titleLarge),
+      Text('About availability', style: CeType.pageTitle),
       const SizedBox(height: 4),
-      const Text('Set your status so your coach can plan squads around you',
-          style: TextStyle(fontSize: 12.5, color: CeColors.muted)),
+      Text('Set your status so your coach can plan squads around you', style: CeType.bodySmall),
       point('users', 'Your club sees it when picking the Playing XI; injured or unavailable players can\'t be selected.'),
       point('calendar', 'For any status other than Available, set how long it applies with Unavailable Until.'),
       point('eye', 'Clubs outside yours only see you under Find Player when you list yourself and your profile is public.'),

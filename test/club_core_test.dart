@@ -256,7 +256,9 @@ void main() {
       final chips = [
         for (final f in ['T20', 'ODI', 'Test', 'Custom']) tester.getTopLeft(find.widgetWithText(CeChip, f)),
       ];
-      expect([for (final p in chips) p.dx], orderedEquals([...chips.map((p) => p.dx)]..sort()), reason: 'in this order');
+      // Reading order (the row may wrap at narrow widths): top-to-bottom, then left-to-right.
+      final reading = [...chips]..sort((a, b) => a.dy != b.dy ? a.dy.compareTo(b.dy) : a.dx.compareTo(b.dx));
+      expect(chips, orderedEquals(reading), reason: 'in this order');
       expect(find.widgetWithText(CeChip, 'T10'), findsNothing);
       await tester.enterText(find.byKey(const Key('teams.name')), 'Weekend XI');
       await _tap(tester, find.widgetWithText(CeChip, 'ODI'));
@@ -915,8 +917,10 @@ void main() {
       expect((made.name, made.format, made.playingCount, made.subCount), ('Weekend XI', MatchFormat.odi, 11, 2));
       // The Teams list shows it at once; the Teams screen is unchanged.
       await _go(tester, c, Routes.teams);
-      expect(find.text('Weekend XI'), findsOneWidget);
       expect(find.bySemanticsLabel(RegExp('^Create New Team')), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('Weekend XI'), 200,
+          scrollable: find.byWidgetPredicate((w) => w is Scrollable && w.axisDirection == AxisDirection.down).first);
+      expect(find.text('Weekend XI'), findsOneWidget);
     });
 
     testWidgets('Create Team sheet: a duplicate name is refused inline; Cancel creates nothing', (tester) async {

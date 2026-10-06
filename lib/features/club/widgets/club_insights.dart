@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
 
@@ -97,10 +98,10 @@ class MemberGrowthChart extends StatelessWidget {
           Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Text(gainedLabel,
                 key: const Key('club.memberGrowth.gained'),
-                style: TextStyle(
+                style: TextStyle(fontFamily: CeType.display, 
                     fontSize: 22,
                     height: 1,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                     color: g.gained > 0 ? CeColors.primary : CeColors.ink)),
             const SizedBox(width: 6),
             Expanded(
@@ -122,7 +123,7 @@ class MemberGrowthChart extends StatelessWidget {
                     Text('$n',
                         style: TextStyle(
                             fontSize: 11,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w700,
                             color: i == g.bars.length - 1 ? CeColors.primaryDark : CeColors.muted)),
                     const SizedBox(height: 4),
                     SizedBox(
@@ -192,7 +193,7 @@ class MatchResultsChart extends StatelessWidget {
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   Text('${s.total}',
                       key: const Key('club.matchResults.total'),
-                      style: const TextStyle(fontSize: 22, height: 1.1, fontWeight: FontWeight.w800, color: CeColors.ink)),
+                      style: const TextStyle(fontFamily: CeType.display, fontSize: 22, height: 1.1, fontWeight: FontWeight.w700, color: CeColors.ink)),
                   const Text('Played', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: CeColors.muted)),
                 ]),
               ),
@@ -213,7 +214,7 @@ class MatchResultsChart extends StatelessWidget {
                         style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: CeColors.ink2)),
                   ),
                   Text('$n',
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: CeColors.ink)),
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: CeColors.ink)),
                   SizedBox(
                     width: 42,
                     child: Text(pct(n),

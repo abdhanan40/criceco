@@ -124,8 +124,8 @@ class CeBottomNav extends StatelessWidget {
   }
 }
 
-/// The raised round action (`NavItem.center`): CricEco green, white ring,
-/// soft shadow. Its label sits in the bar under it ([_CenterLabel]).
+/// The raised round action (`NavItem.center`): solid #12544F, white ring,
+/// the reference floating-control shadow. Its label sits in the bar under it ([_CenterLabel]).
 class _CenterButton extends StatelessWidget {
   const _CenterButton({required this.item, required this.size, required this.onTap});
   final NavItem item;
@@ -146,21 +146,16 @@ class _CenterButton extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(color: Colors.white, width: 4),
-              boxShadow: [BoxShadow(color: CeColors.paletteDeep.withValues(alpha: 0.18), blurRadius: 10, offset: const Offset(0, 3))],
+              boxShadow: CeShadows.floating,
             ),
             child: Material(
               shape: const CircleBorder(),
               clipBehavior: Clip.antiAlias,
               child: Ink(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [CeColors.primary, CeColors.primaryDark],
-                  ),
-                ),
+                color: CeColors.primary,
                 child: InkWell(
                   onTap: onTap,
+                  highlightColor: CeColors.primaryPressed,
                   child: Center(child: Icon(CeIcons.of(item.icon), size: 21, color: Colors.white)),
                 ),
               ),
@@ -223,7 +218,7 @@ class _NavButton extends StatelessWidget {
             Text(item.label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 10.5, fontWeight: active ? FontWeight.w800 : FontWeight.w600, color: color)),
+                style: TextStyle(fontSize: 10.5, fontWeight: active ? FontWeight.w700 : FontWeight.w600, color: color)),
           ]),
         ),
       ),

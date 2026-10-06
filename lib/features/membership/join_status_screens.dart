@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/router/routes.dart';
 import '../../app/session/role_controller.dart';
 import '../../app/theme/tokens.dart';
+import '../../app/theme/typography.dart';
 import '../../core/enums/enums.dart';
 import '../../shared/widgets/ce_buttons.dart';
 import '../../shared/widgets/ce_feedback.dart';
@@ -53,7 +54,7 @@ class WaitingApprovalScreen extends ConsumerWidget {
             child: Column(children: [
               const _PulseBadge(),
               const SizedBox(height: 14),
-              const Text('Waiting for Approval', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+              const Text('Waiting for Approval', style: TextStyle(fontFamily: CeType.display, fontSize: 16, fontWeight: FontWeight.w700)),
               const SizedBox(height: 4),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 280),
@@ -143,7 +144,7 @@ class _Checklist extends StatelessWidget {
           Container(
             alignment: Alignment.center,
             decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-            child: const Text('3', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: CeColors.muted)),
+            child: const Text('3', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: CeColors.muted)),
           ),
           'Approved & added to club',
           last: true,

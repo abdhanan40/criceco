@@ -1,6 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../app/theme/tokens.dart';
+import '../../app/theme/typography.dart';
 import 'ce_icons.dart';
 
 /// Base card (prototype card system, criceco-app.js :2019).
@@ -11,7 +14,7 @@ class CeCard extends StatelessWidget {
     this.padding = const EdgeInsets.all(CeSpace.card),
     this.margin,
     this.onTap,
-    this.radius = CeRadius.lg,
+    this.radius = CeRadius.card,
     this.selected = false,
   });
 
@@ -30,7 +33,6 @@ class CeCard extends StatelessWidget {
     );
     return Container(
       margin: margin,
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(radius), boxShadow: CeShadows.card),
       child: Material(
         color: Colors.white,
         shape: shape,
@@ -114,15 +116,14 @@ class CeSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context).textTheme;
     return Padding(
-      padding: padding ?? const EdgeInsets.fromLTRB(CeSpace.gutter, CeSpace.section, CeSpace.gutter, 8),
+      padding: padding ?? const EdgeInsets.fromLTRB(CeSpace.gutter, CeSpace.section, CeSpace.gutter, 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
             child: Text(title,
-                style: t.titleMedium!.copyWith(fontSize: 14.5, fontWeight: FontWeight.w800),
+                style: CeType.sectionTitle,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis),
           ),
@@ -135,8 +136,8 @@ class CeSectionHeader extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.only(left: 8),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Text(actionLabel!, style: t.labelMedium!.copyWith(color: CeColors.primary, fontSize: 12, fontWeight: FontWeight.w700)),
-                    Icon(CeIcons.of('chevron-right'), size: 13, color: CeColors.primary),
+                    Text(actionLabel!, style: CeType.chip.copyWith(color: CeColors.accent)),
+                    Icon(CeIcons.of('chevron-right'), size: 13, color: CeColors.accent),
                   ]),
                 ),
               ),
@@ -163,9 +164,10 @@ class CeSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final label = Theme.of(context).textTheme.bodyMedium!.copyWith(color: CeColors.muted);
-    Widget row((String, Widget) r, {bool isTotal = false}) => Container(
-          padding: const EdgeInsets.symmetric(vertical: 9),
-          decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: CeColors.mint2))),
+    // Hairlines between rows only (none under the last one).
+    Widget row((String, Widget) r, {bool isTotal = false, bool last = false}) => Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: last ? null : const BoxDecoration(border: Border(bottom: BorderSide(color: CeColors.hairline))),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(child: Text(r.$1, style: isTotal ? label.copyWith(color: CeColors.ink, fontWeight: FontWeight.w700) : label)),
             const SizedBox(width: 16),
@@ -176,8 +178,8 @@ class CeSummaryCard extends StatelessWidget {
       margin: margin ?? const EdgeInsets.symmetric(horizontal: CeSpace.gutter),
       padding: const EdgeInsets.symmetric(horizontal: CeSpace.card, vertical: 4),
       child: Column(children: [
-        for (final r in rows) row(r),
-        if (total != null) row(total!, isTotal: true),
+        for (final (i, r) in rows.indexed) row(r, last: total == null && i == rows.length - 1),
+        if (total != null) row(total!, isTotal: true, last: true),
       ]),
     );
   }
@@ -193,7 +195,7 @@ class CeInfoNote extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         margin: margin ?? const EdgeInsets.symmetric(horizontal: CeSpace.gutter),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(color: CeColors.mint, borderRadius: BorderRadius.circular(CeRadius.md)),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Padding(
@@ -203,7 +205,7 @@ class CeInfoNote extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(text,
-                style: Theme.of(context).textTheme.bodySmall!.copyWith(color: CeColors.ink2, fontSize: 11.5)),
+                style: CeType.bodySmall.copyWith(color: CeColors.ink2, fontSize: 12)),
           ),
         ]),
       );
@@ -225,10 +227,85 @@ class CeIconWell extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           color: background ?? CeColors.mint,
-          borderRadius: circle ? null : BorderRadius.circular(size >= 44 ? CeRadius.md : CeRadius.sm),
+          borderRadius: circle ? null : BorderRadius.circular(size <= 32 ? 9 : CeRadius.md),
           shape: circle ? BoxShape.circle : BoxShape.rectangle,
         ),
         alignment: Alignment.center,
         child: Icon(CeIcons.of(icon), size: iconSize ?? size * 0.45, color: color ?? CeColors.primaryDark),
+      );
+}
+
+/// Dashed hairline (reference `border-top: 1px dashed #D5E3DA`) that splits
+/// a card's footer or sub-section from its body.
+class CeDashedDivider extends StatelessWidget {
+  const CeDashedDivider({super.key, this.color = CeColors.line2, this.padding = EdgeInsets.zero});
+  final Color color;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: padding,
+        child: SizedBox(height: 1, width: double.infinity, child: CustomPaint(painter: _DashPainter(color))),
+      );
+}
+
+class _DashPainter extends CustomPainter {
+  const _DashPainter(this.color);
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1;
+    for (double x = 0; x < size.width; x += 7) {
+      canvas.drawLine(Offset(x, 0.5), Offset(math.min(x + 4, size.width), 0.5), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashPainter oldDelegate) => oldDelegate.color != color;
+}
+
+/// Mini stat cell (reference: #F3F7F5, radius 12, Sora value over a
+/// Manrope 10.5 label) — fitness metrics, per-match figures.
+class CeMiniStat extends StatelessWidget {
+  const CeMiniStat({super.key, required this.value, required this.label, this.valueSize = 16, this.alignStart = false});
+  final String value;
+  final String label;
+  final double valueSize;
+  final bool alignStart;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: EdgeInsets.symmetric(horizontal: alignStart ? 10 : 6, vertical: 9),
+        decoration: BoxDecoration(color: CeColors.bg, borderRadius: BorderRadius.circular(CeRadius.md)),
+        child: Column(
+          crossAxisAlignment: alignStart ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+          children: [
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(value,
+                  style: CeType.statValue(valueSize).copyWith(fontFeatures: const [FontFeature.tabularFigures()])),
+            ),
+            const SizedBox(height: 2),
+            Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: CeType.statLabel),
+          ],
+        ),
+      );
+}
+
+/// Small tag (reference: Manrope 11 Bold, padding 4 / 8, radius 8).
+class CeTag extends StatelessWidget {
+  const CeTag(this.text, {super.key, this.background = CeColors.mint, this.foreground = CeColors.primary});
+  final String text;
+  final Color background;
+  final Color foreground;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(CeRadius.xs)),
+        child: Text(text, maxLines: 1, style: CeType.micro.copyWith(fontSize: 11, color: foreground)),
       );
 }

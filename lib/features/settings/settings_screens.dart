@@ -7,6 +7,7 @@ import '../../app/router/routes.dart';
 import '../../app/session/role_controller.dart';
 import '../../app/session/session_controller.dart';
 import '../../app/theme/tokens.dart';
+import '../../app/theme/typography.dart';
 import '../../core/models/models.dart';
 import '../../core/utils/formatters.dart';
 import '../../shared/widgets/ce_buttons.dart';
@@ -180,10 +181,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             },
           ),
         ),
-        const Padding(
-          padding: EdgeInsets.only(top: 16),
+        Padding(
+          padding: const EdgeInsets.only(top: 16),
           child: Text('CricEco v1.0 · Made for Pakistan Cricket',
-              textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: CeColors.muted2)),
+              textAlign: TextAlign.center, style: CeType.caption.copyWith(color: CeColors.muted2)),
         ),
       ]),
     );
@@ -387,8 +388,7 @@ class _SecuritySettingsScreenState extends ConsumerState<SecuritySettingsScreen>
                     key: const Key('security.forgot'),
                     onPressed: _saving ? null : _forgotPassword,
                     style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
-                    child: const Text('Forgot current password?',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: CeColors.primaryDark)),
+                    child: Text('Forgot current password?', style: CeType.buttonSmall.copyWith(color: CeColors.primary)),
                   ),
                 ),
                 const CeFieldLabel('New password'),
@@ -406,7 +406,7 @@ class _SecuritySettingsScreenState extends ConsumerState<SecuritySettingsScreen>
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: Text('Last changed ${CeFormat.date(s.passwordChangedAt!)}',
-                        style: const TextStyle(fontSize: 12, color: CeColors.muted)),
+                        style: CeType.bodySmall.copyWith(fontSize: 12)),
                   ),
                 CeButton(label: 'Update Password', loading: _saving, onPressed: _saving ? null : _update),
               ]),

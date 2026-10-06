@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/session/session_controller.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/validators.dart';
 import '../../../demo/seed_data.dart';
@@ -136,7 +137,7 @@ class _MyClubCard extends StatelessWidget {
                 Text(name,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: CeColors.ink)),
+                    style: const TextStyle(fontFamily: CeType.display, fontSize: 15.5, fontWeight: FontWeight.w700, color: CeColors.ink)),
                 if (subtitle.isNotEmpty)
                   Text(subtitle, style: const TextStyle(fontSize: 12, color: CeColors.muted)),
               ]),
@@ -269,9 +270,10 @@ class _JoinClubSheetState extends ConsumerState<_JoinClubSheet> {
       ],
       const SizedBox(height: 14),
       Row(children: [
-        Expanded(child: CeButton.soft(label: 'Cancel', onPressed: _sending ? null : () => Navigator.of(context).pop())),
-        const SizedBox(width: 8),
+        Expanded(flex: 2, child: CeButton.soft(label: 'Cancel', onPressed: _sending ? null : () => Navigator.of(context).pop())),
+        const SizedBox(width: 10),
         Expanded(
+          flex: 3,
           child: CeButton(
             label: 'Send Join Request',
             loading: _sending,
@@ -315,7 +317,7 @@ class _ClubPreviewCard extends StatelessWidget {
             Text(club.name,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: CeColors.ink)),
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: CeColors.ink)),
             const SizedBox(height: 2),
             Text(details.isEmpty ? 'Club ${club.code}' : '${details.join(' · ')} · ${club.code}',
                 style: const TextStyle(fontSize: 11.5, color: CeColors.ink2)),

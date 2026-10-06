@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/theme/tokens.dart';
+import '../../app/theme/typography.dart';
 import '../../core/utils/formatters.dart';
 import 'ce_icons.dart';
 
@@ -74,7 +75,7 @@ class CeMonthCalendar extends StatelessWidget {
             child: Text('$d',
                 style: TextStyle(
                   fontSize: 12,
-                  fontWeight: isToday ? FontWeight.w800 : FontWeight.w600,
+                  fontWeight: isToday ? FontWeight.w700 : FontWeight.w600,
                   color: enabled ? fg : CeColors.muted2,
                 )),
           ),
@@ -95,7 +96,7 @@ class CeMonthCalendar extends StatelessWidget {
           ),
           Expanded(
             child: Text(CeFormat.monthYear(first),
-                textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+                textAlign: TextAlign.center, style: CeType.cardTitle.copyWith(fontSize: 14.5)),
           ),
           IconButton(
             tooltip: 'Next month',

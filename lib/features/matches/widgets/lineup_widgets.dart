@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../shared/state/selection_controller.dart';
 import '../../../shared/widgets/ce_buttons.dart';
@@ -64,7 +65,7 @@ class LineupIntroCard extends StatelessWidget {
             child: Icon(CeIcons.of(icon), size: 20, color: CeColors.primaryDark),
           ),
           const SizedBox(height: 8),
-          Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+          Text(title, textAlign: TextAlign.center, style: const TextStyle(fontFamily: CeType.display, fontSize: 15, fontWeight: FontWeight.w700)),
           const SizedBox(height: 2),
           Text(body, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, color: CeColors.muted)),
         ]),
@@ -86,7 +87,7 @@ class LineupCard extends ConsumerWidget {
 
     Widget names(String title, List<SquadPlayer> players) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(title.toUpperCase(),
-              style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: 0.4, color: CeColors.muted)),
+              style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, letterSpacing: 0.4, color: CeColors.muted)),
           const SizedBox(height: 6),
           for (final (i, p) in players.indexed)
             Padding(
@@ -112,7 +113,7 @@ class LineupCard extends ConsumerWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(lineup.name, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: CeColors.ink)),
+              Text(lineup.name, style: const TextStyle(fontFamily: CeType.display, fontSize: 14.5, fontWeight: FontWeight.w700, color: CeColors.ink)),
               const SizedBox(height: 2),
               Text(
                 lineup.members.isEmpty
@@ -165,7 +166,7 @@ class LineupOptionCard extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(title, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800)),
+                Text(title, style: const TextStyle(fontFamily: CeType.display, fontSize: 14.5, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 2),
                 Text(body, style: const TextStyle(fontSize: 12, color: CeColors.muted, height: 1.35)),
               ]),
@@ -319,7 +320,7 @@ class _LineupBuilderViewState extends ConsumerState<LineupBuilderView> {
                   TextSpan(children: [
                     TextSpan(
                       text: 'XI ${draft.playing}/${SquadRules.maxPlaying} · Subs ${draft.subs}/${SquadRules.maxSubs}',
-                      style: const TextStyle(fontWeight: FontWeight.w800, color: CeColors.ink),
+                      style: const TextStyle(fontWeight: FontWeight.w700, color: CeColors.ink),
                     ),
                     if (balance.isNotEmpty) TextSpan(text: '  ·  $balance'),
                   ]),
@@ -506,7 +507,7 @@ class TeamRadioRow extends StatelessWidget {
                     Text(t.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: CeColors.ink)),
+                        style: const TextStyle(fontFamily: CeType.display, fontSize: 14.5, fontWeight: FontWeight.w700, color: CeColors.ink)),
                     const SizedBox(height: 2),
                     Text('$squad · ${t.format.display(t.customOvers)}',
                         style: const TextStyle(fontSize: 12, color: CeColors.muted)),

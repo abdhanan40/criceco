@@ -6,6 +6,7 @@ import '../../../app/providers/core_providers.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/session/session_controller.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/constants/cities.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
@@ -160,8 +161,8 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
               // detail rows → actions.
               CeBrandHero(
                 margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
-                radius: CeRadius.lg,
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                radius: CeRadius.hero,
+                padding: const EdgeInsets.all(18),
                 child: Row(children: [
                   CeEditablePhoto(
                     key: const Key('profile.photo'),
@@ -177,11 +178,10 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: Colors.white.withValues(alpha: 0.18),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 2),
+                          color: CeColors.sage,
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 3),
                         ),
-                        child: Text(account?.initial ?? 'A',
-                            style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: Colors.white)),
+                        child: Text(account?.initial ?? 'A', style: CeType.heroName.copyWith(fontSize: 22, color: CeColors.ink)),
                       ),
                     ),
                   ),
@@ -191,24 +191,23 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
                       Text(name,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: -0.4)),
-                      const SizedBox(height: 2),
+                          style: CeType.pageTitle.copyWith(color: Colors.white, height: 1.15)),
+                      const SizedBox(height: 4),
                       Text('$position · ${s.skill.label} level',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white.withValues(alpha: 0.8))),
+                          style: CeType.bodySmall.copyWith(fontWeight: FontWeight.w600, color: const Color(0xFFCFE3D2))),
                       if (s.verified) ...[
                         const SizedBox(height: 7),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(CeRadius.pill)),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(color: CeColors.sage, borderRadius: BorderRadius.circular(CeRadius.xs)),
                           child: Row(mainAxisSize: MainAxisSize.min, children: [
-                            Icon(CeIcons.of('check-circle'), size: 12, color: Colors.white),
+                            Icon(CeIcons.of('check-circle'), size: 12, color: CeColors.ink),
                             const SizedBox(width: 5),
-                            const Flexible(
+                            Flexible(
                               child: Text('Verified player',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.white)),
+                                  style: CeType.micro.copyWith(fontSize: 11, color: CeColors.ink)),
                             ),
                           ]),
                         ),
@@ -219,7 +218,7 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
               ),
               // Career numbers in one compact stats row under the identity.
               CeStatGroup(
-                margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 0),
+                margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
                 cells: [
                   CeStatCell(value: '${perf?.matches ?? '—'}', label: 'Matches'),
                   CeStatCell(value: '${perf?.runs ?? '—'}', label: 'Runs'),
@@ -369,18 +368,19 @@ class _DetailRow extends StatelessWidget {
   final Widget value;
   final bool last;
 
-  static const valueStyle = TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: CeColors.ink);
+  static const valueStyle = TextStyle(fontFamily: CeType.ui, fontSize: 13.5, fontWeight: FontWeight.w700, color: CeColors.ink);
 
   @override
   Widget build(BuildContext context) => Container(
-        constraints: const BoxConstraints(minHeight: 44),
+        constraints: const BoxConstraints(minHeight: 50),
+        padding: const EdgeInsets.symmetric(vertical: 6),
         decoration: BoxDecoration(
           border: last ? null : const Border(bottom: BorderSide(color: CeColors.hairline)),
         ),
         child: Row(children: [
-          CeIconWell(icon, size: 30, iconSize: 15),
-          const SizedBox(width: 10),
-          Text(label, style: const TextStyle(fontSize: 12.5, color: CeColors.muted)),
+          CeIconWell(icon, size: 32, iconSize: 15),
+          const SizedBox(width: 12),
+          Text(label, style: CeType.bodySmall.copyWith(fontSize: 13)),
           const SizedBox(width: 12),
           Expanded(
             child: Align(

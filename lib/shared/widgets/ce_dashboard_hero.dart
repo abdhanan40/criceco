@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../app/theme/tokens.dart';
+import '../../app/theme/typography.dart';
 import 'ce_icons.dart';
 import 'ce_top_bar.dart';
 
@@ -93,12 +94,11 @@ class CeDashboardHero extends StatelessWidget {
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(greeting,
                         key: Key('$keyPrefix.greeting'),
-                        style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.78))),
+                        style: CeType.body.copyWith(fontSize: 13, height: 1.3, color: CeColors.sage)),
                     Text(name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 19, fontWeight: FontWeight.w800, color: Colors.white, height: 1.2, letterSpacing: -0.4)),
+                        style: CeType.heroName.copyWith(color: Colors.white)),
                   ]),
                 ),
                 CeHeroBell(count: notificationCount, onTap: onNotifications),
@@ -135,7 +135,7 @@ class CeHeroBell extends StatelessWidget {
                 alignment: Alignment.center,
                 decoration: const BoxDecoration(color: CeColors.red, shape: BoxShape.circle),
                 child: Text(count > 9 ? '9+' : '$count',
-                    style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.white)),
+                    style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Colors.white)),
               ),
             ),
         ]),
@@ -179,16 +179,16 @@ class CeHeroGlassCard extends StatelessWidget {
           behavior: HitTestBehavior.opaque,
           onTap: onTap,
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(CeRadius.lg),
+            borderRadius: BorderRadius.circular(CeRadius.hero),
             child: BackdropFilter(
               filter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
               child: Container(
                 key: Key('$keyPrefix.card'),
                 padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(CeRadius.lg),
+                  borderRadius: BorderRadius.circular(CeRadius.hero),
                   color: Colors.white.withValues(alpha: 0.10),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.20)),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
                 ),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                   Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -199,15 +199,14 @@ class CeHeroGlassCard extends StatelessWidget {
                         Text(title,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: 17, fontWeight: FontWeight.w800, color: Colors.white, height: 1.2, letterSpacing: -0.3)),
+                            style: CeType.sectionTitle.copyWith(color: Colors.white, height: 1.2)),
                         if (subtitle != null && subtitle!.isNotEmpty) ...[
                           const SizedBox(height: 2),
                           Text(subtitle!,
                               key: Key('$keyPrefix.subtitle'),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.82), height: 1.3)),
+                              style: CeType.bodySmall.copyWith(fontSize: 12, height: 1.3, color: Colors.white.withValues(alpha: 0.82))),
                         ],
                         if (chips.isNotEmpty) ...[
                           const SizedBox(height: 8),
@@ -231,18 +230,15 @@ class CeHeroGlassCard extends StatelessWidget {
                               child: FittedBox(
                                 fit: BoxFit.scaleDown,
                                 child: Text(value,
-                                    style: const TextStyle(
-                                        fontSize: 17,
-                                        fontWeight: FontWeight.w800,
-                                        color: Colors.white,
-                                        fontFeatures: [FontFeature.tabularFigures()])),
+                                    style: CeType.statValue(17).copyWith(
+                                        color: Colors.white, fontFeatures: const [FontFeature.tabularFigures()])),
                               ),
                             ),
                             const SizedBox(height: 2),
                             Text(label,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: TextStyle(fontSize: 10.5, color: Colors.white.withValues(alpha: 0.72))),
+                                style: CeType.statLabel.copyWith(color: Colors.white.withValues(alpha: 0.72))),
                           ]),
                         ),
                       ],

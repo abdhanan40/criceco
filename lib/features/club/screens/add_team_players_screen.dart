@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/ranked_search.dart';
 import '../../../shared/widgets/ce_buttons.dart';
@@ -226,7 +227,7 @@ class _AddPlayerSheetState extends ConsumerState<_AddPlayerSheet> {
             Text(p.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: CeColors.ink)),
+                style: const TextStyle(fontFamily: CeType.display, fontSize: 16, fontWeight: FontWeight.w700, color: CeColors.ink)),
             const SizedBox(height: 2),
             Text(role, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: CeColors.ink2)),
           ]),
@@ -242,7 +243,7 @@ class _AddPlayerSheetState extends ConsumerState<_AddPlayerSheet> {
       ]),
       const SizedBox(height: 16),
       const Text('SQUAD POSITION',
-          style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: 0.5, color: CeColors.muted)),
+          style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, letterSpacing: 0.5, color: CeColors.muted)),
       const SizedBox(height: 8),
       _PositionOption(
         key: const Key('addPlayer.playing'),

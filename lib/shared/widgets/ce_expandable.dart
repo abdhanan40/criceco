@@ -41,9 +41,8 @@ class _CeExpandableCardState extends State<CeExpandableCard> {
       margin: widget.margin,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(CeRadius.row),
+        borderRadius: BorderRadius.circular(CeRadius.card),
         border: Border.all(color: CeColors.line),
-        boxShadow: CeShadows.card,
       ),
       clipBehavior: Clip.antiAlias,
       child: Material(
@@ -65,7 +64,7 @@ class _CeExpandableCardState extends State<CeExpandableCard> {
                     ],
                     Expanded(
                       child: Text(widget.title,
-                          style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: CeColors.ink)),
+                          style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: CeColors.ink)),
                     ),
                     if (widget.summary != null) ...[
                       const SizedBox(width: 8),

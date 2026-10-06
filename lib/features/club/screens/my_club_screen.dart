@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/session/session_controller.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../shared/media/photo_picker.dart';
 import '../../../shared/widgets/ce_feedback.dart';
@@ -74,7 +75,7 @@ class MyClubScreen extends ConsumerWidget {
                 Text(club?.name ?? 'My Club',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white)),
+                    style: const TextStyle(fontFamily: CeType.display, fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white)),
                 const SizedBox(height: 2),
                 Text('Club ${club?.code ?? ''} · ${club?.city ?? ''}', style: TextStyle(fontSize: 12.5, color: white)),
                 if (club?.establishedYear != null) ...[

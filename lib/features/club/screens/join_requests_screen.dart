@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/ce_buttons.dart';
@@ -75,7 +76,7 @@ class _DeclineRequestSheetState extends State<_DeclineRequestSheet> {
           child: Icon(CeIcons.of('x-circle'), size: 18, color: CeColors.red),
         ),
         const SizedBox(width: 12),
-        Expanded(child: Text('Decline Request?', style: Theme.of(context).textTheme.titleLarge)),
+        Expanded(child: Text('Decline Request?', style: CeType.pageTitle)),
       ]),
       const SizedBox(height: 10),
       Text('${r.name} will be told the request was declined. They can apply again with your club code.',
@@ -175,7 +176,7 @@ class _JoinRequestsScreenState extends ConsumerState<JoinRequestsScreen> {
                     decoration: BoxDecoration(color: CeColors.mint, borderRadius: BorderRadius.circular(CeRadius.pill)),
                     child: Text('$pending',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: CeColors.primaryDark)),
+                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: CeColors.primaryDark)),
                   ),
                 ),
               ),
@@ -330,13 +331,13 @@ class JoinRequestRow extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
       onTap: onOpen,
       child: Row(children: [
-        CeAvatar(r.name, size: 42, background: CeColors.primary, foreground: Colors.white),
+        CeAvatar(r.name, size: 44),
         const SizedBox(width: 12),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(r.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: CeColors.ink)),
+            Text(r.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: CeType.listTitle),
             const SizedBox(height: 2),
-            Text(subtitle, style: const TextStyle(fontSize: 12, color: CeColors.muted, height: 1.3)),
+            Text(subtitle, style: CeType.bodySmall.copyWith(fontSize: 12)),
           ]),
         ),
         const SizedBox(width: 8),
@@ -348,8 +349,9 @@ class JoinRequestRow extends StatelessWidget {
                   _SquareAction(
                     icon: 'x',
                     tooltip: 'Decline ${r.name}',
-                    background: CeColors.redSoft,
-                    foreground: CeColors.red,
+                    background: Colors.white,
+                    foreground: CeColors.muted,
+                    border: CeColors.line2,
                     onTap: onDecline,
                   ),
                   const SizedBox(width: 6),
@@ -377,6 +379,7 @@ class _SquareAction extends StatelessWidget {
     required this.background,
     required this.foreground,
     required this.onTap,
+    this.border,
   });
 
   final String icon;
@@ -384,17 +387,21 @@ class _SquareAction extends StatelessWidget {
   final Color background;
   final Color foreground;
   final VoidCallback onTap;
+  final Color? border;
 
   @override
   Widget build(BuildContext context) => Tooltip(
         message: tooltip,
         child: Material(
           color: background,
-          borderRadius: BorderRadius.circular(CeRadius.sm),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(CeRadius.tab),
+            side: border == null ? BorderSide.none : BorderSide(color: border!, width: 1.5),
+          ),
           child: InkWell(
-            borderRadius: BorderRadius.circular(CeRadius.sm),
+            borderRadius: BorderRadius.circular(CeRadius.tab),
             onTap: onTap,
-            child: SizedBox(width: 40, height: 40, child: Icon(CeIcons.of(icon), size: 19, color: foreground)),
+            child: SizedBox(width: 40, height: 40, child: Icon(CeIcons.of(icon), size: 17, color: foreground)),
           ),
         ),
       );

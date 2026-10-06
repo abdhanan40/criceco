@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../shared/widgets/ce_availability.dart';
 import '../../../shared/widgets/ce_buttons.dart';
@@ -66,7 +67,7 @@ class _MatchAvailabilitySheetState extends ConsumerState<_MatchAvailabilitySheet
         const SizedBox(width: 8),
         Expanded(
           child: Text(_saved.status.label,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: CeColors.ink)),
+              style: const TextStyle(fontFamily: CeType.display, fontSize: 15, fontWeight: FontWeight.w700, color: CeColors.ink)),
         ),
         CeButton.soft(
           key: const Key('matchAvailability.change'),

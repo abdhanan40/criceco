@@ -101,7 +101,7 @@ class _CreateSlotScreenState extends ConsumerState<CreateSlotScreen> {
             if (optional)
               const TextSpan(text: ' (optional)', style: TextStyle(fontWeight: FontWeight.w500, color: CeColors.muted)),
           ]),
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: CeColors.ink),
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: CeColors.ink),
         ),
       );
 

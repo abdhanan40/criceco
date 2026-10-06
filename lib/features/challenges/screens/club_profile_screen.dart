@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/providers/core_providers.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/ce_buttons.dart';
@@ -92,7 +93,7 @@ class _ClubProfileScreenState extends ConsumerState<ClubProfileScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
             decoration: BoxDecoration(color: CeColors.mint, borderRadius: BorderRadius.circular(CeRadius.row)),
             child: Column(children: [
-              Text(n, style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: color)),
+              Text(n, style: TextStyle(fontFamily: CeType.display, fontSize: 19, fontWeight: FontWeight.w700, color: color)),
               const SizedBox(height: 2),
               Text(l, style: const TextStyle(fontSize: 10.5, color: CeColors.muted)),
             ]),
@@ -168,12 +169,12 @@ class _ClubProfileScreenState extends ConsumerState<ClubProfileScreen> {
                   borderRadius: BorderRadius.circular(CeRadius.lg),
                   border: Border.all(color: c.color.withValues(alpha: 0.4), width: 1.5),
                 ),
-                child: Text(c.abbr, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: c.color)),
+                child: Text(c.abbr, style: TextStyle(fontFamily: CeType.display, fontSize: 17, fontWeight: FontWeight.w700, color: c.color)),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(c.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: CeColors.ink)),
+                  Text(c.name, style: const TextStyle(fontFamily: CeType.display, fontSize: 16, fontWeight: FontWeight.w700, color: CeColors.ink)),
                   const SizedBox(height: 2),
                   Text(c.meta, style: const TextStyle(fontSize: 12, color: CeColors.muted)),
                   Text('Est. ${c.established} · Squad of ${c.squadSize}',
@@ -239,7 +240,7 @@ class _ClubProfileScreenState extends ConsumerState<ClubProfileScreen> {
               radius: 21,
               backgroundColor: c.color,
               child: Text(_initials(c.captain.name),
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
             ),
             const SizedBox(width: 12),
             Expanded(

@@ -7,6 +7,7 @@ import '../../../app/providers/core_providers.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/session/session_controller.dart';
 import '../../../app/theme/tokens.dart';
+import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/media/photo_picker.dart';
@@ -235,7 +236,7 @@ class _OverviewTile extends StatelessWidget {
                 child: Text(value,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 17, height: 1.1, fontWeight: FontWeight.w800, color: CeColors.ink)),
+                    style: const TextStyle(fontFamily: CeType.display, fontSize: 17, height: 1.1, fontWeight: FontWeight.w700, color: CeColors.ink)),
               ),
             ]),
             const SizedBox(height: 6),
@@ -283,13 +284,13 @@ class _PendingRequestsBanner extends StatelessWidget {
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(label,
-                          style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800, color: CeColors.ink)),
+                          style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: CeColors.ink)),
                       const Text('Players are waiting to join your club',
                           style: TextStyle(fontSize: 11.5, color: CeColors.muted)),
                     ]),
                   ),
                   const Text('Review',
-                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: CeColors.amberInk)),
+                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: CeColors.amberInk)),
                   Icon(CeIcons.of('chevron-right'), size: 16, color: CeColors.amberInk),
                 ]),
               ),
@@ -318,7 +319,14 @@ class _NextMatch extends ConsumerWidget {
       awayColor: opponent?.color ?? CeColors.primary,
       title: '$clubShortName vs ${opponent?.name ?? 'Opponent'}',
       status: const CeStatusChip('Confirmed', icon: 'check'),
-      infoChips: [
+      // Reference match card: date block, "time · format", ground footer.
+      date: startsAt,
+      meta: startsAt == null
+          ? null
+          : '${CeFormat.time(startsAt)} · ${match.format?.display(match.customOvers) ?? 'Format TBD'}',
+      infoChips: startsAt != null
+          ? const []
+          : [
         CeInfoChip(icon: 'calendar', label: startsAt == null ? 'Date TBD' : CeFormat.dayDate(startsAt)),
         CeInfoChip(icon: 'clock', label: startsAt == null ? 'Time TBD' : CeFormat.time(startsAt)),
         CeInfoChip(icon: 'circle-dot', label: match.format?.display(match.customOvers) ?? 'Format TBD'),

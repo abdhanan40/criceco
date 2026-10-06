@@ -11,7 +11,6 @@ import '../../core/enums/enums.dart';
 import '../../core/utils/validators.dart';
 import '../../shared/widgets/ce_buttons.dart';
 import '../../shared/widgets/ce_form_widgets.dart';
-import '../../shared/widgets/ce_indicators.dart';
 import '../../shared/widgets/ce_inputs.dart';
 import '../../shared/widgets/ce_top_bar.dart';
 import 'widgets/auth_widgets.dart';
@@ -64,7 +63,7 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: CeColors.bg,
       body: SingleChildScrollView(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -73,10 +72,10 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
             title: 'Join Criceco',
             subtitle: 'Create your profile to get started',
             stadiumPhoto: true,
+            showLogo: false,
             onBack: () => CeTopBar.goBack(context, Routes.signup),
           ),
-          Padding(
-            padding: const EdgeInsets.all(CeSpace.form),
+          AuthPanel(
             child: Form(
               key: _formKey,
               child: AutofillGroup(
@@ -85,21 +84,14 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
                   // the common profile, collected once on User Profile Setup.
                   const CeFieldLabel('Sign up with'),
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Wrap(spacing: 8, runSpacing: 8, children: [
-                      CeChip(
-                        label: 'Phone Number',
-                        icon: 'phone',
-                        selected: _method == ContactMethod.phone,
-                        onTap: () => setState(() => _method = ContactMethod.phone),
-                      ),
-                      CeChip(
-                        label: 'Email',
-                        icon: 'mail',
-                        selected: _method == ContactMethod.email,
-                        onTap: () => setState(() => _method = ContactMethod.email),
-                      ),
-                    ]),
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: CeChoiceGroup<ContactMethod>(
+                      columns: 2,
+                      values: const [ContactMethod.phone, ContactMethod.email],
+                      selected: _method,
+                      labelOf: (m) => m == ContactMethod.phone ? 'Phone Number' : 'Email',
+                      onSelected: (m) => setState(() => _method = m),
+                    ),
                   ),
                   if (_method == ContactMethod.phone) ...[
                     const CeFieldLabel('Phone Number'),

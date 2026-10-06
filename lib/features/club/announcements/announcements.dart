@@ -190,7 +190,7 @@ Future<void> showAnnouncementSheet(BuildContext context, ClubAnnouncement a) => 
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Text('CLUB ANNOUNCEMENT',
                   style: TextStyle(
-                      fontSize: 10.5, fontWeight: FontWeight.w800, letterSpacing: 0.6, color: CeColors.primaryDark)),
+                      fontSize: 10.5, fontWeight: FontWeight.w700, letterSpacing: 0.6, color: CeColors.primaryDark)),
               const SizedBox(height: 2),
               Text(a.title, key: const Key('announcement.title.view'), style: Theme.of(ctx).textTheme.titleLarge),
             ]),

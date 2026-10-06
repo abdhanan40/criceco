@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/theme/tokens.dart';
+import '../../app/theme/typography.dart';
 
 /// Compact segmented control for switching a view in place (a chart metric,
 /// a card's detail level). Tabs that change the route use
@@ -30,14 +31,16 @@ class CeSegmented<T> extends StatelessWidget {
             selected: v == selected,
             onTap: v == selected ? null : () => onSelected(v),
             minWidth: 44,
+            compact: true,
           ),
       ]),
     );
   }
 }
 
-/// Full-width segmented tabs (reference style): a rounded track with equal
-/// segments; the selected one is filled with the brand green. For tab sets of
+/// Full-width segmented tabs (reference style): a #E3ECE6 track (radius 14,
+/// padding 4) with equal 40px segments (radius 11, Manrope 13 Bold); the
+/// selected one is #12544F with white text, counts sit in 18px pills. For tab sets of
 /// up to four; labels (and optional counts) scale down rather than wrap or
 /// clip at 320 px. Selecting the current segment does nothing.
 class CeSegmentedTabs<T> extends StatelessWidget {
@@ -87,27 +90,34 @@ class _Track extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(3),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(CeRadius.pill),
-          border: Border.all(color: CeColors.line),
-        ),
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(color: CeColors.mint, borderRadius: BorderRadius.circular(CeRadius.input)),
         child: child,
       );
 }
 
 class _Segment extends StatelessWidget {
-  const _Segment({required this.label, required this.selected, required this.onTap, this.count, this.minWidth = 0});
+  const _Segment({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.count,
+    this.minWidth = 0,
+    this.compact = false,
+  });
   final String label;
   final bool selected;
   final VoidCallback? onTap;
   final int? count;
   final double minWidth;
 
+  /// In-place view switch ([CeSegmented]): a shorter segment, smaller label.
+  final bool compact;
+
   @override
   Widget build(BuildContext context) {
     final fg = selected ? Colors.white : CeColors.muted;
+    final radius = BorderRadius.circular(CeRadius.tab);
     return Semantics(
       button: true,
       selected: selected,
@@ -117,32 +127,31 @@ class _Segment extends StatelessWidget {
         child: AnimatedContainer(
           duration: CeMotion.base,
           curve: Curves.easeOut,
-          constraints: BoxConstraints(minHeight: 34, minWidth: minWidth),
+          constraints: BoxConstraints(minHeight: compact ? 32 : 40, minWidth: minWidth),
           alignment: Alignment.center,
+          margin: const EdgeInsets.symmetric(horizontal: 1),
           padding: const EdgeInsets.symmetric(horizontal: 10),
           decoration: BoxDecoration(
             color: selected ? CeColors.primary : Colors.transparent,
-            borderRadius: BorderRadius.circular(CeRadius.pill),
+            borderRadius: radius,
           ),
           child: FittedBox(
             fit: BoxFit.scaleDown,
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: fg)),
+              Text(label, style: (compact ? CeType.chip.copyWith(fontSize: 12) : CeType.buttonSmall).copyWith(color: fg)),
               if (count != null) ...[
-                const SizedBox(width: 5),
+                const SizedBox(width: 6),
                 Container(
-                  constraints: const BoxConstraints(minWidth: 17),
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
                   decoration: BoxDecoration(
-                    color: selected ? Colors.white.withValues(alpha: 0.24) : CeColors.mint,
-                    borderRadius: BorderRadius.circular(CeRadius.pill),
+                    color: selected ? CeColors.accent : CeColors.mint2,
+                    borderRadius: BorderRadius.circular(9),
                   ),
                   child: Text('$count',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w800,
-                          color: selected ? Colors.white : CeColors.primaryDark)),
+                      style: CeType.micro.copyWith(color: selected ? Colors.white : CeColors.primaryDark)),
                 ),
               ],
             ]),

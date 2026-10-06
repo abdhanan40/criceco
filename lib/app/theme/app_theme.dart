@@ -2,41 +2,41 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'tokens.dart';
+import 'typography.dart';
 
-/// Builds the CricEco [ThemeData]. [fontFamily] defaults to the bundled
-/// Manrope (assets/fonts/manrope); no runtime font download.
+/// Builds the CricEco [ThemeData] from the CricEco Phone reference design
+/// system. Manrope (bundled) is the interface face; Sora (bundled) is used
+/// for titles, section headings, numbers and the primary CTA through the
+/// text theme below. No runtime font download.
 abstract final class AppTheme {
-  static const defaultFontFamily = 'Manrope';
+  static const defaultFontFamily = CeType.ui;
+  static const displayFontFamily = CeType.display;
 
+  /// Material roles mapped onto the reference type scale ([CeType]).
   static TextTheme textTheme(String? fontFamily) {
-    TextStyle s(double size, FontWeight w,
-            {double? spacing, Color color = CeColors.ink, double? height}) =>
-        TextStyle(
-          fontFamily: fontFamily,
-          fontSize: size,
-          fontWeight: w,
-          letterSpacing: spacing,
-          color: color,
-          height: height,
-        );
+    // Interface styles follow [fontFamily] (Manrope); display styles are Sora.
+    TextStyle ui(TextStyle s) => s.copyWith(fontFamily: fontFamily);
     return TextTheme(
+      // hero / brand heading
+      displayLarge: CeType.displayLarge,
+      displayMedium: CeType.pageTitleLarge,
       // hero name / banner h1
-      displaySmall: s(22, FontWeight.w800, spacing: -0.66),
+      displaySmall: CeType.pageTitleLarge,
+      headlineMedium: CeType.pageTitleLarge,
       // success title / empty title
-      headlineSmall: s(19, FontWeight.w800, spacing: -0.5, height: 1.2),
-      // top bar title
-      titleLarge: s(16, FontWeight.w700, spacing: -0.3),
+      headlineSmall: CeType.pageTitle,
+      // page and sheet titles
+      titleLarge: CeType.pageTitle,
       // section title
-      titleMedium: s(15, FontWeight.w700, spacing: -0.15),
+      titleMedium: CeType.sectionTitle,
       // row title
-      titleSmall: s(13.5, FontWeight.w700, spacing: -0.2),
-      bodyLarge: s(14.5, FontWeight.w500),
-      bodyMedium: s(13, FontWeight.w500, height: 1.5),
-      bodySmall: s(12, FontWeight.w500, color: CeColors.muted, height: 1.35),
-      labelLarge: s(15, FontWeight.w700, spacing: -0.15), // buttons
-      labelMedium: s(12.5, FontWeight.w600), // chips
-      labelSmall: s(10.5, FontWeight.w600,
-          spacing: 0.5, color: CeColors.muted), // stat labels
+      titleSmall: ui(CeType.listTitle),
+      bodyLarge: ui(CeType.input),
+      bodyMedium: ui(CeType.body),
+      bodySmall: ui(CeType.bodySmall),
+      labelLarge: CeType.button, // primary buttons
+      labelMedium: ui(CeType.chip), // chips, links
+      labelSmall: ui(CeType.statLabel), // stat labels
     );
   }
 
@@ -48,7 +48,7 @@ abstract final class AppTheme {
       onPrimary: Colors.white,
       primaryContainer: CeColors.mint,
       onPrimaryContainer: CeColors.primaryDark,
-      secondary: CeColors.primary600,
+      secondary: CeColors.accent,
       onSecondary: Colors.white,
       secondaryContainer: CeColors.mint2,
       onSecondaryContainer: CeColors.primaryDark,
@@ -75,8 +75,8 @@ abstract final class AppTheme {
       surfaceContainerHighest: CeColors.mint2,
     );
 
-    OutlineInputBorder border(Color c, [double w = 1]) => OutlineInputBorder(
-          borderRadius: BorderRadius.circular(CeRadius.md),
+    OutlineInputBorder border(Color c, [double w = 1.5]) => OutlineInputBorder(
+          borderRadius: BorderRadius.circular(CeRadius.input),
           borderSide: BorderSide(color: c, width: w),
         );
 
@@ -87,15 +87,15 @@ abstract final class AppTheme {
       textTheme: text,
       scaffoldBackgroundColor: CeColors.bg,
       splashFactory: InkRipple.splashFactory,
-      dividerTheme:
-          const DividerThemeData(color: CeColors.line, thickness: 1, space: 1),
+      dividerTheme: const DividerThemeData(color: CeColors.line, thickness: 1, space: 1),
+      // Compact sticky page header: page-coloured, left-aligned Sora title.
       appBarTheme: AppBarTheme(
-        backgroundColor: Colors.white,
+        backgroundColor: CeColors.bg,
         foregroundColor: CeColors.ink,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
-        centerTitle: true,
+        centerTitle: false,
         titleTextStyle: text.titleLarge,
         systemOverlayStyle: SystemUiOverlayStyle.dark,
       ),
@@ -104,16 +104,15 @@ abstract final class AppTheme {
         fillColor: Colors.white,
         isDense: false,
         constraints: const BoxConstraints(minHeight: CeSize.inputMinHeight),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
         hintStyle: text.bodyLarge?.copyWith(color: CeColors.muted2),
         prefixIconColor: CeColors.muted,
         suffixIconColor: CeColors.muted,
         border: border(CeColors.line2),
         enabledBorder: border(CeColors.line2),
-        focusedBorder: border(CeColors.primary, 1.4),
+        focusedBorder: border(CeColors.accent),
         errorBorder: border(CeColors.red),
-        focusedErrorBorder: border(CeColors.red, 1.4),
+        focusedErrorBorder: border(CeColors.red),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -121,36 +120,42 @@ abstract final class AppTheme {
           foregroundColor: Colors.white,
           minimumSize: const Size.fromHeight(CeSize.buttonMinHeight),
           textStyle: text.labelLarge,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(CeRadius.md)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(CeRadius.button)),
           elevation: 0,
+        ).copyWith(
+          overlayColor: const WidgetStatePropertyAll(Color(0x1F0E4642)),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: CeColors.primary,
+          foregroundColor: CeColors.accent,
           textStyle: text.labelMedium,
           minimumSize: const Size(CeSize.touchTarget, CeSize.touchTarget),
         ),
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: CeColors.ink,
-        contentTextStyle:
-            text.labelMedium?.copyWith(color: Colors.white, fontSize: 12.5),
+        contentTextStyle: text.labelMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w600),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(CeRadius.md)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(CeRadius.md)),
         elevation: 0,
       ),
+      // Reference bottom sheets: white, 28px top corners.
       bottomSheetTheme: const BottomSheetThemeData(
-        backgroundColor: CeColors.bg,
+        backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
         modalBarrierColor: CeColors.sheetScrim,
         showDragHandle: false,
+        elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.vertical(top: Radius.circular(CeRadius.sheet)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(CeRadius.sheet)),
         ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(CeRadius.hero)),
+        titleTextStyle: text.titleLarge,
       ),
       drawerTheme: const DrawerThemeData(
         backgroundColor: Colors.white,
@@ -160,15 +165,22 @@ abstract final class AppTheme {
       ),
       switchTheme: SwitchThemeData(
         thumbColor: const WidgetStatePropertyAll(Colors.white),
-        trackColor: WidgetStateProperty.resolveWith((s) =>
-            s.contains(WidgetState.selected)
-                ? CeColors.primary
-                : CeColors.toggleOff),
+        trackColor: WidgetStateProperty.resolveWith(
+            (s) => s.contains(WidgetState.selected) ? CeColors.accent : CeColors.toggleOff),
         trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
       ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? CeColors.accent : null),
+        side: const BorderSide(color: CeColors.line2, width: 1.5),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+      ),
+      radioTheme: RadioThemeData(
+        fillColor: WidgetStateProperty.resolveWith(
+            (s) => s.contains(WidgetState.selected) ? CeColors.accent : CeColors.muted2),
+      ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(
-        color: CeColors.primary,
-        linearTrackColor: CeColors.mint2,
+        color: CeColors.accent,
+        linearTrackColor: CeColors.mint,
       ),
     );
   }

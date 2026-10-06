@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/router/routes.dart';
 import '../../app/session/role_controller.dart';
+import '../../app/theme/tokens.dart';
 import '../../core/enums/enums.dart';
 import '../../shared/widgets/ce_feedback.dart';
 import '../../shared/widgets/ce_top_bar.dart';
@@ -17,7 +18,7 @@ class RoleSetupScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final home = Routes.home(ref.watch(activeRoleProvider) ?? UserRole.player);
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: CeColors.bg,
       appBar: CeTopBar(title: 'Club Owner', onBack: () => context.go(home)),
       body: SingleChildScrollView(
         child: CeEmptyState(
