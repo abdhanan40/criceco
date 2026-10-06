@@ -48,6 +48,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
               subtitle: 'Your cricket club, organized.',
               activeTab: AuthTab.signUp,
               onTabSelected: (_) => context.go(Routes.login),
+              stadiumPhoto: true,
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),

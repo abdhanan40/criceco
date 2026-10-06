@@ -39,18 +39,26 @@ abstract final class RoleDestinations {
       RoleDestination('shield', 'My Club', Routes.myClub),
       RoleDestination('users', 'My Teams', Routes.teams),
     ]),
+    // Members, Find Player, Challenges, Match Management, Tournaments and
+    // Requests are reached from the dashboard (sheets / quick actions) and
+    // the bottom nav; Edit Club is a drawer action (sheet), not a route.
     DestinationGroup('Manage', [
-      RoleDestination('clipboard-list', 'Members', Routes.members),
-      RoleDestination('search', 'Find Player', Routes.playerHunt),
-      RoleDestination('swords', 'Challenges', Routes.challenges),
-      RoleDestination('calendar', 'Match Management', '/club/matches'),
-      RoleDestination('trophy', 'Tournaments', Routes.tournamentHub),
-      RoleDestination('user', 'Requests', Routes.joinRequests),
       RoleDestination('bell', 'Notifications', Routes.notifications),
     ]),
   ];
 
   static List<DestinationGroup> forRole(UserRole role) => role == UserRole.player ? player : club;
+
+  /// Club areas no longer in the sidebar that are still top-level screens
+  /// (remembered as the role's last location, as before).
+  static const _clubTopLevelOffMenu = [
+    Routes.members,
+    Routes.playerHunt,
+    Routes.challenges,
+    Routes.matchManagementPath,
+    Routes.tournamentHub,
+    Routes.joinRequests,
+  ];
 
   /// Role-owned top-level locations (excludes shared ones like Notifications).
   static Set<String> topLevel(UserRole role) => {
@@ -58,5 +66,6 @@ abstract final class RoleDestinations {
           for (final d in g.items)
             if (role == UserRole.player ? Routes.isPlayerLocation(d.location) : Routes.isClubLocation(d.location))
               d.location,
+        if (role == UserRole.clubOwner) ..._clubTopLevelOffMenu,
       };
 }

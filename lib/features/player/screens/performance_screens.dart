@@ -82,7 +82,7 @@ class PerformanceOverviewView extends ConsumerWidget {
           child: Row(children: [
             for (var i = 0; i < p.recentForm.length; i++) ...[
               if (i > 0) const SizedBox(width: 6),
-              Expanded(child: _FormChip(entry: p.recentForm[i])),
+              Expanded(child: FormChip(entry: p.recentForm[i])),
             ],
           ]),
         ),
@@ -279,8 +279,8 @@ class _BarsPainter extends CustomPainter {
       old.matches != matches || old.metric != metric || old.grow != grow;
 }
 
-class _FormChip extends StatelessWidget {
-  const _FormChip({required this.entry});
+class FormChip extends StatelessWidget {
+  const FormChip({super.key, required this.entry});
   final FormEntry entry;
 
   @override

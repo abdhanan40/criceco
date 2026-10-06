@@ -11,6 +11,7 @@ import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
 import '../../../shared/widgets/ce_inputs.dart';
+import '../../../shared/widgets/ce_list_sheet.dart';
 import '../../../shared/widgets/ce_segmented.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
@@ -210,6 +211,89 @@ class _JoinRequestsScreenState extends ConsumerState<JoinRequestsScreen> {
               onDecline: () => _decide(r, approve: false),
             ),
       ]),
+    );
+  }
+}
+
+/// Club Dashboard → Requests: Pending / Approved / Declined in a sheet, with
+/// the same Accept (confirmed) and Decline (reason) as the Requests screen.
+/// A row opens the applicant's profile.
+Future<void> showJoinRequestsSheet(BuildContext context) =>
+    showCeListSheet<void>(context, builder: (_) => _JoinRequestsSheet(router: GoRouter.of(context)));
+
+class _JoinRequestsSheet extends ConsumerStatefulWidget {
+  const _JoinRequestsSheet({required this.router});
+  final GoRouter router;
+
+  @override
+  ConsumerState<_JoinRequestsSheet> createState() => _JoinRequestsSheetState();
+}
+
+class _JoinRequestsSheetState extends ConsumerState<_JoinRequestsSheet> {
+  JoinRequestReview _tab = JoinRequestReview.pending;
+  final _busy = <String>{};
+
+  Future<void> _decide(JoinRequest r, {required bool approve}) async {
+    if (_busy.contains(r.id)) return;
+    String? reason;
+    if (approve) {
+      if (!await confirmApproveRequest(context, r) || !mounted) return;
+    } else {
+      reason = await showDeclineRequestSheet(context, r);
+      if (reason == null || !mounted) return;
+    }
+    setState(() => _busy.add(r.id));
+    final ctrl = ref.read(joinRequestsProvider.notifier);
+    final decided = approve ? await ctrl.approve(r.id) : await ctrl.decline(r.id, reason: reason);
+    if (!mounted) return;
+    setState(() => _busy.remove(r.id));
+    if (decided != null) showCeToast(context, joinRequestToast(decided));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final async = ref.watch(joinRequestsProvider);
+    final list = ref.watch(joinRequestsByReviewProvider(_tab));
+    final pending = ref.watch(pendingJoinRequestCountProvider);
+    int countOf(JoinRequestReview t) => ref.watch(joinRequestsByReviewProvider(t)).length;
+    return CeListSheetFrame(
+      key: const Key('requests.sheet'),
+      title: 'Requests',
+      titleTrailing: pending == null ? null : CeCountPill(pending),
+      top: [
+        CeSegmentedTabs<JoinRequestReview>(
+          values: JoinRequestReview.values,
+          selected: _tab,
+          labelOf: (t) => t.label,
+          countOf: countOf,
+          onSelected: (t) => setState(() => _tab = t),
+        ),
+      ],
+      children: [
+        if (async.isLoading)
+          const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator()))
+        else if (list.isEmpty)
+          switch (_tab) {
+            JoinRequestReview.pending => const CeEmptyState(
+                icon: 'check-circle', title: 'No pending requests', body: 'All requests have been reviewed'),
+            JoinRequestReview.approved => const CeEmptyState(
+                icon: 'user-plus', title: 'No approved requests', body: 'Players you approve will show up here.'),
+            JoinRequestReview.declined => const CeEmptyState(
+                icon: 'x-circle', title: 'No declined requests', body: 'Requests you decline will show up here.'),
+          }
+        else
+          for (final r in list)
+            JoinRequestRow(
+              request: r,
+              busy: _busy.contains(r.id),
+              onOpen: () {
+                Navigator.of(context).pop();
+                widget.router.go(Routes.joinRequestProfile(r.id));
+              },
+              onAccept: () => _decide(r, approve: true),
+              onDecline: () => _decide(r, approve: false),
+            ),
+      ],
     );
   }
 }

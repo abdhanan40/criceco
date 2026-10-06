@@ -11,6 +11,7 @@ import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
+import '../../../shared/widgets/ce_list_sheet.dart';
 import '../../../shared/widgets/ce_match_widgets.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
@@ -49,32 +50,61 @@ class MemberProfileScreen extends ConsumerWidget {
         ),
       );
     }
-    final fitness = ref.watch(memberFitnessProvider(memberId));
-    final isOwner = m.role == MemberRole.owner;
-
     return Scaffold(
       appBar: bar,
-      body: ListView(padding: const EdgeInsets.only(bottom: 24), children: [
-        _Identity(member: m),
-        const CeSectionHeader('Details', padding: EdgeInsets.fromLTRB(CeSpace.gutter, CeSpace.section, CeSpace.gutter, 8)),
-        CeSummaryCard(rows: [
-          ('Club role', CeSummaryCard.value(context, m.role.label)),
-          if (m.plays) ('Playing role', CeSummaryCard.value(context, m.playingRole!.label)),
-          if (m.plays) ('Wicket Keeper', CeSummaryCard.value(context, m.isWicketkeeper ? 'Yes' : 'No')),
-          if (m.battingStyle != null) ('Batting', CeSummaryCard.value(context, m.battingStyle!.label)),
-          if (m.bowlingStyle != null) ('Bowling', CeSummaryCard.value(context, m.bowlingStyle!.label)),
-          if (m.phone.isNotEmpty) ('Phone', CeSummaryCard.value(context, m.phone)),
-        ]),
-        if (fitness != null) ...[
-          FitnessMeterView(
-            report: fitness,
-            log: ref.watch(memberRecentMatchesProvider(memberId)),
-            now: ref.read(clockProvider).now(),
-          ),
-          _RecentMatches(memberId: memberId),
-          if (isOwner) const _OwnCareer() else _Scouting(member: m),
-        ],
-      ]),
+      body: ListView(padding: const EdgeInsets.only(bottom: 24), children: memberProfileChildren(context, ref, m)),
+    );
+  }
+}
+
+/// Member Profile content (screen and sheet): identity, details and, for
+/// players, the Fitness Meter, recent matches and scouting stats.
+List<Widget> memberProfileChildren(BuildContext context, WidgetRef ref, ClubMember m) {
+  final memberId = m.id;
+  final fitness = ref.watch(memberFitnessProvider(memberId));
+  final isOwner = m.role == MemberRole.owner;
+  return [
+    _Identity(member: m),
+    const CeSectionHeader('Details', padding: EdgeInsets.fromLTRB(CeSpace.gutter, CeSpace.section, CeSpace.gutter, 8)),
+    CeSummaryCard(rows: [
+      ('Club role', CeSummaryCard.value(context, m.role.label)),
+      if (m.plays) ('Playing role', CeSummaryCard.value(context, m.playingRole!.label)),
+      if (m.plays) ('Wicket Keeper', CeSummaryCard.value(context, m.isWicketkeeper ? 'Yes' : 'No')),
+      if (m.battingStyle != null) ('Batting', CeSummaryCard.value(context, m.battingStyle!.label)),
+      if (m.bowlingStyle != null) ('Bowling', CeSummaryCard.value(context, m.bowlingStyle!.label)),
+      if (m.phone.isNotEmpty) ('Phone', CeSummaryCard.value(context, m.phone)),
+    ]),
+    if (fitness != null) ...[
+      FitnessMeterView(
+        report: fitness,
+        log: ref.watch(memberRecentMatchesProvider(memberId)),
+        now: ref.read(clockProvider).now(),
+      ),
+      _RecentMatches(memberId: memberId),
+      if (isOwner) const _OwnCareer() else _Scouting(member: m),
+    ],
+  ];
+}
+
+/// Members sheet → a member: their profile in a sheet on top (no new screen).
+Future<void> showMemberProfileSheet(BuildContext context, String memberId) =>
+    showCeListSheet<void>(context, builder: (_) => _MemberProfileSheet(memberId: memberId));
+
+class _MemberProfileSheet extends ConsumerWidget {
+  const _MemberProfileSheet({required this.memberId});
+  final String memberId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final m = ref.watch(clubMemberProvider(memberId));
+    return CeListSheetFrame(
+      key: const Key('memberProfile.sheet'),
+      title: 'Member Profile',
+      children: m == null
+          ? const [
+              CeEmptyState(icon: 'users', title: 'Member not found', body: 'This member is no longer in your club.'),
+            ]
+          : memberProfileChildren(context, ref, m),
     );
   }
 }

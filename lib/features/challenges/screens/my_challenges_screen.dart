@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../app/providers/core_providers.dart';
 import '../../../app/router/routes.dart';
@@ -13,12 +12,13 @@ import '../../../shared/widgets/ce_surfaces.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
 import '../../club/club_providers.dart';
 import '../challenges_controller.dart';
+import '../widgets/challenge_sheet.dart';
 import '../widgets/challenge_widgets.dart';
 
 /// My Challenges (prototype `screens.myChallenges`, :7044): incoming and
-/// outgoing challenges. The cards carry no Accept / Decline buttons — a card
-/// opens the opponent's Club Profile, where a pending incoming challenge is
-/// answered (one place, no duplicated actions).
+/// outgoing challenges. A card opens the challenge in a bottom sheet, where a
+/// pending incoming challenge is accepted or declined (no new screen); the
+/// opponent's Club Profile is one tap further.
 class MyChallengesScreen extends ConsumerWidget {
   const MyChallengesScreen({super.key});
 
@@ -39,7 +39,8 @@ class MyChallengesScreen extends ConsumerWidget {
           if (c.proposedAt != null) InlineInfo(icon: 'calendar', text: CeFormat.dayDate(c.proposedAt!)),
           if (c.groundName != null) InlineInfo(icon: 'map-pin', text: c.groundName!),
         ];
-    void open(Challenge c) => context.push(Routes.clubProfile(c.opponentClubId, challengeId: c.id));
+    // A sheet first (details; Accept / Decline for a received challenge).
+    void open(Challenge c) => openChallengeSheet(context, ref, c);
 
     return Scaffold(
       appBar: const CeTopBar(title: 'Challenges', fallbackLocation: Routes.challenges),
@@ -114,7 +115,7 @@ class _RespondHint extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(children: [
         const Expanded(
-          child: Text('Open the club profile to accept or decline',
+          child: Text('Tap to accept or decline',
               style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: CeColors.primaryDark)),
         ),
         Icon(CeIcons.of('chevron-right'), size: 15, color: CeColors.primaryDark),

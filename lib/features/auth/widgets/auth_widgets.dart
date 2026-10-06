@@ -5,12 +5,14 @@ import 'package:flutter/services.dart';
 
 import '../../../app/theme/tokens.dart';
 import '../../../shared/widgets/ce_brand_logo.dart';
+import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
 
 enum AuthTab { login, signUp }
 
 /// Green auth banner (`.banner`): CricEco logo, title, subtitle and the
-/// optional Login / Sign Up toggle pill. Extends under the status bar.
+/// optional Login / Sign Up toggle pill. Extends under the status bar. Login,
+/// Sign Up and Role Selection show it over the stadium photo ([stadiumPhoto]).
 class AuthBanner extends StatelessWidget {
   const AuthBanner({
     super.key,
@@ -19,40 +21,99 @@ class AuthBanner extends StatelessWidget {
     this.activeTab,
     this.onTabSelected,
     this.bottomPadding = 22,
+    this.stadiumPhoto = false,
+    this.onBack,
   });
+
+  /// The floodlit stadium photo (same asset as the splash) behind the banner,
+  /// under a CricEco teal overlay — Login, Sign Up and Role Selection.
+  static const photo = 'assets/branding/splash_stadium.png';
 
   final String title;
   final String subtitle;
   final AuthTab? activeTab;
   final ValueChanged<AuthTab>? onTabSelected;
   final double bottomPadding;
+  final bool stadiumPhoto;
+
+  /// Shows a white Back button on the banner (screens without a top bar).
+  final VoidCallback? onBack;
 
   @override
   Widget build(BuildContext context) {
     final top = MediaQuery.paddingOf(context).top;
-    return AnnotatedRegion<SystemUiOverlayStyle>(
+    final padding = EdgeInsets.fromLTRB(24, 34 + top, 24, bottomPadding);
+    final content = Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      // Approved CricEco logo (was a placeholder circle-dot mark).
+      const Center(child: CeBrandLogo(size: 74, onDark: true)),
+      const SizedBox(height: 14),
+      Text(title,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w800, letterSpacing: -0.7, color: Colors.white)),
+      const SizedBox(height: 4),
+      Text(subtitle,
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: Colors.white.withValues(alpha: 0.78))),
+      if (activeTab != null) ...[
+        const SizedBox(height: 20),
+        _TogglePill(active: activeTab!, onSelected: onTabSelected ?? (_) {}),
+      ],
+    ]);
+    final banner = AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       // Always full-bleed, whether or not the toggle row stretches it.
-      child: CeBrandHero(
-        padding: EdgeInsets.fromLTRB(24, 34 + top, 24, bottomPadding),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          // Approved CricEco logo (was a placeholder circle-dot mark).
-          const Center(child: CeBrandLogo(size: 74, onDark: true)),
-          const SizedBox(height: 14),
-          Text(title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w800, letterSpacing: -0.7, color: Colors.white)),
-          const SizedBox(height: 4),
-          Text(subtitle,
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: Colors.white.withValues(alpha: 0.78))),
-          if (activeTab != null) ...[
-            const SizedBox(height: 20),
-            _TogglePill(active: activeTab!, onSelected: onTabSelected ?? (_) {}),
-          ],
-        ]),
-      ),
+      child: stadiumPhoto
+          ? Stack(key: const Key('auth.stadiumBanner'), children: [
+              const Positioned.fill(child: ColoredBox(color: CeColors.paletteDeep)),
+              Positioned.fill(
+                child: Image.asset(
+                  photo,
+                  fit: BoxFit.cover,
+                  // Keep the floodlights and the stumps in frame.
+                  alignment: const Alignment(0, 0.15),
+                  filterQuality: FilterQuality.medium,
+                  excludeFromSemantics: true,
+                  errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                ),
+              ),
+              // Teal overlay: white title and the toggle stay readable.
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        CeColors.paletteDeep.withValues(alpha: 0.62),
+                        CeColors.paletteDeep.withValues(alpha: 0.45),
+                        CeColors.paletteTeal.withValues(alpha: 0.80),
+                      ],
+                      stops: const [0, 0.5, 1],
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: padding,
+                child: DefaultTextStyle.merge(style: const TextStyle(color: Colors.white), child: content),
+              ),
+            ])
+          : CeBrandHero(padding: padding, child: content),
     );
+    if (onBack == null) return banner;
+    // Back sits on the banner (these screens have no top bar).
+    return Stack(children: [
+      banner,
+      Positioned(
+        top: top + 4,
+        left: 4,
+        child: IconButton(
+          tooltip: 'Back',
+          onPressed: onBack,
+          icon: Icon(CeIcons.of('arrow-left'), size: 20, color: Colors.white),
+        ),
+      ),
+    ]);
   }
 }
 

@@ -283,3 +283,22 @@ class PrivacySecurityPrefs {
         loginAlerts: loginAlerts ?? this.loginAlerts,
       );
 }
+
+// ---------------------------------------------------------------------------
+// Forgot password (Login → "Forgot password?")
+// ---------------------------------------------------------------------------
+
+/// A started password reset: where the 6-digit code went and until when it
+/// works. A real backend sends the code by SMS / email; only the in-memory
+/// mock fills [demoCode], which the demo build shows (no messages are sent).
+class PasswordResetTicket {
+  const PasswordResetTicket({required this.destination, required this.expiresAt, this.demoCode});
+
+  /// Masked phone number or email, e.g. "0312 ••••• 00".
+  final String destination;
+  final DateTime expiresAt;
+  final String? demoCode;
+}
+
+/// Result of checking a reset code (or using it to set a new password).
+enum ResetCodeCheck { ok, wrong, expired, tooManyAttempts, noRequest }

@@ -8,6 +8,9 @@ import 'package:criceco/app/session/role_controller.dart';
 import 'package:criceco/app/session/session_controller.dart';
 import 'package:criceco/core/models/models.dart';
 import 'package:criceco/demo/seed_data.dart';
+import 'package:criceco/features/club/club_providers.dart';
+import 'package:criceco/features/club/hunt/player_hunt_controller.dart';
+import 'package:criceco/features/club/teams/teams_controller.dart';
 import 'package:criceco/features/fitness/fitness_providers.dart';
 import 'package:criceco/features/membership/join_club_controller.dart';
 import 'package:criceco/features/player/player_providers.dart';
@@ -20,6 +23,7 @@ import 'package:criceco/shared/media/share_service.dart';
 import 'package:criceco/shared/navigation/role_shells.dart';
 import 'package:criceco/shared/widgets/ce_buttons.dart';
 import 'package:criceco/shared/widgets/ce_indicators.dart';
+import 'package:criceco/shared/widgets/ce_inputs.dart';
 import 'package:criceco/shared/widgets/ce_match_widgets.dart';
 import 'package:criceco/shared/widgets/ce_top_bar.dart';
 import 'package:flutter/material.dart';
@@ -84,6 +88,7 @@ Future<void> _tap(WidgetTester tester, Finder f) async {
 }
 
 Finder _button(String label) => find.widgetWithText(CeButton, label);
+Finder _navTab(String label) => find.descendant(of: find.byType(CeBottomNav), matching: find.bySemanticsLabel(label));
 
 /// Stands in for the device photo picker: returns [result] (a path, `null`
 /// for "cancelled") or throws it when it is an exception.
@@ -145,7 +150,7 @@ void main() {
       expect(find.text('Unavailable'), findsOneWidget);
     });
 
-    testWidgets('quick actions and bell navigate to real routes', (tester) async {
+    testWidgets('quick actions navigate to real routes; the bell opens the panel in place', (tester) async {
       final c = await _pumpPlayer(tester);
       await _tap(tester, _quickAction('Playing Opportunities'));
       expect(_loc(c), Routes.openMatches);
@@ -163,10 +168,11 @@ void main() {
       expect(find.byTooltip(RegExp(r'^Notifications, [1-9]')), findsOneWidget, reason: 'bell shows the unread badge');
       await tester.tap(find.byTooltip(RegExp('^Notifications')));
       await tester.pumpAndSettle();
-      expect(_loc(c), Routes.notifications);
+      expect(find.byKey(const Key('notifications.panel')), findsOneWidget);
+      expect(_loc(c), Routes.playerHome, reason: 'no route change');
     });
 
-    testWidgets('Quick Actions: Playing Opportunities, Upcoming Matches, Join Club, Match Availability in a 2 × 2 grid',
+    testWidgets('Quick Actions: Playing Opportunities, My Matches, Match Availability, Performance in a 2 × 2 grid',
         (tester) async {
       for (final width in [320.0, 375.0, 414.0]) {
         await _pumpPlayer(tester, width: width);
@@ -175,22 +181,22 @@ void main() {
           for (final s in tester.widgetList<Semantics>(find.descendant(of: grid, matching: find.byType(Semantics))))
             if (s.properties.button == true && s.properties.label != null) s.properties.label!,
         ];
-        expect(tiles, ['Playing Opportunities', 'Upcoming Matches', 'Join Club', 'Match Availability']);
+        expect(tiles, ['Playing Opportunities', 'My Matches', 'Match Availability', 'Performance']);
         for (final not in [
-          'Share Profile', 'Matches', 'My Matches', 'Availability', 'Performance', 'My Performance', 'Profile', //
-          'Settings', 'Fitness Meter', 'Match History',
+          'Upcoming Matches', 'Join Club', 'Club', 'Share Profile', 'Matches', 'Availability', 'My Performance', //
+          'Profile', 'Settings', 'Fitness Meter', 'Match History',
         ]) {
           expect(_quickAction(not), findsNothing, reason: '$not is not a quick action');
         }
         // Balanced 2 × 2 at every width.
         double top(String l) => tester.getTopLeft(_quickAction(l)).dy;
         double left(String l) => tester.getTopLeft(_quickAction(l)).dx;
-        expect(top('Playing Opportunities'), top('Upcoming Matches'), reason: 'row 1 @ $width');
-        expect(top('Join Club'), top('Match Availability'), reason: 'row 2 @ $width');
-        expect(top('Join Club'), greaterThan(top('Playing Opportunities')));
-        expect(left('Playing Opportunities'), left('Join Club'), reason: 'column 1 @ $width');
-        expect(left('Upcoming Matches'), left('Match Availability'), reason: 'column 2 @ $width');
-        expect(tester.getRect(_quickAction('Match Availability')).right, closeTo(width - 16, 1));
+        expect(top('Playing Opportunities'), top('My Matches'), reason: 'row 1 @ $width');
+        expect(top('Match Availability'), top('Performance'), reason: 'row 2 @ $width');
+        expect(top('Match Availability'), greaterThan(top('Playing Opportunities')));
+        expect(left('Playing Opportunities'), left('Match Availability'), reason: 'column 1 @ $width');
+        expect(left('My Matches'), left('Performance'), reason: 'column 2 @ $width');
+        expect(tester.getRect(_quickAction('Performance')).right, closeTo(width - 16, 1));
         // Every label shows in full (no ellipsis, no word split across lines).
         for (final p in tester.renderObjectList<RenderParagraph>(find.descendant(of: grid, matching: find.byType(RichText)))) {
           expect(p.didExceedMaxLines, isFalse, reason: '${p.text.toPlainText()} @ $width');
@@ -199,7 +205,7 @@ void main() {
       }
     });
 
-    testWidgets('Season stats card is gone; Upcoming Matches opens the Matches area on Upcoming', (tester) async {
+    testWidgets('Season stats card is gone; My Matches opens the Matches area on its default view', (tester) async {
       final c = await _pumpPlayer(tester);
       for (final label in ['UPCOMING MATCHES', 'PERFORMANCE RATING', 'MATCHES PLAYED']) {
         expect(find.text(label, skipOffstage: false), findsNothing, reason: '$label card removed');
@@ -209,31 +215,54 @@ void main() {
       final headerBottom = tester.getRect(find.byKey(const Key('player.hero'))).bottom;
       expect(tester.getTopLeft(find.text('Quick Actions')).dy - headerBottom, lessThan(40));
 
-      await _tap(tester, _quickAction('Upcoming Matches'));
-      expect(_loc(c), '${Routes.myMatches}?tab=upcoming');
+      await _tap(tester, _quickAction('My Matches'));
+      expect(_loc(c), Routes.myMatches);
       expect(find.text('Shalimar CC vs Falcons CC'), findsOneWidget, reason: 'the upcoming match');
       expect(find.byType(CeBottomNav), findsOneWidget, reason: 'the existing Matches tab');
     });
 
-    testWidgets('Bottom nav: Home · Matches · Availability · Performance; Profile via header and sidebar',
+    testWidgets('Bottom nav: Home · Matches · [Status] · Club · Profile; Club is a sheet; Profile also via header and sidebar',
         (tester) async {
       final c = await _pumpPlayer(tester);
       final nav = find.byType(CeBottomNav);
       final labels = [for (final i in tester.widget<CeBottomNav>(nav).items) i.label];
-      expect(labels, ['Home', 'Matches', 'Availability', 'Performance']);
+      expect(labels, ['Home', 'Matches', 'Status', 'Club', 'Profile']);
+      expect([for (final i in tester.widget<CeBottomNav>(nav).items) i.center], [false, false, true, false, false]);
       Finder tab(String l) => find.descendant(of: nav, matching: find.bySemanticsLabel(l));
-      for (final (label, route) in [
-        ('Matches', Routes.myMatches),
-        ('Availability', Routes.availability),
-        ('Performance', Routes.myPerformance),
-        ('Home', Routes.playerHome),
+      int selected() => tester.widget<CeBottomNav>(nav).currentIndex;
+      expect(selected(), 0);
+      for (final (label, route, index) in [
+        ('Matches', Routes.myMatches, 1),
+        ('Profile', Routes.playerProfile, 4),
+        ('Home', Routes.playerHome, 0),
       ]) {
         await tester.tap(tab(label));
         await tester.pumpAndSettle();
         expect(_loc(c), route, reason: label);
+        expect(selected(), index, reason: '$label highlighted');
         expect(find.byType(CeBottomNav), findsOneWidget, reason: '$label keeps the bottom nav');
       }
-      expect(find.textContaining('Availability', skipOffstage: false), findsWidgets);
+      expect(find.text('My Profile'), findsNothing, reason: 'Home returns to the dashboard');
+
+      // Club: a sheet over the current screen (no route change, never highlighted).
+      await tester.tap(tab('Club'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('joinClub.code')), findsOneWidget, reason: 'not in a club → Join a Club');
+      expect(_loc(c), Routes.playerHome);
+      expect(selected(), 0);
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+
+      // Availability and Performance keep their screens (sidebar); no tab is highlighted there.
+      for (final (item, route) in [('Availability', Routes.availability), ('My Performance', Routes.myPerformance)]) {
+        await tester.tap(find.byTooltip('Open menu'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.descendant(of: find.byType(Drawer), matching: find.text(item)));
+        await tester.pumpAndSettle();
+        expect(_loc(c), route, reason: item);
+        expect(selected(), -1, reason: '$item is not a bottom-nav tab');
+        await _go(tester, c, Routes.playerHome);
+      }
 
       // Profile: the dashboard avatar / name ...
       await tester.fling(_mainList, const Offset(0, 3000), 4000);
@@ -256,6 +285,20 @@ void main() {
       await _go(tester, c, Routes.editProfile);
       expect(_loc(c), '${Routes.playerProfile}?edit=1');
       expect(find.text('Edit Details'), findsOneWidget);
+
+      // Sidebar → Edit Profile: My Profile straight in edit mode.
+      await _go(tester, c, Routes.playerHome);
+      await tester.fling(_mainList, const Offset(0, 3000), 4000);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Open menu'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.descendant(of: find.byType(Drawer), matching: find.text('Edit Profile')));
+      await tester.pumpAndSettle();
+      expect(_loc(c), '${Routes.playerProfile}?edit=1');
+      expect(find.byKey(const Key('edit.name')), findsOneWidget, reason: 'editable at once');
+      await tester.enterText(find.byKey(const Key('edit.name')), 'Aman Ullah');
+      await _tap(tester, _button('Save Changes'));
+      expect(c.read(currentAccountProvider)!.fullName, 'Aman Ullah');
     });
 
     testWidgets('Share Profile (sidebar): player card from real data in a sheet; shares a clean text summary',
@@ -307,12 +350,13 @@ void main() {
       expect(find.byKey(const Key('shareProfile.card')), findsNothing);
     });
 
-    testWidgets('Join Club: code → club preview → the existing join request; unknown, pending and member cases',
+    testWidgets('Club tab: not in a club → Join a Club (code → preview → the existing request); pending; then My Club',
         (tester) async {
       final c = await _pumpPlayer(tester);
       Future<void> open() async {
         await _go(tester, c, Routes.playerHome);
-        await _tap(tester, _quickAction('Join Club'));
+        await tester.tap(_navTab('Club'));
+        await tester.pumpAndSettle();
       }
 
       bool sendEnabled() => tester.widget<CeButton>(_button('Send Join Request')).onPressed != null;
@@ -371,16 +415,184 @@ void main() {
       expect(_loc(c), Routes.waitingApproval, reason: 'the existing request status screen');
       expect(find.text('Waiting for Approval'), findsOneWidget);
 
-      // Approved → a member: no second request to the same club.
-      await c.read(joinClubProvider.notifier).approve(MemberRole.player);
+      // Approved while the sheet is open → it turns into My Club straight away.
       await open();
-      await enter('KRC001');
-      expect(find.textContaining('already a member'), findsOneWidget);
-      expect(sendEnabled(), isFalse);
+      expect(find.byKey(const Key('joinClub.pending')), findsOneWidget);
+      await c.read(joinClubProvider.notifier).approve(MemberRole.player);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('joinClub.pending')), findsNothing);
+      expect(find.byKey(const Key('joinClub.code')), findsNothing, reason: 'no join form for a member');
+      final card = find.byKey(const Key('club.sheet.joined.KRC001'));
+      expect(card, findsOneWidget);
+      expect(find.descendant(of: card, matching: find.text(SeedData.demoJoinClubName)), findsOneWidget);
+      expect(find.descendant(of: card, matching: find.text('Islamabad')), findsOneWidget);
+      expect(tester.widget<Text>(find.byKey(const Key('club.sheet.row.Your role'))).data, 'Player');
+      expect(tester.widget<Text>(find.byKey(const Key('club.sheet.row.Club code'))).data, 'KRC001');
+      expect(find.byKey(const Key('club.sheet.row.Members')), findsNothing, reason: 'size unknown → not invented');
+      expect(find.byKey(const Key('club.sheet.row.Owner')), findsNothing, reason: 'owner unknown → not invented');
+      expect(find.byType(CeTextField), findsNothing, reason: 'read-only: nothing to edit');
+      await _tap(tester, _button('Close'));
 
       // The standalone join route is still there.
       await _go(tester, c, Routes.enterClubCode);
       expect(find.text('Enter Club Code'), findsOneWidget);
+    });
+
+    testWidgets('center Status button: raised above the bar, opens Set Your Status (no route)', (tester) async {
+      final c = await _pumpPlayer(tester);
+      final button = find.byKey(const Key('nav.center'));
+      final nav = find.byType(CeBottomNav);
+      expect(button, findsOneWidget);
+      // Raised: it starts above the bar's other items, centred between Matches and Club.
+      final home = tester.getRect(_navTab('Home'));
+      final rect = tester.getRect(button);
+      expect(rect.top, lessThan(home.top));
+      expect(rect.center.dx, closeTo(tester.getRect(nav).center.dx, 1));
+      expect(rect.left, greaterThan(tester.getRect(_navTab('Matches')).right));
+      expect(rect.right, lessThan(tester.getRect(_navTab('Club')).left));
+      expect(tester.getRect(nav).top, lessThanOrEqualTo(rect.top), reason: 'inside the nav (never over page content)');
+
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('status.sheet')), findsOneWidget);
+      expect(find.text('Set Your Status'), findsOneWidget);
+      expect(_loc(c), Routes.playerHome, reason: 'a sheet, not a route');
+      expect(tester.widget<CeBottomNav>(nav).currentIndex, 0, reason: 'never a selected tab');
+    });
+
+
+    for (final (device, width, inset) in [('iPhone', 375.0, 34.0), ('Android gesture bar', 360.0, 24.0), ('small phone', 320.0, 48.0)]) {
+      testWidgets('bottom nav respects the $device safe area (${inset.toInt()} px) and the status sheet fits', (tester) async {
+        await _pumpPlayer(tester, width: width);
+        tester.view.padding = FakeViewPadding(bottom: inset * 3);
+        await tester.pumpAndSettle();
+        final screenBottom = tester.view.physicalSize.height / tester.view.devicePixelRatio;
+        for (final l in ['Home', 'Matches', 'Club', 'Profile']) {
+          expect(tester.getRect(_navTab(l)).bottom, lessThanOrEqualTo(screenBottom - inset + 0.5), reason: '$l above the inset');
+        }
+        expect(tester.getRect(find.text('Status')).bottom, lessThanOrEqualTo(screenBottom - inset + 0.5));
+        await tester.tap(find.byKey(const Key('nav.center')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('status.sheet')), findsOneWidget);
+        expect(tester.getRect(find.byKey(const Key('status.openForMatches'))).bottom,
+            lessThanOrEqualTo(screenBottom - inset + 0.5), reason: 'sheet content above the inset');
+        expect(tester.takeException(), isNull, reason: '$device @ $width');
+      });
+    }
+    testWidgets('Set Your Status: Available This Week and Open for Matches use the existing availability record',
+        (tester) async {
+      final c = await _pumpPlayer(tester);
+      Switch sw(String key) =>
+          tester.widget<Switch>(find.descendant(of: find.byKey(Key(key)), matching: find.byType(Switch)));
+      Future<void> open() async {
+        await tester.tap(find.byKey(const Key('nav.center')));
+        await tester.pumpAndSettle();
+      }
+
+      // Opens on the saved state.
+      expect(c.read(playerAvailabilityProvider).status, PlayerAvailability.available);
+      expect(c.read(playerAvailabilityProvider).openToOffers, isFalse);
+      await open();
+      expect(sw('status.available').value, isTrue);
+      expect(sw('status.openForMatches').value, isFalse);
+
+      // OFF → Unavailable until this weekend (the Availability screen's "This Weekend").
+      await tester.tap(find.descendant(of: find.byKey(const Key('status.available')), matching: find.byType(Switch)));
+      await tester.pumpAndSettle();
+      var r = c.read(playerAvailabilityProvider);
+      expect((r.status, r.until, r.untilDate), (PlayerAvailability.unavailable, AvailabilityUntil.weekend, DateTime(2026, 9, 26)));
+      expect(find.text('Saved · Marked unavailable this week'), findsOneWidget);
+      expect(sw('status.available').value, isFalse);
+
+      // Open for Matches → the existing listing (clubs' Available Players).
+      await tester.tap(find.descendant(of: find.byKey(const Key('status.openForMatches')), matching: find.byType(Switch)));
+      await tester.pumpAndSettle();
+      expect(c.read(playerAvailabilityProvider).openToOffers, isTrue);
+      expect((await c.read(openPlayersProvider.future)).where((p) => p.isMe), hasLength(1));
+      expect(find.text('Saved · You’re open for matches'), findsOneWidget);
+
+      // Closed and reopened: the saved state; the Availability screen agrees.
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+      await open();
+      expect((sw('status.available').value, sw('status.openForMatches').value), (false, true));
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+      await _go(tester, c, Routes.availability);
+      expect(find.text('Unavailable'), findsWidgets);
+
+      // A detailed status (Injured) shows as OFF with its name; ON makes them Available.
+      c.read(playerAvailabilityProvider.notifier).update(status: PlayerAvailability.injured, notes: 'Hamstring');
+      await _go(tester, c, Routes.playerHome);
+      await open();
+      expect(sw('status.available').value, isFalse);
+      expect(find.text('Currently: Injured'), findsOneWidget);
+      await tester.tap(find.descendant(of: find.byKey(const Key('status.available')), matching: find.byType(Switch)));
+      await tester.pumpAndSettle();
+      r = c.read(playerAvailabilityProvider);
+      expect((r.status, r.openToOffers), (PlayerAvailability.available, true), reason: 'listing untouched');
+    });
+
+    testWidgets('Performance quick action: a sheet with the real summary; View Full Performance opens the screen',
+        (tester) async {
+      final c = await _pumpPlayer(tester);
+      final p = await c.read(performanceProvider.future);
+      await _tap(tester, _quickAction('Performance'));
+      final sheet = find.byKey(const Key('performance.sheet'));
+      expect(sheet, findsOneWidget);
+      expect(_loc(c), Routes.playerHome, reason: 'a sheet, not the Performance screen');
+      expect(find.descendant(of: sheet, matching: find.text('Player Performance')), findsOneWidget);
+      expect(find.descendant(of: find.byKey(const Key('performance.rating')), matching: find.text(p.rating)), findsOneWidget);
+      String cell(String label) => tester
+          .widget<Text>(find.descendant(of: find.byKey(Key('performance.cell.$label')), matching: find.byType(Text)).first)
+          .data!;
+      String snap(String l) => p.snapshot.firstWhere((t) => t.label == l).value;
+      expect(
+        {for (final l in ['Matches', 'Runs', 'Wickets', 'Bat Avg', 'Strike Rate', 'Best Score']) l: cell(l)},
+        {
+          'Matches': '${p.matches}',
+          'Runs': '${p.runs}',
+          'Wickets': '${p.wickets}',
+          'Bat Avg': p.battingAverage,
+          'Strike Rate': snap('Strike Rate'),
+          'Best Score': snap('Best Score'),
+        },
+      );
+      expect(find.descendant(of: sheet, matching: find.byType(FormChip)), findsNWidgets(p.recentForm.length));
+      expect(tester.widget<Text>(find.byKey(const Key('performance.formRecord'))).data,
+          '${p.recentWins}W - ${p.recentLosses}L');
+
+      await _tap(tester, _button('View Full Performance'));
+      expect(find.byKey(const Key('performance.sheet')), findsNothing);
+      expect(_loc(c), Routes.myPerformance, reason: 'the existing Performance screen');
+    });
+
+    testWidgets('Club tab for a player who owns a club: My Club with the real club data, read-only', (tester) async {
+      final c = await _pumpPlayer(tester);
+      await c.read(sessionProvider.notifier)
+          .createClub(name: 'Shalimar Cricket Club', city: 'Islamabad', type: ClubType.professional);
+      await tester.pumpAndSettle();
+      final club = c.read(currentClubProvider)!;
+      final members = await c.read(clubMembersProvider.future);
+      final teams = await c.read(teamsProvider.future);
+      await tester.tap(_navTab('Club'));
+      await tester.pumpAndSettle();
+      expect(_loc(c), Routes.playerHome, reason: 'a sheet over the dashboard');
+      final card = find.byKey(Key('club.sheet.own.${club.code}'));
+      expect(card, findsOneWidget);
+      expect(find.byKey(const Key('joinClub.code')), findsNothing);
+      expect(find.descendant(of: card, matching: find.text('Shalimar Cricket Club')), findsOneWidget);
+      String row(String label) => tester.widget<Text>(find.byKey(Key('club.sheet.row.$label'))).data!;
+      expect(row('Your role'), 'Club Owner');
+      expect(row('Club code'), club.code);
+      expect(row('Owner'), members.firstWhere((m) => m.role == MemberRole.owner).name);
+      expect(row('Coach'), members.firstWhere((m) => m.role == MemberRole.coach).name);
+      expect(row('Members'), '${members.length}');
+      expect(row('Teams'), '${teams.length} · ${teams.map((t) => t.name).join(', ')}');
+      expect(find.byType(CeTextField), findsNothing, reason: 'nothing to edit from here');
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+      expect(card, findsNothing);
     });
 
     testWidgets('Match Availability: current status → Change Status (inline, every status) → notes → Save',
@@ -388,11 +600,9 @@ void main() {
       final c = await _pumpPlayer(tester);
       final before = c.read(playerAvailabilityProvider);
       expect(before.status, PlayerAvailability.available);
-      // Open the Availability tab first so its (kept-alive) form exists.
-      await tester.tap(find.descendant(of: find.byType(CeBottomNav), matching: find.bySemanticsLabel('Availability')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.descendant(of: find.byType(CeBottomNav), matching: find.bySemanticsLabel('Home')));
-      await tester.pumpAndSettle();
+      // Open the Availability screen first so its (kept-alive) form exists.
+      await _go(tester, c, Routes.availability);
+      await _go(tester, c, Routes.playerHome);
 
       await _tap(tester, _quickAction('Match Availability'));
       expect(_loc(c), Routes.playerHome, reason: 'a sheet, not the Availability screen');
@@ -428,8 +638,12 @@ void main() {
       final saved = c.read(playerAvailabilityProvider);
       expect((saved.status, saved.notes, saved.untilDate), (PlayerAvailability.injured, 'Hamstring strain', null));
 
-      // The Availability tab shows it at once — status card and form.
-      await tester.tap(find.descendant(of: find.byType(CeBottomNav), matching: find.bySemanticsLabel('Availability')));
+      // The Availability screen (sidebar) shows it at once — status card and form.
+      await tester.fling(_mainList, const Offset(0, 3000), 4000); // the menu is in the hero
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Open menu'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.descendant(of: find.byType(Drawer), matching: find.text('Availability')));
       await tester.pumpAndSettle();
       expect(_loc(c), Routes.availability);
       expect(find.text('Injured'), findsWidgets);
@@ -500,9 +714,11 @@ void main() {
     });
 
     for (final width in [320.0, 360.0, 375.0, 390.0, 414.0]) {
-      testWidgets('Join Club, Match Availability and Add Workout sheets fit at ${width.toInt()} px', (tester) async {
+      testWidgets('Club, Performance, Match Availability and Add Workout sheets fit at ${width.toInt()} px', (tester) async {
         final c = await _pumpPlayer(tester, width: width, fullName: 'Muhammad Abdul Rehman Chaudhry Al-Pakistani the Third');
-        await _tap(tester, _quickAction('Join Club'));
+        expect(tester.takeException(), isNull, reason: 'bottom nav @ $width');
+        await tester.tap(_navTab('Club'));
+        await tester.pumpAndSettle();
         await tester.enterText(find.byKey(const Key('joinClub.code')), '35HLWZ');
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull, reason: 'join preview @ $width');
@@ -511,6 +727,19 @@ void main() {
         expect(tester.takeException(), isNull, reason: 'join not found @ $width');
         await _tap(tester, _button('Cancel'));
         await _go(tester, c, Routes.playerHome);
+        await _tap(tester, _quickAction('Performance'));
+        expect(find.byKey(const Key('performance.sheet')), findsOneWidget);
+        expect(tester.takeException(), isNull, reason: 'performance sheet @ $width');
+        await tester.tapAt(const Offset(10, 10));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('nav.center')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('status.sheet')), findsOneWidget);
+        await tester.tap(find.descendant(of: find.byKey(const Key('status.available')), matching: find.byType(Switch)));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'status sheet @ $width');
+        await tester.tapAt(const Offset(10, 10));
+        await tester.pumpAndSettle();
         await _tap(tester, _quickAction('Match Availability'));
         await _tap(tester, find.byKey(const Key('matchAvailability.change')));
         expect(tester.takeException(), isNull, reason: 'availability sheet expanded @ $width');
@@ -564,7 +793,7 @@ void main() {
       expect(tester.getRect(hero).bottom, lessThan(tester.getTopLeft(find.text('Quick Actions')).dy));
       expect(find.text('Performance snapshot', skipOffstage: false), findsNothing, reason: 'replaced by the stats row');
 
-      // The card still opens My Profile; the bell still opens Notifications.
+      // The card still opens My Profile; the bell opens the notifications panel.
       await tester.tap(find.descendant(of: card, matching: find.text(account.fullName)));
       await tester.pumpAndSettle();
       expect(_loc(c), Routes.playerProfile);
@@ -573,7 +802,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip(RegExp('^Notifications')));
       await tester.pumpAndSettle();
-      expect(_loc(c), Routes.notifications);
+      expect(find.byKey(const Key('notifications.panel')), findsOneWidget);
+      expect(_loc(c), Routes.playerHome, reason: 'no route change');
     });
 
     testWidgets('Hero chips: wicket keeper and a joined club come from real data', (tester) async {

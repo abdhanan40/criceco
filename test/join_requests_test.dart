@@ -127,8 +127,8 @@ void main() {
   group('Requests screen', () {
     testWidgets('row Accept asks "Approve this request?" then approves as Player; dashboard, tabs and Members update', (tester) async {
       final c = await _pumpOwner(tester);
-      expect(find.text('3'), findsWidgets); // dashboard Requests stat
-      await _tap(tester, find.bySemanticsLabel('Requests').first);
+      expect(find.bySemanticsLabel('Requests, 3'), findsOneWidget); // dashboard Requests tile
+      await _go(tester, c, Routes.joinRequests); // the Requests screen (request links)
       expect(_loc(c), Routes.joinRequests);
       expect(find.bySemanticsLabel('3 pending requests'), findsOneWidget);
       expect(find.text('Bilal Ahmed'), findsOneWidget);
@@ -163,8 +163,7 @@ void main() {
 
       await _go(tester, c, Routes.clubHome);
       expect(c.read(pendingJoinRequestCountProvider), 2);
-      // Stats row may be scrolled away (branch keeps its offset); check the card text.
-      expect(find.text('2', skipOffstage: false), findsWidgets);
+      expect(find.bySemanticsLabel('Requests, 2', skipOffstage: false), findsOneWidget);
     });
 
     testWidgets('row ✕ asks for a reason, then declines; Declined tab lists it; Pending empties with the prototype copy',

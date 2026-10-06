@@ -106,6 +106,27 @@ class SessionController extends Notifier<SessionState> {
     return true;
   }
 
+  /// Login → "Forgot password?": sends a 6-digit code to the account with
+  /// this phone number or email (`null` = no such account).
+  Future<PasswordResetTicket?> requestPasswordReset(String identifier) =>
+      ref.read(accountRepositoryProvider).requestPasswordReset(identifier, at: ref.read(clockProvider).now());
+
+  Future<ResetCodeCheck> verifyResetCode(String identifier, String code) =>
+      ref.read(accountRepositoryProvider).verifyResetCode(identifier, code, at: ref.read(clockProvider).now());
+
+  /// Sets the new password; afterwards only it signs in. Signed in (Settings),
+  /// the account is reloaded so "Last changed" updates straight away.
+  Future<ResetCodeCheck> resetPassword(String identifier, String code, String newPassword) async {
+    final repo = ref.read(accountRepositoryProvider);
+    final check = await repo.resetPassword(identifier, code, newPassword, at: ref.read(clockProvider).now());
+    final signedIn = state.account;
+    if (check == ResetCodeCheck.ok && signedIn != null) {
+      final fresh = await repo.byId(signedIn.id);
+      if (fresh != null) state = state.copyWith(account: fresh);
+    }
+    return check;
+  }
+
   /// User Profile Setup → Continue: saves the common profile (it belongs to
   /// the account, not a role) and moves on to Role Selection.
   Future<void> completeProfile({

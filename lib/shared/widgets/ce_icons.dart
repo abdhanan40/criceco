@@ -72,6 +72,7 @@ abstract final class CeIcons {
     'hash': LucideIcons.hash,
     'radio': LucideIcons.radio,
     'activity': LucideIcons.activity,
+    'user-check': LucideIcons.userCheck,
     'footprints': LucideIcons.footprints,
     'lightbulb': LucideIcons.lightbulb,
     'megaphone': LucideIcons.megaphone,

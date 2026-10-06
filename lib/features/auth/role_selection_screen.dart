@@ -137,6 +137,7 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
                     ? 'One CricEco account — pick how you want to start'
                     : 'Hi $firstName · one account, every role',
                 bottomPadding: 26,
+                stadiumPhoto: true,
               ),
               // Compact logout, top-right: easy to find, out of the cards' way.
               Positioned(

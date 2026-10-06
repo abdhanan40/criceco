@@ -19,11 +19,16 @@ import '../../../shared/widgets/ce_quick_actions.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
 import '../../matches/club_matches_controller.dart';
 import '../../notifications/notifications_controller.dart';
+import '../../notifications/notifications_sheet.dart';
 import '../announcements/announcements.dart';
 import '../club_providers.dart';
 import '../requests/join_requests_controller.dart';
 import '../teams/teams_controller.dart';
 import '../widgets/club_insights.dart';
+import '../widgets/club_profile_sheet.dart';
+import 'join_requests_screen.dart' show showJoinRequestsSheet;
+import 'members_screen.dart' show showMembersSheet;
+import 'teams_screen.dart' show showTeamsSheet;
 
 /// Club Owner Dashboard (prototype `screens.clubHome`, :4199).
 class ClubDashboardScreen extends ConsumerWidget {
@@ -42,16 +47,18 @@ class ClubDashboardScreen extends ConsumerWidget {
     final teams = ref.watch(teamsProvider).value?.length;
     final requests = ref.watch(pendingJoinRequestCountProvider);
     final next = ref.watch(nextClubMatchProvider);
-    final upcoming = ref.watch(upcomingClubMatchesProvider).length;
+    final results = matchListOrNull(ref);
     final memberList = ref.watch(clubMembersProvider).value;
     final matchList = ref.watch(clubMatchesProvider).value;
+    final winRate = results == null || results.total == 0 ? '–' : '${(100 * results.won / results.total).round()}%';
     final notifCount = ref.watch(unreadNotificationCountProvider(UserRole.clubOwner));
     final ownerName = ref.watch(currentAccountProvider)?.fullName.trim() ?? '';
     final ownerFirstName = ownerName.isEmpty ? 'Club Owner' : ownerName.split(RegExp(r'\s+')).first;
     String n(int? v) => v == null ? '–' : '$v';
 
-    // Structure: hero (greeting, glass club card with club stats) → the
-    // pending action → quick actions → next match → member growth → results.
+    // Structure: hero (greeting, glass club card with match record) → the
+    // pending action → Members · Teams · Requests (sheets) → quick actions →
+    // next match → member growth → results.
     return Scaffold(
       body: CeStatusBarScrim(
         child: ListView(padding: const EdgeInsets.only(bottom: 20), children: [
@@ -61,11 +68,11 @@ class ClubDashboardScreen extends ConsumerWidget {
             greeting: ceGreeting(ref.read(clockProvider).now()),
             name: ownerFirstName,
             notificationCount: notifCount,
-            onNotifications: () => context.push(Routes.notifications),
+            onNotifications: () => showNotificationsSheet(context, UserRole.clubOwner),
             card: CeHeroGlassCard(
               keyPrefix: 'club',
-              semanticLabel: 'Open My Club, ${club?.name ?? 'My Club'}',
-              onTap: () => context.go(Routes.myClub),
+              semanticLabel: 'Open club profile, ${club?.name ?? 'My Club'}',
+              onTap: () => showClubProfileSheet(context),
               // The club picture when one is set (My Club), else the badge.
               leading: CePhotoImage(
                 path: club?.logoPath,
@@ -103,13 +110,12 @@ class ClubDashboardScreen extends ConsumerWidget {
                     ),
                   ),
               ],
-              // Information only — Members / Teams / Matches are tabs and
-              // Requests has its banner and Quick Action.
+              // The club's match record (completed club matches).
               stats: [
-                (n(members), 'Members'),
-                (n(teams), 'Teams'),
-                ('$upcoming', 'Upcoming'),
-                (n(requests), 'Requests'),
+                (n(results?.total), 'Played'),
+                (n(results?.won), 'Won'),
+                (n(results?.lost), 'Lost'),
+                (winRate, 'Win Rate'),
               ],
             ),
           ),
@@ -117,10 +123,39 @@ class ClubDashboardScreen extends ConsumerWidget {
           // ---- Pending join requests: the one thing waiting on the owner ----
           if ((requests ?? 0) > 0) _PendingRequestsBanner(count: requests!),
 
+          // ---- Members · Teams · Requests: each opens its list in a sheet ----
+          Padding(
+            key: const Key('club.overview'),
+            padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
+            child: Row(children: [
+              Expanded(
+                child: _OverviewTile(
+                  icon: 'users',
+                  value: n(members),
+                  label: 'Members',
+                  onTap: () => showMembersSheet(context),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _OverviewTile(icon: 'shield', value: n(teams), label: 'Teams', onTap: () => showTeamsSheet(context)),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _OverviewTile(
+                  icon: 'user-plus',
+                  value: n(requests),
+                  label: 'Requests',
+                  highlight: (requests ?? 0) > 0,
+                  onTap: () => showJoinRequestsSheet(context),
+                ),
+              ),
+            ]),
+          ),
+
           // ---- Quick actions: secondary actions only (no bottom-nav tabs) ----
           const CeSectionHeader('Quick Actions'),
           CeQuickActionGrid(key: const Key('club.quickActions'), actions: [
-            CeQuickAction(icon: 'user-plus', label: 'Requests', onTap: () => context.go(Routes.joinRequests)),
             CeQuickAction(icon: 'swords', label: 'Challenges', onTap: () => context.go(Routes.challenges)),
             CeQuickAction(icon: 'user', label: 'Find Player', onTap: () => context.go(Routes.playerHunt)),
             CeQuickAction(icon: 'trophy', label: 'Tournament', onTap: () => context.go(Routes.tournamentHub)),
@@ -151,6 +186,68 @@ class ClubDashboardScreen extends ConsumerWidget {
   }
 }
 
+/// Club stats read from completed club matches (`null` while loading).
+MatchResultsSummary? matchListOrNull(WidgetRef ref) {
+  final list = ref.watch(clubMatchesProvider).value;
+  return list == null ? null : MatchResultsSummary.of(list);
+}
+
+/// Members / Teams / Requests above the quick actions: count + label; opens
+/// the list in a sheet. [highlight] marks requests waiting on the owner.
+class _OverviewTile extends StatelessWidget {
+  const _OverviewTile({
+    required this.icon,
+    required this.value,
+    required this.label,
+    required this.onTap,
+    this.highlight = false,
+  });
+  final String icon;
+  final String value;
+  final String label;
+  final VoidCallback onTap;
+  final bool highlight;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        label: '$label, $value',
+        excludeSemantics: true,
+        child: CeCard(
+          key: Key('club.overview.$label'),
+          onTap: onTap,
+          radius: CeRadius.row,
+          padding: const EdgeInsets.fromLTRB(10, 10, 8, 10),
+          // Icon + count on top, the label below at one size for all three.
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: highlight ? CeColors.amberSoft : CeColors.mint,
+                  borderRadius: BorderRadius.circular(CeRadius.sm),
+                ),
+                child: Icon(CeIcons.of(icon), size: 15, color: highlight ? CeColors.amberInk : CeColors.primaryDark),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 17, height: 1.1, fontWeight: FontWeight.w800, color: CeColors.ink)),
+              ),
+            ]),
+            const SizedBox(height: 6),
+            Text(label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: CeColors.muted)),
+          ]),
+        ),
+      );
+}
+
 /// "N join requests waiting · Review" — shown only while requests are pending.
 class _PendingRequestsBanner extends StatelessWidget {
   const _PendingRequestsBanner({required this.count});
@@ -170,7 +267,7 @@ class _PendingRequestsBanner extends StatelessWidget {
           borderRadius: BorderRadius.circular(CeRadius.row),
           child: InkWell(
             borderRadius: BorderRadius.circular(CeRadius.row),
-            onTap: () => context.go(Routes.joinRequests),
+            onTap: () => showJoinRequestsSheet(context),
             child: ConstrainedBox(
               constraints: const BoxConstraints(minHeight: CeSize.touchTarget + 8),
               child: Padding(

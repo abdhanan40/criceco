@@ -20,9 +20,10 @@ import '../../fitness/fitness_providers.dart';
 import '../../fitness/fitness_widgets.dart';
 import '../../fitness/workout_sheet.dart';
 import '../../notifications/notifications_controller.dart';
+import '../../notifications/notifications_sheet.dart';
 import '../player_providers.dart';
-import '../widgets/join_club_sheet.dart';
 import '../widgets/match_availability_sheet.dart';
+import '../widgets/performance_sheet.dart';
 
 /// Player Dashboard (prototype `screens.playerDashboard`, :3961).
 class PlayerDashboardScreen extends ConsumerWidget {
@@ -53,7 +54,7 @@ class PlayerDashboardScreen extends ConsumerWidget {
             greeting: ceGreeting(ref.read(clockProvider).now()),
             name: name.trim().isEmpty ? 'Player' : name.trim().split(RegExp(r'\s+')).first,
             notificationCount: notifCount,
-            onNotifications: () => context.push(Routes.notifications),
+            onNotifications: () => showNotificationsSheet(context, UserRole.player),
             card: CeHeroGlassCard(
               keyPrefix: 'player',
               semanticLabel: 'Open my profile, $name',
@@ -100,13 +101,12 @@ class PlayerDashboardScreen extends ConsumerWidget {
           const CeSectionHeader('Quick Actions'),
           CeQuickActionGrid(key: const Key('player.quickActions'), actions: [
             CeQuickAction(icon: 'circle-dot', label: 'Playing Opportunities', onTap: () => context.go(Routes.openMatches)),
-            CeQuickAction(
-                icon: 'calendar',
-                label: 'Upcoming Matches',
-                onTap: () => context.go('${Routes.myMatches}?tab=${PlayerMatchStatus.upcoming.name}')),
-            CeQuickAction(icon: 'user-plus', label: 'Join Club', onTap: () => showJoinClubSheet(context)),
+            // The Matches area on its default view.
+            CeQuickAction(icon: 'calendar', label: 'My Matches', onTap: () => context.go(Routes.myMatches)),
             CeQuickAction(
                 icon: 'calendar-check', label: 'Match Availability', onTap: () => showMatchAvailabilitySheet(context)),
+            // A summary in a sheet; the full Performance screen is one tap further.
+            CeQuickAction(icon: 'bar-chart', label: 'Performance', onTap: () => showPerformanceSheet(context)),
           ]),
 
           // ---- Next match ----

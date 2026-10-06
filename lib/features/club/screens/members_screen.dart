@@ -10,12 +10,14 @@ import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
 import '../../../shared/widgets/ce_inputs.dart';
+import '../../../shared/widgets/ce_list_sheet.dart';
 import '../../../shared/widgets/ce_rows.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
 import '../../fitness/fitness_providers.dart';
 import '../../fitness/fitness_widgets.dart';
 import '../club_providers.dart';
+import 'member_profile_screen.dart' show showMemberProfileSheet;
 
 /// Members — the club's members only (no team listings). Search and the role
 /// chips (All / Batsman / Bowler / All-Rounder / Wicket Keeper) stay on the
@@ -42,29 +44,8 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(clubMembersProvider);
-    final all = async.value ?? const <ClubMember>[];
     final total = async.value?.length;
-    final searched = ref.watch(visibleMembersProvider);
-    final query = ref.watch(membersQueryProvider).trim();
     final filter = ref.watch(memberFilterProvider);
-    FitnessReport? fitnessOf(ClubMember m) => ref.watch(memberFitnessProvider(m.id));
-
-    final players = [
-      for (final m in searched)
-        if (m.plays && filter.accepts(m, fitnessOf(m)?.level)) m,
-    ];
-    // Searching keeps the ranked order; otherwise the chosen sort applies.
-    if (query.isEmpty) {
-      int score(ClubMember m) => fitnessOf(m)?.score ?? 0;
-      players.sort(switch (filter.sort) {
-        MemberSort.name => (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
-        MemberSort.fitnessHigh => (a, b) => score(b).compareTo(score(a)),
-        MemberSort.fitnessLow => (a, b) => score(a).compareTo(score(b)),
-      });
-    }
-    final staff = filter.narrows ? const <ClubMember>[] : [for (final m in searched) if (!m.plays) m];
-    final allPlayers = all.where((m) => m.plays).length;
-    final narrowed = query.isNotEmpty || filter.narrows;
     void open(ClubMember m) => context.go(Routes.memberProfile(m.id));
 
     return Scaffold(
@@ -107,38 +88,124 @@ class _MembersScreenState extends ConsumerState<MembersScreen> {
             ),
             _RoleChips(filter: filter),
             if (filter.activeCount > 0) _ActiveFilters(filter: filter),
-            if (async.isLoading)
-              const Padding(padding: EdgeInsets.all(30), child: Center(child: CircularProgressIndicator()))
-            else if (async.hasError)
-              CeErrorState(title: 'Couldn\'t load members', onRetry: () => ref.invalidate(clubMembersProvider))
-            else if (players.isEmpty && staff.isEmpty)
-              CeEmptyState(
-                icon: 'users',
-                title: narrowed ? 'No members found' : 'No members yet',
-                body: query.isNotEmpty
-                    ? 'No results for "$query".'
-                    : narrowed
-                        ? (filter.levels.isEmpty
-                            ? 'No players with this role yet.'
-                            : 'No players match these filters.')
-                        : 'Share your club code so players can request to join.',
-              )
-            else ...[
-              if (players.isNotEmpty || filter.narrows)
-                CeSectionHeader(
-                  narrowed ? 'Players · ${players.length} of $allPlayers' : 'Players · ${players.length}',
-                  padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
-                ),
-              for (final m in players) MemberRow(member: m, fitness: fitnessOf(m), onTap: () => open(m)),
-              if (staff.isNotEmpty) ...[
-                CeSectionHeader('Club Staff · ${staff.length}',
-                    padding: const EdgeInsets.fromLTRB(CeSpace.gutter, CeSpace.section, CeSpace.gutter, 0)),
-                for (final m in staff) MemberRow(member: m, onTap: () => open(m)),
-              ],
-            ],
+            ...memberListChildren(context, ref, onOpen: open),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The member list under the search and chips (Members screen and sheet):
+/// players (role chips, fitness filters, sort) then club staff, or the
+/// loading / error / empty state. [onOpen] opens a member's profile.
+List<Widget> memberListChildren(BuildContext context, WidgetRef ref, {required ValueChanged<ClubMember> onOpen}) {
+  final async = ref.watch(clubMembersProvider);
+  final all = async.value ?? const <ClubMember>[];
+  final searched = ref.watch(visibleMembersProvider);
+  final query = ref.watch(membersQueryProvider).trim();
+  final filter = ref.watch(memberFilterProvider);
+  FitnessReport? fitnessOf(ClubMember m) => ref.watch(memberFitnessProvider(m.id));
+
+  final players = [
+    for (final m in searched)
+      if (m.plays && filter.accepts(m, fitnessOf(m)?.level)) m,
+  ];
+  // Searching keeps the ranked order; otherwise the chosen sort applies.
+  if (query.isEmpty) {
+    int score(ClubMember m) => fitnessOf(m)?.score ?? 0;
+    players.sort(switch (filter.sort) {
+      MemberSort.name => (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+      MemberSort.fitnessHigh => (a, b) => score(b).compareTo(score(a)),
+      MemberSort.fitnessLow => (a, b) => score(a).compareTo(score(b)),
+    });
+  }
+  final staff = filter.narrows ? const <ClubMember>[] : [for (final m in searched) if (!m.plays) m];
+  final allPlayers = all.where((m) => m.plays).length;
+  final narrowed = query.isNotEmpty || filter.narrows;
+
+  if (async.isLoading) {
+    return const [Padding(padding: EdgeInsets.all(30), child: Center(child: CircularProgressIndicator()))];
+  }
+  if (async.hasError) {
+    return [CeErrorState(title: 'Couldn\'t load members', onRetry: () => ref.invalidate(clubMembersProvider))];
+  }
+  if (players.isEmpty && staff.isEmpty) {
+    return [
+      CeEmptyState(
+        icon: 'users',
+        title: narrowed ? 'No members found' : 'No members yet',
+        body: query.isNotEmpty
+            ? 'No results for "$query".'
+            : narrowed
+                ? (filter.levels.isEmpty ? 'No players with this role yet.' : 'No players match these filters.')
+                : 'Share your club code so players can request to join.',
+      ),
+    ];
+  }
+  return [
+    if (players.isNotEmpty || filter.narrows)
+      CeSectionHeader(
+        narrowed ? 'Players · ${players.length} of $allPlayers' : 'Players · ${players.length}',
+        padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
+      ),
+    for (final m in players) MemberRow(member: m, fitness: fitnessOf(m), onTap: () => onOpen(m)),
+    if (staff.isNotEmpty) ...[
+      CeSectionHeader('Club Staff · ${staff.length}',
+          padding: const EdgeInsets.fromLTRB(CeSpace.gutter, CeSpace.section, CeSpace.gutter, 0)),
+      for (final m in staff) MemberRow(member: m, onTap: () => onOpen(m)),
+    ],
+  ];
+}
+
+/// Club Dashboard → Members: the same list in a sheet (search, role chips,
+/// fitness filters). A member opens their profile in a sheet on top.
+Future<void> showMembersSheet(BuildContext context) =>
+    showCeListSheet<void>(context, builder: (_) => const _MembersSheet());
+
+class _MembersSheet extends ConsumerStatefulWidget {
+  const _MembersSheet();
+
+  @override
+  ConsumerState<_MembersSheet> createState() => _MembersSheetState();
+}
+
+class _MembersSheetState extends ConsumerState<_MembersSheet> {
+  late final _search = TextEditingController(text: ref.read(membersQueryProvider));
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final total = ref.watch(clubMembersProvider).value?.length;
+    final filter = ref.watch(memberFilterProvider);
+    return CeListSheetFrame(
+      key: const Key('members.sheet'),
+      title: 'Members',
+      titleTrailing: total == null ? null : CeCountPill(total),
+      actions: [
+        _FilterButton(
+          count: filter.activeCount,
+          onTap: () => showCeListSheet<void>(context, builder: (_) => const _MemberFilterPanel(inSheet: true)),
+        ),
+      ],
+      top: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 4, CeSpace.gutter, 4),
+          child: CeSearchField(
+            hint: 'Search members...',
+            controller: _search,
+            onChanged: ref.read(membersQueryProvider.notifier).select,
+          ),
+        ),
+        _RoleChips(filter: filter),
+        if (filter.activeCount > 0) _ActiveFilters(filter: filter),
+      ],
+      children: memberListChildren(context, ref, onOpen: (m) => showMemberProfileSheet(context, m.id)),
     );
   }
 }
@@ -231,7 +298,10 @@ class _ActiveFilters extends ConsumerWidget {
 /// Sort (the role is picked with the chips on the screen); Apply commits,
 /// Reset clears.
 class _MemberFilterPanel extends ConsumerStatefulWidget {
-  const _MemberFilterPanel();
+  const _MemberFilterPanel({this.inSheet = false});
+
+  /// Shown as a bottom sheet (Members sheet) instead of the side panel.
+  final bool inSheet;
 
   @override
   ConsumerState<_MemberFilterPanel> createState() => _MemberFilterPanelState();
@@ -251,12 +321,11 @@ class _MemberFilterPanelState extends ConsumerState<_MemberFilterPanel> {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    return Drawer(
-      key: const Key('members.filters'),
-      width: width * 0.86 > 340 ? 340 : width * 0.86,
-      backgroundColor: CeColors.bg,
-      child: SafeArea(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+    final panel = Column(
+      key: widget.inSheet ? const Key('members.filters') : null,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: widget.inSheet ? MainAxisSize.min : MainAxisSize.max,
+      children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(18, 8, 6, 0),
             child: Row(children: [
@@ -268,8 +337,9 @@ class _MemberFilterPanelState extends ConsumerState<_MemberFilterPanel> {
               ),
             ]),
           ),
-          Expanded(
-            child: ListView(padding: const EdgeInsets.fromLTRB(18, 0, 18, 12), children: [
+          Flexible(
+            fit: widget.inSheet ? FlexFit.loose : FlexFit.tight, // Expanded beside the drawer
+            child: ListView(shrinkWrap: widget.inSheet, padding: const EdgeInsets.fromLTRB(18, 0, 18, 12), children: [
               _label('Fitness level'),
               Wrap(spacing: 7, runSpacing: 7, children: [
                 for (final l in FitnessLevel.values)
@@ -313,8 +383,14 @@ class _MemberFilterPanelState extends ConsumerState<_MemberFilterPanel> {
               ),
             ]),
           ),
-        ]),
-      ),
+      ],
+    );
+    if (widget.inSheet) return panel;
+    return Drawer(
+      key: const Key('members.filters'),
+      width: width * 0.86 > 340 ? 340 : width * 0.86,
+      backgroundColor: CeColors.bg,
+      child: SafeArea(child: panel),
     );
   }
 }

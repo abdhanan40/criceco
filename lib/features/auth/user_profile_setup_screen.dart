@@ -12,7 +12,6 @@ import '../../shared/media/photo_picker.dart';
 import '../../shared/widgets/ce_buttons.dart';
 import '../../shared/widgets/ce_form_widgets.dart';
 import '../../shared/widgets/ce_inputs.dart';
-import '../../shared/widgets/ce_top_bar.dart';
 import 'onboarding_controller.dart';
 import 'widgets/auth_widgets.dart';
 
@@ -102,22 +101,24 @@ class _UserProfileSetupScreenState extends ConsumerState<UserProfileSetupScreen>
       },
       child: Scaffold(
         backgroundColor: Colors.white,
-        appBar: CeTopBar(title: 'Your Profile', onBack: _back),
-        body: Column(children: [
-          const CeStepProgress(value: 0.66, label: 'Step 2 of 3 — Your Profile'),
-          Expanded(
-            child: SingleChildScrollView(
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              padding: EdgeInsets.fromLTRB(
-                  CeSpace.form, 14, CeSpace.form, CeSpace.form + MediaQuery.viewInsetsOf(context).bottom),
+        body: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            // Stadium header (as Login / Sign Up) with Back.
+            AuthBanner(
+              title: 'Set up your profile',
+              subtitle: 'This is your CricEco account — you choose Player or Club Owner next.',
+              stadiumPhoto: true,
+              onBack: _back,
+            ),
+            const CeStepProgress(value: 0.66, label: 'Step 2 of 3 — Your Profile'),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(CeSpace.form, 14, CeSpace.form, CeSpace.form),
               child: Form(
                 key: _formKey,
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  const AuthHeading(
-                    title: 'Set up your profile',
-                    subtitle: 'This is your CricEco account — you choose Player or Club Owner next.',
-                  ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 4),
                   Center(
                     child: CePhotoPicker(
                       placeholderIcon: 'user',
@@ -172,8 +173,8 @@ class _UserProfileSetupScreenState extends ConsumerState<UserProfileSetupScreen>
                 ]),
               ),
             ),
-          ),
-        ]),
+          ]),
+        ),
       ),
     );
   }

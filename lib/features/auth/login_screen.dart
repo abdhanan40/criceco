@@ -4,10 +4,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/router/routes.dart';
 import '../../app/session/session_controller.dart';
+import '../../app/theme/tokens.dart';
 import '../../core/utils/validators.dart';
 import '../../shared/widgets/ce_buttons.dart';
+import '../../shared/widgets/ce_feedback.dart';
 import '../../shared/widgets/ce_form_widgets.dart';
 import '../../shared/widgets/ce_inputs.dart';
+import 'forgot_password_sheet.dart';
 import 'widgets/auth_widgets.dart';
 
 /// Login (prototype `screens.login`, criceco-app.js :2898).
@@ -51,6 +54,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // On success the router redirect moves to Continue As / role home.
   }
 
+  /// Reset by phone number or email (bottom sheet), then log in with the new
+  /// password: a phone number is prefilled, the old password cleared.
+  Future<void> _forgotPassword() async {
+    FocusScope.of(context).unfocus();
+    final identifier = await showForgotPasswordSheet(context, initialIdentifier: _phone.text.trim());
+    if (identifier == null || !mounted) return;
+    setState(() {
+      _error = null;
+      if (!identifier.contains('@')) _phone.text = identifier;
+      _password.clear();
+    });
+    showCeToast(context, 'Password reset. Log in with your new password.');
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -63,6 +80,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             subtitle: 'Your cricket club, organized.',
             activeTab: AuthTab.login,
             onTabSelected: (_) => context.go(Routes.signup),
+            stadiumPhoto: true,
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),
@@ -92,6 +110,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     autofillHints: const [AutofillHints.password],
                     validator: (v) => (v == null || v.isEmpty) ? 'Password is required' : null,
                     onFieldSubmitted: (_) => _submit(),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      key: const Key('login.forgot'),
+                      onPressed: _forgotPassword,
+                      style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
+                      child: const Text('Forgot password?',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: CeColors.primaryDark)),
+                    ),
                   ),
                   if (_error != null) CeErrorBanner(_error!),
                   CeButton(label: 'Login', loading: _submitting, onPressed: _submit),

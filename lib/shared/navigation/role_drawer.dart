@@ -9,6 +9,7 @@ import '../../app/session/session_controller.dart';
 import '../../app/theme/tokens.dart';
 import '../../core/enums/enums.dart';
 import '../../demo/seed_data.dart';
+import '../../features/club/widgets/club_profile_sheet.dart' show showEditClubSheet;
 import '../../features/player/widgets/share_profile_sheet.dart';
 import '../media/photo_picker.dart';
 import '../widgets/ce_feedback.dart';
@@ -140,6 +141,26 @@ class RoleDrawer extends ConsumerWidget {
                   onTap: () => navigate(d.location),
                 ),
             ],
+            // Edit: the Player's profile (My Profile in edit mode); the Club
+            // Owner's club profile (a sheet, opened in edit mode).
+            if (role == UserRole.player)
+              _DrawerItem(
+                icon: 'edit-3',
+                label: 'Edit Profile',
+                active: false,
+                onTap: () => navigate('${Routes.playerProfile}?edit=1'),
+              )
+            else
+              _DrawerItem(
+                icon: 'edit-3',
+                label: 'Edit Club',
+                active: false,
+                onTap: () {
+                  final rootContext = Navigator.of(context, rootNavigator: true).context;
+                  Navigator.of(context).pop(); // close the drawer first
+                  showEditClubSheet(rootContext);
+                },
+              ),
             // Player: Share Profile opens the existing share sheet (no route).
             if (role == UserRole.player)
               _DrawerItem(

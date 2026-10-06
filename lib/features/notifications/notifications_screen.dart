@@ -12,8 +12,8 @@ import '../../shared/widgets/ce_feedback.dart';
 import '../../shared/widgets/ce_icons.dart';
 import '../../shared/widgets/ce_surfaces.dart';
 import '../../shared/widgets/ce_top_bar.dart';
-import '../club/announcements/announcements.dart';
 import 'notifications_controller.dart';
+import 'notifications_sheet.dart' show openNotification;
 
 /// Notifications (prototype `screens.notifications`, :8105): one screen,
 /// content from the active role. Each row opens its real destination inside
@@ -89,20 +89,8 @@ class NotificationsScreen extends ConsumerWidget {
                               item: n,
                               unread: !read.contains(n.id),
                               timeLabel: CeFormat.timeAgo(n.createdAt, now),
-                              onTap: () async {
-                                ref.read(notificationReadProvider.notifier).markRead(n.id);
-                                // An announcement is read in place.
-                                if (n.target case AnnouncementTarget(:final announcementId)) {
-                                  final a = await ref.read(announcementRepositoryProvider).byId(announcementId);
-                                  if (!context.mounted) return;
-                                  a == null
-                                      ? showCeToast(context, 'This announcement is no longer available.')
-                                      : await showAnnouncementSheet(context, a);
-                                  return;
-                                }
-                                final location = notificationLocation(n.target);
-                                if (location != null) context.go(location);
-                              },
+                              // Same action as the dashboard panel.
+                              onTap: () => openNotification(context, ref, n),
                             ),
                         ],
                     ]),

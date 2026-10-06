@@ -1,9 +1,20 @@
+import 'dart:math';
+
 import '../../core/models/models.dart';
+import '../../core/utils/validators.dart';
 import '../../demo/seed_data.dart';
 import '../repositories/repositories.dart';
 
 int _seq = 0;
 String _id(String prefix) => '${prefix}_${DateTime.now().microsecondsSinceEpoch}_${_seq++}';
+
+class _PendingReset {
+  _PendingReset({required this.accountId, required this.code, required this.expiresAt});
+  final String accountId;
+  final String code;
+  final DateTime expiresAt;
+  int attempts = 0;
+}
 
 /// Session-lifetime in-memory "backend" seeded from the prototype.
 class InMemoryAccountRepository implements AccountRepository {
@@ -34,6 +45,74 @@ class InMemoryAccountRepository implements AccountRepository {
     _passwords[accountId] = next;
     _changed.add(accountId);
     return true;
+  }
+
+  // ---- Forgot password ----
+
+  static const resetCodeLifetime = Duration(minutes: 10);
+  static const resetMaxAttempts = 5;
+
+  /// Pending resets by canonical identifier (03XXXXXXXXX / lower-case email).
+  final Map<String, _PendingReset> _resets = {};
+  final _random = Random.secure();
+
+  static String? _canonical(String identifier) {
+    final v = identifier.trim();
+    if (v.contains('@')) return v.toLowerCase();
+    return CeValidators.normalizePkPhone(v);
+  }
+
+  UserAccount? _accountFor(String key) => _accounts.values.where((a) {
+        final phone = a.phone == null ? null : CeValidators.normalizePkPhone(a.phone!);
+        return phone == key || a.email?.trim().toLowerCase() == key;
+      }).firstOrNull;
+
+  static String _mask(String key) => key.contains('@')
+      ? '${key[0]}•••${key.substring(key.indexOf('@'))}'
+      : '${key.substring(0, 4)} ••••• ${key.substring(key.length - 2)}';
+
+  @override
+  Future<PasswordResetTicket?> requestPasswordReset(String identifier, {required DateTime at}) async {
+    final key = _canonical(identifier);
+    final account = key == null ? null : _accountFor(key);
+    if (account == null) return null;
+    // A new request replaces the previous code (and its attempt count).
+    final code = (100000 + _random.nextInt(900000)).toString();
+    final expiresAt = at.add(resetCodeLifetime);
+    _resets[key!] = _PendingReset(accountId: account.id, code: code, expiresAt: expiresAt);
+    return PasswordResetTicket(destination: _mask(key), expiresAt: expiresAt, demoCode: code);
+  }
+
+  ResetCodeCheck _check(String identifier, String code, DateTime at) {
+    final key = _canonical(identifier);
+    final reset = key == null ? null : _resets[key];
+    if (reset == null) return ResetCodeCheck.noRequest;
+    if (!at.isBefore(reset.expiresAt)) return ResetCodeCheck.expired;
+    if (reset.attempts >= resetMaxAttempts) return ResetCodeCheck.tooManyAttempts;
+    if (code.trim() != reset.code) {
+      reset.attempts++;
+      return reset.attempts >= resetMaxAttempts ? ResetCodeCheck.tooManyAttempts : ResetCodeCheck.wrong;
+    }
+    return ResetCodeCheck.ok;
+  }
+
+  @override
+  Future<ResetCodeCheck> verifyResetCode(String identifier, String code, {required DateTime at}) async =>
+      _check(identifier, code, at);
+
+  @override
+  Future<ResetCodeCheck> resetPassword(String identifier, String code, String newPassword,
+      {required DateTime at}) async {
+    final check = _check(identifier, code, at);
+    if (check != ResetCodeCheck.ok) return check;
+    final reset = _resets.remove(_canonical(identifier))!;
+    final id = reset.accountId;
+    // From now on sign-in needs the new password (as after a Settings change).
+    _passwords[id] = newPassword;
+    _changed.add(id);
+    final a = _accounts[id]!;
+    _accounts[id] = a.copyWith(settings: a.settings.copyWith(passwordChangedAt: at));
+    return ResetCodeCheck.ok;
   }
 
   @override

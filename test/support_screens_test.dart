@@ -56,7 +56,8 @@ Future<TournamentRegistration> _register(ProviderContainer c, String tournamentI
 
 // ---- Widget harness -------------------------------------------------------
 
-Future<ProviderContainer> _pump(WidgetTester tester, {bool club = false, double width = 375}) async {
+Future<ProviderContainer> _pump(WidgetTester tester,
+    {bool club = false, double width = 375, List<dynamic> overrides = const []}) async {
   tester.view.physicalSize = Size(width * 3, 812 * 3);
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.reset);
@@ -66,6 +67,7 @@ Future<ProviderContainer> _pump(WidgetTester tester, {bool club = false, double 
     sharedPreferencesProvider.overrideWithValue(prefs),
     clockProvider.overrideWithValue(Clock.fixed(_now)),
     nowProvider.overrideWith((ref) => const Stream<DateTime>.empty()),
+    ...overrides.cast(),
   ]);
   addTearDown(c.dispose);
   await tester.pumpWidget(UncontrolledProviderScope(container: c, child: const CricEcoApp()));
@@ -232,24 +234,90 @@ void main() {
   });
 
   group('Support screens', () {
-    testWidgets('Player: bell → Notifications → the match; P16 row stays put; Mark all read', (tester) async {
+    testWidgets('Player: bell opens the panel over the dashboard → the match; P16 row stays put; Mark all read',
+        (tester) async {
       final c = await _pump(tester);
+      final home = _loc(c);
+      final panel = find.byKey(const Key('notifications.panel'));
       await tester.tap(find.byTooltip(RegExp('^Notifications, 4')));
       await tester.pumpAndSettle();
-      expect(_loc(c), Routes.notifications);
+      expect(panel, findsOneWidget);
+      expect(_loc(c), home, reason: 'a panel over the dashboard, no route change');
+      expect(find.descendant(of: panel, matching: find.text('4 new')), findsOneWidget);
+
+      // A non-navigating row is marked read and the panel stays (P16).
       await _tap(tester, find.bySemanticsLabel(RegExp('Tournament update: Spring Cup')));
-      expect(_loc(c), Routes.notifications, reason: 'non-navigating (P16)');
+      expect(_loc(c), home, reason: 'non-navigating (P16)');
+      expect(panel, findsOneWidget);
+      expect(find.descendant(of: panel, matching: find.text('3 new')), findsOneWidget);
+      expect(find.byKey(const Key('notifications.panel.dot.n_p4')), findsNothing);
+
+      // A navigating row closes the panel and opens its destination.
       await _tap(tester, find.bySemanticsLabel(RegExp('Match request from Shalimar CC')));
+      expect(panel, findsNothing);
       expect(_loc(c), Routes.playerMatchDetails('pm_1'));
       expect(c.read(activeRoleProvider), UserRole.player, reason: 'role context kept');
       await tester.tap(find.byTooltip('Back'));
       await tester.pumpAndSettle();
       expect(_loc(c), Routes.myMatches, reason: 'Back → the match\'s logical parent');
 
-      await _go(tester, c, Routes.notifications);
-      await _tap(tester, find.text('Mark all read'));
+      // Mark all read: dots and "N new" go, the bell badge updates, the panel stays open.
+      await _go(tester, c, home);
+      await tester.fling(find.byType(Scrollable).first, const Offset(0, 3000), 4000);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip(RegExp('^Notifications')));
+      await tester.pumpAndSettle();
+      await _tap(tester, find.byKey(const Key('notifications.panel.markAll')));
       expect(c.read(unreadNotificationCountProvider(UserRole.player)), 0);
-      expect(find.text('Mark all read'), findsNothing);
+      expect(panel, findsOneWidget, reason: 'stays open');
+      expect(find.byKey(const Key('notifications.panel.newBadge')), findsNothing);
+      expect(find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('notifications.panel.dot.')),
+          findsNothing);
+      expect(tester.widget<TextButton>(find.byKey(const Key('notifications.panel.markAll'))).onPressed, isNull);
+      expect(find.byTooltip('Notifications'), findsOneWidget, reason: 'bell badge cleared');
+
+      // Tap outside closes it; the dashboard is where it was.
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+      expect(panel, findsNothing);
+      expect(_loc(c), home);
+
+      // The Notifications screen stays for the sidebar / deep links.
+      await _go(tester, c, Routes.notifications);
+      expect(find.text('Match request from Shalimar CC'), findsOneWidget);
+    });
+
+    testWidgets('Club Owner: bell opens the same panel; join request, challenge and fixture rows still open', (tester) async {
+      final c = await _pump(tester, club: true);
+      final home = _loc(c);
+      final panel = find.byKey(const Key('notifications.panel'));
+      Future<void> openPanel() async {
+        await _go(tester, c, home);
+        await tester.fling(find.byType(Scrollable).first, const Offset(0, 3000), 4000);
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip(RegExp('^Notifications')));
+        await tester.pumpAndSettle();
+        expect(panel, findsOneWidget);
+        expect(_loc(c), home);
+      }
+
+      await openPanel();
+      final unread = c.read(unreadNotificationCountProvider(UserRole.clubOwner));
+      expect(find.descendant(of: panel, matching: find.text('$unread new')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('Match request')), findsNothing, reason: 'no Player items');
+      await _tap(tester, find.bySemanticsLabel(RegExp('New join request from Bilal Ahmed')));
+      expect(panel, findsNothing);
+      expect(_loc(c), Routes.joinRequestProfile('jr_1'));
+
+      await openPanel();
+      expect(find.descendant(of: panel, matching: find.text('${unread - 1} new')), findsOneWidget);
+      await _tap(tester, find.bySemanticsLabel(RegExp('Challenge received from DHA Bulls CC')));
+      expect(_loc(c), Routes.myChallenges);
+
+      await openPanel();
+      await _tap(tester, find.bySemanticsLabel(RegExp('Opponent completed their payment share')));
+      expect(_loc(c), Routes.matchManagement(MatchTab.scheduled));
+      expect(c.read(activeRoleProvider), UserRole.clubOwner);
     });
 
     testWidgets('Club Owner: notifications open the join request and My Challenges', (tester) async {
@@ -268,6 +336,63 @@ void main() {
       expect(c.read(activeRoleProvider), UserRole.clubOwner);
     });
 
+
+    testWidgets('notifications panel: empty state, no navigation', (tester) async {
+      final c = await _pump(tester, overrides: [
+        roleNotificationsProvider.overrideWith((ref, role) async => const <NotificationItem>[]),
+      ]);
+      final home = _loc(c);
+      await tester.tap(find.byTooltip('Notifications'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('notifications.panel.empty')), findsOneWidget);
+      expect(find.text('No notifications yet'), findsOneWidget);
+      expect(find.text("You're all caught up."), findsOneWidget);
+      expect(find.byKey(const Key('notifications.panel.newBadge')), findsNothing);
+      expect(tester.widget<TextButton>(find.byKey(const Key('notifications.panel.markAll'))).onPressed, isNull);
+      expect(_loc(c), home);
+      await tester.binding.handlePopRoute(); // system Back closes the panel
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('notifications.panel')), findsNothing);
+      expect(_loc(c), home);
+    });
+
+    for (final width in [320.0, 360.0, 375.0, 390.0, 414.0]) {
+      testWidgets('notifications panel fits at ${width.toInt()} px: many long items scroll, header stays', (tester) async {
+        final c = await _pump(tester, width: width, club: width.toInt().isEven);
+        final role = c.read(activeRoleProvider)!;
+        await c.read(notificationRepositoryProvider).deliver([
+          for (var i = 0; i < 24; i++)
+            NotificationItem(
+              id: 'n_long_$i',
+              role: role,
+              icon: 'swords',
+              title: 'Royal Rawalpindi Gymkhana Cricket & Sports Club of Excellence challenged you to a match $i',
+              subtitle: 'T20 · Sat, 3 Oct · Away at the Extraordinarily Long Named Cricket Ground, Islamabad',
+              createdAt: _now.subtract(Duration(minutes: i)),
+              tone: NotificationTone.green,
+            ),
+        ]);
+        c.invalidate(roleNotificationsProvider(role));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip(RegExp('^Notifications')));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'panel @ $width');
+        final panel = find.byKey(const Key('notifications.panel'));
+        final screen = tester.view.physicalSize.height / tester.view.devicePixelRatio;
+        expect(tester.getSize(panel).height, lessThanOrEqualTo(screen * 0.78 + 0.5), reason: 'max ~78% of the screen');
+        // Title, "N new" and Mark all read share one line.
+        final titleY = tester.getCenter(find.descendant(of: panel, matching: find.text('Notifications'))).dy;
+        expect(tester.getCenter(find.byKey(const Key('notifications.panel.newBadge'))).dy, closeTo(titleY, 2));
+        expect(tester.getCenter(find.byKey(const Key('notifications.panel.markAll'))).dy, closeTo(titleY, 2));
+        // The list scrolls under a fixed header.
+        final list = find.byKey(const Key('notifications.panel.list'));
+        await tester.drag(list, const Offset(0, -3000));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'scrolled @ $width');
+        expect(tester.getCenter(find.descendant(of: panel, matching: find.text('Notifications'))).dy, closeTo(titleY, 0.5));
+        expect(find.textContaining('match 0', findRichText: true), findsNothing, reason: 'scrolled past the top');
+      });
+    }
     testWidgets('Settings: role-aware Account, profile switch, Demo Mode, Log out', (tester) async {
       final c = await _pump(tester, club: true);
       await _go(tester, c, Routes.settings);
@@ -341,6 +466,47 @@ void main() {
       expect(c.read(currentAccountProvider)!.settings.twoStep, isTrue);
     });
 
+    testWidgets('Password & security: "Forgot current password?" resets it by code; you stay signed in',
+        (tester) async {
+      final c = await _pump(tester);
+      await _go(tester, c, Routes.securitySettings);
+      expect(find.text('Last changed 25 Sep 2026'), findsNothing);
+      await _tap(tester, find.byKey(const Key('security.forgot')));
+      expect(_loc(c), Routes.securitySettings, reason: 'a bottom sheet, no new screen');
+
+      // Locked to the signed-in account's own number.
+      final id = find.descendant(of: find.byKey(const Key('reset.identifier')), matching: find.byType(TextField));
+      expect(tester.widget<TextField>(id).controller!.text, '0312 9020000');
+      expect(tester.widget<TextField>(id).readOnly, isTrue);
+      await _tap(tester, _button('Send Code'));
+      expect(find.textContaining('0312 ••••• 00'), findsOneWidget);
+      expect(find.text('Change number or email'), findsNothing);
+      await _tap(tester, find.widgetWithText(OutlinedButton, 'Use code'));
+      await _tap(tester, _button('Verify Code'));
+
+      // Same rule as this screen: at least 8 characters.
+      expect(find.text('Use at least 8 characters.'), findsOneWidget);
+      await tester.enterText(find.byKey(const Key('reset.password')), 'short12');
+      await tester.enterText(find.byKey(const Key('reset.confirm')), 'short12');
+      await _tap(tester, _button('Reset Password'));
+      expect(find.text('Password must be at least 8 characters'), findsOneWidget);
+      await tester.enterText(find.byKey(const Key('reset.password')), 'brandnew99');
+      await tester.enterText(find.byKey(const Key('reset.confirm')), 'brandnew99');
+      await _tap(tester, _button('Reset Password'));
+
+      expect(find.text('Password reset. Use your new password next time you log in.'), findsOneWidget);
+      expect(_loc(c), Routes.securitySettings);
+      expect(c.read(sessionProvider).isAuthenticated, isTrue, reason: 'still signed in');
+      expect(find.text('Last changed 25 Sep 2026'), findsOneWidget);
+
+      // The new password is now the current one; the old one is not.
+      final s = c.read(sessionProvider.notifier);
+      expect(await s.changePassword(current: 'secret1', next: 'another999'), isFalse);
+      s.logout();
+      expect(await s.signIn(identifier: 'x', password: 'secret1'), isFalse);
+      expect(await s.signIn(identifier: 'x', password: 'brandnew99'), isTrue);
+    });
+
     testWidgets('Edit Profile validates, saves to the account and returns to My Profile', (tester) async {
       final c = await _pump(tester);
       await _go(tester, c, Routes.playerProfile);
@@ -388,7 +554,8 @@ void main() {
       expect(find.text('Post Requirement'), findsOneWidget);
       expect(find.text('Open Players'), findsNothing);
       final sidebar = [for (final g in RoleDestinations.club) for (final d in g.items) d.label];
-      expect(sidebar, contains('Find Player'));
+      // Find Player is a dashboard quick action now, not a sidebar entry.
+      expect(sidebar, isNot(contains('Find Player')));
       expect(sidebar, isNot(contains('Player Hunt')));
       await _tap(tester, _button('Post Player Requirement'));
       expect(find.text('Please select the role you need'), findsOneWidget);

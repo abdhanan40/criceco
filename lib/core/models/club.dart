@@ -39,6 +39,37 @@ class Club {
 
   String get displayShortName => shortName ?? name;
 
+  /// Edited club profile (Club Owner → Profile). Blank optional details are
+  /// cleared with [clearAddress] / [clearEmail] / [clearEstablished].
+  Club copyWith({
+    String? name,
+    String? ownerName,
+    String? city,
+    ClubType? type,
+    String? address,
+    String? email,
+    int? establishedYear,
+    bool clearAddress = false,
+    bool clearEmail = false,
+    bool clearEstablished = false,
+  }) =>
+      Club(
+        id: id,
+        name: name ?? this.name,
+        city: city ?? this.city,
+        type: type ?? this.type,
+        code: code,
+        // A renamed club drops the old short name rather than show a stale one.
+        shortName: name != null && name != this.name ? null : shortName,
+        hasLogo: hasLogo,
+        logoPath: logoPath,
+        ownerName: ownerName ?? this.ownerName,
+        address: clearAddress ? null : (address ?? this.address),
+        email: clearEmail ? null : (email ?? this.email),
+        homeGroundId: homeGroundId,
+        establishedYear: clearEstablished ? null : (establishedYear ?? this.establishedYear),
+      );
+
   /// Club picture set / changed / removed (the rest stays as created).
   Club withLogo(String? path) => Club(
         id: id,

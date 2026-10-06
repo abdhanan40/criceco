@@ -264,7 +264,7 @@ void main() {
       expect(c.read(activeRoleProvider), UserRole.clubOwner);
     });
 
-    testWidgets('My Challenges has no Accept / Decline; the Club Profile answers a pending challenge', (tester) async {
+    testWidgets('My Challenges: a card opens the challenge in a sheet, where a pending one is accepted or declined', (tester) async {
       final c = await _pumpOwner(tester);
       await _go(tester, c, Routes.myChallenges);
       expect(find.text('Awaiting your Decision'), findsOneWidget);
@@ -276,37 +276,36 @@ void main() {
         expect(_button(label), findsNothing, reason: 'no $label button on the list cards');
       }
 
-      // Pending incoming challenge → its club profile shows Decline / Accept.
+      // Awaiting your decision → a sheet with the details and Decline / Accept.
+      final sheet = find.byKey(const Key('challenge.sheet'));
       await _tap(tester, find.text('GOR Challengers'));
-      expect(_loc(c), Routes.clubProfile('club_gc', challengeId: 'ch_gc'));
-      expect(_button('Decline'), findsOneWidget);
-      expect(_button('Accept'), findsOneWidget);
-      expect(_button('Challenge This Club'), findsNothing, reason: 'replaced by the decision');
-      expect(tester.getRect(_button('Accept')).bottom, lessThanOrEqualTo(812), reason: 'pinned at the bottom');
+      expect(sheet, findsOneWidget);
+      expect(_loc(c), Routes.myChallenges, reason: 'a sheet, not a new screen');
+      expect(find.descendant(of: sheet, matching: find.text('Challenge received')), findsOneWidget);
+      expect(find.descendant(of: sheet, matching: _button('Decline')), findsOneWidget);
+      expect(find.descendant(of: sheet, matching: _button('Accept')), findsOneWidget);
 
       await _tap(tester, _button('Decline'));
+      expect(sheet, findsNothing);
       expect(find.text('Decline this challenge?'), findsOneWidget, reason: 'confirms first');
       await _tap(tester, _button('Decline Challenge'));
       expect(find.text('Challenge declined'), findsOneWidget);
       expect(c.read(challengeProvider('ch_gc'))!.status, ChallengeStatus.declined);
-      // Resolved: the status, no actions and no duplicate CTA.
-      expect(find.text('You declined this challenge'), findsOneWidget);
-      expect(find.text('DECLINED'), findsOneWidget);
-      expect(_button('Accept'), findsNothing);
-      expect(_button('Decline'), findsNothing);
-      expect(_button('Challenge This Club'), findsNothing);
-
-      await _clearToast(tester);
-      await tester.tap(find.byTooltip('Back'));
-      await tester.pumpAndSettle();
       expect(_loc(c), Routes.myChallenges);
+      await _clearToast(tester);
       expect(find.text('DECLINED'), findsOneWidget);
       expect(find.text('NEW'), findsOneWidget);
+      // A resolved challenge's sheet shows its status only.
+      await _tap(tester, find.text('GOR Challengers'));
+      expect(find.descendant(of: sheet, matching: find.text('DECLINED')), findsOneWidget);
+      expect(_button('Accept'), findsNothing);
+      expect(_button('Decline'), findsNothing);
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
 
       // Accept asks first; Cancel changes nothing.
       final before = c.read(clubMatchesProvider).value!.length;
       await _tap(tester, find.text('DHA Bulls CC'));
-      expect(_loc(c), Routes.clubProfile('club_db', challengeId: 'ch_db'));
       await _tap(tester, _button('Accept'));
       expect(find.text('Accept Challenge?'), findsOneWidget);
       expect(find.text('Are you sure you want to accept this match challenge?'), findsOneWidget);
@@ -314,11 +313,19 @@ void main() {
       expect(c.read(challengeProvider('ch_db'))!.status, ChallengeStatus.pending);
       expect(c.read(clubMatchesProvider).value!.length, before);
 
+      await _tap(tester, find.text('DHA Bulls CC'));
       await _tap(tester, _button('Accept'));
       await _tap(tester, _button('Accept Challenge'));
       expect(find.text('Challenge accepted!'), findsOneWidget);
       expect(_loc(c), Routes.matchManagement(MatchTab.waiting));
       expect(c.read(clubMatchesProvider).value!.length, before + 1);
+
+      // The club's full profile is still one tap away.
+      await _clearToast(tester);
+      await _go(tester, c, Routes.myChallenges);
+      await _tap(tester, find.text('Gulberg Tigers'));
+      await _tap(tester, _button('View Club Profile'));
+      expect(_loc(c), Routes.clubProfile('club_gt', challengeId: 'ch_gt'));
 
       // A resolved challenge opened from its card shows its status only.
       await _clearToast(tester);
@@ -529,10 +536,13 @@ void main() {
       expect(_loc(c), Routes.myChallenges);
       expect(find.text('Sent'), findsOneWidget);
       expect(find.text('AWAITING REPLY'), findsOneWidget);
-      // The sent card carries what was proposed, and opens the profile (no resend).
+      // The sent card carries what was proposed; its sheet leads to the profile (no resend).
       expect(find.text('Model Town Ground'), findsOneWidget);
       await _clearToast(tester);
       await _tap(tester, find.text('Karachi Kings CC'));
+      expect(find.byKey(const Key('challenge.sheet')), findsOneWidget);
+      expect(_button('Accept'), findsNothing, reason: 'a sent challenge is not answered here');
+      await _tap(tester, _button('View Club Profile'));
       final sent = c.read(challengesProvider).value!.last;
       expect(_loc(c), Routes.clubProfile('club_kk', challengeId: sent.id));
       expect(_button('Challenge Sent'), findsOneWidget);

@@ -105,6 +105,28 @@ enum PickOutcome { changed, locked, full }
   return (picks, PickOutcome.changed);
 }
 
+/// The same rule, choosing a role directly (Create Team sheet: XI / Sub /
+/// Not selected): locked players can't be picked, and Playing XI and
+/// substitutes stay within 11 + 4. `null` removes the player.
+(Map<String, SelectionRole>, PickOutcome) setSquadPick(
+  Map<String, SelectionRole> current,
+  SquadPlayer player,
+  SelectionRole? role,
+) {
+  if (current[player.id] == role) return (current, PickOutcome.changed);
+  final picks = Map.of(current);
+  if (role == null) {
+    picks.remove(player.id);
+    return (picks, PickOutcome.changed);
+  }
+  if (player.locked) return (current, PickOutcome.locked);
+  final taken = picks.entries.where((e) => e.key != player.id && e.value == role).length;
+  final cap = role == SelectionRole.playing ? SquadRules.maxPlaying : SquadRules.maxSubs;
+  if (taken >= cap) return (current, PickOutcome.full);
+  picks[player.id] = role;
+  return (picks, PickOutcome.changed);
+}
+
 /// Unsaved Add Players selection for one team. Kept for the session, so
 /// leaving and returning restores it (approved decision 5, default P5).
 class SquadDraft {

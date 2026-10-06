@@ -16,6 +16,7 @@ import '../../shared/widgets/ce_inputs.dart';
 import '../../shared/widgets/ce_rows.dart';
 import '../../shared/widgets/ce_surfaces.dart';
 import '../../shared/widgets/ce_top_bar.dart';
+import '../auth/forgot_password_sheet.dart';
 
 /// Back target when Settings has nothing to pop to: the active role's home.
 String _roleHome(WidgetRef ref) {
@@ -328,6 +329,27 @@ class _SecuritySettingsScreenState extends ConsumerState<SecuritySettingsScreen>
     context.go(Routes.settings);
   }
 
+  /// No current password: reset it with a code sent to this account's own
+  /// phone number / email (same sheet as Login). You stay signed in.
+  Future<void> _forgotPassword() async {
+    FocusScope.of(context).unfocus();
+    final account = ref.read(currentAccountProvider);
+    final identifier = account?.contactMethod == ContactMethod.email
+        ? (account?.email ?? account?.phone)
+        : (account?.phone ?? account?.email);
+    final done = await showForgotPasswordSheet(
+      context,
+      initialIdentifier: identifier,
+      lockIdentifier: true,
+      minPasswordLength: kNewPasswordMinLength,
+    );
+    if (done == null || !mounted) return;
+    _current.clear();
+    _next.clear();
+    setState(() => _currentError = null);
+    showCeToast(context, 'Password reset. Use your new password next time you log in.');
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(currentAccountProvider.select((a) => a?.settings)) ?? const AccountSettings();
@@ -359,6 +381,16 @@ class _SecuritySettingsScreenState extends ConsumerState<SecuritySettingsScreen>
                 ),
                 if (_currentError != null)
                   Padding(padding: const EdgeInsets.only(bottom: 10), child: CeInlineError(_currentError)),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    key: const Key('security.forgot'),
+                    onPressed: _saving ? null : _forgotPassword,
+                    style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
+                    child: const Text('Forgot current password?',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: CeColors.primaryDark)),
+                  ),
+                ),
                 const CeFieldLabel('New password'),
                 CeTextField(
                   fieldKey: const Key('security.new'),

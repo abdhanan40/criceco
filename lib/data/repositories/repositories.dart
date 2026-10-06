@@ -16,6 +16,16 @@ abstract interface class AccountRepository {
 
   /// `false` when [current] doesn't match the account's password.
   Future<bool> changePassword(String accountId, {required String current, required String next});
+
+  /// Forgot password: sends a 6-digit code to the account with this phone
+  /// number or email. `null` when no account matches.
+  Future<PasswordResetTicket?> requestPasswordReset(String identifier, {required DateTime at});
+
+  /// Checks a reset code without using it up.
+  Future<ResetCodeCheck> verifyResetCode(String identifier, String code, {required DateTime at});
+
+  /// Sets [newPassword] when [code] is still valid; the code is then used up.
+  Future<ResetCodeCheck> resetPassword(String identifier, String code, String newPassword, {required DateTime at});
 }
 
 abstract interface class ClubRepository {

@@ -62,8 +62,8 @@ void main() {
 
   testWidgets('drawer is not a route: Back after a drawer destination returns to the dashboard', (tester) async {
     final c = await _pumpApp(tester, clubOwner: true);
-    await _openDrawerAndTap(tester, 'Challenges');
-    expect(_location(c), Routes.challenges);
+    await _openDrawerAndTap(tester, 'My Club');
+    expect(_location(c), Routes.myClub);
     expect(find.byType(Drawer), findsNothing);
 
     await tester.tap(find.byTooltip('Back'));
@@ -72,9 +72,13 @@ void main() {
     expect(find.byType(Drawer), findsNothing, reason: 'Back must not reopen the drawer');
   });
 
-  testWidgets('club drawer "Tournaments" opens the hub', (tester) async {
+  testWidgets('club "Tournament" quick action opens the hub (no longer in the drawer)', (tester) async {
     final c = await _pumpApp(tester, clubOwner: true);
-    await _openDrawerAndTap(tester, 'Tournaments');
+    final tile = find.descendant(
+        of: find.byKey(const Key('club.quickActions')), matching: find.bySemanticsLabel('Tournament'));
+    await tester.scrollUntilVisible(tile, 150, scrollable: find.byType(Scrollable).first);
+    await tester.tap(tile);
+    await tester.pumpAndSettle();
     expect(_location(c), Routes.tournamentHub);
   });
 

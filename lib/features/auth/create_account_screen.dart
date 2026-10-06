@@ -65,97 +65,103 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: const CeTopBar(title: 'Create Account', fallbackLocation: Routes.signup),
       body: SingleChildScrollView(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        padding: const EdgeInsets.all(CeSpace.form),
-        child: Form(
-          key: _formKey,
-          child: AutofillGroup(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              const CenterBlock.brand(
-                title: 'Join Criceco',
-                subtitle: 'Create your profile to get started',
-              ),
-              // Credentials only: name, phone, date of birth and picture are
-              // the common profile, collected once on User Profile Setup.
-              const CeFieldLabel('Sign up with'),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Wrap(spacing: 8, runSpacing: 8, children: [
-                  CeChip(
-                    label: 'Phone Number',
-                    icon: 'phone',
-                    selected: _method == ContactMethod.phone,
-                    onTap: () => setState(() => _method = ContactMethod.phone),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          // Stadium header (as Login / Sign Up) with Back → Sign Up.
+          AuthBanner(
+            title: 'Join Criceco',
+            subtitle: 'Create your profile to get started',
+            stadiumPhoto: true,
+            onBack: () => CeTopBar.goBack(context, Routes.signup),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(CeSpace.form),
+            child: Form(
+              key: _formKey,
+              child: AutofillGroup(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  // Credentials only: name, phone, date of birth and picture are
+                  // the common profile, collected once on User Profile Setup.
+                  const CeFieldLabel('Sign up with'),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Wrap(spacing: 8, runSpacing: 8, children: [
+                      CeChip(
+                        label: 'Phone Number',
+                        icon: 'phone',
+                        selected: _method == ContactMethod.phone,
+                        onTap: () => setState(() => _method = ContactMethod.phone),
+                      ),
+                      CeChip(
+                        label: 'Email',
+                        icon: 'mail',
+                        selected: _method == ContactMethod.email,
+                        onTap: () => setState(() => _method = ContactMethod.email),
+                      ),
+                    ]),
                   ),
-                  CeChip(
-                    label: 'Email',
-                    icon: 'mail',
-                    selected: _method == ContactMethod.email,
-                    onTap: () => setState(() => _method = ContactMethod.email),
+                  if (_method == ContactMethod.phone) ...[
+                    const CeFieldLabel('Phone Number'),
+                    CeTextField(
+                      key: const ValueKey('phone-field'),
+                      fieldKey: const Key('signup.phone'),
+                      controller: _phone,
+                      hint: '03XX-XXXXXXX',
+                      icon: 'phone',
+                      keyboardType: TextInputType.phone,
+                      textInputAction: TextInputAction.next,
+                      autofillHints: const [AutofillHints.telephoneNumber],
+                      validator: CeValidators.pkPhone,
+                    ),
+                  ] else ...[
+                    const CeFieldLabel('Email Address'),
+                    CeTextField(
+                      key: const ValueKey('email-field'),
+                      fieldKey: const Key('signup.email'),
+                      controller: _email,
+                      hint: 'you@example.com',
+                      icon: 'mail',
+                      keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
+                      autofillHints: const [AutofillHints.email],
+                      validator: CeValidators.email,
+                    ),
+                  ],
+                  const CeFieldLabel('Password'),
+                  CeTextField(
+                    fieldKey: const Key('signup.password'),
+                    controller: _password,
+                    hint: 'Min 6 characters',
+                    icon: 'lock',
+                    obscure: true,
+                    textInputAction: TextInputAction.next,
+                    autofillHints: const [AutofillHints.newPassword],
+                    validator: CeValidators.password,
+                  ),
+                  const CeFieldLabel('Confirm Password'),
+                  CeTextField(
+                    fieldKey: const Key('signup.confirm'),
+                    controller: _confirm,
+                    hint: 'Re-enter password',
+                    icon: 'lock',
+                    obscure: true,
+                    textInputAction: TextInputAction.done,
+                    validator: (v) => CeValidators.confirmPassword(v, _password.text),
+                    onFieldSubmitted: (_) => _submit(),
+                  ),
+                  const SizedBox(height: 4),
+                  CeButton(label: 'Create Account', loading: _submitting, onPressed: _submit),
+                  CeSwitchLine(
+                    prompt: 'Already have an account?',
+                    action: 'Login',
+                    onTap: () => context.go(Routes.login),
                   ),
                 ]),
               ),
-              if (_method == ContactMethod.phone) ...[
-                const CeFieldLabel('Phone Number'),
-                CeTextField(
-                  key: const ValueKey('phone-field'),
-                  fieldKey: const Key('signup.phone'),
-                  controller: _phone,
-                  hint: '03XX-XXXXXXX',
-                  icon: 'phone',
-                  keyboardType: TextInputType.phone,
-                  textInputAction: TextInputAction.next,
-                  autofillHints: const [AutofillHints.telephoneNumber],
-                  validator: CeValidators.pkPhone,
-                ),
-              ] else ...[
-                const CeFieldLabel('Email Address'),
-                CeTextField(
-                  key: const ValueKey('email-field'),
-                  fieldKey: const Key('signup.email'),
-                  controller: _email,
-                  hint: 'you@example.com',
-                  icon: 'mail',
-                  keyboardType: TextInputType.emailAddress,
-                  textInputAction: TextInputAction.next,
-                  autofillHints: const [AutofillHints.email],
-                  validator: CeValidators.email,
-                ),
-              ],
-              const CeFieldLabel('Password'),
-              CeTextField(
-                fieldKey: const Key('signup.password'),
-                controller: _password,
-                hint: 'Min 6 characters',
-                icon: 'lock',
-                obscure: true,
-                textInputAction: TextInputAction.next,
-                autofillHints: const [AutofillHints.newPassword],
-                validator: CeValidators.password,
-              ),
-              const CeFieldLabel('Confirm Password'),
-              CeTextField(
-                fieldKey: const Key('signup.confirm'),
-                controller: _confirm,
-                hint: 'Re-enter password',
-                icon: 'lock',
-                obscure: true,
-                textInputAction: TextInputAction.done,
-                validator: (v) => CeValidators.confirmPassword(v, _password.text),
-                onFieldSubmitted: (_) => _submit(),
-              ),
-              const SizedBox(height: 4),
-              CeButton(label: 'Create Account', loading: _submitting, onPressed: _submit),
-              CeSwitchLine(
-                prompt: 'Already have an account?',
-                action: 'Login',
-                onTap: () => context.go(Routes.login),
-              ),
-            ]),
+            ),
           ),
-        ),
+        ]),
       ),
     );
   }

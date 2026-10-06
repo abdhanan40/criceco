@@ -9,18 +9,164 @@ import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/validators.dart';
 import '../../../demo/seed_data.dart';
+import '../../../shared/media/photo_picker.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_inputs.dart';
+import '../../club/club_providers.dart';
+import '../../club/teams/teams_controller.dart';
 import '../../membership/join_club_controller.dart';
 
-/// Join Club (Player Dashboard quick action): the existing join-by-code
-/// request ([joinClubProvider]) from a sheet. The standalone Join a Club route
-/// stays for compatibility; this is a faster entry point with a club preview.
-Future<void> showJoinClubSheet(BuildContext context) =>
-    showCeSheet<void>(context, builder: (_) => const _JoinClubSheet());
+/// Player bottom nav → Club: one sheet that follows the player's membership,
+/// updating live — not in a club → Join a Club (code → preview → request);
+/// a request waiting → its pending state; a member → My Club.
+Future<void> showClubSheet(BuildContext context) =>
+    showCeSheet<void>(context, builder: (_) => const _ClubSheet());
 
+class _ClubSheet extends ConsumerWidget {
+  const _ClubSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final memberships = ref.watch(currentAccountProvider)?.memberships ?? const <ClubMembership>[];
+    final ownClub = ref.watch(currentClubProvider);
+    if (memberships.isEmpty && ownClub == null) return const _JoinClubSheet();
+    return Column(
+      key: const Key('club.sheet.myClub'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('My Club', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 12),
+        for (final m in memberships) ...[_JoinedClubCard(membership: m), const SizedBox(height: 10)],
+        if (ownClub != null) ...[_OwnClubCard(club: ownClub), const SizedBox(height: 10)],
+        const SizedBox(height: 4),
+        CeButton.soft(label: 'Close', onPressed: () => Navigator.of(context).pop()),
+      ],
+    );
+  }
+}
+
+/// A club joined by code: the membership plus what the club's code reveals.
+class _JoinedClubCard extends ConsumerWidget {
+  const _JoinedClubCard({required this.membership});
+  final ClubMembership membership;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final m = membership;
+    final preview = ref.watch(clubPreviewProvider(m.clubCode)).value;
+    return _MyClubCard(
+      key: Key('club.sheet.joined.${m.clubCode}'),
+      name: m.clubName,
+      subtitle: [if (preview?.city != null) preview!.city!, if (preview?.type != null) preview!.type!.label].join(' · '),
+      rows: [
+        ('user', 'Your role', m.role.label),
+        ('key', 'Club code', m.clubCode),
+        if (preview?.memberCount != null) ('users', 'Members', '${preview!.memberCount}'),
+      ],
+    );
+  }
+}
+
+/// The club this account owns (it is also a member of it).
+class _OwnClubCard extends ConsumerWidget {
+  const _OwnClubCard({required this.club});
+  final Club club;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final members = ref.watch(clubMembersProvider).value ?? const <ClubMember>[];
+    final teams = ref.watch(teamsProvider).value ?? const <Team>[];
+    final owner = members.where((m) => m.role == MemberRole.owner).firstOrNull?.name ?? club.ownerName;
+    final coaches = [for (final m in members) if (m.role == MemberRole.coach) m.name];
+    return _MyClubCard(
+      key: Key('club.sheet.own.${club.code}'),
+      name: club.name,
+      logoPath: club.logoPath,
+      subtitle: [
+        club.city,
+        club.type.label,
+        if (club.establishedYear != null) 'Est. ${club.establishedYear}',
+      ].join(' · '),
+      rows: [
+        ('crown', 'Your role', 'Club Owner'),
+        ('key', 'Club code', club.code),
+        if (owner != null && owner.trim().isNotEmpty) ('shield', 'Owner', owner),
+        if (coaches.isNotEmpty) ('clipboard-list', coaches.length == 1 ? 'Coach' : 'Coaches', coaches.join(', ')),
+        if (members.isNotEmpty) ('users', 'Members', '${members.length}'),
+        if (teams.isNotEmpty) ('shield', 'Teams', '${teams.length} · ${teams.map((t) => t.name).join(', ')}'),
+      ],
+    );
+  }
+}
+
+/// Read-only club summary: picture / badge, name, details, labelled rows.
+class _MyClubCard extends StatelessWidget {
+  const _MyClubCard({super.key, required this.name, required this.subtitle, required this.rows, this.logoPath});
+  final String name;
+  final String subtitle;
+  final String? logoPath;
+  final List<(String, String, String)> rows; // icon, label, value
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(CeRadius.lg),
+          border: Border.all(color: CeColors.line),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            CePhotoImage(
+              path: logoPath,
+              size: 48,
+              fallback: Container(
+                width: 48,
+                height: 48,
+                decoration: const BoxDecoration(color: CeColors.mint, shape: BoxShape.circle),
+                child: Icon(CeIcons.of('shield'), size: 21, color: CeColors.primaryDark),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: CeColors.ink)),
+                if (subtitle.isNotEmpty)
+                  Text(subtitle, style: const TextStyle(fontSize: 12, color: CeColors.muted)),
+              ]),
+            ),
+          ]),
+          const SizedBox(height: 10),
+          for (final (icon, label, value) in rows)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(CeIcons.of(icon), size: 14, color: CeColors.muted),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 82,
+                  child: Text(label, style: const TextStyle(fontSize: 12, color: CeColors.muted)),
+                ),
+                Expanded(
+                  child: Text(value,
+                      key: Key('club.sheet.row.$label'),
+                      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: CeColors.ink2)),
+                ),
+              ]),
+            ),
+        ]),
+      );
+}
+
+/// Join a Club (inside the Player's Club sheet): the existing join-by-code
+/// request ([joinClubProvider]) with a club preview. The standalone Join a
+/// Club route stays for compatibility.
 class _JoinClubSheet extends ConsumerStatefulWidget {
   const _JoinClubSheet();
 
@@ -83,7 +229,7 @@ class _JoinClubSheetState extends ConsumerState<_JoinClubSheet> {
     final shapeError = _code.text.isEmpty ? null : CeValidators.clubCode(_code.text);
 
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
-      Text('Join Club', style: Theme.of(context).textTheme.titleLarge),
+      Text('Join a Club', style: Theme.of(context).textTheme.titleLarge),
       const SizedBox(height: 4),
       const Text('Enter the club code your club owner shared with you.',
           style: TextStyle(fontSize: 12.5, color: CeColors.muted, height: 1.4)),
@@ -188,7 +334,7 @@ class _PendingRequest extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
-        Text('Join Club', style: Theme.of(context).textTheme.titleLarge),
+        Text('Join a Club', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 12),
         Container(
           key: const Key('joinClub.pending'),

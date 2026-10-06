@@ -183,11 +183,12 @@ final List<RouteBase> appRoutes = [
     GoRoute(path: 'approved', builder: (_, _) => const JoinApprovedScreen()),
   ]),
 
-  // ---- Player shell: Home · Matches · Availability · Performance ----
-  // My Profile stays at /player/profile inside the Home branch (reached from
-  // the dashboard avatar and the sidebar).
+  // ---- Player shell: branches Home · Matches · Availability · Performance ----
+  // The bottom nav shows Home · Matches · Club (a sheet) · Profile (My Profile
+  // at /player/profile inside the Home branch). Availability and Performance
+  // keep their branches, reached from the quick actions and the sidebar.
   StatefulShellRoute.indexedStack(
-    builder: (_, _, shell) => RoleShellScaffold(shell: shell, items: RoleNavItems.player),
+    builder: (_, s, shell) => RoleShellScaffold(shell: shell, items: RoleNavItems.player, location: s.uri.path),
     branches: [
       StatefulShellBranch(routes: [
         GoRoute(
@@ -241,7 +242,7 @@ final List<RouteBase> appRoutes = [
   // My Club stays at /club/my-club inside the Home branch (reached from the
   // dashboard header and the sidebar).
   StatefulShellRoute.indexedStack(
-    builder: (_, _, shell) => RoleShellScaffold(shell: shell, items: RoleNavItems.club),
+    builder: (_, s, shell) => RoleShellScaffold(shell: shell, items: RoleNavItems.club, location: s.uri.path),
     branches: [
       StatefulShellBranch(routes: [
         GoRoute(

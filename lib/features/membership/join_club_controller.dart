@@ -44,3 +44,8 @@ class JoinClubController extends Notifier<ClubJoinRequest?> {
 }
 
 final joinClubProvider = NotifierProvider<JoinClubController, ClubJoinRequest?>(JoinClubController.new);
+
+/// A club's public details by code (Club sheet: the club a player joined).
+final clubPreviewProvider = FutureProvider.family<ClubCodePreview?, String>(
+  (ref, code) => ref.read(clubRepositoryProvider).findClubByCode(code),
+);

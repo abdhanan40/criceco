@@ -9,8 +9,13 @@ import 'package:criceco/core/models/models.dart';
 import 'package:criceco/core/utils/formatters.dart';
 import 'package:criceco/features/club/club_providers.dart';
 import 'package:criceco/features/club/requests/join_requests_controller.dart';
+import 'package:criceco/features/club/screens/join_requests_screen.dart';
+import 'package:criceco/features/club/screens/members_screen.dart';
+import 'package:criceco/features/club/teams/team_suggestion.dart';
 import 'package:criceco/features/club/teams/teams_controller.dart';
 import 'package:criceco/features/club/widgets/club_insights.dart';
+import 'package:criceco/features/club/widgets/squad_widgets.dart';
+import 'package:criceco/features/fitness/fitness_providers.dart';
 import 'package:criceco/features/matches/club_matches_controller.dart';
 import 'package:criceco/features/matches/screens/match_management_screen.dart';
 import 'package:criceco/features/notifications/notifications_controller.dart';
@@ -70,6 +75,13 @@ Future<void> _tap(WidgetTester tester, Finder f) async {
 
 Finder _button(String label) => find.widgetWithText(CeButton, label);
 
+/// The Create Team sheet's vertical list (not its horizontal chip rows).
+final _sheetList = find
+    .descendant(
+        of: find.byKey(const Key('createTeam.sheet')),
+        matching: find.byWidgetPredicate((w) => w is Scrollable && w.axisDirection == AxisDirection.down))
+    .first;
+
 class _Picker implements PhotoPicker {
   _Picker(this.onPick);
   final Future<String?> Function() onPick;
@@ -83,7 +95,7 @@ Finder _fileImage(String path) =>
 
 void main() {
   group('Club Owner Dashboard', () {
-    testWidgets('hero: greeting, glass club card with real identity, chips and club stats; next match', (tester) async {
+    testWidgets('hero: greeting, glass club card with real identity, chips and the match record; next match', (tester) async {
       final c = await _pumpOwner(tester);
       final club = c.read(currentClubProvider)!;
       final hero = find.byKey(const Key('club.hero'));
@@ -100,13 +112,16 @@ void main() {
       expect(find.descendant(of: card, matching: find.text('Club Owner')), findsOneWidget);
       expect(find.descendant(of: card, matching: find.text('Code 35HLWZ')), findsOneWidget);
       expect(find.textContaining('Verified'), findsNothing, reason: 'no verified state exists');
-      // Members 21 · Teams 2 · Upcoming · Requests 3 (seed: owner, 18 players, 2 staff).
-      final upcoming = c.read(upcomingClubMatchesProvider).length;
+      // The match record from completed club matches (seed: one, "Won by 18 runs").
       final stats = find.byKey(const Key('club.stats'));
-      for (final (value, label) in [('21', 'Members'), ('2', 'Teams'), ('$upcoming', 'Upcoming'), ('3', 'Requests')]) {
-        expect(find.descendant(of: stats, matching: find.text(label)), findsOneWidget, reason: label);
-        expect(find.descendant(of: stats, matching: find.text(value)), findsOneWidget, reason: label);
+      expect([for (final t in tester.widgetList<Text>(find.descendant(of: stats, matching: find.byType(Text)))) t.data],
+          ['1', 'Played', '1', 'Won', '0', 'Lost', '100%', 'Win Rate']);
+      // Members 21 · Teams 2 · Requests 3 sit above the quick actions (seed: owner, 18 players, 2 staff).
+      for (final (label, value) in [('Members', '21'), ('Teams', '2'), ('Requests', '3')]) {
+        expect(find.bySemanticsLabel('$label, $value'), findsOneWidget, reason: label);
       }
+      expect(tester.getTopLeft(find.byKey(const Key('club.overview'))).dy,
+          lessThan(tester.getTopLeft(find.byKey(const Key('club.quickActions'))).dy));
       expect(find.byType(CeStatGroup), findsNothing, reason: 'the old summary card moved into the hero');
       await tester.scrollUntilVisible(find.text('BS CS XI'), 150, scrollable: find.byType(Scrollable).first);
       expect(find.text('Shalimar Cricket Club vs Karachi Kings CC'), findsOneWidget);
@@ -127,20 +142,166 @@ void main() {
       expect(find.text('Club code copied!'), findsOneWidget);
     });
 
-    testWidgets('pending requests banner opens Requests; hero stats are information, the card opens My Club', (tester) async {
+    testWidgets('Requests: banner and tile open the Requests sheet; accept from the sheet; no new screen', (tester) async {
       final c = await _pumpOwner(tester);
+      final home = _loc(c);
+      final sheet = find.byKey(const Key('requests.sheet'));
       expect(find.bySemanticsLabel('3 join requests waiting. Review'), findsOneWidget);
       await _tap(tester, find.bySemanticsLabel('3 join requests waiting. Review'));
-      expect(_loc(c), Routes.joinRequests);
-      // The stats sit on the card (no buttons of their own): tapping one opens My Club.
-      await _go(tester, c, Routes.clubHome);
-      await tester.fling(find.byType(Scrollable).first, const Offset(0, 3000), 4000); // branch keeps its offset
+      expect(sheet, findsOneWidget);
+      expect(_loc(c), home, reason: 'a sheet over the dashboard');
+      expect(find.descendant(of: sheet, matching: find.byType(JoinRequestRow)), findsNWidgets(3));
+      await tester.tap(find.descendant(of: sheet, matching: find.byTooltip(RegExp('^Accept'))).first);
       await tester.pumpAndSettle();
-      final stats = find.byKey(const Key('club.stats'));
-      expect(find.descendant(of: stats, matching: find.byType(InkWell)), findsNothing);
-      await tester.tap(find.descendant(of: stats, matching: find.text('Members')));
+      expect(find.text('Approve this request?'), findsOneWidget);
+      await _tap(tester, _button('Approve'));
+      expect(c.read(pendingJoinRequestCountProvider), 2);
+      expect(find.descendant(of: sheet, matching: find.byType(JoinRequestRow)), findsNWidgets(2));
+      await _tap(tester, find.descendant(of: sheet, matching: find.text('Approved')));
+      expect(find.descendant(of: sheet, matching: find.byType(JoinRequestRow)), findsOneWidget, reason: 'tabs in the sheet');
+      await tester.tapAt(const Offset(10, 10));
       await tester.pumpAndSettle();
-      expect(_loc(c), Routes.myClub);
+      expect(sheet, findsNothing);
+      // The tile opens the same sheet.
+      await _tap(tester, find.bySemanticsLabel('Requests, 2'));
+      expect(sheet, findsOneWidget);
+      expect(_loc(c), home);
+    });
+
+
+    for (final width in [320.0, 360.0, 375.0, 390.0, 414.0]) {
+      testWidgets('dashboard sheets (Members, member, Teams, Requests, club profile, challenge) fit at ${width.toInt()} px',
+          (tester) async {
+        final c = await _pumpOwner(tester, width: width, clubName: 'Royal Rawalpindi Gymkhana Cricket & Sports Club of Excellence');
+        expect(tester.takeException(), isNull, reason: 'dashboard @ $width');
+        Future<void> close() async {
+          await tester.tapAt(const Offset(10, 10));
+          await tester.pumpAndSettle();
+        }
+
+        await _tap(tester, find.byKey(const Key('club.overview.Members')));
+        expect(tester.takeException(), isNull, reason: 'members @ $width');
+        await tester.tap(find.byTooltip(RegExp('^Filter members')));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'member filters @ $width');
+        await close();
+        await tester.tap(find.byType(MemberRow).first);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'member profile @ $width');
+        await close();
+        await close();
+        await _tap(tester, find.byKey(const Key('club.overview.Teams')));
+        expect(tester.takeException(), isNull, reason: 'teams @ $width');
+        await close();
+        await _tap(tester, find.byKey(const Key('club.overview.Requests')));
+        expect(tester.takeException(), isNull, reason: 'requests @ $width');
+        await close();
+        await tester.tap(find.descendant(of: find.byType(CeBottomNav), matching: find.bySemanticsLabel('Profile')));
+        await tester.pumpAndSettle();
+        await _tap(tester, find.byKey(const Key('clubProfile.editButton')));
+        await tester.enterText(find.byKey(const Key('clubProfile.name')), '');
+        await _tap(tester, _button('Save Changes'));
+        expect(tester.takeException(), isNull, reason: 'club profile edit @ $width');
+        await close();
+        await _go(tester, c, Routes.myChallenges);
+        await _tap(tester, find.text('DHA Bulls CC'));
+        expect(tester.takeException(), isNull, reason: 'challenge sheet @ $width');
+      });
+    }
+    testWidgets('Members tile: the members list in a sheet; a member opens their profile in a sheet', (tester) async {
+      final c = await _pumpOwner(tester);
+      final home = _loc(c);
+      final members = await c.read(clubMembersProvider.future);
+      await _tap(tester, find.bySemanticsLabel('Members, ${members.length}'));
+      final sheet = find.byKey(const Key('members.sheet'));
+      expect(sheet, findsOneWidget);
+      expect(_loc(c), home, reason: 'no Members screen');
+      // Search narrows the list (same rules as before).
+      await tester.enterText(find.descendant(of: sheet, matching: find.byType(TextField)), 'Kamran');
+      await tester.pumpAndSettle();
+      expect(find.descendant(of: sheet, matching: find.byType(MemberRow)), findsOneWidget);
+      // The fitness filters open as a sheet too.
+      await tester.tap(find.byTooltip(RegExp('^Filter members')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('members.filters')), findsOneWidget);
+      await _tap(tester, _button('Apply'));
+      // A member → their profile, on top.
+      final row = find.descendant(of: sheet, matching: find.byType(MemberRow));
+      final name = tester.widget<MemberRow>(row).member.name;
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+      final profile = find.byKey(const Key('memberProfile.sheet'));
+      expect(profile, findsOneWidget);
+      expect(find.descendant(of: profile, matching: find.text(name)), findsWidgets);
+      expect(_loc(c), home);
+      // The Members screen still exists for old links.
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+      await _go(tester, c, Routes.members);
+      expect(find.text('Members'), findsWidgets);
+    });
+
+    testWidgets('Teams tile: teams in a sheet; New Team offers T20, ODI, Test, Custom', (tester) async {
+      final c = await _pumpOwner(tester);
+      final home = _loc(c);
+      await _tap(tester, find.bySemanticsLabel('Teams, 2'));
+      final sheet = find.byKey(const Key('teams.sheet'));
+      expect(sheet, findsOneWidget);
+      expect(_loc(c), home);
+      expect(find.descendant(of: sheet, matching: find.text('BS CS XI')), findsOneWidget);
+      expect(find.descendant(of: sheet, matching: find.text('BS IT XI')), findsOneWidget);
+      await _tap(tester, find.descendant(of: sheet, matching: find.bySemanticsLabel(RegExp('^Create New Team'))));
+      final chips = [
+        for (final f in ['T20', 'ODI', 'Test', 'Custom']) tester.getTopLeft(find.widgetWithText(CeChip, f)),
+      ];
+      expect([for (final p in chips) p.dx], orderedEquals([...chips.map((p) => p.dx)]..sort()), reason: 'in this order');
+      expect(find.widgetWithText(CeChip, 'T10'), findsNothing);
+      await tester.enterText(find.byKey(const Key('teams.name')), 'Weekend XI');
+      await _tap(tester, find.widgetWithText(CeChip, 'ODI'));
+      await _tap(tester, _button('Create Team'));
+      final made = (await c.read(teamsProvider.future)).firstWhere((t) => t.name == 'Weekend XI');
+      expect(made.format, MatchFormat.odi);
+    });
+
+    testWidgets('hero card and Profile tab open the club profile sheet; Edit saves the club', (tester) async {
+      final c = await _pumpOwner(tester);
+      final home = _loc(c);
+      await tester.tap(find.descendant(of: find.byKey(const Key('club.header')), matching: find.text('Shalimar Cricket Club')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('clubProfile.view')), findsOneWidget);
+      expect(_loc(c), home, reason: 'a sheet, not My Club');
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+
+      final nav = find.byType(CeBottomNav);
+      await tester.tap(find.descendant(of: nav, matching: find.bySemanticsLabel('Profile')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('clubProfile.view')), findsOneWidget);
+      await _tap(tester, find.byKey(const Key('clubProfile.editButton')));
+      expect(find.byKey(const Key('clubProfile.edit')), findsOneWidget);
+      await tester.enterText(find.byKey(const Key('clubProfile.name')), '');
+      await tester.enterText(find.byKey(const Key('clubProfile.year')), '1700');
+      await tester.enterText(find.byKey(const Key('clubProfile.email')), 'not-an-email');
+      await _tap(tester, _button('Save Changes'));
+      expect(find.text('Club name is required'), findsOneWidget);
+      expect(find.textContaining('Enter a year between 1850'), findsOneWidget);
+      expect(find.text('Enter a valid email address'), findsOneWidget);
+      await tester.enterText(find.byKey(const Key('clubProfile.name')), 'Shalimar Lions CC');
+      await tester.enterText(find.byKey(const Key('clubProfile.year')), '2015');
+      await tester.enterText(find.byKey(const Key('clubProfile.email')), 'hello@shalimar.pk');
+      await tester.enterText(find.byKey(const Key('clubProfile.address')), 'G-9 Markaz, Islamabad');
+      await _tap(tester, _button('Save Changes'));
+      expect(find.text('Club profile updated'), findsOneWidget);
+      final club = c.read(currentClubProvider)!;
+      expect((club.name, club.establishedYear, club.email, club.address, club.code),
+          ('Shalimar Lions CC', 2015, 'hello@shalimar.pk', 'G-9 Markaz, Islamabad', '35HLWZ'));
+      expect(find.byKey(const Key('clubProfile.view')), findsOneWidget, reason: 'back to the profile');
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+      expect(find.descendant(of: find.byKey(const Key('club.card')), matching: find.text('Shalimar Lions CC')), findsOneWidget);
+      expect(_loc(c), home);
     });
 
     for (final width in [320.0, 360.0, 375.0, 390.0, 414.0]) {
@@ -149,7 +310,7 @@ void main() {
         expect(tester.takeException(), isNull, reason: 'hero @ $width');
         final stats = find.byKey(const Key('club.stats'));
         final tops = {
-          for (final l in ['Members', 'Teams', 'Upcoming', 'Requests'])
+          for (final l in ['Played', 'Won', 'Lost', 'Win Rate'])
             tester.getTopLeft(find.descendant(of: stats, matching: find.text(l))).dy,
         };
         expect(tops, hasLength(1), reason: 'four stats in one row @ $width');
@@ -182,19 +343,18 @@ void main() {
         for (final s in tester.widgetList<Semantics>(find.descendant(of: grid, matching: find.byType(Semantics))))
           if (s.properties.button == true && s.properties.label != null) s.properties.label!,
       ];
-      expect(tiles, ['Requests', 'Challenges', 'Find Player', 'Tournament', 'Announcement']);
-      for (final nav in ['Members', 'Teams', 'Upcoming Matches']) {
-        expect(tiles, isNot(contains(nav)), reason: '$nav is a bottom-nav tab');
+      expect(tiles, ['Challenges', 'Find Player', 'Tournament', 'Announcement']);
+      for (final nav in ['Requests', 'Members', 'Teams', 'Upcoming Matches']) {
+        expect(tiles, isNot(contains(nav)), reason: '$nav is not a quick action');
       }
-      // Five tiles lay out 3 + 2 (never 4 + a lone tile).
+      // Four tiles: a balanced 2 × 2.
       Finder tile(String l) => find.descendant(of: grid, matching: find.bySemanticsLabel(l));
-      final firstRow = tester.getTopLeft(tile('Requests')).dy;
-      expect([for (final l in ['Challenges', 'Find Player']) tester.getTopLeft(tile(l)).dy], [firstRow, firstRow]);
+      final firstRow = tester.getTopLeft(tile('Challenges')).dy;
+      expect(tester.getTopLeft(tile('Find Player')).dy, firstRow);
       final secondRow = tester.getTopLeft(tile('Tournament')).dy;
       expect(secondRow, greaterThan(firstRow));
       expect(tester.getTopLeft(tile('Announcement')).dy, secondRow);
       for (final (label, route) in [
-        ('Requests', Routes.joinRequests),
         ('Challenges', Routes.challenges),
         ('Find Player', Routes.playerHunt),
         ('Tournament', Routes.tournamentHub),
@@ -644,10 +804,12 @@ void main() {
       }
     });
 
-    testWidgets('My Club (from the dashboard header) shows club identity, stats and members', (tester) async {
+    testWidgets('My Club (from the sidebar) shows club identity, stats and members', (tester) async {
       final c = await _pumpOwner(tester);
-      expect(find.bySemanticsLabel(RegExp(r'^Open My Club, Shalimar Cricket Club')), findsOneWidget);
-      await tester.tap(find.descendant(of: find.byKey(const Key('club.header')), matching: find.text('Shalimar Cricket Club')));
+      expect(find.bySemanticsLabel(RegExp(r'^Open club profile, Shalimar Cricket Club')), findsOneWidget);
+      await tester.tap(find.byTooltip('Open menu'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.descendant(of: find.byType(Drawer), matching: find.text('My Club')));
       await tester.pumpAndSettle();
       expect(_loc(c), Routes.myClub);
       expect(find.text('Club 35HLWZ · Islamabad'), findsOneWidget);
@@ -659,13 +821,148 @@ void main() {
   });
 
   group('Club Owner navigation', () {
-    testWidgets('Bottom nav: Home · Matches · Teams · Members; Matches is Match Management; My Club via sidebar',
+    testWidgets('center "+": a raised button that opens the Create Team sheet (no route change)', (tester) async {
+      final c = await _pumpOwner(tester);
+      final home = _loc(c);
+      final nav = find.byType(CeBottomNav);
+      final plus = find.byKey(const Key('nav.center'));
+      Finder tab(String l) => find.descendant(of: nav, matching: find.bySemanticsLabel(l));
+      expect(plus, findsOneWidget);
+      final rect = tester.getRect(plus);
+      expect(rect.top, lessThan(tester.getRect(tab('Home')).top), reason: 'raised');
+      expect(rect.left, greaterThan(tester.getRect(tab('Matches')).right));
+      expect(rect.right, lessThan(tester.getRect(tab('Teams')).left));
+      expect(tester.getRect(nav).top, lessThanOrEqualTo(rect.top), reason: 'inside the nav, never over content');
+      await tester.tap(plus);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('createTeam.sheet')), findsOneWidget);
+      expect(_loc(c), home);
+      expect(tester.widget<CeBottomNav>(nav).currentIndex, 0, reason: 'never a selected tab');
+    });
+
+    testWidgets('Create Team sheet: name + format, pick XI / Sub with the squad limits, Suggest Team, create', (tester) async {
+      final c = await _pumpOwner(tester);
+      final pool = await c.read(clubPlayerPoolProvider.future);
+      final before = (await c.read(teamsProvider.future)).length;
+      await tester.tap(find.byKey(const Key('nav.center')));
+      await tester.pumpAndSettle();
+      bool createEnabled() => tester.widget<CeButton>(find.byKey(const Key('createTeam.create'))).onPressed != null;
+      Finder choice(SquadPlayer p, String which) => find.byKey(Key('createTeam.choice.${p.id}.$which'));
+      Future<void> pick(SquadPlayer p, String which) async {
+        // Hit-testable: on screen in the list, not hidden behind the pinned buttons.
+        final f = choice(p, which).hitTestable();
+        await tester.dragUntilVisible(f, _sheetList, const Offset(0, -120));
+        await tester.pumpAndSettle();
+        await tester.tap(f);
+        await tester.pumpAndSettle();
+      }
+
+      String pill(String label) => (tester.widget<SquadPill>(find.byKey(Key('createTeam.balance.$label')))).label;
+
+      // Disabled until the team has a name (T20 is preselected).
+      expect(createEnabled(), isFalse);
+      await tester.enterText(find.byKey(const Key('createTeam.name')), 'Weekend XI');
+      await tester.pumpAndSettle();
+      expect(createEnabled(), isTrue);
+      // Custom needs valid overs.
+      await _tap(tester, find.widgetWithText(CeChip, 'Custom'));
+      expect(createEnabled(), isFalse);
+      await tester.enterText(find.byKey(const Key('createTeam.overs')), '25');
+      await tester.pumpAndSettle();
+      expect(createEnabled(), isTrue);
+      await _tap(tester, find.widgetWithText(CeChip, 'ODI'));
+
+      // Pick directly: Playing XI / Substitute / Not selected, with live counts and balance.
+      final open = pool.where((p) => !p.locked).toList();
+      final locked = pool.firstWhere((p) => p.locked);
+      await pick(open[0], 'playing');
+      await pick(open[1], 'sub');
+      String footer() => tester.widget<Text>(find.byKey(const Key('createTeam.footerSummary'))).data!;
+      expect(footer(), 'XI 1/11 · Subs 1/4');
+      final firstCat = switch (open[0].category) {
+        SquadCategory.batsman => 'Batsmen',
+        SquadCategory.bowler => 'Bowlers',
+        SquadCategory.allRounder => 'All-Rounders',
+      };
+      await tester.drag(_sheetList, const Offset(0, 3000)); // back up to Squad Setup
+      await tester.pumpAndSettle();
+      expect(pill(firstCat), contains(RegExp(r'[12]$')));
+      await pick(open[1], 'none');
+      expect(footer(), 'XI 1/11 · Subs 0/4');
+      // Injured / unavailable can't be picked (existing rule).
+      await pick(locked, 'playing');
+      expect(find.textContaining("can't be selected"), findsOneWidget);
+
+      // Suggest Team pre-fills 11 + 2 for review; the XI cap holds.
+      await tester.drag(_sheetList, const Offset(0, 3000));
+      await tester.pumpAndSettle();
+      await _tap(tester, find.text('Suggest Team'));
+      expect(footer(), 'XI 11/11 · Subs 2/4');
+      final s = TeamSuggestion.build(pool,
+          stats: {for (final p in pool) p.id: c.read(squadPlayerStatsProvider((p.name, p.position, p.availability)))},
+          fitness: c.read(poolFitnessProvider));
+      final notPicked = open.firstWhere((p) => !s.picks.containsKey(p.id));
+      await pick(notPicked, 'playing');
+      expect(find.textContaining('Playing XI is full'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('createTeam.create')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('createTeam.sheet')), findsNothing);
+      expect(find.text('Team created!'), findsOneWidget);
+      final teams = await c.read(teamsProvider.future);
+      expect(teams, hasLength(before + 1));
+      final made = teams.last;
+      expect((made.name, made.format, made.playingCount, made.subCount), ('Weekend XI', MatchFormat.odi, 11, 2));
+      // The Teams list shows it at once; the Teams screen is unchanged.
+      await _go(tester, c, Routes.teams);
+      expect(find.text('Weekend XI'), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('^Create New Team')), findsOneWidget);
+    });
+
+    testWidgets('Create Team sheet: a duplicate name is refused inline; Cancel creates nothing', (tester) async {
+      final c = await _pumpOwner(tester);
+      final before = (await c.read(teamsProvider.future)).length;
+      await tester.tap(find.byKey(const Key('nav.center')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('createTeam.name')), 'bs cs xi');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('createTeam.create')));
+      await tester.pumpAndSettle();
+      expect(find.text('A team with this name already exists'), findsOneWidget);
+      expect(find.byKey(const Key('createTeam.sheet')), findsOneWidget);
+      await tester.tap(_button('Cancel'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('createTeam.sheet')), findsNothing);
+      expect((await c.read(teamsProvider.future)).length, before);
+    });
+
+    for (final width in [320.0, 360.0, 375.0, 390.0, 414.0]) {
+      testWidgets('club nav and Create Team sheet fit at ${width.toInt()} px', (tester) async {
+        await _pumpOwner(tester, width: width);
+        tester.view.padding = const FakeViewPadding(bottom: 34 * 3);
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'nav @ $width');
+        await tester.tap(find.byKey(const Key('nav.center')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(CeChip, 'Custom'));
+        await tester.pumpAndSettle();
+        await tester.drag(_sheetList, const Offset(0, -2000));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull, reason: 'create team sheet @ $width');
+        final screenBottom = tester.view.physicalSize.height / tester.view.devicePixelRatio;
+        expect(tester.getRect(find.byKey(const Key('createTeam.create'))).bottom, lessThanOrEqualTo(screenBottom - 34 + 0.5),
+            reason: 'Create Team above the home indicator');
+      });
+    }
+
+    testWidgets('Bottom nav: Home · Matches · [+] · Teams · Profile (a sheet); Matches is Match Management; My Club via sidebar',
         (tester) async {
       final c = await _pumpOwner(tester);
       final nav = find.byType(CeBottomNav);
-      expect([for (final i in tester.widget<CeBottomNav>(nav).items) i.label], ['Home', 'Matches', 'Teams', 'Members']);
+      expect([for (final i in tester.widget<CeBottomNav>(nav).items) i.label], ['Home', 'Matches', 'New Team', 'Teams', 'Profile']);
+      expect([for (final i in tester.widget<CeBottomNav>(nav).items) i.center], [false, false, true, false, false]);
       Finder tab(String l) => find.descendant(of: nav, matching: find.bySemanticsLabel(l));
-      expect(tab('Profile'), findsNothing);
+      expect(tab('Members'), findsNothing);
 
       await tester.tap(tab('Matches'));
       await tester.pumpAndSettle();
@@ -677,11 +974,37 @@ void main() {
       expect(find.byType(MatchManagementScreen), findsOneWidget);
       expect(find.byType(CeBottomNav), findsOneWidget);
 
-      for (final (label, route) in [('Teams', Routes.teams), ('Members', Routes.members), ('Home', Routes.clubHome)]) {
+      for (final (label, route) in [('Teams', Routes.teams), ('Home', Routes.clubHome)]) {
         await tester.tap(tab(label));
         await tester.pumpAndSettle();
         expect(_loc(c), route, reason: label);
       }
+      // Profile: the club profile sheet over the current tab (never highlighted).
+      await tester.tap(tab('Profile'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('clubProfile.view')), findsOneWidget);
+      expect(_loc(c), Routes.clubHome);
+      expect(tester.widget<CeBottomNav>(nav).currentIndex, 0);
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+
+      // Sidebar: no Members / Find Player / Challenges / Match Management /
+      // Tournaments / Requests; Edit Club opens the profile sheet in edit mode.
+      await tester.tap(find.byTooltip('Open menu'));
+      await tester.pumpAndSettle();
+      final drawer = find.byType(Drawer);
+      for (final gone in ['Members', 'Find Player', 'Challenges', 'Match Management', 'Tournaments', 'Requests']) {
+        expect(find.descendant(of: drawer, matching: find.text(gone)), findsNothing, reason: gone);
+      }
+      await tester.tap(find.descendant(of: drawer, matching: find.text('Edit Club')));
+      await tester.pumpAndSettle();
+      expect(find.byType(Drawer), findsNothing);
+      expect(find.byKey(const Key('clubProfile.edit')), findsOneWidget);
+      await tester.enterText(find.byKey(const Key('clubProfile.owner')), 'Aman Ali Khan');
+      await _tap(tester, _button('Save Changes'));
+      expect(c.read(currentClubProvider)!.ownerName, 'Aman Ali Khan');
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
 
       // My Club from the sidebar (and the header — see the My Club test).
       await tester.fling(find.byType(Scrollable).first, const Offset(0, 3000), 4000);
@@ -760,7 +1083,7 @@ void main() {
       expect(ownInbox.where((n) => n.target is AnnouncementTarget), isEmpty);
     });
 
-    testWidgets('a member reads the announcement from Notifications (in a sheet)', (tester) async {
+    testWidgets('a member reads the announcement from the dashboard notifications panel (in a sheet)', (tester) async {
       final c = await _pumpOwner(tester);
       final members = await c.read(clubMembersProvider.future);
       await openSheet(tester);
@@ -771,16 +1094,19 @@ void main() {
       expect(find.text('Announcement published to ${members.length} members.'), findsOneWidget);
 
       // The owner is also a playing member of the club: switch to the Player
-      // side and open Notifications.
+      // side and open the notifications panel from the dashboard bell.
       final nav = c.read(roleControllerProvider.notifier).switchTo(UserRole.player);
-      await _go(tester, c, (nav as GoToLocation).location);
-      await _go(tester, c, Routes.notifications);
+      final home = (nav as GoToLocation).location;
+      await _go(tester, c, home);
+      await tester.tap(find.byTooltip(RegExp('^Notifications')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('notifications.panel')), findsOneWidget);
       // Type, club name and a short preview in the inbox row.
       expect(find.text('Club Announcement'), findsOneWidget);
       expect(find.text('Shalimar Cricket Club · Training update — Training session tomorrow at 5:00 PM.'), findsOneWidget);
       await tester.tap(find.text('Club Announcement'));
       await tester.pumpAndSettle();
-      expect(_loc(c), Routes.notifications, reason: 'read in place, no new screen');
+      expect(_loc(c), home, reason: 'read in place, no new screen');
       // Full announcement: club name, title, full message, date and time.
       final now = c.read(clockProvider).now();
       expect(find.text('Training update'), findsOneWidget);
@@ -795,6 +1121,8 @@ void main() {
       expect(find.text('Training session tomorrow at 5:00 PM.'), findsOneWidget);
       expect(c.read(notificationReadProvider), contains(startsWith('n_ann_')), reason: 'marked read');
       await _tap(tester, _button('Close'));
+      expect(find.byKey(const Key('notifications.panel')), findsOneWidget, reason: 'back to the panel');
+      expect(_loc(c), home);
 
       // Club Owner inbox: announcements are for members, not the owner inbox.
       final club = await c.read(roleNotificationsProvider(UserRole.clubOwner).future);

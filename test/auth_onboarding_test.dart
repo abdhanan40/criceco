@@ -35,6 +35,15 @@ class _RejectingAccounts implements AccountRepository {
   @override
   Future<bool> changePassword(String accountId, {required String current, required String next}) =>
       inner.changePassword(accountId, current: current, next: next);
+  @override
+  Future<PasswordResetTicket?> requestPasswordReset(String identifier, {required DateTime at}) =>
+      inner.requestPasswordReset(identifier, at: at);
+  @override
+  Future<ResetCodeCheck> verifyResetCode(String identifier, String code, {required DateTime at}) =>
+      inner.verifyResetCode(identifier, code, at: at);
+  @override
+  Future<ResetCodeCheck> resetPassword(String identifier, String code, String newPassword, {required DateTime at}) =>
+      inner.resetPassword(identifier, code, newPassword, at: at);
 }
 
 Future<ProviderContainer> _pump(WidgetTester tester, {double width = 375, List<dynamic> overrides = const []}) async {
@@ -140,6 +149,131 @@ void main() {
       expect(find.byKey(const Key('login.password')), findsOneWidget);
       expect(find.byTooltip('Show password'), findsOneWidget);
     });
+
+    testWidgets('Login and Sign Up headers sit on the stadium photo', (tester) async {
+      final c = await _pump(tester);
+      Finder photo(Finder banner) => find.descendant(
+          of: banner,
+          matching: find.byWidgetPredicate(
+              (w) => w is Image && w.image is AssetImage && (w.image as AssetImage).assetName == AuthBanner.photo));
+      final banner = find.byKey(const Key('auth.stadiumBanner'));
+      expect(photo(banner), findsOneWidget, reason: 'Login');
+      // Logo, title and the Login / Sign Up toggle are on top of the photo.
+      expect(find.descendant(of: banner, matching: find.byType(CeBrandLogo)), findsOneWidget);
+      expect(find.descendant(of: banner, matching: find.text('Criceco')), findsOneWidget);
+      expect(find.descendant(of: banner, matching: find.text('Sign Up')), findsOneWidget);
+      await _tap(tester, find.widgetWithText(TextButton, 'Sign Up'));
+      expect(_loc(c), Routes.signup);
+      expect(photo(banner), findsOneWidget, reason: 'Sign Up');
+    });
+
+    testWidgets('Role Selection header sits on the stadium photo too; Log out stays on top', (tester) async {
+      await _profiled(tester);
+      final banner = find.byKey(const Key('auth.stadiumBanner'));
+      expect(
+          find.descendant(
+              of: banner,
+              matching: find.byWidgetPredicate(
+                  (w) => w is Image && w.image is AssetImage && (w.image as AssetImage).assetName == AuthBanner.photo)),
+          findsOneWidget);
+      expect(find.descendant(of: banner, matching: find.text('Choose your role')), findsOneWidget);
+      expect(find.byTooltip('Log out').hitTestable(), findsOneWidget);
+    });
+
+    testWidgets('Create Account and Profile Setup headers sit on the stadium photo with Back', (tester) async {
+      Finder photo() => find.descendant(
+          of: find.byKey(const Key('auth.stadiumBanner')),
+          matching: find.byWidgetPredicate(
+              (w) => w is Image && w.image is AssetImage && (w.image as AssetImage).assetName == AuthBanner.photo));
+      final c = await _pump(tester);
+      c.read(routerProvider).go(Routes.createAccount);
+      await tester.pumpAndSettle();
+      expect(photo(), findsOneWidget, reason: 'Create Account');
+      expect(find.text('Join Criceco'), findsOneWidget);
+      expect(find.byType(AppBar), findsNothing, reason: 'the banner replaces the top bar');
+      await _tap(tester, find.byTooltip('Back'));
+      expect(_loc(c), Routes.signup);
+
+      await _newUser(tester);
+      expect(photo(), findsOneWidget, reason: 'Profile Setup');
+      expect(find.text('Set up your profile'), findsOneWidget);
+      expect(find.text('Step 2 of 3 — Your Profile'), findsOneWidget);
+      expect(find.byTooltip('Back').hitTestable(), findsOneWidget);
+    });
+
+    testWidgets('Forgot password: phone → code → new password (in a sheet); only the new password logs in',
+        (tester) async {
+      final c = await _pump(tester);
+      await _tap(tester, find.byKey(const Key('login.forgot')));
+      expect(_loc(c), Routes.login, reason: 'a bottom sheet, no new screen');
+      expect(find.byKey(const Key('reset.step.request')), findsOneWidget);
+
+      // Validation, then an unknown number.
+      await _tap(tester, _button('Send Code'));
+      expect(find.text('Enter your phone number or email'), findsOneWidget);
+      await _enter(tester, 'reset.identifier', '0300-1112223');
+      await _tap(tester, _button('Send Code'));
+      expect(find.text('No account found with this phone number or email.'), findsOneWidget);
+
+      // The account's number → code step (masked destination; demo shows the code).
+      await _enter(tester, 'reset.identifier', '0312-9020000');
+      await _tap(tester, _button('Send Code'));
+      expect(find.byKey(const Key('reset.step.code')), findsOneWidget);
+      expect(find.textContaining('0312 ••••• 00'), findsOneWidget);
+      expect(find.textContaining('No SMS or email is sent in this build'), findsOneWidget);
+      await _tap(tester, _button('Verify Code'));
+      expect(find.text('Enter the 6-digit code'), findsOneWidget);
+      final shown = RegExp(r'Your code is (\d{6})')
+          .firstMatch(tester.widgetList<Text>(find.textContaining('Your code is')).single.data!)!
+          .group(1)!;
+      await _enter(tester, 'reset.code', shown == '000000' ? '111111' : '000000');
+      await _tap(tester, _button('Verify Code'));
+      expect(find.text('Incorrect code. Check it and try again.'), findsOneWidget);
+      await _tap(tester, find.widgetWithText(OutlinedButton, 'Use code'));
+      await _tap(tester, _button('Verify Code'));
+
+      // New password: validated, confirmed, saved.
+      expect(find.byKey(const Key('reset.step.password')), findsOneWidget);
+      await _enter(tester, 'reset.password', '123');
+      await _tap(tester, _button('Reset Password'));
+      expect(find.text('Password must be at least 6 characters'), findsOneWidget);
+      await _enter(tester, 'reset.password', 'fresh-start');
+      await _enter(tester, 'reset.confirm', 'fresh-stort');
+      await _tap(tester, _button('Reset Password'));
+      expect(find.text('Passwords do not match'), findsOneWidget);
+      await _enter(tester, 'reset.confirm', 'fresh-start');
+      await _tap(tester, _button('Reset Password'));
+
+      // Back on Login: number prefilled, old password cleared, confirmation shown.
+      expect(find.byKey(const Key('reset.step.password')), findsNothing);
+      expect(find.text('Password reset. Log in with your new password.'), findsOneWidget);
+      expect(tester.widget<TextField>(find.descendant(of: find.byKey(const Key('login.phone')), matching: find.byType(TextField))).controller!.text,
+          '0312-9020000');
+      await _login(tester, password: 'secret1');
+      expect(find.text('Incorrect phone number or password. Please try again.'), findsOneWidget);
+      expect(_loc(c), Routes.login);
+      await _login(tester, password: 'fresh-start');
+      expect(_loc(c), isNot(Routes.login), reason: 'the new password logs in');
+    });
+
+    for (final width in [320.0, 360.0, 375.0, 390.0, 414.0]) {
+      testWidgets('Forgot password sheet fits at ${width.toInt()} px (every step, with errors)', (tester) async {
+        await _pump(tester, width: width);
+        await _tap(tester, find.byKey(const Key('login.forgot')));
+        await _tap(tester, _button('Send Code'));
+        expect(tester.takeException(), isNull, reason: 'request @ $width');
+        await _enter(tester, 'reset.identifier', '0312-9020000');
+        await _tap(tester, _button('Send Code'));
+        await _tap(tester, _button('Verify Code'));
+        await _tap(tester, find.text('Resend code'));
+        expect(find.byKey(const Key('reset.note')), findsOneWidget);
+        expect(tester.takeException(), isNull, reason: 'code @ $width');
+        await _tap(tester, find.widgetWithText(OutlinedButton, 'Use code'));
+        await _tap(tester, _button('Verify Code'));
+        await _tap(tester, _button('Reset Password'));
+        expect(tester.takeException(), isNull, reason: 'password @ $width');
+      });
+    }
 
     testWidgets('Login validates phone and password inline', (tester) async {
       final c = await _pump(tester);

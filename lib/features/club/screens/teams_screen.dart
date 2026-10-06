@@ -11,6 +11,7 @@ import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
 import '../../../shared/widgets/ce_inputs.dart';
+import '../../../shared/widgets/ce_list_sheet.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
 import '../../fitness/fitness_providers.dart';
@@ -74,6 +75,58 @@ class TeamsScreen extends ConsumerWidget {
     );
   }
 }
+
+/// Club Dashboard → Teams: the club's teams in a sheet, with New Team (the
+/// Create Team sheet on top). A team still opens its squad to manage it.
+Future<void> showTeamsSheet(BuildContext context) =>
+    showCeListSheet<void>(context, builder: (_) => _TeamsSheet(router: GoRouter.of(context)));
+
+class _TeamsSheet extends ConsumerWidget {
+  const _TeamsSheet({required this.router});
+  final GoRouter router;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final teamsAsync = ref.watch(teamsProvider);
+    final teams = teamsAsync.value ?? const <Team>[];
+    ref.watch(clubPlayerPoolProvider); // squad names and availability on the cards
+    void leaveTo(String location) {
+      Navigator.of(context).pop();
+      router.go(location);
+    }
+
+    return CeListSheetFrame(
+      key: const Key('teams.sheet'),
+      title: 'Teams',
+      titleTrailing: teamsAsync.hasValue ? CeCountPill(teams.length) : null,
+      children: [
+        _NewTeamRow(onTap: () => showCreateTeamSheet(context)),
+        if (teamsAsync.isLoading)
+          const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()))
+        else if (teamsAsync.hasError)
+          CeErrorState(title: 'Couldn\'t load your teams', onRetry: () => ref.invalidate(teamsProvider))
+        else if (teams.isEmpty)
+          const CeEmptyState(icon: 'shield', title: 'No teams yet', body: 'Create a team to organize your club players.')
+        else
+          for (final t in teams)
+            _TeamCard(
+              team: t,
+              onView: () {
+                ref.read(teamSquadFilterProvider(t.id).notifier).select(null);
+                leaveTo(Routes.teamSquad(t.id));
+              },
+              onAddPlayers: () {
+                ref.read(addPlayersFilterProvider(t.id).notifier).select(null);
+                leaveTo(Routes.addTeamPlayers(t.id));
+              },
+            ),
+      ],
+    );
+  }
+}
+
+/// Create Team formats, in the order the club picks them most.
+const createTeamFormats = [MatchFormat.t20, MatchFormat.odi, MatchFormat.test, MatchFormat.custom];
 
 /// Opens the Create Team sheet; the sheet toasts "Team created!" and closes.
 Future<void> showCreateTeamSheet(BuildContext context) =>
@@ -211,7 +264,7 @@ class _CreateTeamSheetState extends ConsumerState<_CreateTeamSheet> {
         const SizedBox(height: 4),
         const CeFieldLabel('Select Format *'),
         Wrap(spacing: 7, runSpacing: 7, children: [
-          for (final f in MatchFormat.standard)
+          for (final f in createTeamFormats)
             CeChip(
               label: f.label,
               selected: f == _format,
