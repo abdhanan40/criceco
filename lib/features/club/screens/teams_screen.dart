@@ -7,6 +7,7 @@ import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
+import '../../../core/utils/validators.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
@@ -154,7 +155,6 @@ class _CreateTeamSheetState extends ConsumerState<_CreateTeamSheet> {
   Map<String, SelectionRole>? _picks;
   List<(SquadPlayer, String)> _leftOut = const [];
 
-  static const maxCustomOvers = 50;
 
   void _suggest() {
     FocusScope.of(context).unfocus();
@@ -191,6 +191,7 @@ class _CreateTeamSheetState extends ConsumerState<_CreateTeamSheet> {
   }
 
   Future<void> _create() async {
+    if (_saving) return; // one submission at a time
     FocusScope.of(context).unfocus();
     setState(() {
       _nameError = null;
@@ -200,27 +201,36 @@ class _CreateTeamSheetState extends ConsumerState<_CreateTeamSheet> {
     if (!fieldsOk || _format == null) return;
 
     setState(() => _saving = true);
-    final error = await ref.read(teamsProvider.notifier).create(
-          name: _name.text,
-          format: _format,
-          customOvers: _format == MatchFormat.custom ? int.tryParse(_overs.text) : null,
-          members: [
-            for (final e in (_picks ?? const <String, SelectionRole>{}).entries)
-              TeamMember(playerId: e.key, selection: e.value),
-          ],
-        );
+    final CreateTeamError? error;
+    try {
+      error = await ref.read(teamsProvider.notifier).create(
+            name: _name.text,
+            format: _format,
+            customOvers: _format == MatchFormat.custom ? int.tryParse(_overs.text) : null,
+            members: [
+              for (final e in (_picks ?? const <String, SelectionRole>{}).entries)
+                TeamMember(playerId: e.key, selection: e.value),
+            ],
+          );
+    } catch (_) {
+      if (mounted) {
+        setState(() => _saving = false);
+        showCeToast(context, "Couldn't create the team — please try again");
+      }
+      return;
+    }
     if (!mounted) return;
     setState(() => _saving = false);
     switch (error) {
       case null:
         showCeToast(context, 'Team created!');
         Navigator.of(context).pop();
-      case CreateTeamError.duplicateName || CreateTeamError.nameRequired:
-        setState(() => _nameError = error.message);
+      case CreateTeamError.duplicateName || CreateTeamError.nameRequired || CreateTeamError.nameTooLong:
+        setState(() => _nameError = error!.message);
         _formKey.currentState!.validate();
       case CreateTeamError.formatRequired:
-        setState(() => _formatError = error.message);
-      case CreateTeamError.oversRequired:
+        setState(() => _formatError = error!.message);
+      case CreateTeamError.oversRequired || CreateTeamError.oversOutOfRange:
         _formKey.currentState!.validate();
     }
   }
@@ -254,6 +264,7 @@ class _CreateTeamSheetState extends ConsumerState<_CreateTeamSheet> {
           icon: 'users',
           textCapitalization: TextCapitalization.words,
           textInputAction: TextInputAction.done,
+          maxLength: CeValidators.nameMaxLength,
           onChanged: (_) {
             if (_nameError != null) setState(() => _nameError = null);
           },
@@ -287,12 +298,7 @@ class _CreateTeamSheetState extends ConsumerState<_CreateTeamSheet> {
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(2)],
             textInputAction: TextInputAction.done,
-            validator: (v) {
-              final n = int.tryParse(v ?? '');
-              if (n == null) return CreateTeamError.oversRequired.message;
-              if (n < 1 || n > maxCustomOvers) return 'Enter between 1 and $maxCustomOvers overs';
-              return null;
-            },
+            validator: (v) => CeValidators.customOvers(int.tryParse(v ?? '')),
           ),
         ],
         const SizedBox(height: 12),

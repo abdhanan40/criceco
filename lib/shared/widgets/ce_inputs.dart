@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../app/theme/tokens.dart';
 import '../../app/theme/typography.dart';
+import '../../core/utils/validators.dart';
 import 'ce_feedback.dart';
 import 'ce_icons.dart';
 
@@ -345,5 +346,46 @@ class CeErrorBanner extends StatelessWidget {
             ),
           ]),
         ),
+      );
+}
+
+/// Phone fields: digits, spaces, "+" and "-" only (03XX-XXXXXXX, +92 …);
+/// [CeValidators.pkPhone] checks the number itself.
+final kPhoneInputFormatters = <TextInputFormatter>[
+  FilteringTextInputFormatter.allow(RegExp(r'[0-9+\- ]')),
+  LengthLimitingTextInputFormatter(16),
+];
+
+/// Live password requirements under a new-password field: each rule turns
+/// green with a check as soon as it is met ([CeValidators.passwordRules]).
+class CePasswordChecklist extends StatelessWidget {
+  const CePasswordChecklist({super.key, required this.controller});
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+        listenable: controller,
+        builder: (context, _) {
+          final v = controller.text;
+          return Padding(
+            key: const Key('password.rules'),
+            padding: const EdgeInsets.only(top: 2, bottom: 14),
+            child: Wrap(spacing: 14, runSpacing: 6, children: [
+              for (final (label, _, ok) in CeValidators.passwordRules)
+                Semantics(
+                  label: '$label, ${ok(v) ? 'met' : 'not met'}',
+                  excludeSemantics: true,
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(CeIcons.of(ok(v) ? 'check-circle' : 'circle'),
+                        size: 14, color: ok(v) ? CeColors.accent : CeColors.muted2),
+                    const SizedBox(width: 5),
+                    Text(label,
+                        style: CeType.caption.copyWith(
+                            fontSize: 12, color: ok(v) ? CeColors.primary : CeColors.muted)),
+                  ]),
+                ),
+            ]),
+          );
+        },
       );
 }

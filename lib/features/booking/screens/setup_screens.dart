@@ -10,6 +10,7 @@ import '../../../app/theme/typography.dart';
 import '../../../core/constants/cities.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/validators.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
@@ -41,7 +42,6 @@ class MatchSetupScreen extends ConsumerStatefulWidget {
 }
 
 class _MatchSetupScreenState extends ConsumerState<MatchSetupScreen> {
-  static const maxOvers = 50;
   final _overs = TextEditingController();
   final _errors = <String, String>{};
   bool _seeded = false;
@@ -58,8 +58,9 @@ class _MatchSetupScreenState extends ConsumerState<MatchSetupScreen> {
     setState(() {
       _errors.clear();
       if (d.format == null) _errors['format'] = 'Please select a format';
-      if (d.format == MatchFormat.custom && (overs == null || overs < 1 || overs > maxOvers)) {
-        _errors['overs'] = overs == null ? 'Please enter the number of overs' : 'Enter between 1 and $maxOvers overs';
+      if (d.format == MatchFormat.custom) {
+        final oversError = CeValidators.customOvers(overs);
+        if (oversError != null) _errors['overs'] = oversError;
       }
       if (d.city == null) _errors['city'] = 'Please select a city';
     });

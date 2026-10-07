@@ -82,7 +82,16 @@ class WaitingApprovalScreen extends ConsumerWidget {
             child: Column(children: [
               CeButton.danger(
                 label: 'Cancel Request',
-                onPressed: () {
+                onPressed: () async {
+                  final ok = await showCeConfirmSheet(
+                    context,
+                    title: 'Cancel join request?',
+                    body: 'The club will no longer see your request. You can send a new one later.',
+                    confirmLabel: 'Cancel Request',
+                    destructive: true,
+                    icon: 'x',
+                  );
+                  if (!ok || !context.mounted) return;
                   ref.read(joinClubProvider.notifier).cancel();
                   showCeToast(context, 'Join request cancelled');
                   context.go(Routes.clubSetup);

@@ -471,6 +471,8 @@ void main() {
 
       await _go(tester, c, Routes.tournamentDetails(t.id));
       await _tap(tester, _button('Generate Fixtures'));
+      expect(find.text('Generate fixtures?'), findsOneWidget, reason: 'the draw is final, so it asks');
+      await _tap(tester, _button('Generate Fixtures').last);
       expect(find.text('Bracket generated!'), findsOneWidget);
       expect(_loc(c), '${Routes.tournamentDetails(t.id)}?tab=fixtures');
       expect(find.text('Final'), findsOneWidget);

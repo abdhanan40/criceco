@@ -10,6 +10,7 @@ import '../../app/theme/tokens.dart';
 import '../../app/theme/typography.dart';
 import '../../core/models/models.dart';
 import '../../core/utils/formatters.dart';
+import '../../core/utils/validators.dart';
 import '../../shared/widgets/ce_buttons.dart';
 import '../../shared/widgets/ce_feedback.dart';
 import '../../shared/widgets/ce_icons.dart';
@@ -175,7 +176,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 22, CeSpace.gutter, 0),
           child: CeButton.danger(
             label: 'Log out',
-            onPressed: () {
+            onPressed: () async {
+              if (!await confirmLogout(context) || !context.mounted) return;
               ref.read(sessionProvider.notifier).logout();
               context.go(Routes.login);
             },
@@ -282,12 +284,14 @@ class _PrivacySection extends ConsumerWidget {
 // Password & security (prototype `screens.securitySettings`, :8207).
 // ---------------------------------------------------------------------------
 
-/// Prototype hint: "At least 8 characters".
-const kNewPasswordMinLength = 8;
+/// New passwords follow the shared strong-password rules (8+ characters,
+/// upper- and lowercase, a number, a special character).
+const kNewPasswordMinLength = CeValidators.passwordMinLength;
 
 String? validateNewPassword(String? v, String current) {
   if (v == null || v.isEmpty) return 'Enter a new password';
-  if (v.length < kNewPasswordMinLength) return 'Use at least $kNewPasswordMinLength characters';
+  final weak = CeValidators.password(v);
+  if (weak != null) return weak;
   if (v == current) return 'Choose a password different from the current one';
   return null;
 }
@@ -342,7 +346,6 @@ class _SecuritySettingsScreenState extends ConsumerState<SecuritySettingsScreen>
       context,
       initialIdentifier: identifier,
       lockIdentifier: true,
-      minPasswordLength: kNewPasswordMinLength,
     );
     if (done == null || !mounted) return;
     _current.clear();
@@ -395,20 +398,29 @@ class _SecuritySettingsScreenState extends ConsumerState<SecuritySettingsScreen>
                 CeTextField(
                   fieldKey: const Key('security.new'),
                   controller: _next,
-                  hint: 'At least $kNewPasswordMinLength characters',
+                  hint: 'e.g. Cricket@123',
                   icon: 'key',
                   obscure: true,
                   textInputAction: TextInputAction.done,
                   validator: (v) => validateNewPassword(v, _current.text),
                   onFieldSubmitted: (_) => _update(),
                 ),
+                CePasswordChecklist(controller: _next),
                 if (s.passwordChangedAt != null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: Text('Last changed ${CeFormat.date(s.passwordChangedAt!)}',
                         style: CeType.bodySmall.copyWith(fontSize: 12)),
                   ),
-                CeButton(label: 'Update Password', loading: _saving, onPressed: _saving ? null : _update),
+                // Off until the new password meets every requirement.
+                ListenableBuilder(
+                  listenable: _next,
+                  builder: (context, _) => CeButton(
+                    label: 'Update Password',
+                    loading: _saving,
+                    onPressed: _saving || !CeValidators.isStrongPassword(_next.text) ? null : _update,
+                  ),
+                ),
               ]),
             ),
           ),

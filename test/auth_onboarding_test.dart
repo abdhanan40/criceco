@@ -118,7 +118,7 @@ Future<void> _login(WidgetTester tester, {String password = 'secret1'}) async {
 Future<ProviderContainer> _newUser(WidgetTester tester, {double width = 375}) async {
   final c = await _pump(tester, width: width);
   await c.read(sessionProvider.notifier).signUp(
-      fullName: '', method: ContactMethod.phone, identifier: '03339876543', password: 'secret1');
+      fullName: '', method: ContactMethod.phone, identifier: '03339876543', password: 'Cricket@123');
   c.read(routerProvider).go(Routes.profileSetup);
   await tester.pumpAndSettle();
   return c;
@@ -235,14 +235,17 @@ void main() {
 
       // New password: validated, confirmed, saved.
       expect(find.byKey(const Key('reset.step.password')), findsOneWidget);
+      expect(find.byKey(const Key('password.rules')), findsOneWidget);
       await _enter(tester, 'reset.password', '123');
-      await _tap(tester, _button('Reset Password'));
-      expect(find.text('Password must be at least 6 characters'), findsOneWidget);
-      await _enter(tester, 'reset.password', 'fresh-start');
-      await _enter(tester, 'reset.confirm', 'fresh-stort');
+      expect(find.text('Password must be at least 8 characters'), findsOneWidget);
+      expect(tester.widget<CeButton>(_button('Reset Password')).onPressed, isNull, reason: 'off until strong');
+      await _enter(tester, 'reset.password', 'freshstart');
+      expect(find.text('Add an uppercase letter (A–Z)'), findsOneWidget);
+      await _enter(tester, 'reset.password', 'Fresh-Start1');
+      await _enter(tester, 'reset.confirm', 'Fresh-Stort1');
       await _tap(tester, _button('Reset Password'));
       expect(find.text('Passwords do not match'), findsOneWidget);
-      await _enter(tester, 'reset.confirm', 'fresh-start');
+      await _enter(tester, 'reset.confirm', 'Fresh-Start1');
       await _tap(tester, _button('Reset Password'));
 
       // Back on Login: number prefilled, old password cleared, confirmation shown.
@@ -253,7 +256,7 @@ void main() {
       await _login(tester, password: 'secret1');
       expect(find.text('Incorrect phone number or password. Please try again.'), findsOneWidget);
       expect(_loc(c), Routes.login);
-      await _login(tester, password: 'fresh-start');
+      await _login(tester, password: 'Fresh-Start1');
       expect(_loc(c), isNot(Routes.login), reason: 'the new password logs in');
     });
 
@@ -315,14 +318,27 @@ void main() {
       c.read(routerProvider).go(Routes.createAccount);
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('signup.name')), findsNothing, reason: 'name belongs to User Profile Setup');
+      // Submission stays off until the password meets every requirement.
+      CeButton createButton() => tester.widget<CeButton>(_button('Create Account'));
+      expect(createButton().onPressed, isNull);
+      expect(find.byKey(const Key('password.rules')), findsOneWidget, reason: 'requirements shown by the field');
+      await _enter(tester, 'signup.password', 'abc');
+      expect(find.text('Password must be at least 8 characters'), findsOneWidget, reason: 'live validation');
+      expect(createButton().onPressed, isNull);
+      expect(find.bySemanticsLabel('Lowercase letter, met'), findsOneWidget);
+      expect(find.bySemanticsLabel('Uppercase letter, not met'), findsOneWidget);
+      await _enter(tester, 'signup.password', 'Cricket@123');
+      expect(createButton().onPressed, isNotNull);
+      for (final rule in ['8+ characters', 'Uppercase letter', 'Lowercase letter', 'Number', 'Special character']) {
+        expect(find.bySemanticsLabel('$rule, met'), findsOneWidget, reason: rule);
+      }
+      await _enter(tester, 'signup.confirm', 'Cricket@12');
       await _tap(tester, _button('Create Account'));
       expect(find.text('Phone number is required'), findsOneWidget);
-      expect(find.text('Password is required'), findsOneWidget);
-      await _enter(tester, 'signup.password', 'abc');
-      await _enter(tester, 'signup.confirm', 'abd');
-      await _tap(tester, _button('Create Account'));
-      expect(find.text('Password must be at least 6 characters'), findsOneWidget);
       expect(find.text('Passwords do not match'), findsOneWidget);
+      await _enter(tester, 'signup.phone', '03ab33-98x76543');
+      expect(tester.widget<TextField>(find.descendant(of: find.byKey(const Key('signup.phone')), matching: find.byType(TextField))).controller!.text,
+          '0333-9876543', reason: 'phone accepts digits, spaces, + and - only');
       await _tap(tester, find.text('Email'));
       await _enter(tester, 'signup.email', 'not-an-email');
       await _tap(tester, _button('Create Account'));
@@ -335,8 +351,8 @@ void main() {
       c.read(routerProvider).go(Routes.createAccount);
       await tester.pumpAndSettle();
       await _enter(tester, 'signup.phone', '0333 9876543');
-      await _enter(tester, 'signup.password', 'secret1');
-      await _enter(tester, 'signup.confirm', 'secret1');
+      await _enter(tester, 'signup.password', 'Cricket@123');
+      await _enter(tester, 'signup.confirm', 'Cricket@123');
       await _tap(tester, _button('Create Account'));
       expect(_loc(c), Routes.profileSetup);
       expect(c.read(sessionProvider).status, SessionStatus.onboarding);
@@ -406,6 +422,7 @@ void main() {
       expect(_fileImage('/photos/camera.jpg'), findsOneWidget);
       await _tap(tester, find.bySemanticsLabel('Change profile picture'));
       await _tap(tester, find.text('Remove picture'));
+      await _tap(tester, _button('Remove')); // confirm the removal
       expect(c.read(onboardingProvider).photoPath, isNull);
       expect(_fileImage('/photos/camera.jpg'), findsNothing);
       expect(find.bySemanticsLabel('Add profile picture'), findsOneWidget);
@@ -432,42 +449,98 @@ void main() {
       expect(_loc(c), Routes.roleSelection, reason: 'no route transition for Player details');
       expect(find.byType(RoleSelectionScreen), findsOneWidget);
       expect(find.text('Playing Role *'), findsOneWidget);
-      expect(find.text('Batting Style *'), findsOneWidget);
-      expect(find.text('Bowling Style *'), findsOneWidget);
-      expect(find.text('Wicket Keeper'), findsOneWidget);
+      // The other details follow the playing role, so none show before it.
+      expect(find.text('Batting Style *'), findsNothing);
+      expect(find.text('Bowling Style *'), findsNothing);
+      expect(find.text('Wicket Keeper'), findsNothing);
 
       await _tap(tester, _button('Continue as Player'));
       expect(find.text('Please select your playing role'), findsOneWidget);
+      expect(find.text('Please select your batting style'), findsNothing, reason: 'hidden fields never block');
+      expect(_loc(c), Routes.roleSelection);
+
+      // All-Rounder: batting + bowling (both required), no wicket keeper.
+      await _tap(tester, find.text('All-Rounder'));
+      expect(find.text('Batting Style *'), findsOneWidget);
+      expect(find.text('Bowling Style *'), findsOneWidget);
+      expect(find.text('Wicket Keeper'), findsNothing);
+      await _tap(tester, _button('Continue as Player'));
       expect(find.text('Please select your batting style'), findsOneWidget);
       expect(find.text('Please select your bowling style'), findsOneWidget);
       expect(_loc(c), Routes.roleSelection);
-
-      await _tap(tester, find.text('All-Rounder'));
       await _tap(tester, find.text('Left-handed'));
       await _tap(tester, find.text('Left-arm Orthodox'));
-      await _tap(tester, find.text('Wicket Keeper'));
-      expect(c.read(onboardingProvider).isWicketkeeper, isTrue);
       await _tap(tester, _button('Continue as Player'));
 
       expect(_loc(c), Routes.playerHome);
       expect(c.read(activeRoleProvider), UserRole.player);
       final p = c.read(currentAccountProvider)!.playerProfile;
       expect((p.role, p.battingStyle, p.bowlingStyle, p.isWicketkeeper),
-          (PlayerRole.allRounder, BattingStyle.leftHanded, BowlingStyle.leftArmOrthodox, true));
+          (PlayerRole.allRounder, BattingStyle.leftHanded, BowlingStyle.leftArmOrthodox, false));
       expect(c.read(routerProvider).canPop(), isFalse, reason: 'onboarding cleared from the back stack');
     });
 
-    testWidgets('wicket keeper is optional and never the primary role', (tester) async {
+    testWidgets('Bowler shows Bowling Style only; batting and wicket keeper never block or save', (tester) async {
       final c = await _profiled(tester);
       await _tap(tester, _playerCard);
       expect(find.text('Wicket-Keeper'), findsNothing, reason: 'not offered as a playing role');
       await _tap(tester, find.text('Bowler'));
-      await _tap(tester, find.text('Right-handed'));
+      expect(find.text('Bowling Style *'), findsOneWidget);
+      expect(find.text('Batting Style *'), findsNothing);
+      expect(find.text('Wicket Keeper'), findsNothing);
       await _tap(tester, find.text('Right-arm Fast'));
+      await _tap(tester, _button('Continue as Player'));
+      expect(_loc(c), Routes.playerHome, reason: 'no batting style needed for a Bowler');
+      final p = c.read(currentAccountProvider)!.playerProfile;
+      expect((p.role, p.battingStyle, p.bowlingStyle, p.isWicketkeeper, p.isComplete),
+          (PlayerRole.bowler, null, BowlingStyle.rightArmFast, false, true));
+    });
+
+    testWidgets('Batsman shows Batting Style + Wicket Keeper only; keeper stays optional', (tester) async {
+      final c = await _profiled(tester);
+      await _tap(tester, _playerCard);
+      await _tap(tester, find.text('Batsman'));
+      expect(find.text('Batting Style *'), findsOneWidget);
+      expect(find.text('Wicket Keeper'), findsOneWidget);
+      expect(find.text('Bowling Style *'), findsNothing);
+      await _tap(tester, _button('Continue as Player'));
+      expect(find.text('Please select your batting style'), findsOneWidget);
+      expect(find.text('Please select your bowling style'), findsNothing, reason: 'hidden fields never block');
+      await _tap(tester, find.text('Right-handed'));
+      await _tap(tester, find.text('Wicket Keeper'));
       await _tap(tester, _button('Continue as Player'));
       expect(_loc(c), Routes.playerHome);
       final p = c.read(currentAccountProvider)!.playerProfile;
-      expect((p.role, p.isWicketkeeper), (PlayerRole.bowler, false));
+      expect((p.role, p.battingStyle, p.bowlingStyle, p.isWicketkeeper),
+          (PlayerRole.batsman, BattingStyle.rightHanded, null, true));
+    });
+
+    testWidgets('switching the playing role clears the answers that no longer apply', (tester) async {
+      final c = await _profiled(tester);
+      OnboardingDraft d() => c.read(onboardingProvider);
+      await _tap(tester, _playerCard);
+      await _tap(tester, find.text('Batsman'));
+      await _tap(tester, find.text('Left-handed'));
+      await _tap(tester, find.text('Wicket Keeper'));
+      expect((d().battingStyle, d().isWicketkeeper), (BattingStyle.leftHanded, true));
+
+      // Batsman → Bowler: batting style and wicket keeper cleared.
+      await _tap(tester, find.text('Bowler'));
+      expect((d().battingStyle, d().isWicketkeeper), (null, false));
+      await _tap(tester, find.text('Right-arm Fast'));
+      expect(d().bowlingStyle, BowlingStyle.rightArmFast);
+
+      // Bowler → Batsman: bowling style cleared; batting + keeper shown again.
+      await _tap(tester, find.text('Batsman'));
+      expect((d().bowlingStyle, d().battingStyle, d().isWicketkeeper), (null, null, false));
+      expect(find.text('Wicket Keeper'), findsOneWidget);
+      await _tap(tester, find.text('Right-handed'));
+      await _tap(tester, find.text('Wicket Keeper'));
+
+      // Batsman → All-Rounder: batting kept, keeper cleared and hidden.
+      await _tap(tester, find.text('All-Rounder'));
+      expect((d().battingStyle, d().isWicketkeeper), (BattingStyle.rightHanded, false));
+      expect(find.text('Wicket Keeper'), findsNothing);
     });
 
     testWidgets('Back collapses the Player details first; tapping the header collapses too', (tester) async {
@@ -680,14 +753,35 @@ void main() {
       expect(c.read(currentAccountProvider)!.memberships.single.role, MemberRole.coach);
     });
 
+    testWidgets('Join a Club: unknown code and already-pending requests are refused inline', (tester) async {
+      final c = await _pump(tester);
+      await _login(tester);
+      c.read(routerProvider).go(Routes.enterClubCode);
+      await tester.pumpAndSettle();
+      await _enter(tester, 'join.code', 'NOPE99');
+      await _tap(tester, _button('Send Join Request'));
+      expect(find.text('No club found with code NOPE99. Check the code and try again.'), findsOneWidget);
+      expect(_loc(c), Routes.enterClubCode, reason: 'nothing sent');
+      await _enter(tester, 'join.code', '35HLWZ');
+      await _tap(tester, _button('Send Join Request'));
+      expect(_loc(c), Routes.waitingApproval);
+      c.read(routerProvider).go(Routes.enterClubCode);
+      await tester.pumpAndSettle();
+      await _enter(tester, 'join.code', '35HLWZ');
+      await _tap(tester, _button('Send Join Request'));
+      expect(find.textContaining('You already have a pending request'), findsOneWidget);
+    });
+
     testWidgets('Cancel Request returns to Club Setup', (tester) async {
       final c = await _pump(tester);
       await _login(tester);
       c.read(routerProvider).go(Routes.enterClubCode);
       await tester.pumpAndSettle();
-      await _enter(tester, 'join.code', 'ABCD12');
+      await _enter(tester, 'join.code', '35HLWZ'); // a real club this player isn't in
       await _tap(tester, _button('Send Join Request'));
       await _tap(tester, _button('Cancel Request'));
+      expect(find.text('Cancel join request?'), findsOneWidget, reason: 'asks first');
+      await _tap(tester, _button('Cancel Request').last);
       expect(_loc(c), Routes.clubSetup);
     });
   });

@@ -129,9 +129,19 @@ class JoinRequestsScreen extends ConsumerStatefulWidget {
 
 class _JoinRequestsScreenState extends ConsumerState<JoinRequestsScreen> {
   final _busy = <String>{};
+  final _asking = <String>{}; // a confirm / decline sheet is open for the row
 
   Future<void> _decide(JoinRequest r, {required bool approve}) async {
-    if (_busy.contains(r.id)) return;
+    // One sheet per row: a quick double-tap can't open a second one.
+    if (_busy.contains(r.id) || !_asking.add(r.id)) return;
+    try {
+      await _ask(r, approve: approve);
+    } finally {
+      _asking.remove(r.id);
+    }
+  }
+
+  Future<void> _ask(JoinRequest r, {required bool approve}) async {
     // Neither decision is immediate: approving is confirmed, declining asks
     // for a short reason.
     String? reason;
@@ -144,7 +154,12 @@ class _JoinRequestsScreenState extends ConsumerState<JoinRequestsScreen> {
     setState(() => _busy.add(r.id));
     final ctrl = ref.read(joinRequestsProvider.notifier);
     // Row "Accept" approves as Player, exactly as in the prototype.
-    final decided = approve ? await ctrl.approve(r.id) : await ctrl.decline(r.id, reason: reason);
+    JoinRequest? decided;
+    try {
+      decided = approve ? await ctrl.approve(r.id) : await ctrl.decline(r.id, reason: reason);
+    } catch (_) {
+      if (mounted) showCeToast(context, "Couldn't update the request — please try again");
+    }
     if (!mounted) return;
     setState(() => _busy.remove(r.id));
     if (decided != null) showCeToast(context, joinRequestToast(decided));
@@ -233,9 +248,19 @@ class _JoinRequestsSheet extends ConsumerStatefulWidget {
 class _JoinRequestsSheetState extends ConsumerState<_JoinRequestsSheet> {
   JoinRequestReview _tab = JoinRequestReview.pending;
   final _busy = <String>{};
+  final _asking = <String>{}; // a confirm / decline sheet is open for the row
 
   Future<void> _decide(JoinRequest r, {required bool approve}) async {
-    if (_busy.contains(r.id)) return;
+    // One sheet per row: a quick double-tap can't open a second one.
+    if (_busy.contains(r.id) || !_asking.add(r.id)) return;
+    try {
+      await _ask(r, approve: approve);
+    } finally {
+      _asking.remove(r.id);
+    }
+  }
+
+  Future<void> _ask(JoinRequest r, {required bool approve}) async {
     String? reason;
     if (approve) {
       if (!await confirmApproveRequest(context, r) || !mounted) return;
@@ -245,7 +270,12 @@ class _JoinRequestsSheetState extends ConsumerState<_JoinRequestsSheet> {
     }
     setState(() => _busy.add(r.id));
     final ctrl = ref.read(joinRequestsProvider.notifier);
-    final decided = approve ? await ctrl.approve(r.id) : await ctrl.decline(r.id, reason: reason);
+    JoinRequest? decided;
+    try {
+      decided = approve ? await ctrl.approve(r.id) : await ctrl.decline(r.id, reason: reason);
+    } catch (_) {
+      if (mounted) showCeToast(context, "Couldn't update the request — please try again");
+    }
     if (!mounted) return;
     setState(() => _busy.remove(r.id));
     if (decided != null) showCeToast(context, joinRequestToast(decided));

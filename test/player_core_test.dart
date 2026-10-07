@@ -912,6 +912,7 @@ void main() {
       await _go(tester, c, Routes.playerProfile);
       await _tap(tester, photo);
       await _tap(tester, find.text('Remove picture'));
+      await _tap(tester, _button('Remove')); // confirm the removal
       expect(c.read(currentAccountProvider)!.photoPath, isNull);
       expect(c.read(currentAccountProvider)!.hasPhoto, isFalse);
       expect(find.bySemanticsLabel('Add profile picture'), findsOneWidget);

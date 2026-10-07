@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/models/models.dart';
+import '../../core/utils/validators.dart';
 import '../providers/core_providers.dart';
 
 /// `onboarding` = authenticated, common user profile not yet complete.
@@ -24,6 +25,16 @@ class SessionState {
       SessionState(status: status ?? this.status, account: account ?? this.account, ownClub: ownClub ?? this.ownClub);
 }
 
+/// A new password that fails the shared strong-password rules
+/// ([CeValidators.password]) reached the session layer. [message] is the
+/// validator's own text (e.g. "Add a number (0–9)").
+class WeakPasswordException implements Exception {
+  const WeakPasswordException(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
 /// Authentication + account state. The single account owns both role
 /// profiles; the active role lives in `RoleController`.
 class SessionController extends Notifier<SessionState> {
@@ -45,6 +56,7 @@ class SessionController extends Notifier<SessionState> {
     required String identifier,
     required String password,
   }) async {
+    _requireStrongPassword(password);
     final account = await ref
         .read(accountRepositoryProvider)
         .signUp(fullName: fullName, method: method, identifier: identifier, password: password);
@@ -60,6 +72,14 @@ class SessionController extends Notifier<SessionState> {
     await _setAccount(await repo.update(
       base.copyWith(profileComplete: false, playerProfile: const PlayerProfile()),
     ));
+  }
+
+  /// Every path that sets or updates a password (Sign Up, reset, change)
+  /// goes through the shared rules — never only the screens. Signing in is
+  /// not checked, so existing passwords keep working.
+  static void _requireStrongPassword(String password) {
+    final error = CeValidators.password(password);
+    if (error != null) throw WeakPasswordException(error);
   }
 
   static const _kAccount = 'criceco.session.accountId';
@@ -96,7 +116,9 @@ class SessionController extends Notifier<SessionState> {
       updateAccount((a) => a.copyWith(settings: change(a.settings)));
 
   /// Password & security → Update Password. `false` when [current] is wrong.
+  /// Throws [WeakPasswordException] if [next] fails the strong-password rules.
   Future<bool> changePassword({required String current, required String next}) async {
+    _requireStrongPassword(next);
     final account = state.account;
     if (account == null) return false;
     final ok = await ref.read(accountRepositoryProvider).changePassword(account.id, current: current, next: next);
@@ -116,7 +138,10 @@ class SessionController extends Notifier<SessionState> {
 
   /// Sets the new password; afterwards only it signs in. Signed in (Settings),
   /// the account is reloaded so "Last changed" updates straight away.
+  /// Throws [WeakPasswordException] if [newPassword] fails the strong-password
+  /// rules (checked before the code, so nothing changes).
   Future<ResetCodeCheck> resetPassword(String identifier, String code, String newPassword) async {
+    _requireStrongPassword(newPassword);
     final repo = ref.read(accountRepositoryProvider);
     final check = await repo.resetPassword(identifier, code, newPassword, at: ref.read(clockProvider).now());
     final signedIn = state.account;

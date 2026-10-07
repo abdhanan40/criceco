@@ -19,8 +19,17 @@ abstract interface class PhotoPicker {
 
 /// The platform photo picker / camera (`image_picker`). The image is scaled
 /// down to avatar size so a large photo doesn't sit in memory.
+/// A picked picture that can't be used; [message] is shown to the user.
+class PhotoRejected implements Exception {
+  const PhotoRejected(this.message);
+  final String message;
+}
+
 class DevicePhotoPicker implements PhotoPicker {
   const DevicePhotoPicker();
+
+  /// Largest picture accepted (after the picker's own down-scaling).
+  static const maxBytes = 10 * 1024 * 1024;
 
   @override
   Future<String?> pick(PhotoSource source) async {
@@ -30,7 +39,12 @@ class DevicePhotoPicker implements PhotoPicker {
       maxHeight: 1024,
       imageQuality: 85,
     );
-    return file?.path;
+    if (file == null) return null;
+    // An empty or oversized file (e.g. a corrupt pick) is rejected.
+    final bytes = await file.length();
+    if (bytes == 0) throw const PhotoRejected("That picture couldn't be read. Try another one.");
+    if (bytes > maxBytes) throw const PhotoRejected('That picture is too large. Choose one under 10 MB.');
+    return file.path;
   }
 }
 
@@ -58,10 +72,23 @@ Future<PhotoChange?> choosePhoto(
     if (hasPhoto) const CeSheetAction(icon: 'trash-2', label: 'Remove picture', id: 'remove'),
   ]);
   if (action == null || !context.mounted) return null;
-  if (action == 'remove') return const PhotoChange.remove();
+  if (action == 'remove') {
+    // Removing can't be undone, so it asks first; Cancel keeps the picture.
+    final ok = await showCeConfirmSheet(
+      context,
+      title: 'Remove picture?',
+      body: 'Your current picture will be removed.',
+      confirmLabel: 'Remove',
+      destructive: true,
+      icon: 'trash-2',
+    );
+    return ok ? const PhotoChange.remove() : null;
+  }
   try {
     final path = await ref.read(photoPickerProvider).pick(action == 'camera' ? PhotoSource.camera : PhotoSource.gallery);
     return path == null ? null : PhotoChange.set(path);
+  } on PhotoRejected catch (e) {
+    if (context.mounted) showCeToast(context, e.message);
   } on PlatformException catch (e) {
     if (context.mounted) {
       final denied = e.code.contains('denied') || e.code.contains('access');

@@ -45,13 +45,13 @@ void main() {
       final wrong = code == '000000' ? '111111' : '000000';
       expect(await _s(c).verifyResetCode(_phone, wrong), ResetCodeCheck.wrong);
       expect(await _s(c).verifyResetCode(_phone, code), ResetCodeCheck.ok);
-      expect(await _s(c).resetPassword(_phone, code, 'brand-new'), ResetCodeCheck.ok);
+      expect(await _s(c).resetPassword(_phone, code, 'Brand-New1'), ResetCodeCheck.ok);
 
       expect(await _s(c).signIn(identifier: _phone, password: 'old-pass'), isFalse);
-      expect(await _s(c).signIn(identifier: _phone, password: 'brand-new'), isTrue);
+      expect(await _s(c).signIn(identifier: _phone, password: 'Brand-New1'), isTrue);
       expect(c.read(sessionProvider).account!.settings.passwordChangedAt, _now, reason: 'shown in Password & security');
       // The code is used up.
-      expect(await _s(c).resetPassword(_phone, code, 'again!'), ResetCodeCheck.noRequest);
+      expect(await _s(c).resetPassword(_phone, code, 'Again@123'), ResetCodeCheck.noRequest);
     });
 
     test('codes expire after 10 minutes; a new request replaces the old code', () async {
@@ -59,7 +59,7 @@ void main() {
       final first = (await _s(c).requestPasswordReset(_phone))!.demoCode!;
       clock.advance(const Duration(minutes: 10));
       expect(await _s(c).verifyResetCode(_phone, first), ResetCodeCheck.expired);
-      expect(await _s(c).resetPassword(_phone, first, 'secret9'), ResetCodeCheck.expired);
+      expect(await _s(c).resetPassword(_phone, first, 'Secret@99'), ResetCodeCheck.expired);
 
       final second = (await _s(c).requestPasswordReset(_phone))!.demoCode!;
       if (second != first) {
@@ -82,13 +82,13 @@ void main() {
 
     test('an account created with an email resets by email', () async {
       final (c, _) = await _container();
-      await _s(c).signUp(fullName: '', method: ContactMethod.email, identifier: 'Hamza@Example.com', password: 'first1');
+      await _s(c).signUp(fullName: '', method: ContactMethod.email, identifier: 'Hamza@Example.com', password: 'First@123');
       _s(c).logout();
       final t = (await _s(c).requestPasswordReset('hamza@example.com'))!;
       expect(t.destination, 'h•••@example.com');
-      expect(await _s(c).resetPassword('HAMZA@example.com', t.demoCode!, 'second2'), ResetCodeCheck.ok);
-      expect(await _s(c).signIn(identifier: 'x', password: 'first1'), isFalse);
-      expect(await _s(c).signIn(identifier: 'x', password: 'second2'), isTrue);
+      expect(await _s(c).resetPassword('HAMZA@example.com', t.demoCode!, 'Second@22'), ResetCodeCheck.ok);
+      expect(await _s(c).signIn(identifier: 'x', password: 'First@123'), isFalse);
+      expect(await _s(c).signIn(identifier: 'x', password: 'Second@22'), isTrue);
     });
   });
 }

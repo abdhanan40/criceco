@@ -183,9 +183,13 @@ class RoleDrawer extends ConsumerWidget {
             const SizedBox(height: 8),
             TextButton.icon(
               style: TextButton.styleFrom(foregroundColor: CeColors.red, alignment: Alignment.centerLeft),
-              onPressed: () {
-                Navigator.of(context).pop();
-                ref.read(sessionProvider.notifier).logout();
+              onPressed: () async {
+                final rootContext = Navigator.of(context, rootNavigator: true).context;
+                // Read before closing: the drawer (and its ref) is gone after.
+                final session = ref.read(sessionProvider.notifier);
+                Navigator.of(context).pop(); // close the drawer first
+                if (!await confirmLogout(rootContext)) return;
+                session.logout();
                 router.go(Routes.login);
               },
               icon: Icon(CeIcons.of('power'), size: 16),

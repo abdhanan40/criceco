@@ -9,6 +9,7 @@ import '../../../app/theme/tokens.dart';
 import '../../../core/constants/cities.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/validators.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_calendar.dart';
 import '../../../shared/widgets/ce_feedback.dart';
@@ -30,8 +31,6 @@ class CreateSlotScreen extends ConsumerStatefulWidget {
 }
 
 class _CreateSlotScreenState extends ConsumerState<CreateSlotScreen> {
-  static const maxOvers = 50;
-
   MatchFormat? _format;
   final _overs = TextEditingController();
   String? _city;
@@ -63,22 +62,35 @@ class _CreateSlotScreenState extends ConsumerState<CreateSlotScreen> {
     _errors.clear();
     final overs = int.tryParse(_overs.text);
     if (_format == null) _errors['format'] = 'Please select a format';
-    if (_format == MatchFormat.custom && (overs == null || overs < 1 || overs > maxOvers)) {
-      _errors['overs'] = overs == null ? 'Please enter the number of overs' : 'Enter between 1 and $maxOvers overs';
+    if (_format == MatchFormat.custom) {
+      final oversError = CeValidators.customOvers(overs);
+      if (oversError != null) _errors['overs'] = oversError;
     }
     if (_city == null) _errors['city'] = 'Please select a city';
     if (_date == null) _errors['date'] = 'Please pick a date';
     if (_slot == null) _errors['slot'] = 'Please pick a time slot';
+    if (_date != null && _slot != null && _errors['date'] == null && _errors['slot'] == null) {
+      final now = ref.read(clockProvider).now();
+      if (!_slot!.startOn(_date!).isAfter(now)) {
+        // e.g. today's 8am slot at noon: that time has already passed.
+        _errors['slot'] = 'That time has already passed — pick a later slot';
+      } else if ((ref.read(availabilitySlotsProvider).value ?? const <AvailabilitySlot>[])
+          .any((s) => CeFormat.dateOnly(s.date) == CeFormat.dateOnly(_date!) && s.slot == _slot)) {
+        _errors['slot'] = 'You already posted a slot for this date and time';
+      }
+    }
     setState(() {});
     return _errors.isEmpty;
   }
 
   Future<void> _post() async {
+    if (_saving) return;
     FocusScope.of(context).unfocus();
     if (!_validate()) return;
     setState(() => _saving = true);
     final now = ref.read(clockProvider).now();
-    await ref.read(availabilitySlotsProvider.notifier).post(AvailabilitySlot(
+    try {
+      await ref.read(availabilitySlotsProvider.notifier).post(AvailabilitySlot(
           id: 'slot_${now.microsecondsSinceEpoch}',
           format: _format!,
           customOvers: _format == MatchFormat.custom ? int.parse(_overs.text) : null,
@@ -87,7 +99,12 @@ class _CreateSlotScreenState extends ConsumerState<CreateSlotScreen> {
           date: _date!,
           slot: _slot!,
           notes: _notes.text.trim(),
-        ));
+          ));
+    } catch (_) {
+      if (mounted) setState(() => _saving = false);
+      if (mounted) showCeToast(context, "Couldn't post the slot — please try again");
+      return;
+    }
     if (!mounted) return;
     showCeToast(context, 'Availability slot posted!');
     context.go(Routes.findMatch); // prototype: go('findMatch')

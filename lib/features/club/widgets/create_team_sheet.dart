@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
+import '../../../core/utils/validators.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_indicators.dart';
@@ -34,7 +35,7 @@ class _CreateTeamFlowSheet extends ConsumerStatefulWidget {
 }
 
 class _CreateTeamFlowSheetState extends ConsumerState<_CreateTeamFlowSheet> {
-  static const _maxCustomOvers = 50;
+  static const _maxCustomOvers = CeValidators.maxCustomOvers;
 
   final _name = TextEditingController();
   final _overs = TextEditingController();
@@ -97,24 +98,34 @@ class _CreateTeamFlowSheetState extends ConsumerState<_CreateTeamFlowSheet> {
   }
 
   Future<void> _create() async {
+    if (!_valid) return; // also covers a second tap while saving
     FocusScope.of(context).unfocus();
     setState(() {
       _saving = true;
       _nameError = null;
     });
-    final error = await ref.read(teamsProvider.notifier).create(
-          name: _name.text,
-          format: _format,
-          customOvers: _format == MatchFormat.custom ? _customOvers : null,
-          members: [for (final e in _picks.entries) TeamMember(playerId: e.key, selection: e.value)],
-        );
+    final CreateTeamError? error;
+    try {
+      error = await ref.read(teamsProvider.notifier).create(
+            name: _name.text,
+            format: _format,
+            customOvers: _format == MatchFormat.custom ? _customOvers : null,
+            members: [for (final e in _picks.entries) TeamMember(playerId: e.key, selection: e.value)],
+          );
+    } catch (_) {
+      if (mounted) {
+        setState(() => _saving = false);
+        showCeToast(context, "Couldn't create the team — please try again");
+      }
+      return;
+    }
     if (!mounted) return;
     setState(() => _saving = false);
     if (error == null) {
       showCeToast(context, 'Team created!');
       Navigator.of(context).pop();
     } else {
-      setState(() => _nameError = error.message);
+      setState(() => _nameError = error!.message);
     }
   }
 
@@ -186,6 +197,7 @@ class _CreateTeamFlowSheetState extends ConsumerState<_CreateTeamFlowSheet> {
               icon: 'users',
               textCapitalization: TextCapitalization.words,
               textInputAction: TextInputAction.done,
+              maxLength: CeValidators.nameMaxLength,
               onChanged: (_) => setState(() => _nameError = null),
             ),
             CeInlineError(_nameError),
@@ -369,7 +381,14 @@ class _PlayerChoiceRow extends StatelessWidget {
                     style: const TextStyle(fontSize: 11.5, color: CeColors.muted)),
               ]),
             ),
-            if (fitness != null) ...[const SizedBox(width: 6), FitnessBadge(fitness!)],
+            // A long level ("10/10 · OVERLOADED") scales down rather than
+            // overflowing at 320 px.
+            if (fitness != null) ...[
+              const SizedBox(width: 6),
+              Flexible(
+                child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerRight, child: FitnessBadge(fitness!)),
+              ),
+            ],
           ]),
           const SizedBox(height: 8),
           Container(

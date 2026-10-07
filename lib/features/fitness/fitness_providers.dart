@@ -26,6 +26,15 @@ class PlayerWorkoutsController extends Notifier<List<WorkoutEntry>> {
     required WorkoutIntensity intensity,
     String notes = '',
   }) {
+    // Same rules as the sheet, enforced here too: no future workouts, and
+    // 1–[WorkoutEntry.maxMinutes] minutes.
+    final now = ref.read(clockProvider).now();
+    if (DateTime(date.year, date.month, date.day).isAfter(DateTime(now.year, now.month, now.day))) {
+      throw ArgumentError.value(date, 'date', "A workout can't be in the future");
+    }
+    if (minutes <= 0 || minutes > WorkoutEntry.maxMinutes) {
+      throw ArgumentError.value(minutes, 'minutes', 'Enter minutes between 1 and ${WorkoutEntry.maxMinutes}');
+    }
     final entry = WorkoutEntry(
       id: 'wk_${date.millisecondsSinceEpoch}_${_seq++}',
       date: date,

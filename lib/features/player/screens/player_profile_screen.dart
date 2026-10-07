@@ -92,16 +92,23 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
   }
 
   Future<void> _save() async {
+    if (_saving) return;
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     final phone = _phone.text.trim().isEmpty ? null : formatPkPhone(CeValidators.normalizePkPhone(_phone.text)!);
-    await ref.read(sessionProvider.notifier).updateAccount(
-          (a) => a.copyWith(fullName: _name.text.trim(), city: _city, phone: phone),
-        );
-    // A player listed as available is shown to clubs with the new details.
-    if (ref.read(playerAvailabilityProvider).openToOffers) {
-      await ref.read(playerAvailabilityProvider.notifier).setOpenToOffers(true);
+    try {
+      await ref.read(sessionProvider.notifier).updateAccount(
+            (a) => a.copyWith(fullName: _name.text.trim(), city: _city, phone: phone),
+          );
+      // A player listed as available is shown to clubs with the new details.
+      if (ref.read(playerAvailabilityProvider).openToOffers) {
+        await ref.read(playerAvailabilityProvider.notifier).setOpenToOffers(true);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _saving = false);
+      if (mounted) showCeToast(context, "Couldn't save your profile — please try again");
+      return;
     }
     if (!mounted) return;
     setState(() => _saving = false);
@@ -344,6 +351,7 @@ class _EditForm extends StatelessWidget {
               hint: '03XX-XXXXXXX',
               icon: 'phone',
               keyboardType: TextInputType.phone,
+              inputFormatters: kPhoneInputFormatters,
               textInputAction: TextInputAction.done,
               autofillHints: const [AutofillHints.telephoneNumber],
               validator: (v) => (!phoneRequired && (v == null || v.trim().isEmpty)) ? null : CeValidators.pkPhone(v),

@@ -239,7 +239,11 @@ void main() {
 
       expect(_loc(c), Routes.selectDate('m_3', 'g_pindi'));
       expect(find.text('September 2026'), findsOneWidget, reason: 'month derived from the clock');
-      await _tap(tester, find.bySemanticsLabel('Fri, 25 Sep 2026'));
+      // Today (Fri 25) and past days can't be picked: matches start tomorrow.
+      await tester.tap(find.bySemanticsLabel('Fri, 25 Sep 2026'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(c.read(bookingsProvider)['m_3']?.draft.date, isNull, reason: 'today is unavailable');
+      await _tap(tester, find.bySemanticsLabel('Wed, 30 Sep 2026'));
       expect(find.text('This ground is fully booked that day'), findsOneWidget);
       await _wait(tester, 2000);
       await _tap(tester, find.bySemanticsLabel('Sun, 27 Sep 2026'));

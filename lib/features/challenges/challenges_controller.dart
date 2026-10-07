@@ -4,12 +4,21 @@ import '../../app/config/demo_mode.dart';
 import '../../app/providers/core_providers.dart';
 import '../../app/session/session_controller.dart';
 import '../../core/models/models.dart';
+import '../../core/utils/validators.dart';
 import '../../demo/demo_challenge_responder.dart';
 import '../club/club_providers.dart';
 import '../matches/club_matches_controller.dart';
 
 /// Challenges (sent and received), keyed by id. Status is fully modelled:
 /// pending → accepted / declined / expired (revised architecture §11).
+/// A challenge that can't be sent; [message] says why.
+class ChallengeBlockedException implements Exception {
+  const ChallengeBlockedException(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
 class ChallengesController extends AsyncNotifier<List<Challenge>> {
   @override
   Future<List<Challenge>> build() async {
@@ -38,9 +47,29 @@ class ChallengesController extends AsyncNotifier<List<Challenge>> {
     state = AsyncData(list);
   }
 
+  /// Why a challenge to [opponentClubId] can't be sent, or `null`: your own
+  /// club, one already awaiting their reply, or a date before tomorrow.
+  String? blockReason(String opponentClubId, {DateTime? proposedAt}) {
+    if (opponentClubId == ref.read(currentClubProvider)?.id) return "You can't challenge your own club";
+    // Same rule as [pendingSentClubIdsProvider], from this controller's own
+    // state (reading that provider here would be circular).
+    final waiting = (state.value ?? const <Challenge>[]).any((c) =>
+        c.direction == ChallengeDirection.sent &&
+        c.opponentClubId == opponentClubId &&
+        c.statusAt(_now) == ChallengeStatus.pending);
+    if (waiting) {
+      return 'A challenge to this club is already waiting for their reply';
+    }
+    if (proposedAt != null && CeValidators.matchDate(proposedAt, _now) != null) return CeValidators.matchDateMessage;
+    return null;
+  }
+
   /// Send a challenge. It is always created PENDING; in Demo Mode the
   /// opponent then accepts instantly (the approved prototype flow).
+  /// Throws [ChallengeBlockedException] when [blockReason] says it can't go.
   Future<Challenge> send(String opponentClubId, {MatchFormat? format, String? groundName, DateTime? proposedAt}) async {
+    final reason = blockReason(opponentClubId, proposedAt: proposedAt);
+    if (reason != null) throw ChallengeBlockedException(reason);
     final sent = await ref.read(challengeRepositoryProvider).send(
           opponentClubId: opponentClubId,
           format: format,

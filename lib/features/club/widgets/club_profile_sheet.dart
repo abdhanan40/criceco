@@ -81,13 +81,15 @@ class _ClubProfileSheetState extends ConsumerState<_ClubProfileSheet> {
       });
 
   Future<void> _save() async {
+    if (_saving) return;
     if (!(_formKey.currentState?.validate() ?? false)) return;
     FocusScope.of(context).unfocus();
     setState(() => _saving = true);
     final address = _address.text.trim();
     final email = _email.text.trim();
     final year = int.tryParse(_year.text.trim());
-    await ref.read(sessionProvider.notifier).updateClub((c) => c.copyWith(
+    try {
+      await ref.read(sessionProvider.notifier).updateClub((c) => c.copyWith(
           name: _name.text.trim(),
           ownerName: _owner.text.trim(),
           city: _city,
@@ -98,7 +100,12 @@ class _ClubProfileSheetState extends ConsumerState<_ClubProfileSheet> {
           clearEmail: email.isEmpty,
           establishedYear: year,
           clearEstablished: year == null,
-        ));
+          ));
+    } catch (_) {
+      if (mounted) setState(() => _saving = false);
+      if (mounted) showCeToast(context, "Couldn't save the club — please try again");
+      return;
+    }
     if (!mounted) return;
     setState(() {
       _saving = false;
@@ -228,7 +235,8 @@ class _ClubProfileSheetState extends ConsumerState<_ClubProfileSheet> {
               icon: 'shield',
               textCapitalization: TextCapitalization.words,
               textInputAction: TextInputAction.next,
-              validator: (v) => CeValidators.required(v, 'Club name'),
+              maxLength: CeValidators.nameMaxLength,
+              validator: (v) => CeValidators.entityName(v, 'Club name'),
             ),
             const CeFieldLabel('Owner Name', required: true),
             CeTextField(
@@ -238,7 +246,8 @@ class _ClubProfileSheetState extends ConsumerState<_ClubProfileSheet> {
               icon: 'user',
               textCapitalization: TextCapitalization.words,
               textInputAction: TextInputAction.next,
-              validator: (v) => CeValidators.required(v, 'Owner name'),
+              maxLength: CeValidators.nameMaxLength,
+              validator: (v) => CeValidators.personName(v, 'Owner name'),
             ),
             const CeFieldLabel('City', required: true),
             CeSelectField<String>(

@@ -10,6 +10,7 @@ import '../../core/utils/formatters.dart';
 import '../../core/utils/validators.dart';
 import '../../shared/media/photo_picker.dart';
 import '../../shared/widgets/ce_buttons.dart';
+import '../../shared/widgets/ce_feedback.dart';
 import '../../shared/widgets/ce_form_widgets.dart';
 import '../../shared/widgets/ce_inputs.dart';
 import 'onboarding_controller.dart';
@@ -67,12 +68,19 @@ class _UserProfileSetupScreenState extends ConsumerState<UserProfileSetupScreen>
   }
 
   Future<void> _continue() async {
+    if (_saving) return;
     if (!(_formKey.currentState?.validate() ?? false)) return;
     FocusScope.of(context).unfocus();
     setState(() => _saving = true);
     // Stored in the account's display form ("0312 9020000"), as Edit Profile does.
     final phone = formatPkPhone(CeValidators.normalizePkPhone(_phone.text)!);
-    await ref.read(onboardingProvider.notifier).saveProfile(phone: phone);
+    try {
+      await ref.read(onboardingProvider.notifier).saveProfile(phone: phone);
+    } catch (_) {
+      if (mounted) setState(() => _saving = false);
+      if (mounted) showCeToast(context, "Couldn't save your profile — please try again");
+      return;
+    }
     if (!mounted) return;
     setState(() => _saving = false);
     // A returning user with a set-up role enters it; everyone else chooses.
@@ -140,6 +148,7 @@ class _UserProfileSetupScreenState extends ConsumerState<UserProfileSetupScreen>
                   CeTextField(
                     fieldKey: const Key('profile.name'),
                     controller: _name,
+                    maxLength: CeValidators.nameMaxLength,
                     hint: 'Muhammad Ali',
                     icon: 'user',
                     textCapitalization: TextCapitalization.words,
@@ -155,6 +164,7 @@ class _UserProfileSetupScreenState extends ConsumerState<UserProfileSetupScreen>
                     hint: '03XX-XXXXXXX',
                     icon: 'phone',
                     keyboardType: TextInputType.phone,
+                    inputFormatters: kPhoneInputFormatters,
                     textInputAction: TextInputAction.done,
                     autofillHints: const [AutofillHints.telephoneNumber],
                     validator: CeValidators.pkPhone,
@@ -169,7 +179,7 @@ class _UserProfileSetupScreenState extends ConsumerState<UserProfileSetupScreen>
                     readOnly: true,
                     showChevron: true,
                     onTap: _pickDob,
-                    validator: (_) => draft.dateOfBirth == null ? 'Date of birth is required' : null,
+                    validator: (_) => CeValidators.dateOfBirth(draft.dateOfBirth, DateTime.now()),
                   ),
                   const SizedBox(height: 10),
                   CeButton(label: 'Continue', loading: _saving, onPressed: _saving ? null : _continue),

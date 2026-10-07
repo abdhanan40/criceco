@@ -7,6 +7,7 @@ import 'package:criceco/app/router/routes.dart';
 import 'package:criceco/app/session/role_controller.dart';
 import 'package:criceco/app/session/session_controller.dart';
 import 'package:criceco/core/models/models.dart';
+import 'package:criceco/shared/widgets/ce_buttons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -118,6 +119,9 @@ void main() {
   testWidgets('logout clears navigation and returns to Login', (tester) async {
     final c = await _pumpApp(tester);
     await _openDrawerAndTap(tester, 'Logout');
+    expect(find.text('Log out?'), findsOneWidget, reason: 'asks first');
+    await tester.tap(find.widgetWithText(CeButton, 'Log out'));
+    await tester.pumpAndSettle();
     expect(_location(c), Routes.login);
     expect(c.read(routerProvider).canPop(), isFalse);
     c.read(routerProvider).go(Routes.playerHome);

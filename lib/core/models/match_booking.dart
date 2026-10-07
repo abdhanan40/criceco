@@ -89,10 +89,14 @@ class Ground {
 
 /// A bookable two-hour slot. Times are wall-clock hours on the booking date.
 class TimeSlot {
-  const TimeSlot({required this.startHour, required this.endHour, this.startMinute = 0});
+  const TimeSlot({required this.startHour, required this.endHour, this.startMinute = 0})
+      : assert(endHour > startHour, 'A time slot must end after it starts');
   final int startHour;
   final int startMinute;
   final int endHour;
+
+  /// Within the day and ending after it starts (checked again before reserving).
+  bool get isValid => startHour >= 0 && endHour <= 24 && endHour > startHour && startMinute >= 0 && startMinute < 60;
 
   DateTime startOn(DateTime date) =>
       DateTime(date.year, date.month, date.day, startHour, startMinute);
@@ -194,14 +198,17 @@ class BookingDraft {
     DateTime? date,
     TimeSlot? slot,
     bool clearSlot = false,
+
+    /// Drops the date (and its slot), e.g. a date that is no longer allowed.
+    bool clearDate = false,
   }) =>
       BookingDraft(
         format: format ?? this.format,
         customOvers: customOvers ?? this.customOvers,
         city: city ?? this.city,
         groundId: groundId ?? this.groundId,
-        date: date ?? this.date,
-        slot: clearSlot ? null : (slot ?? this.slot),
+        date: clearDate ? null : (date ?? this.date),
+        slot: clearSlot || clearDate ? null : (slot ?? this.slot),
       );
 }
 

@@ -39,18 +39,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _submit() async {
+    if (_submitting) return; // keyboard "done" can't double-submit either
     setState(() => _error = null);
     if (!(_formKey.currentState?.validate() ?? false)) return;
     FocusScope.of(context).unfocus();
     setState(() => _submitting = true);
-    final ok = await ref.read(sessionProvider.notifier).signIn(
-          identifier: CeValidators.normalizePkPhone(_phone.text) ?? _phone.text.trim(),
-          password: _password.text,
-        );
+    bool? ok;
+    try {
+      ok = await ref.read(sessionProvider.notifier).signIn(
+            identifier: CeValidators.normalizePkPhone(_phone.text) ?? _phone.text.trim(),
+            password: _password.text,
+          );
+    } catch (_) {
+      ok = null; // unexpected failure, not wrong credentials
+    }
     if (!mounted) return;
     setState(() {
       _submitting = false;
-      if (!ok) _error = 'Incorrect phone number or password. Please try again.';
+      if (ok == false) _error = 'Incorrect phone number or password. Please try again.';
+      if (ok == null) _error = "Couldn't log in right now. Please try again.";
     });
     // On success the router redirect moves to Continue As / role home.
   }
@@ -93,6 +100,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     hint: '03XX-XXXXXXX',
                     icon: 'phone',
                     keyboardType: TextInputType.phone,
+                    inputFormatters: kPhoneInputFormatters,
                     textInputAction: TextInputAction.next,
                     autofillHints: const [AutofillHints.telephoneNumber],
                     validator: CeValidators.pkPhone,

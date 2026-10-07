@@ -87,8 +87,8 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
   }
 
   Future<void> _continueAsPlayer() async {
-    final d = ref.read(onboardingProvider);
-    if (d.role == null || d.battingStyle == null || d.bowlingStyle == null) {
+    // Only the fields shown for the chosen role are required.
+    if (ref.read(onboardingProvider).missingPlayerDetail != null) {
       setState(() => _showErrors = true);
       return;
     }
@@ -101,14 +101,7 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
 
   /// Confirm, then clear the session and return to Login.
   Future<void> _logout() async {
-    final ok = await showCeConfirmSheet(
-      context,
-      title: 'Log out?',
-      body: 'You will be signed out of this account and returned to Login.',
-      confirmLabel: 'Log out',
-      destructive: true,
-      icon: 'power',
-    );
+    final ok = await confirmLogout(context);
     if (!ok || !mounted) return;
     ref.read(sessionProvider.notifier).logout();
     context.go(Routes.login);
@@ -296,6 +289,7 @@ class _PlayerDetails extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final d = ref.watch(onboardingProvider);
     final n = ref.read(onboardingProvider.notifier);
+    final role = d.role;
     String? err(bool missing, String message) => showErrors && missing ? message : null;
 
     return Container(
@@ -315,50 +309,58 @@ class _PlayerDetails extends ConsumerWidget {
           onSelected: n.setRole,
         ),
         CeInlineError(err(d.role == null, 'Please select your playing role')),
-        const SizedBox(height: 18),
-        const CeFieldLabel('Batting Style', required: true),
-        CeChoiceGroup<BattingStyle>(
-          columns: 2,
-          values: BattingStyle.values,
-          selected: d.battingStyle,
-          labelOf: (s) => s.label,
-          onSelected: n.setBattingStyle,
-        ),
-        CeInlineError(err(d.battingStyle == null, 'Please select your batting style')),
-        const SizedBox(height: 18),
-        const CeFieldLabel('Bowling Style', required: true),
-        CeChoiceGroup<BowlingStyle>(
-          columns: 2,
-          values: BowlingStyle.values,
-          selected: d.bowlingStyle,
-          labelOf: (s) => s.label,
-          onSelected: n.setBowlingStyle,
-        ),
-        CeInlineError(err(d.bowlingStyle == null, 'Please select your bowling style')),
-        const SizedBox(height: 18),
-        // Optional, on top of the primary playing role (reference keeper row).
-        Material(
-          color: CeColors.bg,
-          borderRadius: BorderRadius.circular(CeRadius.input),
-          child: InkWell(
+        // The rest depends on the role: Batsman — batting + wicket keeper;
+        // Bowler — bowling; All-Rounder — batting + bowling.
+        if (role != null && role.bats) ...[
+          const SizedBox(height: 18),
+          const CeFieldLabel('Batting Style', required: true),
+          CeChoiceGroup<BattingStyle>(
+            columns: 2,
+            values: BattingStyle.values,
+            selected: d.battingStyle,
+            labelOf: (s) => s.label,
+            onSelected: n.setBattingStyle,
+          ),
+          CeInlineError(err(d.battingStyle == null, 'Please select your batting style')),
+        ],
+        if (role != null && role.bowls) ...[
+          const SizedBox(height: 18),
+          const CeFieldLabel('Bowling Style', required: true),
+          CeChoiceGroup<BowlingStyle>(
+            columns: 2,
+            values: BowlingStyle.values,
+            selected: d.bowlingStyle,
+            labelOf: (s) => s.label,
+            onSelected: n.setBowlingStyle,
+          ),
+          CeInlineError(err(d.bowlingStyle == null, 'Please select your bowling style')),
+        ],
+        // Optional, Batsmen only (reference keeper row).
+        if (role != null && role.canKeepWicket) ...[
+          const SizedBox(height: 18),
+          Material(
+            color: CeColors.bg,
             borderRadius: BorderRadius.circular(CeRadius.input),
-            onTap: () => n.setWicketkeeper(!d.isWicketkeeper),
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Row(children: [
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Wicket Keeper', style: CeType.listTitle),
-                    const SizedBox(height: 3),
-                    Text('I can also keep wicket (optional)', style: CeType.bodySmall),
-                  ]),
-                ),
-                const SizedBox(width: 12),
-                CeSwitch(value: d.isWicketkeeper, onChanged: n.setWicketkeeper),
-              ]),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(CeRadius.input),
+              onTap: () => n.setWicketkeeper(!d.isWicketkeeper),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(children: [
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('Wicket Keeper', style: CeType.listTitle),
+                      const SizedBox(height: 3),
+                      Text('I can also keep wicket (optional)', style: CeType.bodySmall),
+                    ]),
+                  ),
+                  const SizedBox(width: 12),
+                  CeSwitch(value: d.isWicketkeeper, onChanged: n.setWicketkeeper),
+                ]),
+              ),
             ),
           ),
-        ),
+        ],
         const SizedBox(height: 18),
         CeButton(label: 'Continue as Player', loading: saving, onPressed: saving ? null : onContinue),
       ]),

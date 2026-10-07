@@ -3,12 +3,37 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers/core_providers.dart';
 import '../../app/session/session_controller.dart';
 import '../../core/models/models.dart';
+import '../../core/utils/validators.dart';
 import '../../data/repositories/repositories.dart';
 import '../matches/club_matches_controller.dart';
 import 'payment_gateway.dart';
 
 /// Result of an expiry, so the UI can pick the right follow-up (P13).
 enum ExpiryOutcome { needsResolution, returnedToPending }
+
+/// Reserving with a match date that is today or in the past (Match Setup
+/// only allows dates from tomorrow on).
+class InvalidMatchDateException implements Exception {
+  const InvalidMatchDateException();
+  @override
+  String toString() => CeValidators.matchDateMessage;
+}
+
+/// Reserving again for a match whose ground is already paid for or
+/// confirmed — that would release the paid hold and wipe the payment.
+class BookingLockedException implements Exception {
+  const BookingLockedException();
+  @override
+  String toString() => 'This match is already booked';
+}
+
+/// Your club already has another match (reserved or confirmed) starting at
+/// the same time — a club can't play two matches at once.
+class MatchTimeClashException implements Exception {
+  const MatchTimeClashException();
+  @override
+  String toString() => 'Your club already has a match at this time';
+}
 
 /// Result of paying your share (Payment screen states).
 enum PaymentOutcome { success, insufficientFunds, failed, holdExpired }
@@ -53,11 +78,33 @@ class BookingsController extends Notifier<Map<String, Booking>> {
     _put(b.copyWith(draft: change(b.draft)));
   }
 
+  /// Whether another of the club's matches (reserved or confirmed, not
+  /// [matchId]) starts at [start] — on any ground.
+  bool clubBusyAt(String matchId, DateTime start) =>
+      (ref.read(clubMatchesProvider).value ?? const <ClubMatch>[]).any((m) =>
+          m.id != matchId &&
+          m.startsAt == start &&
+          (m.status == MatchStatus.reserved || m.status == MatchStatus.confirmed));
+
   /// Booking Summary → "Reserve Ground for 30 Minutes". Throws
   /// [SlotTakenException] on conflict (the slot is cleared so the user picks again).
   Future<ReservationHold> reserve(String matchId) async {
     final b = state[matchId]!;
     final d = b.draft;
+    // Never re-reserve once your share is paid or the match is confirmed
+    // (a deep link to Setup / Summary must not wipe the payment).
+    final match = ref.read(clubMatchesProvider.notifier).byId(matchId);
+    if (b.myShareSettled ||
+        b.status == BookingStatus.awaitingOpponent ||
+        b.status == BookingStatus.confirmed ||
+        match?.status == MatchStatus.confirmed ||
+        match?.status == MatchStatus.completed) {
+      throw const BookingLockedException();
+    }
+    // Logic guard (not just the calendar): matches start from tomorrow.
+    if (CeValidators.matchDate(d.date, _now) != null) throw const InvalidMatchDateException();
+    if (d.slot == null || !d.slot!.isValid) throw ArgumentError('Pick a valid time slot');
+    if (clubBusyAt(matchId, d.slotStart!)) throw const MatchTimeClashException();
     final start = d.slotStart!;
     final grounds = await ref.read(groundRepositoryProvider).grounds();
     final ground = grounds.firstWhere((g) => g.id == d.groundId);
@@ -97,7 +144,10 @@ class BookingsController extends Notifier<Map<String, Booking>> {
   /// screen can show success / insufficient funds / failure / expired hold.
   Future<PaymentOutcome> pay(String matchId, PaymentMethodType method) async {
     final b = state[matchId]!;
+    // Already paid: never charge twice (repeat taps, a stale Pay screen).
+    if (b.myShareSettled) return PaymentOutcome.success;
     if (b.hold?.status != HoldStatus.active) return PaymentOutcome.holdExpired;
+    if (b.shareAmount <= 0) return PaymentOutcome.failed; // no valid amount to charge
     if (method == PaymentMethodType.wallet && _wallet.clubWalletBalance < b.shareAmount) {
       return PaymentOutcome.insufficientFunds;
     }

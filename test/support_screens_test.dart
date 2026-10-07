@@ -173,20 +173,21 @@ void main() {
     test('password change checks the current password, then sign-in requires the new one', () async {
       final c = await _signedIn();
       final s = c.read(sessionProvider.notifier);
-      expect(await s.changePassword(current: 'wrong-pass', next: 'newpass123'), isFalse);
+      expect(await s.changePassword(current: 'wrong-pass', next: 'Newpass@123'), isFalse);
       expect(c.read(currentAccountProvider)!.settings.passwordChangedAt, isNull);
-      expect(await s.changePassword(current: 'secret1', next: 'newpass123'), isTrue);
+      expect(await s.changePassword(current: 'secret1', next: 'Newpass@123'), isTrue);
       expect(c.read(currentAccountProvider)!.settings.passwordChangedAt, _now);
       s.logout();
       expect(await s.signIn(identifier: 'x', password: 'secret1'), isFalse, reason: 'old password no longer works');
-      expect(await s.signIn(identifier: 'x', password: 'newpass123'), isTrue);
+      expect(await s.signIn(identifier: 'x', password: 'Newpass@123'), isTrue);
     });
 
     test('new-password rules', () {
       expect(validateNewPassword('', 'secret1'), 'Enter a new password');
-      expect(validateNewPassword('short', 'secret1'), 'Use at least 8 characters');
-      expect(validateNewPassword('secret12', 'secret12'), 'Choose a password different from the current one');
-      expect(validateNewPassword('secret12', 'secret1'), isNull);
+      expect(validateNewPassword('short', 'secret1'), 'Password must be at least 8 characters');
+      expect(validateNewPassword('secret12', 'secret1'), 'Add an uppercase letter (A–Z)', reason: 'strong rules apply');
+      expect(validateNewPassword('Cricket@123', 'Cricket@123'), 'Choose a password different from the current one');
+      expect(validateNewPassword('Cricket@123', 'secret1'), isNull);
     });
 
     test('Privacy → Public profile off hides the listed player from clubs', () async {
@@ -421,6 +422,8 @@ void main() {
 
       await _go(tester, c, Routes.settings);
       await _tap(tester, _button('Log out'));
+      expect(find.text('Log out?'), findsOneWidget, reason: 'asks first');
+      await _tap(tester, _button('Log out').last);
       expect(_loc(c), Routes.login);
       expect(c.read(sessionProvider).isAuthenticated, isFalse);
     });
@@ -446,13 +449,16 @@ void main() {
 
       await _go(tester, c, Routes.settings);
       await _tap(tester, find.text('Password & security'));
+      // Update Password stays off until the new password is strong.
+      expect(tester.widget<CeButton>(_button('Update Password')).onPressed, isNull);
+      await tester.enterText(find.byKey(const Key('security.new')), 'short');
+      await tester.pumpAndSettle();
+      expect(find.text('Password must be at least 8 characters'), findsOneWidget);
+      expect(tester.widget<CeButton>(_button('Update Password')).onPressed, isNull);
+      await tester.enterText(find.byKey(const Key('security.new')), 'Newpass@123');
       await _tap(tester, _button('Update Password'));
       expect(find.text('Enter your current password'), findsOneWidget);
       await tester.enterText(find.byKey(const Key('security.current')), 'wrong-one');
-      await tester.enterText(find.byKey(const Key('security.new')), 'short');
-      await _tap(tester, _button('Update Password'));
-      expect(find.text('Use at least 8 characters'), findsOneWidget);
-      await tester.enterText(find.byKey(const Key('security.new')), 'newpass123');
       await _tap(tester, _button('Update Password'));
       expect(find.text('Current password is incorrect'), findsOneWidget);
       await tester.enterText(find.byKey(const Key('security.current')), 'secret1');
@@ -484,14 +490,16 @@ void main() {
       await _tap(tester, find.widgetWithText(OutlinedButton, 'Use code'));
       await _tap(tester, _button('Verify Code'));
 
-      // Same rule as this screen: at least 8 characters.
-      expect(find.text('Use at least 8 characters.'), findsOneWidget);
+      // Same strong rules as this screen, listed live by the field.
+      expect(find.text('Use 8+ characters with upper- and lowercase letters, a number and a special character.'),
+          findsOneWidget);
       await tester.enterText(find.byKey(const Key('reset.password')), 'short12');
       await tester.enterText(find.byKey(const Key('reset.confirm')), 'short12');
-      await _tap(tester, _button('Reset Password'));
+      await tester.pumpAndSettle();
       expect(find.text('Password must be at least 8 characters'), findsOneWidget);
-      await tester.enterText(find.byKey(const Key('reset.password')), 'brandnew99');
-      await tester.enterText(find.byKey(const Key('reset.confirm')), 'brandnew99');
+      expect(tester.widget<CeButton>(_button('Reset Password')).onPressed, isNull);
+      await tester.enterText(find.byKey(const Key('reset.password')), 'Brandnew#99');
+      await tester.enterText(find.byKey(const Key('reset.confirm')), 'Brandnew#99');
       await _tap(tester, _button('Reset Password'));
 
       expect(find.text('Password reset. Use your new password next time you log in.'), findsOneWidget);
@@ -501,10 +509,10 @@ void main() {
 
       // The new password is now the current one; the old one is not.
       final s = c.read(sessionProvider.notifier);
-      expect(await s.changePassword(current: 'secret1', next: 'another999'), isFalse);
+      expect(await s.changePassword(current: 'secret1', next: 'Another@999'), isFalse);
       s.logout();
       expect(await s.signIn(identifier: 'x', password: 'secret1'), isFalse);
-      expect(await s.signIn(identifier: 'x', password: 'brandnew99'), isTrue);
+      expect(await s.signIn(identifier: 'x', password: 'Brandnew#99'), isTrue);
     });
 
     testWidgets('Edit Profile validates, saves to the account and returns to My Profile', (tester) async {
@@ -611,7 +619,7 @@ void main() {
             ));
         c.read(openPlayersCityProvider.notifier).select('Islamabad');
         c.read(openPlayersRoleProvider.notifier).select(HuntRole.batsman);
-        await c.read(sessionProvider.notifier).changePassword(current: 'secret1', next: 'newpass123');
+        await c.read(sessionProvider.notifier).changePassword(current: 'secret1', next: 'Newpass@123');
         Future<void> sweep(List<String> locations) async {
           for (final loc in locations) {
             await _go(tester, c, loc);

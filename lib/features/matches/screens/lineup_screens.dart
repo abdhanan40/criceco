@@ -177,6 +177,7 @@ class TeamPickerScreen extends ConsumerWidget {
           target: MatchLineupTarget(matchId),
           intro: "Choose which of your club's teams will play this match.",
           initialTeamId: c.match.lineup?.sourceTeamId,
+          confirmReplace: c.match.lineup != null,
           onGoToTeams: () => context.go(Routes.teams),
           onConfirmed: (leftOut) {
             showCeToast(context, teamConfirmedToast(leftOut));

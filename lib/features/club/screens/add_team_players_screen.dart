@@ -47,11 +47,13 @@ class _AddTeamPlayersScreenState extends ConsumerState<AddTeamPlayersScreen> {
   /// asks for Playing XI or Substitute first (or lets a picked player be
   /// moved / removed).
   Future<void> _tap(SquadPlayer p) async {
-    if (p.locked) {
+    final draft = ref.read(squadEditorProvider(widget.teamId));
+    // A locked (injured / unavailable) player can't be added — but one who
+    // is already in the squad can still be taken out.
+    if (p.locked && !draft.picks.containsKey(p.id)) {
       showCeToast(context, "${p.name} is ${p.availability.label.toLowerCase()} and can't be added");
       return;
     }
-    final draft = ref.read(squadEditorProvider(widget.teamId));
     final full = draft.playing >= SquadRules.maxPlaying && draft.subs >= SquadRules.maxSubs;
     if (full && !draft.picks.containsKey(p.id)) {
       showCeToast(context, 'Playing XI and substitutes are full');
@@ -65,12 +67,23 @@ class _AddTeamPlayersScreenState extends ConsumerState<AddTeamPlayersScreen> {
     final outcome = ref.read(squadEditorProvider(widget.teamId).notifier).assign(p, choice.role);
     if (outcome == PickOutcome.full) {
       showCeToast(context, choice.role == SelectionRole.playing ? 'Playing XI is full' : 'Substitutes are full');
+    } else if (outcome == PickOutcome.locked) {
+      showCeToast(context, "${p.name} is ${p.availability.label.toLowerCase()} — they can only be removed");
     }
   }
 
   Future<void> _save() async {
+    if (_saving) return;
     setState(() => _saving = true);
-    await ref.read(squadEditorProvider(widget.teamId).notifier).save();
+    try {
+      await ref.read(squadEditorProvider(widget.teamId).notifier).save();
+    } catch (_) {
+      if (mounted) {
+        setState(() => _saving = false);
+        showCeToast(context, "Couldn't save the squad — please try again");
+      }
+      return;
+    }
     if (!mounted) return;
     setState(() => _saving = false);
     showCeToast(context, 'Squad updated!');

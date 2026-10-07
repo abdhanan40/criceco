@@ -97,9 +97,17 @@ class _CreateAnnouncementSheetState extends ConsumerState<_CreateAnnouncementShe
   }
 
   Future<void> _publish() async {
+    if (_publishing) return;
     FocusScope.of(context).unfocus();
     setState(() => _publishing = true);
-    final a = await publishAnnouncement(ref, title: _title.text, message: _message.text, audience: _audience);
+    final ClubAnnouncement a;
+    try {
+      a = await publishAnnouncement(ref, title: _title.text, message: _message.text, audience: _audience);
+    } catch (_) {
+      if (mounted) setState(() => _publishing = false);
+      if (mounted) showCeToast(context, "Couldn't publish the announcement — please try again");
+      return;
+    }
     if (!mounted) return;
     final n = a.recipientMemberIds.length;
     final messenger = context;

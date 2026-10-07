@@ -17,30 +17,27 @@ import '../../shared/widgets/demo_widgets.dart';
 /// three steps — phone number or email → 6-digit code → new password.
 /// Resolves to the identifier once the password is reset (Login prefills it),
 /// or `null` when cancelled. Signed in, [lockIdentifier] keeps the reset on the
-/// account's own phone number / email; [minPasswordLength] follows the screen
-/// it opens from.
+/// account's own phone number / email. The new password follows the shared
+/// strong-password rules ([CeValidators.password]).
 Future<String?> showForgotPasswordSheet(
   BuildContext context, {
   String? initialIdentifier,
   bool lockIdentifier = false,
-  int minPasswordLength = CeValidators.passwordMinLength,
 }) =>
     showCeSheet<String>(
       context,
       builder: (_) => _ForgotPasswordSheet(
         initialIdentifier: initialIdentifier,
         lockIdentifier: lockIdentifier && (initialIdentifier?.isNotEmpty ?? false),
-        minPasswordLength: minPasswordLength,
       ),
     );
 
 enum _Step { request, code, password }
 
 class _ForgotPasswordSheet extends ConsumerStatefulWidget {
-  const _ForgotPasswordSheet({this.initialIdentifier, this.lockIdentifier = false, required this.minPasswordLength});
+  const _ForgotPasswordSheet({this.initialIdentifier, this.lockIdentifier = false});
   final String? initialIdentifier;
   final bool lockIdentifier;
-  final int minPasswordLength;
 
   @override
   ConsumerState<_ForgotPasswordSheet> createState() => _ForgotPasswordSheetState();
@@ -174,7 +171,11 @@ class _ForgotPasswordSheetState extends ConsumerState<_ForgotPasswordSheet> {
           'We sent a 6-digit code to ${_ticket?.destination}. '
               'It expires at ${_ticket == null ? '' : CeFormat.time(_ticket!.expiresAt)}.',
         ),
-      _Step.password => ('lock', 'Create a new password', 'Use at least ${widget.minPasswordLength} characters.'),
+      _Step.password => (
+          'lock',
+          'Create a new password',
+          'Use 8+ characters with upper- and lowercase letters, a number and a special character.',
+        ),
     };
     return Form(
       key: _formKey,
@@ -265,13 +266,9 @@ class _ForgotPasswordSheetState extends ConsumerState<_ForgotPasswordSheet> {
                   obscure: true,
                   textInputAction: TextInputAction.next,
                   autofillHints: const [AutofillHints.newPassword],
-                  validator: (v) {
-                    if (v == null || v.isEmpty) return 'Password is required';
-                    return v.length < widget.minPasswordLength
-                        ? 'Password must be at least ${widget.minPasswordLength} characters'
-                        : null;
-                  },
+                  validator: CeValidators.password,
                 ),
+                CePasswordChecklist(controller: _password),
                 CeTextField(
                   fieldKey: const Key('reset.confirm'),
                   controller: _confirm,
@@ -284,7 +281,15 @@ class _ForgotPasswordSheetState extends ConsumerState<_ForgotPasswordSheet> {
                 ),
                 CeInlineError(_error),
                 const SizedBox(height: 8),
-                CeButton(label: 'Reset Password', loading: _busy, onPressed: _busy ? null : _reset),
+                // Off until the new password meets every requirement.
+                ListenableBuilder(
+                  listenable: _password,
+                  builder: (context, _) => CeButton(
+                    label: 'Reset Password',
+                    loading: _busy,
+                    onPressed: _busy || !CeValidators.isStrongPassword(_password.text) ? null : _reset,
+                  ),
+                ),
               ],
           },
         ],

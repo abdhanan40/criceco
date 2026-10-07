@@ -83,7 +83,13 @@ final visibleMembersProvider = Provider<List<ClubMember>>((ref) {
   return rankedSearch(
     members,
     ref.watch(membersQueryProvider),
-    fields: [SearchField((m) => m.name), SearchField((m) => m.phone, weight: 1)],
+    // Phone is matched as typed ("0312 9020000") and as digits only
+    // ("03129020000"), so spacing never hides a member.
+    fields: [
+      SearchField((m) => m.name),
+      SearchField((m) => m.phone, weight: 1),
+      SearchField((m) => m.phone.replaceAll(RegExp(r'\D'), ''), weight: 1),
+    ],
   );
 });
 

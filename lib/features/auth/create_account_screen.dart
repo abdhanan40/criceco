@@ -10,6 +10,7 @@ import '../../app/theme/tokens.dart';
 import '../../core/enums/enums.dart';
 import '../../core/utils/validators.dart';
 import '../../shared/widgets/ce_buttons.dart';
+import '../../shared/widgets/ce_feedback.dart';
 import '../../shared/widgets/ce_form_widgets.dart';
 import '../../shared/widgets/ce_inputs.dart';
 import '../../shared/widgets/ce_top_bar.dart';
@@ -42,18 +43,29 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
   }
 
   Future<void> _submit() async {
+    if (_submitting) return;
     if (!(_formKey.currentState?.validate() ?? false)) return;
     FocusScope.of(context).unfocus();
     setState(() => _submitting = true);
     final identifier = _method == ContactMethod.phone
         ? (CeValidators.normalizePkPhone(_phone.text) ?? _phone.text.trim())
         : _email.text.trim();
-    await ref.read(sessionProvider.notifier).signUp(
-          fullName: '',
-          method: _method,
-          identifier: identifier,
-          password: _password.text,
-        );
+    try {
+      await ref.read(sessionProvider.notifier).signUp(
+            fullName: '',
+            method: _method,
+            identifier: identifier,
+            password: _password.text,
+          );
+    } on WeakPasswordException catch (e) {
+      if (mounted) setState(() => _submitting = false);
+      if (mounted) showCeToast(context, e.message);
+      return;
+    } catch (_) {
+      if (mounted) setState(() => _submitting = false);
+      if (mounted) showCeToast(context, "Couldn't create your account — please try again");
+      return;
+    }
     if (!mounted) return;
     setState(() => _submitting = false);
     // Onboarding session → User Profile Setup (pushed, so Back returns here).
@@ -102,6 +114,7 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
                       hint: '03XX-XXXXXXX',
                       icon: 'phone',
                       keyboardType: TextInputType.phone,
+                      inputFormatters: kPhoneInputFormatters,
                       textInputAction: TextInputAction.next,
                       autofillHints: const [AutofillHints.telephoneNumber],
                       validator: CeValidators.pkPhone,
@@ -124,13 +137,15 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
                   CeTextField(
                     fieldKey: const Key('signup.password'),
                     controller: _password,
-                    hint: 'Min 6 characters',
+                    hint: 'e.g. Cricket@123',
                     icon: 'lock',
                     obscure: true,
                     textInputAction: TextInputAction.next,
                     autofillHints: const [AutofillHints.newPassword],
                     validator: CeValidators.password,
                   ),
+                  // Live requirements; Create Account stays off until all are met.
+                  CePasswordChecklist(controller: _password),
                   const CeFieldLabel('Confirm Password'),
                   CeTextField(
                     fieldKey: const Key('signup.confirm'),
@@ -143,7 +158,14 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
                     onFieldSubmitted: (_) => _submit(),
                   ),
                   const SizedBox(height: 4),
-                  CeButton(label: 'Create Account', loading: _submitting, onPressed: _submit),
+                  ListenableBuilder(
+                    listenable: _password,
+                    builder: (context, _) => CeButton(
+                      label: 'Create Account',
+                      loading: _submitting,
+                      onPressed: CeValidators.isStrongPassword(_password.text) ? _submit : null,
+                    ),
+                  ),
                   CeSwitchLine(
                     prompt: 'Already have an account?',
                     action: 'Login',

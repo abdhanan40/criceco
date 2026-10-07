@@ -96,7 +96,14 @@ class _CreateTournamentScreenState extends ConsumerState<CreateTournamentScreen>
       return;
     }
     setState(() => _saving = true);
-    final t = await ref.read(tournamentsProvider.notifier).create(_input);
+    final Tournament t;
+    try {
+      t = await ref.read(tournamentsProvider.notifier).create(_input);
+    } catch (_) {
+      if (mounted) setState(() => _saving = false);
+      if (mounted) showCeToast(context, "Couldn't publish the tournament — please try again");
+      return;
+    }
     if (!mounted) return;
     context.go(Routes.tournamentPublished(t.id));
   }
@@ -129,7 +136,17 @@ class _CreateTournamentScreenState extends ConsumerState<CreateTournamentScreen>
           visibleMonth: _month,
           today: _today,
           selected: value,
-          isEnabled: (d) => !d.isBefore(_today),
+          // End date: from the start date on. Deadline: up to the start date.
+          isEnabled: (d) {
+            if (d.isBefore(_today)) return false;
+            final start = _dates[_DateField.start];
+            if (start == null) return true;
+            return switch (field) {
+              _DateField.end => !d.isBefore(start),
+              _DateField.deadline => !d.isAfter(start),
+              _ => true,
+            };
+          },
           onMonthChanged: (m) => setState(() => _month = m),
           onSelected: (d) {
             setState(() {

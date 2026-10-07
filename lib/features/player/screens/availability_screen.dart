@@ -103,6 +103,14 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
       });
       return;
     }
+    // A saved "until" date that has since passed can't be saved again.
+    if (untilDate != null && untilDate.isBefore(_today)) {
+      setState(() {
+        _dateError = 'Pick a date from today onwards';
+        _pickerOpen = true;
+      });
+      return;
+    }
     ref.read(playerAvailabilityProvider.notifier).update(
           status: _status,
           reason: _reason,

@@ -143,8 +143,10 @@ class PlayerProfile {
   final BowlingStyle? bowlingStyle;
   final bool isWicketkeeper;
 
-  /// Player onboarding done: playing role and both styles chosen.
-  bool get isComplete => role != null && battingStyle != null && bowlingStyle != null;
+  /// Player onboarding done: a playing role plus the styles that role needs
+  /// (Batsman: batting · Bowler: bowling · All-Rounder: both).
+  bool get isComplete =>
+      role != null && (!role!.bats || battingStyle != null) && (!role!.bowls || bowlingStyle != null);
 
   PlayerProfile copyWith({
     PlayerRole? role,

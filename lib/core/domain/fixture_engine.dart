@@ -91,6 +91,8 @@ abstract final class FixtureEngine {
     if (fixtures == null) return t;
     final match = fixtures[roundIdx].matches[matchIdx];
     if (!match.ready || match.completed) return t;
+    // Only one of the two teams in this fixture can win it.
+    if (winnerId != match.home && winnerId != match.away) return t;
     final loserId = winnerId == match.home ? match.away! : match.home!;
 
     final standings = Map<String, Standing>.of(t.standings);

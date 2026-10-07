@@ -28,6 +28,7 @@ class _EnterClubCodeScreenState extends ConsumerState<EnterClubCodeScreen> {
   final _formKey = GlobalKey<FormState>();
   final _code = TextEditingController();
   bool _sending = false;
+  String? _error; // why the code can't be used (not found, member, pending…)
 
   @override
   void dispose() {
@@ -36,10 +37,28 @@ class _EnterClubCodeScreenState extends ConsumerState<EnterClubCodeScreen> {
   }
 
   Future<void> _send() async {
+    if (_sending) return; // keyboard "send" can't double-submit either
+    setState(() => _error = null);
     if (!(_formKey.currentState?.validate() ?? false)) return;
     FocusScope.of(context).unfocus();
     setState(() => _sending = true);
-    await ref.read(joinClubProvider.notifier).send(_code.text);
+    String? blocked;
+    try {
+      await ref.read(joinClubProvider.notifier).send(_code.text);
+    } on JoinBlockedException catch (e) {
+      blocked = e.message; // not found / already a member / pending / own club
+    } catch (_) {
+      blocked = "Couldn't send the request — please try again.";
+    }
+    if (blocked != null) {
+      if (mounted) {
+        setState(() {
+          _sending = false;
+          _error = blocked;
+        });
+      }
+      return;
+    }
     if (!mounted) return;
     setState(() => _sending = false);
     context.go(Routes.waitingApproval);
@@ -75,8 +94,12 @@ class _EnterClubCodeScreenState extends ConsumerState<EnterClubCodeScreen> {
                 TextInputFormatter.withFunction((o, n) => n.copyWith(text: n.text.toUpperCase())),
               ],
               validator: CeValidators.clubCode,
+              onChanged: (_) {
+                if (_error != null) setState(() => _error = null);
+              },
               onFieldSubmitted: (_) => _send(),
             ),
+            CeInlineError(_error),
             CeButton(label: 'Send Join Request', loading: _sending, onPressed: _send),
             const DemoOnly(
               child: Padding(

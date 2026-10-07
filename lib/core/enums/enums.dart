@@ -32,6 +32,15 @@ enum PlayerRole {
 
   const PlayerRole(this.label);
   final String label;
+
+  /// Player details that apply to this role (Role Selection shows only
+  /// these): Batsman — batting + optional wicket keeper; Bowler — bowling;
+  /// All-Rounder — batting + bowling.
+  bool get bats => this != bowler;
+  bool get bowls => this != batsman;
+
+  /// Wicket Keeper is offered (and kept) for Batsmen only.
+  bool get canKeepWicket => this == batsman;
 }
 
 /// Roles used by Player Hunt / Open Matches / Available Players.

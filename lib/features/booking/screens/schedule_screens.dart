@@ -7,6 +7,7 @@ import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/validators.dart';
 import '../../../data/repositories/repositories.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_calendar.dart';
@@ -81,6 +82,7 @@ class _SelectDateScreenState extends ConsumerState<SelectDateScreen> {
           }
           final d = c.booking?.draft ?? const BookingDraft();
           final today = _today;
+          final now = ref.read(clockProvider).now();
           final month = _month ?? d.date ?? today;
           final groundRepo = ref.read(groundRepositoryProvider);
 
@@ -106,9 +108,15 @@ class _SelectDateScreenState extends ConsumerState<SelectDateScreen> {
                 DayAvailability.partial => CeDayStyle.partial,
                 DayAvailability.full => CeDayStyle.full,
               },
-              isEnabled: (day) => !day.isBefore(today),
+              // Today and past days are unavailable: matches start tomorrow.
+              isEnabled: (day) => CeValidators.matchDate(day, now) == null,
               onMonthChanged: (m) => setState(() => _month = m),
               onSelected: (day) {
+                final dateError = CeValidators.matchDate(day, now);
+                if (dateError != null) {
+                  setState(() => _error = dateError);
+                  return;
+                }
                 if (groundRepo.dayAvailability(g.id, day) == DayAvailability.full) {
                   showCeToast(context, 'This ground is fully booked that day');
                   return;
@@ -165,11 +173,17 @@ class _SelectDateScreenState extends ConsumerState<SelectDateScreen> {
                 label: 'Continue · Booking Summary',
                 trailingIcon: CeIcons.of('arrow-right'),
                 onPressed: () {
-                  final err = d.date == null
-                      ? 'Please pick a date'
-                      : d.slot == null
+                  // Logic check too: a stale draft can't carry today / a past day.
+                  final err = CeValidators.matchDate(d.date, now) ??
+                      (d.slot == null
                           ? 'Please pick a time slot'
-                          : null;
+                          : null);
+                  final clash = err == null &&
+                      ref.read(bookingsProvider.notifier).clubBusyAt(widget.matchId, d.slot!.startOn(d.date!));
+                  if (clash) {
+                    setState(() => _error = 'Your club already has a match at this time — pick another slot');
+                    return;
+                  }
                   if (err != null) {
                     setState(() => _error = err);
                     return;
@@ -265,8 +279,15 @@ class _BookingSummaryScreenState extends ConsumerState<BookingSummaryScreen> {
       context.go(Routes.selectDate(widget.matchId, widget.groundId));
       return;
     }
+    // A match date from tomorrow on only (never today / a past day).
+    if (CeValidators.matchDate(d!.date, ref.read(clockProvider).now()) != null) {
+      ref.read(bookingsProvider.notifier).updateDraft(widget.matchId, (x) => x.copyWith(clearDate: true));
+      showCeToast(context, CeValidators.matchDateMessage);
+      context.go(Routes.selectDate(widget.matchId, widget.groundId));
+      return;
+    }
     // Re-check just before reserving: the slot may have passed or been taken.
-    final avail = slotAvailability(ref, matchId: widget.matchId, groundId: widget.groundId, date: d!.date!, slot: d.slot!);
+    final avail = slotAvailability(ref, matchId: widget.matchId, groundId: widget.groundId, date: d.date!, slot: d.slot!);
     if (avail != SlotAvailability.open && avail != SlotAvailability.reserved) {
       ref.read(bookingsProvider.notifier).updateDraft(widget.matchId, (x) => x.copyWith(clearSlot: true));
       showCeToast(context, 'That time slot is no longer available — pick another time');
@@ -279,6 +300,21 @@ class _BookingSummaryScreenState extends ConsumerState<BookingSummaryScreen> {
       if (!mounted) return;
       showCeToast(context, 'Ground reserved for 30 minutes!');
       context.go(Routes.payment(widget.matchId));
+    } on MatchTimeClashException {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      showCeToast(context, 'Your club already has a match at this time — pick another slot');
+      context.go(Routes.selectDate(widget.matchId, widget.groundId));
+    } on BookingLockedException {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      showCeToast(context, 'This match is already booked — no need to reserve again');
+      context.go(Routes.matchManagement(MatchTab.scheduled));
+    } on InvalidMatchDateException {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      showCeToast(context, CeValidators.matchDateMessage);
+      context.go(Routes.selectDate(widget.matchId, widget.groundId));
     } on SlotTakenException {
       // Conflict: another club holds this slot. The controller cleared it.
       if (!mounted) return;

@@ -95,8 +95,14 @@ class _FindPlayersTabState extends ConsumerState<_FindPlayersTab> {
   HuntDraftController get _draft => ref.read(huntDraftProvider.notifier);
 
   Future<void> _post() async {
+    if (_posting) return;
     setState(() => _posting = true);
-    final error = await ref.read(playerHuntProvider.notifier).publish(ref.read(huntDraftProvider));
+    String? error;
+    try {
+      error = await ref.read(playerHuntProvider.notifier).publish(ref.read(huntDraftProvider));
+    } catch (_) {
+      error = "Couldn't post the requirement — please try again";
+    }
     if (!mounted) return;
     setState(() {
       _posting = false;

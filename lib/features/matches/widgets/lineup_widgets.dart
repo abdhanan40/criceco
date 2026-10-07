@@ -375,10 +375,14 @@ class LineupTeamPickerView extends ConsumerStatefulWidget {
     required this.onConfirmed,
     required this.onGoToTeams,
     this.initialTeamId,
+    this.confirmReplace = false,
   });
   final LineupTarget target;
   final String intro;
   final String? initialTeamId;
+
+  /// The target already has a line-up: picking a different team asks first.
+  final bool confirmReplace;
   final ValueChanged<int> onConfirmed;
   final VoidCallback onGoToTeams;
 
@@ -401,6 +405,16 @@ class _LineupTeamPickerViewState extends ConsumerState<LineupTeamPickerView> {
     if (team.playerCount == 0) {
       setState(() => _error = '${team.name} has no players yet — add players in My Teams first');
       return;
+    }
+    if (widget.confirmReplace && team.id != widget.initialTeamId) {
+      final ok = await showCeConfirmSheet(
+        context,
+        title: 'Replace current team?',
+        body: 'This will replace the currently selected team for this match.',
+        confirmLabel: 'Replace Team',
+        icon: 'repeat',
+      );
+      if (!ok || !mounted) return;
     }
     setState(() => _saving = true);
     final leftOut = await ref.read(lineupDraftProvider(widget.target).notifier).useTeam(team);

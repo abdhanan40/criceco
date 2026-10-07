@@ -5,12 +5,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers/core_providers.dart';
 import '../../../app/session/session_controller.dart';
 import '../../../core/models/models.dart';
+import '../../../core/utils/ranked_search.dart';
+import '../../../core/utils/validators.dart';
 
 /// Validation failures for the inline Create Team form (prototype toasts).
 enum CreateTeamError {
   nameRequired('Please enter a team name'),
   formatRequired('Please select a format'),
   oversRequired('Please enter the number of overs'),
+  oversOutOfRange('Enter between 1 and ${CeValidators.maxCustomOvers} overs'),
+  nameTooLong('Keep the team name to ${CeValidators.nameMaxLength} characters'),
   duplicateName('A team with this name already exists'); // approved default P23
 
   const CreateTeamError(this.message);
@@ -37,12 +41,19 @@ class TeamsController extends AsyncNotifier<List<Team>> {
     int? customOvers,
     List<TeamMember> members = const [],
   }) async {
-    final trimmed = name.trim();
+    final trimmed = name.trim().replaceAll(RegExp(r'\s+'), ' ');
     if (trimmed.isEmpty) return CreateTeamError.nameRequired;
+    if (trimmed.length > CeValidators.nameMaxLength) return CreateTeamError.nameTooLong;
     if (format == null) return CreateTeamError.formatRequired;
-    if (format == MatchFormat.custom && customOvers == null) return CreateTeamError.oversRequired;
-    final existing = state.value ?? const [];
-    if (existing.any((t) => t.name.toLowerCase() == trimmed.toLowerCase())) return CreateTeamError.duplicateName;
+    if (format == MatchFormat.custom) {
+      if (customOvers == null) return CreateTeamError.oversRequired;
+      if (CeValidators.customOvers(customOvers) != null) return CreateTeamError.oversOutOfRange;
+    }
+    // Duplicates are checked against the loaded teams (never an empty list
+    // while they are still loading), ignoring case and repeated spaces.
+    final existing = await future;
+    String key(String s) => normalizeQuery(s);
+    if (existing.any((t) => key(t.name) == key(trimmed))) return CreateTeamError.duplicateName;
     final clubId = ref.read(currentClubProvider)!.id;
     final repo = ref.read(teamRepositoryProvider);
     var team = await repo.create(clubId: clubId, name: trimmed, format: format, customOvers: customOvers);
@@ -166,11 +177,12 @@ class SquadEditor extends Notifier<SquadDraft> {
   /// Explicit choice from the Add Player sheet: put [player] in the Playing
   /// XI or the Substitutes, or take them out (`null`). Same limits as [cycle].
   PickOutcome assign(SquadPlayer player, SelectionRole? role) {
-    if (player.locked) return PickOutcome.locked;
     final picks = Map.of(state.picks);
     if (role == null) {
+      // Removing is always allowed (e.g. a player injured since being picked).
       if (picks.remove(player.id) == null) return PickOutcome.changed;
     } else {
+      if (player.locked) return PickOutcome.locked;
       if (picks[player.id] == role) return PickOutcome.changed;
       final taken = picks.values.where((r) => r == role).length;
       final max = role == SelectionRole.playing ? SquadRules.maxPlaying : SquadRules.maxSubs;

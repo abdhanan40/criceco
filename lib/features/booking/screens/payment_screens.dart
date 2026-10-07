@@ -62,6 +62,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   _PayStage _stage = _PayStage.choose;
 
   Future<void> _pay() async {
+    // One charge at a time: a second tap while processing (or after success) is ignored.
+    if (_stage == _PayStage.processing || _stage == _PayStage.success) return;
     setState(() => _stage = _PayStage.processing);
     final outcome = await ref.read(bookingsProvider.notifier).pay(widget.matchId, _method);
     if (!mounted) return;

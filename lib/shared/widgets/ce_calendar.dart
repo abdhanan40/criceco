@@ -50,9 +50,12 @@ class CeMonthCalendar extends StatelessWidget {
       final isToday = _same(date, today);
       final enabled = isEnabled?.call(date) ?? true;
       final style = styleOf?.call(date) ?? CeDayStyle.normal;
+      // Unavailable days (e.g. today / past for a match date): plain, struck through.
       final (bg, fg) = isSel
           ? (CeColors.primaryDark, Colors.white)
-          : switch (style) {
+          : !enabled
+              ? (Colors.transparent, CeColors.muted2)
+              : switch (style) {
               CeDayStyle.available => (CeColors.mint2, CeColors.primaryDark),
               CeDayStyle.partial => (const Color(0xFFF7E3BB), CeColors.amber),
               CeDayStyle.full || CeDayStyle.unavailable => (const Color(0xFFF7DCD7), CeColors.red),
@@ -60,6 +63,7 @@ class CeMonthCalendar extends StatelessWidget {
             };
       return Semantics(
         button: true,
+        enabled: enabled,
         selected: isSel,
         label: CeFormat.dayDate(date),
         excludeSemantics: true,
@@ -70,13 +74,15 @@ class CeMonthCalendar extends StatelessWidget {
             decoration: BoxDecoration(
               color: bg,
               borderRadius: BorderRadius.circular(CeRadius.sm),
-              border: isToday && !isSel ? Border.all(color: CeColors.ink, width: 2) : null,
+              border: isToday && !isSel ? Border.all(color: enabled ? CeColors.ink : CeColors.line2, width: 2) : null,
             ),
             child: Text('$d',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: isToday ? FontWeight.w700 : FontWeight.w600,
                   color: enabled ? fg : CeColors.muted2,
+                  decoration: enabled ? null : TextDecoration.lineThrough,
+                  decorationColor: CeColors.muted2,
                 )),
           ),
         ),

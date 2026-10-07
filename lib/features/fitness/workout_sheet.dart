@@ -52,7 +52,11 @@ class _AddWorkoutSheetState extends ConsumerState<_AddWorkoutSheet> {
     return _duration == null ? 'Enter minutes between 1 and ${WorkoutEntry.maxMinutes}' : null;
   }
 
+  bool _saved = false; // one save per sheet (rapid taps)
+
   void _save() {
+    if (_saved || _duration == null) return;
+    _saved = true;
     ref.read(playerWorkoutsProvider.notifier).add(
           date: _date,
           type: _type,

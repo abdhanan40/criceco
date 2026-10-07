@@ -87,7 +87,18 @@ class PlayerHuntController extends AsyncNotifier<List<PlayerHuntPost>> {
     if (d.role == null) return 'Please select the role you need';
     final club = ref.read(currentClubProvider);
     if (club == null) return 'Only a club owner can post a requirement';
-    await future;
+    final posts = await future;
+    // The same open requirement twice is almost always a double post.
+    final duplicate = posts.any((p) =>
+        p.clubId == club.id &&
+        p.role == d.role &&
+        p.format == d.format &&
+        p.playersNeeded == d.playersNeeded &&
+        p.location == d.location &&
+        p.date == d.date &&
+        p.time == d.time &&
+        p.budget == d.budget);
+    if (duplicate) return 'You already have this requirement posted';
     final now = ref.read(clockProvider).now();
     final post = await ref.read(huntRepositoryProvider).publish(PlayerHuntPost(
           id: 'hunt_${now.microsecondsSinceEpoch}_${state.value?.length ?? 0}',

@@ -33,7 +33,7 @@ class OnboardingDraft {
   final BattingStyle? battingStyle;
   final BowlingStyle? bowlingStyle;
 
-  /// Optional extra for any playing role — never the primary role.
+  /// Optional extra for Batsmen — never the primary role.
   final bool isWicketkeeper;
 
   OnboardingDraft copyWith({
@@ -46,6 +46,8 @@ class OnboardingDraft {
     BattingStyle? battingStyle,
     BowlingStyle? bowlingStyle,
     bool? isWicketkeeper,
+    bool clearBatting = false,
+    bool clearBowling = false,
   }) =>
       OnboardingDraft(
         fullName: fullName ?? this.fullName,
@@ -53,13 +55,27 @@ class OnboardingDraft {
         phone: phone ?? this.phone,
         photoPath: clearPhoto ? null : (photoPath ?? this.photoPath),
         role: role ?? this.role,
-        battingStyle: battingStyle ?? this.battingStyle,
-        bowlingStyle: bowlingStyle ?? this.bowlingStyle,
+        battingStyle: clearBatting ? null : (battingStyle ?? this.battingStyle),
+        bowlingStyle: clearBowling ? null : (bowlingStyle ?? this.bowlingStyle),
         isWicketkeeper: isWicketkeeper ?? this.isWicketkeeper,
       );
 
-  PlayerProfile get playerProfile =>
-      PlayerProfile(role: role, battingStyle: battingStyle, bowlingStyle: bowlingStyle, isWicketkeeper: isWicketkeeper);
+  /// What the current role still needs (hidden fields never count).
+  String? get missingPlayerDetail {
+    final r = role;
+    if (r == null) return 'role';
+    if (r.bats && battingStyle == null) return 'batting';
+    if (r.bowls && bowlingStyle == null) return 'bowling';
+    return null;
+  }
+
+  /// Only the details that apply to the role are saved.
+  PlayerProfile get playerProfile => PlayerProfile(
+        role: role,
+        battingStyle: role == null || role!.bats ? battingStyle : null,
+        bowlingStyle: role == null || role!.bowls ? bowlingStyle : null,
+        isWicketkeeper: (role?.canKeepWicket ?? false) && isWicketkeeper,
+      );
 }
 
 class OnboardingController extends Notifier<OnboardingDraft> {
@@ -88,10 +104,17 @@ class OnboardingController extends Notifier<OnboardingDraft> {
   void setPhone(String v) => state = state.copyWith(phone: v);
   /// A picture from the device picker, or `null` to remove it.
   void setPhoto(String? path) => state = state.copyWith(photoPath: path, clearPhoto: path == null);
-  void setRole(PlayerRole v) => state = state.copyWith(role: v);
+  /// A new playing role clears the answers that no longer apply
+  /// (e.g. Batsman → Bowler drops Batting Style and Wicket Keeper).
+  void setRole(PlayerRole v) => state = state.copyWith(
+        role: v,
+        clearBatting: !v.bats,
+        clearBowling: !v.bowls,
+        isWicketkeeper: v.canKeepWicket && state.isWicketkeeper,
+      );
   void setBattingStyle(BattingStyle v) => state = state.copyWith(battingStyle: v);
   void setBowlingStyle(BowlingStyle v) => state = state.copyWith(bowlingStyle: v);
-  void setWicketkeeper(bool v) => state = state.copyWith(isWicketkeeper: v);
+  void setWicketkeeper(bool v) => state = state.copyWith(isWicketkeeper: v && (state.role?.canKeepWicket ?? false));
 
   /// User Profile Setup → Continue. [phone] is the normalized display form.
   Future<void> saveProfile({required String phone}) => ref.read(sessionProvider.notifier).completeProfile(

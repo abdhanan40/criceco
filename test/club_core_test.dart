@@ -792,8 +792,15 @@ void main() {
       error = null;
       await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
+      // Remove asks first: Cancel keeps the picture.
       await _tap(tester, photo);
       await _tap(tester, find.text('Remove picture'));
+      expect(find.text('Remove picture?'), findsOneWidget);
+      await _tap(tester, _button('Cancel'));
+      expect(c.read(currentClubProvider)!.logoPath, '/photos/club.png', reason: 'cancel keeps it');
+      await _tap(tester, photo);
+      await _tap(tester, find.text('Remove picture'));
+      await _tap(tester, _button('Remove')); // confirm the removal
       expect(c.read(currentClubProvider)!.logoPath, isNull);
       expect(c.read(currentClubProvider)!.hasLogo, isFalse);
       expect(find.bySemanticsLabel('Add club picture'), findsOneWidget);

@@ -208,8 +208,20 @@ class _JoinClubSheetState extends ConsumerState<_JoinClubSheet> {
   }
 
   Future<void> _send(ClubCodePreview club) async {
+    if (_sending) return;
     setState(() => _sending = true);
-    final request = await ref.read(joinClubProvider.notifier).send(club.code);
+    final ClubJoinRequest request;
+    try {
+      request = await ref.read(joinClubProvider.notifier).send(club.code);
+    } on JoinBlockedException catch (e) {
+      if (mounted) setState(() => _sending = false);
+      if (mounted) showCeToast(context, e.message);
+      return;
+    } catch (_) {
+      if (mounted) setState(() => _sending = false);
+      if (mounted) showCeToast(context, "Couldn't send the request — please try again");
+      return;
+    }
     if (!mounted) return;
     Navigator.of(context).pop();
     showCeToast(context, 'Join request sent to ${request.clubName}');

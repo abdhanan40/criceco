@@ -7,6 +7,7 @@ import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/validators.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_calendar.dart';
 import '../../../shared/widgets/ce_feedback.dart';
@@ -89,12 +90,18 @@ Future<void> sendChallenge(
   );
   if (request == null || !context.mounted) return; // cancelled: nothing is sent
   onSending?.call();
-  final c = await ref.read(challengesProvider.notifier).send(
-        club.id,
-        format: request.format,
-        groundName: request.ground.name,
-        proposedAt: request.date,
-      );
+  final Challenge c;
+  try {
+    c = await ref.read(challengesProvider.notifier).send(
+          club.id,
+          format: request.format,
+          groundName: request.ground.name,
+          proposedAt: request.date,
+        );
+  } on ChallengeBlockedException catch (e) {
+    if (context.mounted) showCeToast(context, e.message);
+    return;
+  }
   if (!context.mounted) return;
   if (c.status == ChallengeStatus.accepted) {
     showCeToast(context, 'Challenge sent to ${club.name}!');
@@ -134,8 +141,10 @@ class _ChallengeSetupSheetState extends ConsumerState<_ChallengeSetupSheet> {
   late MatchFormat? _format = challengeFormats.contains(widget.format) ? widget.format : null;
   Ground? _ground;
   bool _groundSeeded = false;
-  late DateTime? _date =
-      widget.date == null || widget.date!.isBefore(_today) ? null : CeFormat.dateOnly(widget.date!);
+  // A prefilled date is kept only if it's still a valid match date.
+  late DateTime? _date = widget.date == null || CeValidators.matchDate(widget.date, ref.read(clockProvider).now()) != null
+      ? null
+      : CeFormat.dateOnly(widget.date!);
   late DateTime _month = _date ?? _today;
   bool _pickerOpen = false;
   bool _review = false;
@@ -203,7 +212,8 @@ class _ChallengeSetupSheetState extends ConsumerState<_ChallengeSetupSheet> {
           visibleMonth: _month,
           today: _today,
           selected: _date,
-          isEnabled: (d) => !d.isBefore(_today),
+          // Same rule as Match Setup: from tomorrow on.
+          isEnabled: (d) => CeValidators.matchDate(d, ref.read(clockProvider).now()) == null,
           onMonthChanged: (m) => setState(() => _month = m),
           onSelected: (d) => setState(() {
             _date = d;

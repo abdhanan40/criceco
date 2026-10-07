@@ -159,6 +159,17 @@ enum TournamentTab {
 /// Organizer "Generate Fixtures" (prototype `generateFixtures`): toasts and
 /// opens the Fixtures tab once the draw exists.
 Future<void> generateFixturesFlow(BuildContext context, WidgetRef ref, Tournament t) async {
+  // The draw closes registration and can't be undone, so it asks first.
+  if (t.fixtures == null && t.canGenerateFixtures) {
+    final ok = await showCeConfirmSheet(
+      context,
+      title: 'Generate fixtures?',
+      body: 'Registration closes and the draw is fixed for the ${t.joined.length} joined teams.',
+      confirmLabel: 'Generate Fixtures',
+      icon: 'trophy',
+    );
+    if (!ok || !context.mounted) return;
+  }
   final outcome = await ref.read(tournamentsProvider.notifier).generateFixtures(t.id);
   if (!context.mounted) return;
   switch (outcome) {

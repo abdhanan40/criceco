@@ -192,6 +192,16 @@ Future<T?> showCeSheet<T>(BuildContext context, {required WidgetBuilder builder}
 /// Confirmation sheet for a destructive or money-moving action: title, one
 /// line of consequence, a primary CTA (red when [destructive]) and Cancel.
 /// Resolves to `true` only when confirmed.
+/// "Log out?" confirmation, shared by Settings, the drawer and Role Selection.
+Future<bool> confirmLogout(BuildContext context) => showCeConfirmSheet(
+      context,
+      title: 'Log out?',
+      body: 'You will be signed out of this account and returned to Login.',
+      confirmLabel: 'Log out',
+      destructive: true,
+      icon: 'power',
+    );
+
 Future<bool> showCeConfirmSheet(
   BuildContext context, {
   required String title,

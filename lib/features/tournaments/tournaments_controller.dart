@@ -7,6 +7,7 @@ import '../../app/providers/core_providers.dart';
 import '../../app/session/session_controller.dart';
 import '../../core/domain/fixture_engine.dart';
 import '../../core/models/models.dart';
+import '../../core/utils/validators.dart';
 import '../../demo/demo_tournament_tools.dart';
 import '../../shared/state/selection_controller.dart';
 import '../club/club_providers.dart';
@@ -19,7 +20,7 @@ import 'registration_draft.dart';
 // ---------------------------------------------------------------------------
 
 abstract final class TournamentLimits {
-  static const maxOvers = 50;
+  static const maxOvers = CeValidators.maxCustomOvers;
   static const minTeams = Tournament.minTeamsForFixtures;
   static const maxTeams = 32;
 }
