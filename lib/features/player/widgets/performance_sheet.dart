@@ -9,8 +9,11 @@ import '../../../core/models/models.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
+import '../../rankings/rankings_providers.dart';
+import '../../rankings/rankings_widgets.dart';
 import '../player_providers.dart';
 import '../screens/performance_screens.dart' show FormChip;
+import '../screens/performance_workspace.dart';
 
 /// Player Dashboard → Performance: a compact summary of the player's real
 /// numbers ([performanceProvider]) in a sheet. "View Full Performance" opens
@@ -49,8 +52,18 @@ class _PerformanceSheet extends ConsumerWidget {
                 ? const Text("Couldn't load your performance.", textAlign: TextAlign.center)
                 : const Center(child: CircularProgressIndicator()),
           )
-        else
+        else ...[
           ..._summary(p),
+          // Your Ranking — opens My Performance → Rankings.
+          YourRankingCard(
+            ranking: ref.watch(rankingBoardProvider).value?.me,
+            margin: const EdgeInsets.only(top: 12),
+            onTap: () {
+              Navigator.of(context).pop();
+              router.go(PerformanceView.rankings.location);
+            },
+          ),
+        ],
         const SizedBox(height: 16),
         CeButton(
           label: 'View Full Performance',

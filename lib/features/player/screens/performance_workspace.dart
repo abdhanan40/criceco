@@ -4,12 +4,14 @@ import 'package:go_router/go_router.dart';
 import '../../../app/router/routes.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
 import '../../../shared/widgets/ce_workspace_tabs.dart';
+import '../../rankings/rankings_widgets.dart';
 import 'performance_screens.dart';
 
 /// Tabs of the Performance workspace, kept in `?tab=`.
 enum PerformanceView {
   overview('Overview'),
-  history('History');
+  history('History'),
+  rankings('Rankings');
 
   const PerformanceView(this.label);
   final String label;
@@ -21,8 +23,8 @@ enum PerformanceView {
   String get location => this == overview ? Routes.myPerformance : '${Routes.myPerformance}?tab=$name';
 }
 
-/// Performance workspace (consolidation Phase A): My Performance (Overview)
-/// and Match History (History) in one screen.
+/// Performance workspace (consolidation Phase A): My Performance (Overview),
+/// Match History (History) and the local player Rankings in one screen.
 ///
 /// Back: from History → Overview (what Back from Match History did before);
 /// from Overview → the Dashboard (as My Performance did). Switching tabs
@@ -55,6 +57,7 @@ class PerformanceWorkspace extends StatelessWidget {
               PerformanceView.overview =>
                 PerformanceOverviewView(onViewAll: () => context.go(PerformanceView.history.location)),
               PerformanceView.history => const MatchHistoryView(),
+              PerformanceView.rankings => const RankingsView(),
             },
           ),
         ]),

@@ -9,6 +9,7 @@ import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
+import '../../rankings/rankings_widgets.dart';
 import '../club_providers.dart';
 
 /// `.squad-filter-row`: All / Batsman / Bowler / All-Rounder with counts.
@@ -195,6 +196,8 @@ class PlayerScoutingDetails extends StatelessWidget {
           ),
         ]),
       ),
+      // Overall / role rank, Ranking Score, matches and eligibility.
+      PlayerRankingSection(playerId: player.id),
     ]);
   }
 }

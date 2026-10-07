@@ -7,6 +7,7 @@ import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../app/theme/typography.dart';
 import '../../../core/constants/cities.dart';
+import '../../../core/domain/player_ranking.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/ce_buttons.dart';
@@ -20,6 +21,8 @@ import '../../../shared/widgets/ce_segmented.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
 import '../../../shared/widgets/demo_widgets.dart';
+import '../../rankings/rankings_providers.dart';
+import '../../rankings/rankings_widgets.dart';
 import '../hunt/player_hunt_controller.dart';
 
 enum HuntTab {
@@ -506,6 +509,7 @@ class _AvailablePlayersTab extends ConsumerWidget {
     final city = ref.watch(openPlayersCityProvider);
     final role = ref.watch(openPlayersRoleProvider);
     final invited = ref.watch(invitedPlayersProvider);
+    final board = ref.watch(rankingBoardProvider).value;
     final players = [
       for (final p in async.value ?? const <OpenPlayer>[])
         if (p.city == city && p.role == role) p,
@@ -561,6 +565,7 @@ class _AvailablePlayersTab extends ConsumerWidget {
           for (final p in players)
             _OpenPlayerRow(
               player: p,
+              ranking: board == null ? null : rankingForOpenPlayer(board, p),
               invited: invited.contains(p.id),
               onInvite: () {
                 if (ref.read(invitedPlayersProvider.notifier).invite(p.id)) {
@@ -584,8 +589,9 @@ class _AvailablePlayersTab extends ConsumerWidget {
 }
 
 class _OpenPlayerRow extends StatelessWidget {
-  const _OpenPlayerRow({required this.player, required this.invited, required this.onInvite});
+  const _OpenPlayerRow({required this.player, required this.invited, required this.onInvite, this.ranking});
   final OpenPlayer player;
+  final PlayerRanking? ranking;
   final bool invited;
   final VoidCallback onInvite;
 
@@ -611,6 +617,7 @@ class _OpenPlayerRow extends StatelessWidget {
             ]),
             const SizedBox(height: 2),
             Text('${p.role.label} · ${p.availabilityLabel}', style: const TextStyle(fontSize: 12, color: CeColors.muted)),
+            if (ranking != null) ...[const SizedBox(height: 5), RankingBadge(ranking: ranking!)],
           ]),
         ),
         if (!p.isMe) ...[
