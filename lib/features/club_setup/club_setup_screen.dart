@@ -253,7 +253,7 @@ class _ClubSetupScreenState extends ConsumerState<ClubSetupScreen> {
                           ]),
                         ),
                         const SizedBox(width: 12),
-                        _YesNo(
+                        CeYesNo(
                           value: draft.hasHomeGround,
                           onChanged: (v) {
                             setup.update((d) => d.copyWith(hasHomeGround: v));
@@ -290,40 +290,3 @@ class _ClubSetupScreenState extends ConsumerState<ClubSetupScreen> {
 
 /// Yes / No segment (reference home-ground toggle: mint track, 34 px
 /// options, the chosen one filled #12544F). Nothing is chosen at first.
-class _YesNo extends StatelessWidget {
-  const _YesNo({required this.value, required this.onChanged});
-  final bool? value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    Widget option(bool v, String label) {
-      final on = value == v;
-      return Semantics(
-        button: true,
-        selected: on,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => onChanged(v),
-          child: AnimatedContainer(
-            duration: CeMotion.base,
-            width: 52,
-            height: 34,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: on ? CeColors.primary : Colors.transparent,
-              borderRadius: BorderRadius.circular(9),
-            ),
-            child: Text(label, style: CeType.buttonSmall.copyWith(color: on ? Colors.white : CeColors.muted)),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(color: CeColors.mint, borderRadius: BorderRadius.circular(CeRadius.md)),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [option(true, 'Yes'), option(false, 'No')]),
-    );
-  }
-}

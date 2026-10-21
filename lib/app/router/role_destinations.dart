@@ -24,11 +24,9 @@ abstract final class RoleDestinations {
       RoleDestination('home', 'Dashboard', Routes.playerHome),
       RoleDestination('user', 'My Profile', Routes.playerProfile),
       RoleDestination('bar-chart', 'My Performance', Routes.myPerformance),
-    ]),
-    DestinationGroup('Cricket', [
-      RoleDestination('calendar', 'My Matches', Routes.myMatches),
-      RoleDestination('circle-dot', 'Playing Opportunities', Routes.openMatches),
-      RoleDestination('check-circle', 'Availability', Routes.availability),
+      // My Matches, Playing Opportunities and Availability are reached from
+      // the dashboard Quick Actions, the bottom nav (Matches) and My Profile
+      // ("Update Availability") — not repeated here.
       RoleDestination('bell', 'Notifications', Routes.notifications),
     ]),
   ];
@@ -60,12 +58,21 @@ abstract final class RoleDestinations {
     Routes.joinRequests,
   ];
 
+  /// Player areas no longer in the sidebar that are still top-level screens
+  /// (remembered as the role's last location, as before).
+  static const _playerTopLevelOffMenu = [
+    Routes.myMatches,
+    Routes.openMatches,
+    Routes.availability,
+  ];
+
   /// Role-owned top-level locations (excludes shared ones like Notifications).
   static Set<String> topLevel(UserRole role) => {
         for (final g in forRole(role))
           for (final d in g.items)
             if (role == UserRole.player ? Routes.isPlayerLocation(d.location) : Routes.isClubLocation(d.location))
               d.location,
+        if (role == UserRole.player) ..._playerTopLevelOffMenu,
         if (role == UserRole.clubOwner) ..._clubTopLevelOffMenu,
       };
 }

@@ -10,6 +10,13 @@ class UserAccount {
     this.email,
     this.city,
     this.dateOfBirth,
+    this.currentCity,
+    this.currentArea,
+    this.currentAddress,
+    this.permanentCity,
+    this.permanentArea,
+    this.permanentAddress,
+    this.isPermanentSameAsCurrent = true,
     this.playerProfile = const PlayerProfile(),
     this.hasClubOwnerProfile = false,
     this.ownedClubId,
@@ -27,6 +34,13 @@ class UserAccount {
   final String? email;
   final String? city;
   final DateTime? dateOfBirth;
+  final String? currentCity;
+  final String? currentArea;
+  final String? currentAddress;
+  final String? permanentCity;
+  final String? permanentArea;
+  final String? permanentAddress;
+  final bool isPermanentSameAsCurrent;
   final PlayerProfile playerProfile;
 
   /// Account-level Club Owner profile. Only set by creating a club — never by
@@ -62,6 +76,13 @@ class UserAccount {
     String? email,
     String? city,
     DateTime? dateOfBirth,
+    String? currentCity,
+    String? currentArea,
+    String? currentAddress,
+    String? permanentCity,
+    String? permanentArea,
+    String? permanentAddress,
+    bool? isPermanentSameAsCurrent,
     PlayerProfile? playerProfile,
     bool? hasClubOwnerProfile,
     String? ownedClubId,
@@ -80,6 +101,13 @@ class UserAccount {
         email: email ?? this.email,
         city: city ?? this.city,
         dateOfBirth: dateOfBirth ?? this.dateOfBirth,
+        currentCity: currentCity ?? this.currentCity,
+        currentArea: currentArea ?? this.currentArea,
+        currentAddress: currentAddress ?? this.currentAddress,
+        permanentCity: permanentCity ?? this.permanentCity,
+        permanentArea: permanentArea ?? this.permanentArea,
+        permanentAddress: permanentAddress ?? this.permanentAddress,
+        isPermanentSameAsCurrent: isPermanentSameAsCurrent ?? this.isPermanentSameAsCurrent,
         playerProfile: playerProfile ?? this.playerProfile,
         hasClubOwnerProfile: hasClubOwnerProfile ?? this.hasClubOwnerProfile,
         ownedClubId: ownedClubId ?? this.ownedClubId,

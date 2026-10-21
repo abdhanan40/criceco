@@ -36,7 +36,8 @@ abstract final class RoleNavItems {
   /// center button (Set Your Status sheet); Club is a sheet (join a club /
   /// pending request / My Club); Profile is My Profile (in the Home branch).
   /// Availability and Performance keep their routes and branches — reached
-  /// from the dashboard quick actions and the sidebar.
+  /// from the dashboard quick actions, My Profile (Update Availability) and,
+  /// for Performance, the sidebar.
   static const player = [
     NavItem('home', 'Home', branch: 0),
     NavItem('calendar', 'Matches', branch: 1),

@@ -155,12 +155,17 @@ void main() {
       final c = await _pumpPlayer(tester);
       await _tap(tester, _quickAction('Playing Opportunities'));
       expect(_loc(c), Routes.openMatches);
-      // Same name everywhere: quick action, screen title and sidebar.
+      // Same name on the quick action and the screen title.
       expect(find.descendant(of: find.byType(CeTopBar), matching: find.text('Playing Opportunities')), findsOneWidget);
       expect(find.text('Open Matches'), findsNothing);
+      // The sidebar doesn't repeat My Matches, Playing Opportunities or
+      // Availability (Quick Actions, bottom nav and My Profile reach them).
       final sidebar = [for (final g in RoleDestinations.player) for (final d in g.items) d.label];
-      expect(sidebar, contains('Playing Opportunities'));
-      expect(sidebar, isNot(contains('Open Matches')));
+      expect(sidebar, ['Dashboard', 'My Profile', 'My Performance', 'Notifications']);
+      expect([for (final g in RoleDestinations.player) g.label], ['Navigate'], reason: 'one section, no "Cricket"');
+      expect(RoleDestinations.topLevel(UserRole.player),
+          containsAll([Routes.myMatches, Routes.openMatches, Routes.availability]),
+          reason: 'still remembered as the last Player screen');
 
       await _go(tester, c, Routes.playerHome);
       // The branch keeps its scroll offset; bring the hero back into view.
@@ -254,16 +259,23 @@ void main() {
       await tester.tapAt(const Offset(10, 10));
       await tester.pumpAndSettle();
 
-      // Availability and Performance keep their screens (sidebar); no tab is highlighted there.
-      for (final (item, route) in [('Availability', Routes.availability), ('My Performance', Routes.myPerformance)]) {
-        await tester.tap(find.byTooltip('Open menu'));
-        await tester.pumpAndSettle();
-        await tester.tap(find.descendant(of: find.byType(Drawer), matching: find.text(item)));
-        await tester.pumpAndSettle();
-        expect(_loc(c), route, reason: item);
-        expect(selected(), -1, reason: '$item is not a bottom-nav tab');
-        await _go(tester, c, Routes.playerHome);
+      // Performance keeps its screen in the sidebar; Availability isn't there
+      // any more. No tab is highlighted on either.
+      await tester.tap(find.byTooltip('Open menu'));
+      await tester.pumpAndSettle();
+      for (final gone in ['My Matches', 'Playing Opportunities', 'Availability']) {
+        expect(find.descendant(of: find.byType(Drawer), matching: find.text(gone)), findsNothing, reason: gone);
       }
+      await tester.tap(find.descendant(of: find.byType(Drawer), matching: find.text('My Performance')));
+      await tester.pumpAndSettle();
+      expect(_loc(c), Routes.myPerformance);
+      expect(selected(), -1, reason: 'My Performance is not a bottom-nav tab');
+      // Availability: My Profile → Update Availability.
+      await _go(tester, c, Routes.playerProfile);
+      await _tap(tester, find.widgetWithText(CeButton, 'Update Availability'));
+      expect(_loc(c), Routes.availability);
+      expect(selected(), -1, reason: 'Availability is not a bottom-nav tab');
+      await _go(tester, c, Routes.playerHome);
 
       // Profile: the dashboard avatar / name ...
       await tester.fling(_mainList, const Offset(0, 3000), 4000);
@@ -639,21 +651,17 @@ void main() {
       final saved = c.read(playerAvailabilityProvider);
       expect((saved.status, saved.notes, saved.untilDate), (PlayerAvailability.injured, 'Hamstring strain', null));
 
-      // The Availability screen (sidebar) shows it at once — status card and form.
-      await tester.fling(_mainList, const Offset(0, 3000), 4000); // the menu is in the hero
-      await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Open menu'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.descendant(of: find.byType(Drawer), matching: find.text('Availability')));
-      await tester.pumpAndSettle();
+      // The Availability screen (My Profile → Update Availability) shows it at
+      // once — status card and form.
+      await _go(tester, c, Routes.playerProfile);
+      await _tap(tester, find.widgetWithText(CeButton, 'Update Availability'));
       expect(_loc(c), Routes.availability);
       expect(find.text('Injured'), findsWidgets);
       await tester.scrollUntilVisible(find.text('Hamstring strain'), 200, scrollable: _mainList);
       expect(find.text('Hamstring strain'), findsOneWidget, reason: 'the form follows the saved note');
 
       // Status without notes (notes optional): back to Available.
-      await tester.tap(find.descendant(of: find.byType(CeBottomNav), matching: find.bySemanticsLabel('Home')));
-      await tester.pumpAndSettle();
+      await _go(tester, c, Routes.playerHome);
       await _tap(tester, _quickAction('Match Availability'));
       expect(find.descendant(of: find.byKey(const Key('matchAvailability.current')), matching: find.text('Injured')),
           findsOneWidget);

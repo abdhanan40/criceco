@@ -1,0 +1,21 @@
+
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  "command": {
+    "dev": {
+      "description": "Supervised frontend and backend development",
+      "agent": "code",
+      "template": "Follow AGENTS.md. Analyze the existing code and requirements for: $ARGUMENTS. First provide an implementation plan, affected files, risks and required tests. Wait for explicit approval before editing. After approval, implement only the agreed scope, run relevant tests and provide a QA report."
+    },
+    "qa": {
+      "description": "Independent QA and regression review",
+      "agent": "debug",
+      "template": "Follow AGENTS.md. Perform QA for: $ARGUMENTS. Inspect the relevant implementation, identify bugs and missing test cases, and propose appropriate tests. Run approved safe tests, distinguish executed tests from unexecuted tests, and report pass/fail results. Do not modify application code without approval."
+    },
+    "db-api": {
+      "description": "Supervised database and API development",
+      "agent": "code",
+      "template": "Follow AGENTS.md. Analyze the database or API requirement: $ARGUMENTS. Review existing schemas, migrations, authentication, authorization and API contracts. Propose schema or API changes, security considerations, migration and rollback strategy, and tests. Wait for approval before modifying files. Never execute production database changes or destructive SQL without separate explicit approval."
+    }
+  }
+}

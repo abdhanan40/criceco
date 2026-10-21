@@ -107,8 +107,24 @@ class SessionController extends Notifier<SessionState> {
   Future<void> updateAccount(UserAccount Function(UserAccount a) change) async {
     final current = state.account;
     if (current == null) return;
-    final saved = await ref.read(accountRepositoryProvider).update(change(current));
+    final saved = await ref.read(accountRepositoryProvider).update(syncProfileCity(current, change(current)));
     state = state.copyWith(account: saved);
+  }
+
+  /// The profile City (My Profile, Edit Profile, the "available to clubs"
+  /// listing) and the Current Address city are one value: a changed Current
+  /// City (Profile Setup) sets City, a changed City (Edit Profile) sets
+  /// Current City. The Permanent City never does. Unchanged or empty values
+  /// leave both as they are, so existing accounts keep their City.
+  static UserAccount syncProfileCity(UserAccount before, UserAccount after) {
+    String? picked(String? v) => (v == null || v.trim().isEmpty) ? null : v.trim();
+    final current = picked(after.currentCity);
+    if (current != null && current != picked(before.currentCity)) {
+      return current == after.city ? after : after.copyWith(city: current);
+    }
+    final city = picked(after.city);
+    if (city != null && city != picked(before.city) && city != current) return after.copyWith(currentCity: city);
+    return after;
   }
 
   /// Privacy / sign-in toggles (Settings).
@@ -154,12 +170,23 @@ class SessionController extends Notifier<SessionState> {
 
   /// User Profile Setup → Continue: saves the common profile (it belongs to
   /// the account, not a role) and moves on to Role Selection.
+  /// When [isPermanentSameAsCurrent] is true, the permanent address mirrors
+  /// the current address so the account stays consistent. The current city
+  /// also becomes the profile City ([syncProfileCity]).
   Future<void> completeProfile({
     required String fullName,
     required String phone,
     required DateTime dateOfBirth,
     String? photoPath,
+    required String currentCity,
+    required String currentArea,
+    required String currentAddress,
+    required String permanentCity,
+    required String permanentArea,
+    required String permanentAddress,
+    required bool isPermanentSameAsCurrent,
   }) async {
+    final same = isPermanentSameAsCurrent;
     await updateAccount((a) => a.copyWith(
           fullName: fullName,
           phone: phone,
@@ -167,6 +194,13 @@ class SessionController extends Notifier<SessionState> {
           hasPhoto: photoPath != null,
           photoPath: photoPath,
           clearPhoto: photoPath == null,
+          currentCity: currentCity,
+          currentArea: currentArea,
+          currentAddress: currentAddress,
+          permanentCity: same ? currentCity : permanentCity,
+          permanentArea: same ? currentArea : permanentArea,
+          permanentAddress: same ? currentAddress : permanentAddress,
+          isPermanentSameAsCurrent: isPermanentSameAsCurrent,
           profileComplete: true,
         ));
     state = state.copyWith(status: SessionStatus.signedIn);

@@ -114,6 +114,35 @@ Future<void> _login(WidgetTester tester, {String password = 'secret1'}) async {
   await _tap(tester, _button('Login'));
 }
 
+/// Picks [city] in the City picker with field key [key].
+Future<void> _pickCity(WidgetTester tester, String key, String city) async {
+  await _tap(tester, find.byKey(Key(key)));
+  expect(find.text('Select City'), findsOneWidget);
+  await _tap(tester, find.text(city).last); // the sheet is on top
+}
+
+/// The text shown in the field with key [key].
+String _fieldText(WidgetTester tester, String key) => tester
+    .widget<TextField>(find.descendant(of: find.byKey(Key(key)), matching: find.byType(TextField)))
+    .controller!
+    .text;
+
+/// Profile Setup: Current Address — Karachi · Clifton · House 12, Street 4.
+Future<void> _currentAddress(WidgetTester tester) async {
+  await _pickCity(tester, 'profile.currentCity', 'Karachi');
+  await _enter(tester, 'profile.currentArea', 'Clifton');
+  await _enter(tester, 'profile.currentAddress', 'House 12, Street 4');
+}
+
+/// Profile Setup filled in with valid details (permanent address: Yes).
+Future<void> _validProfile(WidgetTester tester) async {
+  await _enter(tester, 'profile.name', 'Hamza Sheikh');
+  await _enter(tester, 'profile.phone', '0333-9876543');
+  await _tap(tester, find.byKey(const Key('profile.dob')));
+  await _tap(tester, find.text('OK'));
+  await _currentAddress(tester);
+}
+
 /// A brand-new account (Sign Up done) sitting on User Profile Setup.
 Future<ProviderContainer> _newUser(WidgetTester tester, {double width = 375}) async {
   final c = await _pump(tester, width: width);
@@ -128,7 +157,16 @@ Future<ProviderContainer> _newUser(WidgetTester tester, {double width = 375}) as
 Future<ProviderContainer> _profiled(WidgetTester tester, {double width = 375, String name = 'Hamza Sheikh'}) async {
   final c = await _newUser(tester, width: width);
   await c.read(sessionProvider.notifier).completeProfile(
-      fullName: name, phone: '0333 9876543', dateOfBirth: DateTime(2000, 5, 1));
+      fullName: name,
+      phone: '0333 9876543',
+      dateOfBirth: DateTime(2000, 5, 1),
+      currentCity: 'Karachi',
+      currentArea: 'Clifton',
+      currentAddress: 'Street 1',
+      permanentCity: 'Karachi',
+      permanentArea: 'Clifton',
+      permanentAddress: 'Street 1',
+      isPermanentSameAsCurrent: true);
   c.read(routerProvider).go(Routes.roleSelection);
   await tester.pumpAndSettle();
   return c;
@@ -385,12 +423,16 @@ void main() {
       expect(find.text('Full name is required'), findsOneWidget);
       expect(find.text('Phone number is required'), findsOneWidget);
       expect(find.text('Date of birth is required'), findsOneWidget);
+      expect(find.text('City is required'), findsOneWidget, reason: 'current address (permanent = same by default)');
+      expect(find.text('Area is required'), findsOneWidget);
+      expect(find.text('Address is required'), findsOneWidget);
       expect(_loc(c), Routes.profileSetup);
 
       await _enter(tester, 'profile.name', 'Hamza Sheikh');
       await _enter(tester, 'profile.phone', '0333-9876543');
       await _tap(tester, find.byKey(const Key('profile.dob')));
       await _tap(tester, find.text('OK'));
+      await _currentAddress(tester);
       // Profile picture: the real picker (gallery here); shown right away.
       await _tap(tester, find.bySemanticsLabel('Add profile picture'));
       expect(find.text('Choose from gallery'), findsOneWidget);
@@ -404,8 +446,84 @@ void main() {
       expect((a.fullName, a.phone, a.hasPhoto, a.profileComplete), ('Hamza Sheikh', '0333 9876543', true, true));
       expect(a.photoPath, '/photos/gallery.jpg', reason: 'saved on the account (My Profile, dashboard, sidebar)');
       expect(a.dateOfBirth, isNotNull);
+      expect((a.currentCity, a.currentArea, a.currentAddress), ('Karachi', 'Clifton', 'House 12, Street 4'));
+      expect((a.isPermanentSameAsCurrent, a.permanentCity, a.permanentArea, a.permanentAddress),
+          (true, 'Karachi', 'Clifton', 'House 12, Street 4'),
+          reason: 'Yes → the current address is saved as permanent');
+      expect(a.city, 'Karachi', reason: 'the current city is the profile City');
       expect(c.read(sessionProvider).status, SessionStatus.signedIn);
       expect(c.read(activeRoleProvider), isNull, reason: 'no role yet — the user chooses');
+    });
+
+    testWidgets('Permanent address No: separate fields shown, validated and saved', (tester) async {
+      final c = await _newUser(tester);
+      expect(find.byKey(const Key('profile.permanentCity')), findsNothing, reason: 'Yes by default');
+      await _validProfile(tester);
+      await _tap(tester, find.text('No'));
+      expect(find.byKey(const Key('profile.permanentCity')), findsOneWidget);
+      await _tap(tester, _button('Continue'));
+      expect(_loc(c), Routes.profileSetup, reason: 'permanent fields are required under No');
+      expect(find.text('City is required'), findsOneWidget);
+      expect(find.text('Area is required'), findsOneWidget);
+      expect(find.text('Address is required'), findsOneWidget);
+
+      await _pickCity(tester, 'profile.permanentCity', 'Multan');
+      await _enter(tester, 'profile.permanentArea', 'Cantt');
+      await _enter(tester, 'profile.permanentAddress', 'Street 9, Bosan Road');
+      await _tap(tester, _button('Continue'));
+
+      expect(_loc(c), Routes.roleSelection);
+      final a = c.read(currentAccountProvider)!;
+      expect((a.currentCity, a.currentArea, a.currentAddress), ('Karachi', 'Clifton', 'House 12, Street 4'));
+      expect((a.isPermanentSameAsCurrent, a.permanentCity, a.permanentArea, a.permanentAddress),
+          (false, 'Multan', 'Cantt', 'Street 9, Bosan Road'));
+      expect(a.city, 'Karachi', reason: 'never the permanent city');
+    });
+
+    testWidgets('switching Yes / No keeps the permanent address the user typed', (tester) async {
+      final c = await _newUser(tester);
+      await _validProfile(tester);
+      await _tap(tester, find.text('No'));
+      await _pickCity(tester, 'profile.permanentCity', 'Multan');
+      await _enter(tester, 'profile.permanentArea', 'Cantt');
+      await _enter(tester, 'profile.permanentAddress', 'Street 9');
+
+      await _tap(tester, find.text('Yes'));
+      expect(find.byKey(const Key('profile.permanentCity')), findsNothing, reason: 'hidden under Yes');
+      await _tap(tester, find.text('No'));
+      expect(_fieldText(tester, 'profile.permanentCity'), 'Multan');
+      expect(_fieldText(tester, 'profile.permanentArea'), 'Cantt');
+      expect(_fieldText(tester, 'profile.permanentAddress'), 'Street 9');
+
+      // Back to Yes and save: the current address becomes the permanent one.
+      await _tap(tester, find.text('Yes'));
+      await _tap(tester, _button('Continue'));
+      final a = c.read(currentAccountProvider)!;
+      expect((a.isPermanentSameAsCurrent, a.permanentCity, a.permanentArea), (true, 'Karachi', 'Clifton'));
+      expect(c.read(onboardingProvider).permanentCity, 'Multan', reason: 'the typed answers are still in the draft');
+    });
+
+    testWidgets('address parts need real text; saved address comes back on Profile Setup', (tester) async {
+      final c = await _newUser(tester);
+      await _validProfile(tester);
+      await _enter(tester, 'profile.currentArea', '123');
+      await _enter(tester, 'profile.currentAddress', '   ');
+      await _tap(tester, _button('Continue'));
+      expect(find.text('Enter a valid area'), findsOneWidget);
+      expect(find.text('Address is required'), findsOneWidget);
+      expect(_loc(c), Routes.profileSetup);
+
+      await _enter(tester, 'profile.currentArea', '  F-7  ');
+      await _enter(tester, 'profile.currentAddress', 'House 3, Street 10');
+      await _tap(tester, _button('Continue'));
+      expect(c.read(currentAccountProvider)!.currentArea, 'F-7', reason: 'trimmed');
+
+      // The onboarding draft is seeded from the saved account (e.g. after the
+      // draft is rebuilt for the signed-in account).
+      c.invalidate(onboardingProvider);
+      final d = c.read(onboardingProvider);
+      expect((d.currentCity, d.currentArea, d.currentAddress, d.isPermanentSameAsCurrent),
+          ('Karachi', 'F-7', 'House 3, Street 10', true));
     });
 
     testWidgets('profile picture: cancel changes nothing; change with the camera; remove', (tester) async {
@@ -799,12 +917,24 @@ void main() {
         }
         await _tap(tester, _button('Continue')); // profile errors shown
         expect(tester.takeException(), isNull, reason: 'profile errors @ $width');
+        await _tap(tester, find.text('No')); // separate permanent address
+        await _tap(tester, _button('Continue'));
+        expect(find.text('City is required'), findsNWidgets(2));
+        expect(tester.takeException(), isNull, reason: 'permanent address errors @ $width');
 
         await c.read(sessionProvider.notifier).completeProfile(
-            fullName: 'Muhammad Abdul Rehman Chaudhry Al-Pakistani the Third',
-            phone: '0300 1234567',
-            dateOfBirth: DateTime(1999),
-            photoPath: '/photos/gallery.jpg');
+          fullName: 'Muhammad Abdul Rehman Chaudhry Al-Pakistani the Third',
+          phone: '0300 1234567',
+          dateOfBirth: DateTime(1999),
+          currentCity: 'Lahore',
+          currentArea: 'Gulberg',
+          currentAddress: 'Street 1',
+          permanentCity: 'Lahore',
+          permanentArea: 'Gulberg',
+          permanentAddress: 'Street 1',
+          isPermanentSameAsCurrent: true,
+          photoPath: '/photos/gallery.jpg',
+        );
         router.go(Routes.roleSelection);
         await tester.pumpAndSettle();
         await _tap(tester, _playerCard); // expanded Player details

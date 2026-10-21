@@ -13,6 +13,13 @@ class OnboardingDraft {
     this.dateOfBirth,
     this.phone = '',
     this.photoPath,
+    this.currentCity,
+    this.currentArea,
+    this.currentAddress,
+    this.permanentCity,
+    this.permanentArea,
+    this.permanentAddress,
+    this.isPermanentSameAsCurrent = true,
     this.role,
     this.battingStyle,
     this.bowlingStyle,
@@ -28,6 +35,14 @@ class OnboardingDraft {
   final String? photoPath;
   bool get hasPhoto => photoPath != null;
 
+  final String? currentCity;
+  final String? currentArea;
+  final String? currentAddress;
+  final String? permanentCity;
+  final String? permanentArea;
+  final String? permanentAddress;
+  final bool isPermanentSameAsCurrent;
+
   // ---- Player role profile ----
   final PlayerRole? role;
   final BattingStyle? battingStyle;
@@ -41,6 +56,13 @@ class OnboardingDraft {
     DateTime? dateOfBirth,
     String? phone,
     String? photoPath,
+    String? currentCity,
+    String? currentArea,
+    String? currentAddress,
+    String? permanentCity,
+    String? permanentArea,
+    String? permanentAddress,
+    bool? isPermanentSameAsCurrent,
     bool clearPhoto = false,
     PlayerRole? role,
     BattingStyle? battingStyle,
@@ -54,6 +76,13 @@ class OnboardingDraft {
         dateOfBirth: dateOfBirth ?? this.dateOfBirth,
         phone: phone ?? this.phone,
         photoPath: clearPhoto ? null : (photoPath ?? this.photoPath),
+        currentCity: currentCity ?? this.currentCity,
+        currentArea: currentArea ?? this.currentArea,
+        currentAddress: currentAddress ?? this.currentAddress,
+        permanentCity: permanentCity ?? this.permanentCity,
+        permanentArea: permanentArea ?? this.permanentArea,
+        permanentAddress: permanentAddress ?? this.permanentAddress,
+        isPermanentSameAsCurrent: isPermanentSameAsCurrent ?? this.isPermanentSameAsCurrent,
         role: role ?? this.role,
         battingStyle: clearBatting ? null : (battingStyle ?? this.battingStyle),
         bowlingStyle: clearBowling ? null : (bowlingStyle ?? this.bowlingStyle),
@@ -92,6 +121,13 @@ class OnboardingController extends Notifier<OnboardingDraft> {
       dateOfBirth: account.dateOfBirth,
       phone: account.phone ?? '',
       photoPath: account.photoPath,
+      currentCity: account.currentCity,
+      currentArea: account.currentArea,
+      currentAddress: account.currentAddress,
+      permanentCity: account.permanentCity,
+      permanentArea: account.permanentArea,
+      permanentAddress: account.permanentAddress,
+      isPermanentSameAsCurrent: account.isPermanentSameAsCurrent,
       role: p.role,
       battingStyle: p.battingStyle,
       bowlingStyle: p.bowlingStyle,
@@ -102,6 +138,14 @@ class OnboardingController extends Notifier<OnboardingDraft> {
   void setFullName(String v) => state = state.copyWith(fullName: v);
   void setDateOfBirth(DateTime v) => state = state.copyWith(dateOfBirth: v);
   void setPhone(String v) => state = state.copyWith(phone: v);
+  void setCurrentCity(String? v) => state = state.copyWith(currentCity: v);
+  void setCurrentArea(String v) => state = state.copyWith(currentArea: v);
+  void setCurrentAddress(String v) => state = state.copyWith(currentAddress: v);
+  void setPermanentCity(String? v) => state = state.copyWith(permanentCity: v);
+  void setPermanentArea(String v) => state = state.copyWith(permanentArea: v);
+  void setPermanentAddress(String v) => state = state.copyWith(permanentAddress: v);
+  /// Yes / No only flips the flag — permanent answers typed under No stay.
+  void setPermanentSameAsCurrent(bool v) => state = state.copyWith(isPermanentSameAsCurrent: v);
   /// A picture from the device picker, or `null` to remove it.
   void setPhoto(String? path) => state = state.copyWith(photoPath: path, clearPhoto: path == null);
   /// A new playing role clears the answers that no longer apply
@@ -117,12 +161,27 @@ class OnboardingController extends Notifier<OnboardingDraft> {
   void setWicketkeeper(bool v) => state = state.copyWith(isWicketkeeper: v && (state.role?.canKeepWicket ?? false));
 
   /// User Profile Setup → Continue. [phone] is the normalized display form.
-  Future<void> saveProfile({required String phone}) => ref.read(sessionProvider.notifier).completeProfile(
-        fullName: state.fullName.trim(),
-        phone: phone,
-        dateOfBirth: state.dateOfBirth!,
-        photoPath: state.photoPath,
-      );
+  /// Name, cities, areas and addresses come from this draft (the screen's
+  /// fields write to it as the user types or picks). With "same as current"
+  /// the session saves the current address as the permanent one; the draft's
+  /// own permanent answers are kept, so switching back to No restores them.
+  Future<void> saveProfile({required String phone}) {
+    final d = state;
+    String text(String? v) => (v ?? '').trim();
+    return ref.read(sessionProvider.notifier).completeProfile(
+          fullName: d.fullName.trim(),
+          phone: phone,
+          dateOfBirth: d.dateOfBirth!,
+          photoPath: d.photoPath,
+          currentCity: text(d.currentCity),
+          currentArea: text(d.currentArea),
+          currentAddress: text(d.currentAddress),
+          permanentCity: text(d.permanentCity),
+          permanentArea: text(d.permanentArea),
+          permanentAddress: text(d.permanentAddress),
+          isPermanentSameAsCurrent: d.isPermanentSameAsCurrent,
+        );
+  }
 
   /// Role Selection → Player → Continue: saves the Player profile and makes
   /// Player the active role (the caller then enters the Player Dashboard).

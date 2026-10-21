@@ -162,6 +162,17 @@ void main() {
       expect(CeValidators.email('not-an-email'), 'Enter a valid email address');
       expect(CeValidators.email('aman@criceco.pk'), isNull);
     });
+
+    test('address parts: required, need a letter; city must be picked', () {
+      expect(CeValidators.addressPart('  ', 'Area'), 'Area is required');
+      expect(CeValidators.addressPart('123', 'Area'), 'Enter a valid area');
+      expect(CeValidators.addressPart('--', 'Address'), 'Enter a valid address');
+      for (final v in ['F-7', 'Gulshan-e-Iqbal', 'House 12, Street 4', 'گلبرگ']) {
+        expect(CeValidators.addressPart(v, 'Address'), isNull, reason: v);
+      }
+      expect(CeValidators.city(null), 'City is required');
+      expect(CeValidators.city('Lahore'), isNull);
+    });
   });
 
   group('Player details follow the playing role', () {

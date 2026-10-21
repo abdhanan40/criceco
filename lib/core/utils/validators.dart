@@ -77,11 +77,25 @@ abstract final class CeValidators {
     return _hasLetter(v!) ? null : 'Enter a valid ${field.toLowerCase()}';
   }
 
+  /// One part of a postal address (Profile Setup "Area", "Address"):
+  /// required and must contain a letter ("F-7", "House 12, Street 4" pass;
+  /// "123" or "--" don't). Lengths: [areaMaxLength] / [addressMaxLength].
+  static String? addressPart(String? v, String field) {
+    final empty = required(v, field);
+    if (empty != null) return empty;
+    return _hasLetter(v!) ? null : 'Enter a valid ${field.toLowerCase()}';
+  }
+
+  /// A city picked from a list (`null` = not chosen yet).
+  static String? city(String? v) => (v == null || v.trim().isEmpty) ? 'City is required' : null;
+
   // Any script's letters (Urdu, Latin, …).
   static bool _hasLetter(String v) => RegExp(r'\p{L}', unicode: true).hasMatch(v);
 
   /// Shared text limits (one place for every form that uses them).
   static const nameMaxLength = 40;
+  static const areaMaxLength = 60;
+  static const addressMaxLength = 120;
 
   /// Custom-overs matches: 1–50 overs (Match Setup, teams, slots, tournaments).
   static const maxCustomOvers = 50;
