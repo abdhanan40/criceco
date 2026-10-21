@@ -1,0 +1,22 @@
+{
+  "Karachi": ["Clifton", "DHA", "Gulshan-e-Iqbal", "Gulistan-e-Jauhar", "North Nazimabad", "PECHS", "Saddar", "Korangi", "Malir"],
+  "Lahore": ["Gulberg", "DHA", "Model Town", "Johar Town", "Garden Town", "Iqbal Town", "Bahria Town", "Cantt", "Wapda Town"],
+  "Islamabad": ["F-6", "F-7", "F-8", "F-10", "G-9", "G-11", "E-11", "I-8", "Bahria Town"],
+  "Rawalpindi": ["Saddar", "Satellite Town", "Bahria Town", "Chaklala", "Westridge", "Peshawar Road", "Raja Bazaar"],
+  "Faisalabad": ["D Ground", "Peoples Colony", "Madina Town", "Gulberg", "Jinnah Colony", "Samanabad", "Susan Road"],
+  "Multan": ["Gulgasht Colony", "Cantt", "Bosan Road", "Shah Rukn-e-Alam Colony", "Model Town", "Mumtazabad"],
+  "Peshawar": ["Hayatabad", "University Town", "Saddar", "Gulbahar", "Cantt", "Warsak Road"],
+  "Quetta": ["Jinnah Town", "Satellite Town", "Cantt", "Samungli Road", "Sariab Road", "Chaman Housing Scheme"],
+  "Sialkot": ["Cantt", "Model Town", "Paris Road", "Kashmir Road", "Defence Road", "Ugoki"],
+  "Hyderabad": ["Latifabad", "Qasimabad", "Hirabad", "Saddar", "Cantt", "Autobahn Road"],
+  "Gujranwala": ["Satellite Town", "Model Town", "Peoples Colony", "DC Road", "Cantt", "Wapda Town"],
+  "Sargodha": ["Satellite Town", "University Road", "Cantt", "Model Town", "Block 19"],
+  "Bahawalpur": ["Model Town", "Satellite Town", "Baghdad-ul-Jadeed", "Cantt", "Abbasia Town", "Shahi Bazaar"],
+  "Sukkur": ["Military Road", "Barrage Colony", "Old Sukkur", "Minara Road", "Airport Road"],
+  "Larkana": ["Station Road", "Bakrani Road", "Sachal Colony", "Lahori Mohalla", "Shaikh Zayed Colony"],
+  "Abbottabad": ["Supply", "Jinnahabad", "Mandian", "Kakul", "Cantt", "Nawanshehr"],
+  "Mardan": ["Sheikh Maltoon Town", "Bagh-e-Iram", "Cantt", "Par Hoti", "Bank Road"],
+  "Sahiwal": ["Farid Town", "Civil Lines", "Housing Colony", "Canal Colony", "High Street"],
+  "Gujrat": ["Shadman Colony", "Rehman Shaheed Road", "Jalalpur Jattan Road", "Sargodha Road", "Kacheri Chowk"],
+  "Rahim Yar Khan": ["Model Town", "Satellite Town", "Shahi Road", "Abbasia Town", "Shaikh Zayed Road"]
+}

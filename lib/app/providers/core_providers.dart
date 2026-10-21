@@ -1,7 +1,9 @@
 import 'package:clock/clock.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../core/constants/city_areas.dart';
 import '../../core/models/models.dart';
 import '../../data/mock/in_memory_repositories.dart';
 import '../../data/repositories/repositories.dart';
@@ -24,6 +26,18 @@ final sharedPreferencesProvider = Provider<SharedPreferences>(
 );
 
 final seedDataProvider = Provider<SeedData>((ref) => SeedData(ref.watch(clockProvider).now()));
+
+/// City → areas for the Profile Setup Area picker (`assets/data/city_areas.json`).
+/// A missing or unreadable file means no listed areas (typed Area field).
+/// The file currently holds TEMPORARY DEMO areas (see [CityAreas]) — replace
+/// with verified / backend data later; this provider is the one place to swap.
+final cityAreasProvider = FutureProvider<CityAreas>((ref) async {
+  try {
+    return CityAreas.parse(await rootBundle.loadString('assets/data/city_areas.json'));
+  } catch (_) {
+    return CityAreas.empty;
+  }
+});
 
 // ---- Repositories (in-memory mocks; replace with real implementations later) ----
 final accountRepositoryProvider =

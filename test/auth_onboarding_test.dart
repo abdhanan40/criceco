@@ -6,6 +6,7 @@ import 'package:criceco/app/router/app_router.dart';
 import 'package:criceco/app/router/routes.dart';
 import 'package:criceco/app/session/role_controller.dart';
 import 'package:criceco/app/session/session_controller.dart';
+import 'package:criceco/core/constants/city_areas.dart';
 import 'package:criceco/core/models/models.dart';
 import 'package:criceco/data/mock/in_memory_repositories.dart';
 import 'package:criceco/data/repositories/repositories.dart';
@@ -56,6 +57,9 @@ Future<ProviderContainer> _pump(WidgetTester tester, {double width = 375, List<d
     sharedPreferencesProvider.overrideWithValue(prefs),
     nowProvider.overrideWith((ref) => const Stream<DateTime>.empty()),
     photoPickerProvider.overrideWithValue(_picker),
+    // These flows use the typed Area field; the Area picker (demo area data)
+    // is covered in profile_area_picker_test.dart.
+    cityAreasProvider.overrideWith((ref) async => CityAreas.empty),
     ...overrides.cast(),
   ]);
   addTearDown(c.dispose);

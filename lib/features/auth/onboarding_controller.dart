@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/providers/core_providers.dart';
 import '../../app/session/role_controller.dart';
 import '../../app/session/session_controller.dart';
+import '../../core/constants/city_areas.dart';
 import '../../core/models/models.dart';
 
 /// In-progress onboarding answers: User Profile Setup (common account data)
@@ -63,6 +65,8 @@ class OnboardingDraft {
     String? permanentArea,
     String? permanentAddress,
     bool? isPermanentSameAsCurrent,
+    bool clearCurrentArea = false,
+    bool clearPermanentArea = false,
     bool clearPhoto = false,
     PlayerRole? role,
     BattingStyle? battingStyle,
@@ -77,10 +81,10 @@ class OnboardingDraft {
         phone: phone ?? this.phone,
         photoPath: clearPhoto ? null : (photoPath ?? this.photoPath),
         currentCity: currentCity ?? this.currentCity,
-        currentArea: currentArea ?? this.currentArea,
+        currentArea: clearCurrentArea ? null : (currentArea ?? this.currentArea),
         currentAddress: currentAddress ?? this.currentAddress,
         permanentCity: permanentCity ?? this.permanentCity,
-        permanentArea: permanentArea ?? this.permanentArea,
+        permanentArea: clearPermanentArea ? null : (permanentArea ?? this.permanentArea),
         permanentAddress: permanentAddress ?? this.permanentAddress,
         isPermanentSameAsCurrent: isPermanentSameAsCurrent ?? this.isPermanentSameAsCurrent,
         role: role ?? this.role,
@@ -138,10 +142,31 @@ class OnboardingController extends Notifier<OnboardingDraft> {
   void setFullName(String v) => state = state.copyWith(fullName: v);
   void setDateOfBirth(DateTime v) => state = state.copyWith(dateOfBirth: v);
   void setPhone(String v) => state = state.copyWith(phone: v);
-  void setCurrentCity(String? v) => state = state.copyWith(currentCity: v);
+  /// A different city clears an Area that isn't one of its listed areas
+  /// (a listed area, or an area typed under the old city, no longer applies).
+  void setCurrentCity(String? v) => state = state.copyWith(
+        currentCity: v,
+        clearCurrentArea: !_areaStillValid(state.currentCity, v, state.currentArea),
+      );
   void setCurrentArea(String v) => state = state.copyWith(currentArea: v);
   void setCurrentAddress(String v) => state = state.copyWith(currentAddress: v);
-  void setPermanentCity(String? v) => state = state.copyWith(permanentCity: v);
+  void setPermanentCity(String? v) => state = state.copyWith(
+        permanentCity: v,
+        clearPermanentArea: !_areaStillValid(state.permanentCity, v, state.permanentArea),
+      );
+
+  /// Whether [area] still fits after the city changes:
+  /// * same city, or the area is listed under the new city → keep;
+  /// * the new city has listed areas (the area isn't one) → clear;
+  /// * the new city has none (typed Area) → keep a typed area, clear one that
+  ///   came from the old city's list.
+  bool _areaStillValid(String? oldCity, String? newCity, String? area) {
+    if (oldCity == newCity || area == null || area.trim().isEmpty) return true;
+    final areas = ref.read(cityAreasProvider).value ?? CityAreas.empty;
+    if (areas.isListed(newCity, area)) return true;
+    if (areas.areasFor(newCity).isNotEmpty) return false;
+    return !areas.isListed(oldCity, area);
+  }
   void setPermanentArea(String v) => state = state.copyWith(permanentArea: v);
   void setPermanentAddress(String v) => state = state.copyWith(permanentAddress: v);
   /// Yes / No only flips the flag — permanent answers typed under No stay.

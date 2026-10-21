@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/providers/core_providers.dart';
 import '../../app/router/routes.dart';
 import '../../app/session/role_controller.dart';
 import '../../app/session/session_controller.dart';
 import '../../app/theme/tokens.dart';
 import '../../app/theme/typography.dart';
 import '../../core/constants/cities.dart';
+import '../../core/constants/city_areas.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/validators.dart';
 import '../../shared/media/photo_picker.dart';
@@ -41,7 +43,33 @@ class _UserProfileSetupScreenState extends ConsumerState<UserProfileSetupScreen>
   // Kept while the permanent fields are hidden (Yes), so No brings them back.
   late final TextEditingController _permanentArea;
   late final TextEditingController _permanentAddress;
+  // "Other (type it)" picked in the Area picker before anything was typed.
+  bool _currentOther = false;
+  bool _permanentOther = false;
   bool _saving = false;
+
+  /// City picked: the draft clears an Area that no longer fits — mirror that
+  /// in the typed field.
+  void _pickCity({required bool current, required String city}) {
+    final notifier = ref.read(onboardingProvider.notifier);
+    current ? notifier.setCurrentCity(city) : notifier.setPermanentCity(city);
+    final d = ref.read(onboardingProvider);
+    if ((current ? d.currentArea : d.permanentArea) != null) return;
+    setState(() => current ? _currentOther = false : _permanentOther = false);
+    (current ? _currentArea : _permanentArea).clear();
+  }
+
+  /// Area picked from the list, or "Other (type it)" (keeps a typed area; a
+  /// listed one is cleared so the user types their own).
+  void _pickArea({required bool current, required String area, required List<String> listed}) {
+    final notifier = ref.read(onboardingProvider.notifier);
+    final controller = current ? _currentArea : _permanentArea;
+    final other = area == kOtherArea;
+    setState(() => current ? _currentOther = other : _permanentOther = other);
+    final text = other ? (listed.contains(controller.text) ? '' : controller.text) : area;
+    controller.text = text;
+    current ? notifier.setCurrentArea(text) : notifier.setPermanentArea(text);
+  }
 
   @override
   void initState() {
@@ -115,6 +143,8 @@ class _UserProfileSetupScreenState extends ConsumerState<UserProfileSetupScreen>
   @override
   Widget build(BuildContext context) {
     final draft = ref.watch(onboardingProvider);
+    // City → areas (none listed yet, or still loading → typed Area field).
+    final areaData = ref.watch(cityAreasProvider).value ?? CityAreas.empty;
     final notifier = ref.read(onboardingProvider.notifier);
     final same = draft.isPermanentSameAsCurrent;
     return PopScope(
@@ -203,8 +233,13 @@ class _UserProfileSetupScreenState extends ConsumerState<UserProfileSetupScreen>
                   const _SectionHeading('Current Address', subtitle: 'Where you live now'),
                   _AddressFields(
                     keyPrefix: 'profile.current',
+                    areaData: areaData,
                     city: draft.currentCity,
-                    onCity: notifier.setCurrentCity,
+                    onCity: (v) => _pickCity(current: true, city: v),
+                    areaValue: draft.currentArea,
+                    otherPicked: _currentOther,
+                    onPickArea: (v) =>
+                        _pickArea(current: true, area: v, listed: areaData.areasFor(draft.currentCity)),
                     area: _currentArea,
                     onArea: notifier.setCurrentArea,
                     address: _currentAddress,
@@ -226,8 +261,13 @@ class _UserProfileSetupScreenState extends ConsumerState<UserProfileSetupScreen>
                     const SizedBox(height: 16),
                     _AddressFields(
                       keyPrefix: 'profile.permanent',
+                      areaData: areaData,
                       city: draft.permanentCity,
-                      onCity: notifier.setPermanentCity,
+                      onCity: (v) => _pickCity(current: false, city: v),
+                      areaValue: draft.permanentArea,
+                      otherPicked: _permanentOther,
+                      onPickArea: (v) =>
+                          _pickArea(current: false, area: v, listed: areaData.areasFor(draft.permanentCity)),
                       area: _permanentArea,
                       onArea: notifier.setPermanentArea,
                       address: _permanentAddress,
@@ -266,13 +306,22 @@ class _SectionHeading extends StatelessWidget {
 }
 
 /// City (picker) · Area · Address — the same three required fields for the
-/// current and the permanent address. Keys: `<keyPrefix>City` / `Area` /
-/// `Address`.
+/// current and the permanent address.
+///
+/// Area is a picker (like City) of the selected city's listed areas plus
+/// "Other (type it)", which opens the typed field below it. Before a city is
+/// chosen the picker reads "Select a city first". A city with no listed areas
+/// keeps the typed Area field. Keys: `<keyPrefix>City`, `AreaPicker`,
+/// `Area` (the typed field), `Address`.
 class _AddressFields extends StatelessWidget {
   const _AddressFields({
     required this.keyPrefix,
+    required this.areaData,
     required this.city,
     required this.onCity,
+    required this.areaValue,
+    required this.otherPicked,
+    required this.onPickArea,
     required this.area,
     required this.onArea,
     required this.address,
@@ -281,8 +330,16 @@ class _AddressFields extends StatelessWidget {
   });
 
   final String keyPrefix;
+  final CityAreas areaData;
   final String? city;
   final ValueChanged<String> onCity;
+
+  /// The draft's Area (listed or typed).
+  final String? areaValue;
+
+  /// "Other (type it)" chosen while nothing is typed yet.
+  final bool otherPicked;
+  final ValueChanged<String> onPickArea;
   final TextEditingController area;
   final ValueChanged<String> onArea;
   final TextEditingController address;
@@ -290,7 +347,24 @@ class _AddressFields extends StatelessWidget {
   final bool lastField;
 
   @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+  Widget build(BuildContext context) {
+    final listed = areaData.areasFor(city);
+    final picker = areaData.isNotEmpty && (city == null || listed.isNotEmpty);
+    final typed = (areaValue ?? '').trim().isNotEmpty && !listed.contains(areaValue);
+    // Typed field: no listed areas for this city, or "Other" in the picker.
+    final other = picker && city != null && (otherPicked || typed);
+    final typedField = CeTextField(
+      fieldKey: Key('${keyPrefix}Area'),
+      controller: area,
+      maxLength: CeValidators.areaMaxLength,
+      hint: other ? 'Type your area' : 'e.g. Gulshan-e-Iqbal',
+      icon: 'map',
+      textCapitalization: TextCapitalization.words,
+      textInputAction: TextInputAction.next,
+      validator: (v) => CeValidators.addressPart(v, 'Area'),
+      onChanged: onArea,
+    );
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         const CeFieldLabel('City', required: true),
         CeSelectField<String>(
           fieldKey: Key('${keyPrefix}City'),
@@ -305,17 +379,26 @@ class _AddressFields extends StatelessWidget {
           onChanged: onCity,
         ),
         const CeFieldLabel('Area', required: true),
-        CeTextField(
-          fieldKey: Key('${keyPrefix}Area'),
-          controller: area,
-          maxLength: CeValidators.areaMaxLength,
-          hint: 'e.g. Gulshan-e-Iqbal',
-          icon: 'map',
-          textCapitalization: TextCapitalization.words,
-          textInputAction: TextInputAction.next,
-          validator: (v) => CeValidators.addressPart(v, 'Area'),
-          onChanged: onArea,
-        ),
+        if (picker) ...[
+          // Tappable once a city is chosen (its areas depend on it).
+          IgnorePointer(
+            ignoring: city == null,
+            child: CeSelectField<String>(
+              fieldKey: Key('${keyPrefix}AreaPicker'),
+              items: [...listed, kOtherArea],
+              labelOf: (v) => v,
+              sheetTitle: 'Select Area',
+              itemIcon: 'map',
+              value: other ? kOtherArea : (listed.contains(areaValue) ? areaValue : null),
+              hint: city == null ? 'Select a city first' : 'Select area',
+              icon: 'map',
+              validator: (v) => v == null ? 'Area is required' : null,
+              onChanged: onPickArea,
+            ),
+          ),
+          if (other) typedField,
+        ] else
+          typedField,
         const CeFieldLabel('Address', required: true),
         CeTextField(
           fieldKey: Key('${keyPrefix}Address'),
@@ -331,6 +414,7 @@ class _AddressFields extends StatelessWidget {
           onChanged: onAddress,
         ),
       ]);
+  }
 }
 
 /// "Same as current address?" — the Yes / No question card used on Club
