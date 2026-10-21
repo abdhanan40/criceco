@@ -153,7 +153,8 @@ void main() {
     final clubLocations = <String>[
       Routes.clubHome, Routes.teams, Routes.teamSquad('team_cs'), Routes.addTeamPlayers('team_cs'), Routes.members,
       Routes.myClub, Routes.joinRequests, Routes.joinRequestProfile('jr_1'), Routes.playerHunt, Routes.challenges,
-      Routes.myChallenges, Routes.findMatch, Routes.createAvailabilitySlot, Routes.challengeAccepted('ch_gt'),
+      Routes.myChallenges, Routes.findMatch, Routes.myChallengesLegacy, Routes.findMatchLegacy,
+      Routes.createAvailabilitySlot, Routes.challengeAccepted('ch_gt'),
       Routes.clubProfile('club_kk'), Routes.matchManagement(), Routes.matchSetup('m_3'), Routes.bookGround('m_3'),
       Routes.groundDetails('m_3', 'g_pindi'), Routes.selectDate('m_3', 'g_pindi'), Routes.bookingSummary('m_3', 'g_pindi'),
       Routes.payment('m_3'), Routes.waitingForOpponent('m_3'), Routes.opponentPayment('m_3'),
@@ -178,6 +179,9 @@ void main() {
       Routes.privacySettings: '/settings?section=privacy',
       Routes.matchScorecard('pm_2'): '/player/matches/pm_2?tab=scorecard',
       Routes.matchHistory: '/player/performance?tab=history',
+      // Challenges workspace: the former My Challenges / Find Opponent screens.
+      Routes.myChallengesLegacy: '/club/challenges?tab=mine',
+      Routes.findMatchLegacy: '/club/challenges?tab=find',
       Routes.editProfile: '/player/profile?edit=1',
       // Auth architecture update: old onboarding steps.
       Routes.continueAs: '/onboarding/role',

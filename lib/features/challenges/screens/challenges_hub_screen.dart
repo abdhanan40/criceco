@@ -14,6 +14,7 @@ import '../../../shared/widgets/ce_top_bar.dart';
 import '../../club/club_providers.dart';
 import '../challenges_controller.dart';
 import '../widgets/challenge_widgets.dart';
+import 'my_challenges_screen.dart';
 
 /// "Challenge" / "Send Match Request" button; shows "Challenge Sent" while a
 /// sent challenge to that club is still awaiting a reply (no duplicates).
@@ -64,17 +65,51 @@ class _SendButtonState extends ConsumerState<_SendButton> {
   }
 }
 
-/// Challenges hub (prototype `screens.challenges`, :6994).
-class ChallengesHubScreen extends ConsumerWidget {
-  const ChallengesHubScreen({super.key});
+/// Challenges workspace: Challenges (clubs to challenge) | My Challenges |
+/// Find Opponent in one screen, the tab in `?tab=` (former three screens;
+/// `/club/challenges/mine` and `/find` redirect here).
+///
+/// Back: from My Challenges / Find Opponent → the Challenges tab (as Back from
+/// those screens did); from Challenges → the Club Dashboard. Switching tabs
+/// replaces the location, so it adds no history entries.
+class ChallengesWorkspace extends StatelessWidget {
+  const ChallengesWorkspace({super.key, this.tab = ChallengesSection.challenges});
+  final ChallengesSection tab;
+
+  @override
+  Widget build(BuildContext context) {
+    final home = tab == ChallengesSection.challenges;
+    void back() => home ? CeTopBar.goBack(context, Routes.clubHome) : context.go(Routes.challenges);
+    return PopScope(
+      canPop: home,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) back();
+      },
+      child: Scaffold(
+        appBar: CeTopBar(title: 'Challenges', onBack: back),
+        body: Column(children: [
+          ChallengesTabs(active: tab),
+          Expanded(
+            child: switch (tab) {
+              ChallengesSection.challenges => const ChallengeClubsView(),
+              ChallengesSection.mine => const MyChallengesView(),
+              ChallengesSection.find => const FindOpponentView(),
+            },
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+/// Challenges tab (prototype `screens.challenges`, :6994): clubs to challenge.
+class ChallengeClubsView extends ConsumerWidget {
+  const ChallengeClubsView({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final clubsAsync = ref.watch(challengeableClubsProvider);
-    return Scaffold(
-      appBar: const CeTopBar(title: 'Challenges', fallbackLocation: Routes.clubHome),
-      body: ListView(padding: const EdgeInsets.only(bottom: 24), children: [
-        const ChallengesTabs(active: ChallengesSection.challenges),
+    return ListView(padding: const EdgeInsets.only(bottom: 24), children: [
         if (clubsAsync.isLoading)
           const Padding(padding: EdgeInsets.all(30), child: Center(child: CircularProgressIndicator()))
         else
@@ -93,15 +128,14 @@ class ChallengesHubScreen extends ConsumerWidget {
               inlineActions: true,
               onTap: () => context.push(Routes.clubProfile(c.id)),
             ),
-      ]),
-    );
+    ]);
   }
 }
 
-/// Find Opponent (prototype `screens.findMatch`, :7104): discover clubs and
-/// start a match request. Create Availability Slot lives here only.
-class FindMatchScreen extends ConsumerWidget {
-  const FindMatchScreen({super.key});
+/// Find Opponent tab (prototype `screens.findMatch`, :7104): discover clubs
+/// and start a match request. Create Availability Slot lives here only.
+class FindOpponentView extends ConsumerWidget {
+  const FindOpponentView({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -111,10 +145,7 @@ class FindMatchScreen extends ConsumerWidget {
       for (final s in seekersAsync.value ?? const <MatchSeekerListing>[])
         if (dir[s.clubId] != null) (listing: s, club: dir[s.clubId]!),
     ];
-    return Scaffold(
-      appBar: const CeTopBar(title: 'Find Opponent', fallbackLocation: Routes.challenges),
-      body: ListView(padding: const EdgeInsets.only(bottom: 24), children: [
-        const ChallengesTabs(active: ChallengesSection.find),
+    return ListView(padding: const EdgeInsets.only(bottom: 24), children: [
         const AvailabilitySlotCta(),
         const MySlotsList(),
         // Count derived from the list (fix: prototype said "5 Teams" for 2).
@@ -152,8 +183,7 @@ class FindMatchScreen extends ConsumerWidget {
               actions: _SendButton(club: e.club, label: 'Send Match Request', listing: e.listing),
               onTap: () => context.push(Routes.clubProfile(e.club.id, fromFind: true)),
             ),
-      ]),
-    );
+    ]);
   }
 }
 

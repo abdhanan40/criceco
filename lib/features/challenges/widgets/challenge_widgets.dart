@@ -19,6 +19,7 @@ import '../../../shared/widgets/ce_segmented.dart';
 import '../../club/club_providers.dart';
 import '../challenges_controller.dart';
 
+/// Tabs of the Challenges workspace, kept in `?tab=`.
 enum ChallengesSection {
   challenges('Challenges', Routes.challenges),
   mine('My Challenges', Routes.myChallenges),
@@ -26,11 +27,16 @@ enum ChallengesSection {
 
   const ChallengesSection(this.label, this.location);
   final String label;
+
+  /// Canonical location (`/club/challenges[?tab=…]`).
   final String location;
+
+  static ChallengesSection parse(String? raw) => values.where((v) => v.name == raw).firstOrNull ?? challenges;
 }
 
-/// `challengesTabRow`: sibling screens, switched with `go` (replaces). My
-/// Challenges carries the number of challenges awaiting your decision.
+/// `challengesTabRow`: the workspace tabs, switched with `go` (replaces, so
+/// no history entries). My Challenges carries the number of challenges
+/// awaiting your decision.
 class ChallengesTabs extends ConsumerWidget {
   const ChallengesTabs({super.key, required this.active});
   final ChallengesSection active;

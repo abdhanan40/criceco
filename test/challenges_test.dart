@@ -12,6 +12,7 @@ import 'package:criceco/features/club/club_providers.dart';
 import 'package:criceco/features/matches/club_matches_controller.dart';
 import 'package:criceco/shared/widgets/ce_buttons.dart';
 import 'package:criceco/shared/widgets/ce_indicators.dart';
+import 'package:criceco/shared/widgets/ce_top_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -348,7 +349,9 @@ void main() {
         (tester) async {
       final c = await _pumpOwner(tester);
       await _go(tester, c, Routes.findMatch);
-      expect(find.text('Find Opponent'), findsNWidgets(2), reason: 'screen title and tab');
+      // One Challenges workspace: its title, with Find Opponent as the active tab.
+      expect(find.descendant(of: find.byType(CeTopBar), matching: find.text('Challenges')), findsOneWidget);
+      expect(find.text('Find Opponent'), findsOneWidget, reason: 'the tab');
       expect(find.textContaining('Find Match'), findsNothing);
       expect(find.textContaining('Create Availability Slot', findRichText: true), findsOneWidget);
       expect(find.text('Teams Looking for Opponents · 2 Teams'), findsOneWidget);
@@ -404,6 +407,31 @@ void main() {
       expect((ch.opponentClubId, ch.format, ch.groundName, ch.proposedAt),
           ('club_rr', MatchFormat.t10, 'Pindi Cricket Ground', DateTime(2026, 9, 30)));
       expect(find.text('Challenge Accepted!'), findsOneWidget);
+    });
+
+    testWidgets('one Challenges workspace: tabs in ?tab=, old screen URLs redirect, Back to the Dashboard',
+        (tester) async {
+      final c = await _pumpOwner(tester);
+      for (final (legacy, tab) in [
+        (Routes.myChallengesLegacy, Routes.myChallenges),
+        (Routes.findMatchLegacy, Routes.findMatch),
+      ]) {
+        await _go(tester, c, legacy);
+        expect(_loc(c), tab, reason: '$legacy → $tab');
+        expect(find.descendant(of: find.byType(CeTopBar), matching: find.text('Challenges')), findsOneWidget);
+      }
+      // A tab switch replaces the location: one page, never stacked tabs.
+      await _go(tester, c, Routes.clubHome);
+      await _go(tester, c, Routes.challenges);
+      await _tap(tester, find.text('My Challenges'));
+      await _tap(tester, find.text('Find Opponent'));
+      expect(find.byType(CeTopBar), findsOneWidget);
+      await tester.tap(find.byTooltip('Back')); // Find Opponent → Challenges tab
+      await tester.pumpAndSettle();
+      expect(_loc(c), Routes.challenges);
+      await tester.tap(find.byTooltip('Back')); // Challenges → Club Dashboard
+      await tester.pumpAndSettle();
+      expect(_loc(c), Routes.clubHome);
     });
 
     testWidgets('tabs switch sections; Club Profile shows Owner / Coach (no About) → Challenge This Club',

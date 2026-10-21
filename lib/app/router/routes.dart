@@ -77,9 +77,14 @@ abstract final class Routes {
   static const joinRequests = '/club/requests';
   static String joinRequestProfile(String requestId) => '/club/requests/$requestId';
   static const playerHunt = '/club/player-hunt';
+  /// Challenges workspace: Challenges | My Challenges | Find Opponent tabs.
   static const challenges = '/club/challenges';
-  static const myChallenges = '/club/challenges/mine';
-  static const findMatch = '/club/challenges/find';
+  static const myChallenges = '$challenges?tab=mine';
+  static const findMatch = '$challenges?tab=find';
+  /// Legacy (Challenges workspace) → My Challenges tab.
+  static const myChallengesLegacy = '/club/challenges/mine';
+  /// Legacy (Challenges workspace) → Find Opponent tab.
+  static const findMatchLegacy = '/club/challenges/find';
   static const createAvailabilitySlot = '/club/challenges/slots/new';
   static String challengeAccepted(String challengeId) => '/club/challenges/$challengeId/accepted';
   /// Opponent Club Profile. [challengeId]: opened from that challenge (My

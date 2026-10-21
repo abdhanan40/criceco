@@ -16,7 +16,7 @@ import '../../features/challenges/screens/challenge_status_screen.dart';
 import '../../features/challenges/screens/challenges_hub_screen.dart';
 import '../../features/challenges/screens/club_profile_screen.dart';
 import '../../features/challenges/screens/create_slot_screen.dart';
-import '../../features/challenges/screens/my_challenges_screen.dart';
+import '../../features/challenges/widgets/challenge_widgets.dart';
 import '../../features/club/screens/add_team_players_screen.dart';
 import '../../features/club/screens/club_dashboard_screen.dart';
 import '../../features/club/screens/join_request_profile_screen.dart';
@@ -301,13 +301,15 @@ final List<RouteBase> _clubFullRoutes = [
     parentNavigatorKey: rootNavigatorKey,
     builder: (_, s) => PlayerHuntScreen(tab: HuntTab.parse(s.uri.queryParameters['tab'])),
   ),
+  // Challenges workspace: Challenges | My Challenges | Find Opponent in `?tab=`.
   GoRoute(
     path: 'challenges',
     parentNavigatorKey: rootNavigatorKey,
-    builder: (_, _) => const ChallengesHubScreen(),
+    builder: (_, s) => ChallengesWorkspace(tab: ChallengesSection.parse(s.uri.queryParameters['tab'])),
     routes: [
-      GoRoute(path: 'mine', parentNavigatorKey: rootNavigatorKey, builder: (_, _) => const MyChallengesScreen()),
-      GoRoute(path: 'find', parentNavigatorKey: rootNavigatorKey, builder: (_, _) => const FindMatchScreen()),
+      // Former My Challenges / Find Opponent screens, kept for compatibility.
+      _legacy('mine', (_) => Routes.myChallenges),
+      _legacy('find', (_) => Routes.findMatch),
       GoRoute(path: 'slots/new', parentNavigatorKey: rootNavigatorKey, builder: (_, _) => const CreateSlotScreen()),
       GoRoute(
         path: ':challengeId/accepted',
