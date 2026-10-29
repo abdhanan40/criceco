@@ -34,6 +34,14 @@ class _RejectingAccounts implements AccountRepository {
   @override
   Future<UserAccount> update(UserAccount account) => inner.update(account);
   @override
+  Future<UserAccount> saveProfileSetup(UserAccount account, {required DateTime at}) =>
+      inner.saveProfileSetup(account, at: at);
+  @override
+  Future<UserAccount> savePlayerProfile(String accountId, PlayerProfile profile) =>
+      inner.savePlayerProfile(accountId, profile);
+  @override
+  Future<void> signOut() => inner.signOut();
+  @override
   Future<bool> changePassword(String accountId, {required String current, required String next}) =>
       inner.changePassword(accountId, current: current, next: next);
   @override

@@ -142,6 +142,24 @@ class InMemoryAccountRepository implements AccountRepository {
 
   @override
   Future<UserAccount> update(UserAccount account) async => _accounts[account.id] = account;
+
+  @override
+  Future<UserAccount> saveProfileSetup(UserAccount account, {required DateTime at}) async {
+    ProfileRules.checkProfileSetup(account, at);
+    return _accounts[account.id] = account.copyWith(profileComplete: true);
+  }
+
+  @override
+  Future<UserAccount> savePlayerProfile(String accountId, PlayerProfile profile) async {
+    ProfileRules.checkPlayerProfile(profile);
+    final account = _accounts[accountId];
+    if (account == null) throw StateError('Account $accountId not found');
+    return _accounts[accountId] = account.copyWith(playerProfile: profile);
+  }
+
+  /// No backend session in memory mode.
+  @override
+  Future<void> signOut() async {}
 }
 
 class InMemoryClubRepository implements ClubRepository {
