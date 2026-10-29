@@ -7,8 +7,12 @@ import '../../core/constants/city_areas.dart';
 import '../../core/models/models.dart';
 import '../../data/mock/in_memory_repositories.dart';
 import '../../data/repositories/repositories.dart';
+import '../../data/supabase/local_account_overlay.dart';
+import '../../data/supabase/supabase_account_repository.dart';
+import '../../data/supabase/supabase_gateways.dart';
 import '../../demo/demo_stats.dart';
 import '../../demo/seed_data.dart';
+import '../config/backend_config.dart';
 
 /// Injectable time source. Tests override with a fixed/fake [Clock].
 final clockProvider = Provider<Clock>((ref) => const Clock());
@@ -40,8 +44,22 @@ final cityAreasProvider = FutureProvider<CityAreas>((ref) async {
 });
 
 // ---- Repositories (in-memory mocks; replace with real implementations later) ----
-final accountRepositoryProvider =
-    Provider<AccountRepository>((ref) => InMemoryAccountRepository(ref.watch(seedDataProvider)));
+/// The only repository with a backend switch (`CRICECO_BACKEND`); every other
+/// repository stays in-memory.
+final accountRepositoryProvider = Provider<AccountRepository>((ref) {
+  final config = ref.watch(backendConfigProvider);
+  return switch (config.mode) {
+    BackendMode.memory => InMemoryAccountRepository(ref.watch(seedDataProvider)),
+    // The gateway providers throw "not available yet" until Step 4 adds
+    // supabase_flutter; tests override them with fakes.
+    BackendMode.supabase => SupabaseAccountRepository(
+        auth: ref.watch(authGatewayProvider),
+        db: ref.watch(profileGatewayProvider),
+        overlay: LocalAccountOverlay(ref.watch(sharedPreferencesProvider)),
+        clock: ref.watch(clockProvider),
+      ),
+  };
+});
 final clubRepositoryProvider = Provider<ClubRepository>((ref) => InMemoryClubRepository(ref.watch(seedDataProvider)));
 final teamRepositoryProvider = Provider<TeamRepository>((ref) => InMemoryTeamRepository(ref.watch(seedDataProvider)));
 final matchRepositoryProvider =

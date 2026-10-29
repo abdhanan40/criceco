@@ -1,5 +1,8 @@
 import '../../core/models/models.dart';
 
+export 'account_errors.dart';
+export 'profile_rules.dart' show ProfileRules, ProfileValidationException;
+
 /// Repository contracts. Every method is async so an HTTP/Firebase backend can
 /// replace the in-memory mocks without touching controllers or screens.
 
@@ -13,6 +16,23 @@ abstract interface class AccountRepository {
   });
   Future<UserAccount?> byId(String accountId);
   Future<UserAccount> update(UserAccount account);
+
+  /// User Profile Setup → Continue: saves the details and both addresses and
+  /// marks the profile complete, all or nothing. [account] is the signed-in
+  /// account. [at] is "today" for the date-of-birth rule. Throws
+  /// [ProfileValidationException] when the data breaks a [ProfileRules] rule;
+  /// nothing is saved then. A remote backend may also throw an
+  /// [AccountException] (signed out, another account, unreachable).
+  Future<UserAccount> saveProfileSetup(UserAccount account, {required DateTime at});
+
+  /// Role Selection → Player → Continue: saves the signed-in account's
+  /// player profile. Throws [ProfileValidationException] when it breaks a
+  /// role rule, and [StateError] for an unknown account; nothing is saved
+  /// then. A remote backend may also throw an [AccountException].
+  Future<UserAccount> savePlayerProfile(String accountId, PlayerProfile profile);
+
+  /// Ends the backend session (a no-op where there is none, e.g. in-memory).
+  Future<void> signOut();
 
   /// `false` when [current] doesn't match the account's password.
   Future<bool> changePassword(String accountId, {required String current, required String next});
