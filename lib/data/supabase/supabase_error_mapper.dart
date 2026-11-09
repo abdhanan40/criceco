@@ -10,6 +10,8 @@ abstract final class SupabaseErrorMapper {
     GatewayNetworkException() => const BackendUnavailableException(),
     GatewayPermissionException() => const NotSignedInException(),
     GatewayUnexpectedException() => const BackendOperationException(),
+    GatewayEmailNotConfirmedException() =>
+      const EmailConfirmationRequiredException(),
     GatewayConstraintException() => _constraint(e),
   };
 
@@ -26,6 +28,10 @@ abstract final class SupabaseErrorMapper {
     'date_of_birth cannot be in the future':
         "Date of birth can't be in the future",
     'profile_completed requires': 'Please complete all profile details',
+    // Supabase Auth refusals (translated by the SDK gateway).
+    'user already exists':
+        'An account with this email already exists — please log in',
+    'weak password': 'Choose a stronger password',
   };
 
   /// CHECK constraints (migrations 1–3), matched by name.
@@ -51,7 +57,14 @@ abstract final class SupabaseErrorMapper {
   };
 
   static Exception _constraint(GatewayConstraintException e) {
-    if (e.sqlState == '42501') return const NotSignedInException();
+    // 42501 is a privilege / row-level security refusal: the session is
+    // fine, so it never means "sign in again" — except the database
+    // functions' own `not authenticated` (no auth.uid()).
+    if (e.sqlState == '42501') {
+      return e.message.contains('not authenticated')
+          ? const NotSignedInException()
+          : const PermissionDeniedException();
+    }
     if (e.sqlState == '23502') {
       return const ProfileValidationException(
         'Please complete all address fields',

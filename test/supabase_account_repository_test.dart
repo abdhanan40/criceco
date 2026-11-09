@@ -47,6 +47,14 @@ void main() {
     password: password,
   );
 
+  /// Another account, signed up (and now the signed-in user).
+  Future<UserAccount> signedUpAs(String address) => repo.signUp(
+    fullName: 'Bilal Khan',
+    method: ContactMethod.email,
+    identifier: address,
+    password: password,
+  );
+
   UserAccount filledIn(
     UserAccount a, {
     String phone = '0300 1234567',
@@ -490,6 +498,124 @@ void main() {
     });
   });
 
+  group('Club Owner role (Stage 1)', () {
+    const batsman = PlayerProfile(
+      role: PlayerRole.batsman,
+      battingStyle: BattingStyle.rightHanded,
+    );
+
+    /// What club creation hands the repository.
+    UserAccount asOwner(UserAccount a) =>
+        a.copyWith(hasClubOwnerProfile: true, ownedClubId: 'club_1');
+
+    int roleWrites() =>
+        db.calls.where((c) => c == 'setRoleUnlessClubOwner').length;
+
+    test('NULL → club_owner', () async {
+      final a = await signedUp();
+      expect(db.profiles[a.id]!['role'], isNull);
+      final saved = await repo.update(asOwner(a));
+      expect(db.profiles[a.id]!['role'], 'club_owner');
+      expect(saved.hasClubOwnerProfile, isTrue);
+      expect(roleWrites(), 1);
+    });
+
+    test('player → club_owner (Club Owner takes precedence, D-C1)', () async {
+      final a = await signedUp();
+      final player = await repo.savePlayerProfile(a.id, batsman);
+      expect(db.profiles[a.id]!['role'], 'player');
+      await repo.update(asOwner(player));
+      expect(db.profiles[a.id]!['role'], 'club_owner');
+    });
+
+    test('club_owner stays club_owner (never downgraded)', () async {
+      final a = await signedUp();
+      db.profiles[a.id]!['role'] = 'club_owner';
+      await repo.update(asOwner(a));
+      expect(db.profiles[a.id]!['role'], 'club_owner');
+    });
+
+    test('a later Player save does not overwrite club_owner', () async {
+      final a = await signedUp();
+      final owner = await repo.update(asOwner(a));
+      await repo.savePlayerProfile(owner.id, batsman);
+      expect(db.profiles[a.id]!['role'], 'club_owner');
+    });
+
+    test('written once, on becoming Club Owner only', () async {
+      final a = await signedUp();
+      final owner = await repo.update(asOwner(a));
+      await repo.update(
+        owner.copyWith(settings: owner.settings.copyWith(loginAlerts: false)),
+      );
+      await repo.update(owner.copyWith(fullName: 'Hamza Ali'));
+      expect(roleWrites(), 1);
+      // Other updates of a non-owner never write a role.
+      db.calls.clear();
+      final b = await signedUpAs('b@example.com');
+      await repo.update(b.copyWith(fullName: 'Bilal Khan'));
+      expect(roleWrites(), 0);
+      expect(db.profiles[b.id]!['role'], isNull);
+    });
+
+    for (final (label, failure, error) in [
+      (
+        'offline',
+        const GatewayNetworkException() as GatewayException,
+        isA<BackendUnavailableException>(),
+      ),
+      (
+        'an RLS refusal (42501)',
+        const GatewayConstraintException(
+          sqlState: '42501',
+          message: 'new row violates row-level security policy',
+        ),
+        isA<PermissionDeniedException>(),
+      ),
+    ]) {
+      test('$label: not marked Club Owner; a retry succeeds', () async {
+        final a = await signedUp();
+        db.failNext = failure;
+        await expectLater(repo.update(asOwner(a)), throwsA(error));
+        expect(db.profiles[a.id]!['role'], isNull);
+        expect(
+          (await repo.byId(a.id))!.hasClubOwnerProfile,
+          isFalse,
+          reason: 'the in-memory Club Owner flag is not set',
+        );
+
+        final saved = await repo.update(asOwner(a)); // retry
+        expect(saved.hasClubOwnerProfile, isTrue);
+        expect(db.profiles[a.id]!['role'], 'club_owner');
+        expect((await repo.byId(a.id))!.hasClubOwnerProfile, isTrue);
+      });
+    }
+
+    test('only the signed-in user\'s own row is written', () async {
+      final other = auth.addUser('other@example.com', password);
+      final a = await signedUp();
+      await repo.update(asOwner(a));
+      expect(db.profiles[a.id]!['role'], 'club_owner');
+      expect(db.profiles[other.id]!['role'], isNull);
+
+      // Another account id is refused before any database call.
+      db.calls.clear();
+      await expectLater(
+        repo.update(
+          UserAccount(
+            id: other.id,
+            fullName: 'Someone Else',
+            contactMethod: ContactMethod.email,
+            hasClubOwnerProfile: true,
+          ),
+        ),
+        throwsA(isA<AccountMismatchException>()),
+      );
+      expect(db.calls, isEmpty);
+      expect(db.profiles[other.id]!['role'], isNull);
+    });
+  });
+
   test('signOut ends the Auth session; device data survives', () async {
     final a = await signedUp();
     await repo.update(
@@ -621,6 +747,112 @@ void main() {
       expect(c.read(sessionProvider).account!.fullName, 'Ali Raza');
     });
 
+    group('restore never stops startup (H1)', () {
+      const savedKey = 'criceco.session.accountId';
+
+      /// A saved id with the Auth session of [u] still present.
+      Future<AuthUser> savedSession() async {
+        final u = auth.addUser(email, password);
+        auth.current = u;
+        await start(saved: {savedKey: u.id});
+        return u;
+      }
+
+      /// Signed out, the saved id forgotten, the Auth session ended.
+      void expectCleanSignedOut() {
+        expect(c.read(sessionProvider).status, SessionStatus.signedOut);
+        expect(c.read(sessionProvider).account, isNull);
+        expect(prefs.getString(savedKey), isNull);
+        expect(auth.calls.last, 'signOut');
+        expect(auth.current, isNull);
+      }
+
+      test('missing profile row → signed out, id cleared', () async {
+        final u = await savedSession();
+        db.profiles.remove(u.id);
+        await session().restore(); // completes: no exception escapes
+        expectCleanSignedOut();
+      });
+
+      test('expired / invalid session (401, PGRST301) → signed out', () async {
+        await savedSession();
+        db.failNext = const GatewayPermissionException();
+        await session().restore();
+        expectCleanSignedOut();
+      });
+
+      test(
+        'refresh token refused (unexpected Auth error) → signed out',
+        () async {
+          await savedSession();
+          db.failNext = const GatewayUnexpectedException('auth:400');
+          await session().restore();
+          expectCleanSignedOut();
+        },
+      );
+
+      test('malformed profile data → signed out', () async {
+        final u = await savedSession();
+        db.players[u.id] = {'user_id': u.id, 'player_role': 'captain'};
+        await session().restore();
+        expectCleanSignedOut();
+      });
+
+      test('an RLS refusal (42501) → signed out at start too', () async {
+        await savedSession();
+        db.failNext = const GatewayConstraintException(
+          sqlState: '42501',
+          message: 'permission denied for table profiles',
+        );
+        await session().restore();
+        expectCleanSignedOut();
+      });
+
+      test('the clean-up sign-out failing too still completes', () async {
+        final u = await savedSession();
+        db.profiles.remove(u.id);
+        // The Auth sign-out after the failed read fails as well (the read
+        // itself makes no Auth call, so this hits the sign-out).
+        auth.failNext = const GatewayNetworkException();
+        await session().restore();
+        expect(auth.calls.last, 'signOut');
+        expect(c.read(sessionProvider).status, SessionStatus.signedOut);
+        expect(prefs.getString(savedKey), isNull);
+      });
+
+      test(
+        'offline is unchanged: id and Auth session kept for retry',
+        () async {
+          final u = await savedSession();
+          db.failNext = const GatewayNetworkException();
+          await session().restore();
+          expect(c.read(sessionProvider).status, SessionStatus.signedOut);
+          expect(prefs.getString(savedKey), u.id);
+          expect(auth.current, isNotNull);
+          expect(auth.calls, isNot(contains('signOut')));
+
+          await session().restore(); // back online: the next start restores
+          expect(c.read(sessionProvider).account!.id, u.id);
+        },
+      );
+    });
+
+    test('logout offline still signs out locally, no error escapes', () async {
+      await start();
+      await session().signUp(
+        fullName: 'Hamza Sheikh',
+        method: ContactMethod.email,
+        identifier: email,
+        password: password,
+      );
+      auth.failNext = const GatewayNetworkException();
+      session().logout();
+      await pumpEventQueue();
+      expect(auth.calls.last, 'signOut');
+      expect(c.read(sessionProvider).status, SessionStatus.signedOut);
+      expect(prefs.getString('criceco.session.accountId'), isNull);
+    });
+
     test('logout ends the Auth session too', () async {
       await start();
       await session().signUp(
@@ -635,5 +867,73 @@ void main() {
       expect(auth.current, isNull);
       expect(c.read(sessionProvider).status, SessionStatus.signedOut);
     });
+
+    group('Create Club stores profiles.role = club_owner', () {
+      Future<String> profiled() async {
+        await start();
+        await session().signUp(
+          fullName: 'Hamza Sheikh',
+          method: ContactMethod.email,
+          identifier: email,
+          password: password,
+        );
+        await completeProfile();
+        return c.read(currentAccountProvider)!.id;
+      }
+
+      Future<Club> createClub() => session().createClub(
+        name: 'Lahore Lions CC',
+        city: 'Lahore',
+        type: ClubType.corporate,
+      );
+
+      test('club created → Club Owner, role saved', () async {
+        final uid = await profiled();
+        await createClub();
+        expect(db.profiles[uid]!['role'], 'club_owner');
+        expect(c.read(sessionProvider).hasClubOwnerProfile, isTrue);
+        expect(c.read(currentClubProvider)!.name, 'Lahore Lions CC');
+      });
+
+      test('offline: not a Club Owner, then a retry succeeds', () async {
+        final uid = await profiled();
+        db.failNext = const GatewayNetworkException();
+        await expectLater(
+          createClub(),
+          throwsA(isA<BackendUnavailableException>()),
+        );
+        expect(db.profiles[uid]!['role'], isNull);
+        expect(c.read(sessionProvider).hasClubOwnerProfile, isFalse);
+        expect(c.read(currentClubProvider), isNull);
+
+        await createClub(); // retry
+        expect(db.profiles[uid]!['role'], 'club_owner');
+        expect(c.read(sessionProvider).hasClubOwnerProfile, isTrue);
+      });
+    });
+  });
+
+  test('memory mode: Create Club makes no Supabase request', () async {
+    SharedPreferences.setMockInitialValues({});
+    final memoryPrefs = await SharedPreferences.getInstance();
+    final c = ProviderContainer(
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(memoryPrefs),
+        // Wired but unused: memory mode must never reach them.
+        authGatewayProvider.overrideWithValue(auth),
+        profileGatewayProvider.overrideWithValue(db),
+      ],
+    );
+    addTearDown(c.dispose);
+    final session = c.read(sessionProvider.notifier);
+    await session.signIn(identifier: 'x', password: 'y'); // the demo account
+    await session.createClub(
+      name: 'Lahore Lions CC',
+      city: 'Lahore',
+      type: ClubType.corporate,
+    );
+    expect(c.read(sessionProvider).hasClubOwnerProfile, isTrue);
+    expect(db.calls, isEmpty);
+    expect(auth.calls, isEmpty);
   });
 }

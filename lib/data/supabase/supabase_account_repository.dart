@@ -171,7 +171,8 @@ class SupabaseAccountRepository implements AccountRepository {
 
   /// Writes only what changed: full name, phone and date of birth on
   /// `profiles`, and existing address rows; photo and settings locally
-  /// (D9); Club Owner flags and memberships in memory (D6).
+  /// (D9); Club Owner flags and memberships in memory (D6). Becoming a Club
+  /// Owner (club creation) also stores `profiles.role = club_owner`.
   @override
   Future<UserAccount> update(UserAccount account) async {
     final user = _signedIn(account.id);
@@ -231,6 +232,19 @@ class SupabaseAccountRepository implements AccountRepository {
     if (permanent != null) {
       await _call(
         () => db.updateAddress('permanent_addresses', user.id, permanent),
+      );
+    }
+    // Becoming a Club Owner: `club_owner` takes precedence over `player` and
+    // is never downgraded (D-C1). Saved before this run's Club Owner flag, so
+    // a failure leaves the account as it was and a retry is safe. The role
+    // isn't read back yet: clubs themselves are still in memory (D6).
+    final wasClubOwner = _inMemory[user.id]?.hasClubOwnerProfile ?? false;
+    if (account.hasClubOwnerProfile && !wasClubOwner) {
+      await _call(
+        () => db.setRoleUnlessClubOwner(
+          user.id,
+          ProfileRowMapper.userRoleCode(UserRole.clubOwner),
+        ),
       );
     }
     await _keepLocal(account);

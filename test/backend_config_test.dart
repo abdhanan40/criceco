@@ -207,7 +207,7 @@ void main() {
       );
     });
 
-    test('supabase mode fails clearly until its gateways exist (Step 4)', () {
+    test('supabase mode without the startup wiring fails clearly', () {
       final container = ProviderContainer(
         overrides: [
           backendConfigProvider.overrideWithValue(
@@ -222,7 +222,11 @@ void main() {
       addTearDown(container.dispose);
       expect(
         () => container.read(accountRepositoryProvider),
-        throwsA(predicate((e) => e.toString().contains('not available yet'))),
+        throwsA(
+          predicate(
+            (e) => e.toString().contains('Supabase is not initialized'),
+          ),
+        ),
       );
     });
   });

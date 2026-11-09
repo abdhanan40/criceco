@@ -199,4 +199,14 @@ class FakeDb implements ProfileGateway {
     final p = profiles[userId]!;
     if (p['role'] == null) profiles[userId] = {...p, 'role': role};
   }
+
+  @override
+  Future<void> setRoleUnlessClubOwner(String userId, String role) async {
+    _maybeFail('setRoleUnlessClubOwner');
+    _own(userId);
+    final p = profiles[userId]!;
+    if (p['role'] == null || p['role'] == 'player') {
+      profiles[userId] = {...p, 'role': role};
+    }
+  }
 }

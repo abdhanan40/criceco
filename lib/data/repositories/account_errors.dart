@@ -20,6 +20,14 @@ class AccountMismatchException extends AccountException {
     : super('This account is not the one signed in — please sign in again');
 }
 
+/// The backend refused the operation for the signed-in user (a row-level
+/// security or privilege refusal, `42501`). The session is still valid, so
+/// this never signs the user out.
+class PermissionDeniedException extends AccountException {
+  const PermissionDeniedException()
+    : super("You don't have permission to do that");
+}
+
 /// The backend could not be reached (offline, timeout, server down).
 class BackendUnavailableException extends AccountException {
   const BackendUnavailableException()

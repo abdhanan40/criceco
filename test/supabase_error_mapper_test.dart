@@ -21,12 +21,37 @@ void main() {
       SupabaseErrorMapper.map(const GatewayUnexpectedException('x')),
       isA<BackendOperationException>(),
     );
-    expect(
-      SupabaseErrorMapper.map(
-        const GatewayConstraintException(sqlState: '42501', message: 'rls'),
-      ),
-      isA<NotSignedInException>(),
-    );
+  });
+
+  group('42501 is a refusal, not a lost session (M1)', () {
+    test('an RLS / privilege refusal → PermissionDeniedException', () {
+      for (final message in [
+        'new row violates row-level security policy for table "profiles"',
+        'permission denied for table profiles',
+        'rls',
+      ]) {
+        final e = SupabaseErrorMapper.map(
+          GatewayConstraintException(sqlState: '42501', message: message),
+        );
+        expect(e, isA<PermissionDeniedException>(), reason: message);
+        expect(
+          (e as AccountException).message,
+          "You don't have permission to do that",
+        );
+      }
+    });
+
+    test('the functions\' own "not authenticated" still means sign in', () {
+      expect(
+        SupabaseErrorMapper.map(
+          const GatewayConstraintException(
+            sqlState: '42501',
+            message: 'not authenticated',
+          ),
+        ),
+        isA<NotSignedInException>(),
+      );
+    });
   });
 
   test(
@@ -66,6 +91,31 @@ void main() {
       }
     },
   );
+
+  test('Supabase Auth refusals (from the SDK gateway) get app messages', () {
+    expect(
+      SupabaseErrorMapper.map(const GatewayEmailNotConfirmedException()),
+      isA<EmailConfirmationRequiredException>(),
+    );
+    expect(
+      messageOf(
+        const GatewayConstraintException(
+          sqlState: '23505',
+          message: 'user already exists',
+        ),
+      ),
+      'An account with this email already exists — please log in',
+    );
+    expect(
+      messageOf(
+        const GatewayConstraintException(
+          sqlState: '23514',
+          message: 'weak password',
+        ),
+      ),
+      'Choose a stronger password',
+    );
+  });
 
   test('raw database text is never passed on', () {
     const raw = 'internal detail: relation secret_table';

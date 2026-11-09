@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/enums/enums.dart';
 import '../providers/core_providers.dart';
@@ -37,17 +38,60 @@ class NeedsClubSetup extends RoleNavigation {
 /// Active role + per-role last route. Persisted across restarts (approved P21)
 /// and cleared on logout. Navigation can never change the role — only
 /// [continueAs], [switchTo] and club creation do.
+///
+/// The remembered role belongs to one account ([_kOwner]): it is restored
+/// only for that account, and dropped when another account signs in. An
+/// account still in onboarding (new sign-ups included) has no role yet —
+/// roles are chosen on Role Selection, after Profile Setup. So a stale role
+/// from an earlier session never decides where a new account lands.
 class RoleController extends Notifier<RoleState> {
   static const _kActive = 'criceco.activeRole';
+  static const _kOwner = 'criceco.activeRole.account';
   static String _kLast(UserRole r) => 'criceco.lastRoute.${r.name}';
 
   @override
   RoleState build() {
-    // Logout (or any sign-out) clears role state and its persisted copy.
-    ref.listen(sessionProvider.select((s) => s.isAuthenticated), (was, isNow) {
-      if (was == true && !isNow) clear();
-    });
+    ref.listen(
+      sessionProvider.select((s) => (id: s.account?.id, onboarding: s.status == SessionStatus.onboarding)),
+      (was, now) {
+        final id = now.id;
+        // Logout (or any sign-out) clears role state and its persisted copy.
+        if (id == null) {
+          if (was?.id != null) clear();
+          return;
+        }
+        // A new account (memory sign-ups reuse the demo id, so this can't
+        // rely on the id) or one still in setup: no role.
+        if (now.onboarding) {
+          clear();
+          return;
+        }
+        // Signed in: that account's own remembered role, or none.
+        if (id != was?.id) state = _restoreFor(id);
+      },
+    );
+    // main() restores the session before the router first builds this, so a
+    // remembered account is already signed in here. If it isn't (offline at
+    // start, or built earlier), the listener restores the role once its
+    // owner signs in.
     final prefs = ref.read(sharedPreferencesProvider);
+    final session = ref.read(sessionProvider);
+    final account = session.account?.id;
+    if (account != null && session.status != SessionStatus.onboarding) return _restoreFor(account);
+    // Still in setup, or an older install's role saved without an account
+    // (nobody owns it): forget it. Otherwise keep it for its owner.
+    if (account != null || prefs.getString(_kOwner) == null) _forget(prefs);
+    return const RoleState();
+  }
+
+  /// [accountId]'s remembered role and last routes. A role saved for
+  /// another account — or for none (older installs) — is removed instead.
+  RoleState _restoreFor(String accountId) {
+    final prefs = ref.read(sharedPreferencesProvider);
+    if (prefs.getString(_kOwner) != accountId) {
+      _forget(prefs);
+      return const RoleState();
+    }
     final activeName = prefs.getString(_kActive);
     final last = <UserRole, String>{};
     for (final r in UserRole.values) {
@@ -64,7 +108,15 @@ class RoleController extends Notifier<RoleState> {
 
   void _setActive(UserRole role) {
     state = RoleState(active: role, lastRoute: state.lastRoute);
-    ref.read(sharedPreferencesProvider).setString(_kActive, role.name);
+    final prefs = ref.read(sharedPreferencesProvider);
+    final owner = ref.read(sessionProvider).account?.id;
+    if (owner == null) {
+      _forget(prefs); // never persist a role that no account owns
+      return;
+    }
+    prefs
+      ..setString(_kOwner, owner)
+      ..setString(_kActive, role.name);
   }
 
   /// Role Selection card for an already set-up role (the former Continue As).
@@ -110,8 +162,14 @@ class RoleController extends Notifier<RoleState> {
 
   void clear() {
     state = const RoleState();
-    final prefs = ref.read(sharedPreferencesProvider);
-    prefs.remove(_kActive);
+    _forget(ref.read(sharedPreferencesProvider));
+  }
+
+  /// Removes the persisted role, its owner and the last routes.
+  static void _forget(SharedPreferences prefs) {
+    prefs
+      ..remove(_kActive)
+      ..remove(_kOwner);
     for (final r in UserRole.values) {
       prefs.remove(_kLast(r));
     }

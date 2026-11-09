@@ -100,16 +100,30 @@ class SessionController extends Notifier<SessionState> {
   /// (approved P21) takes the user straight back into their role.
   /// Offline (a remote backend can't be reached): stays signed out for now
   /// and clears nothing, so the next start can restore normally.
+  /// Any other failure — an invalid or expired session, a missing or
+  /// unreadable profile — must not stop the app from starting (`main()`
+  /// awaits this before `runApp`): the remembered account is forgotten, the
+  /// backend session ended, and the user starts at Login. Never throws.
   Future<void> restore() async {
-    final id = ref.read(sharedPreferencesProvider).getString(_kAccount);
+    final prefs = ref.read(sharedPreferencesProvider);
+    final id = prefs.getString(_kAccount);
     if (id == null) return;
-    final UserAccount? account;
+    final repo = ref.read(accountRepositoryProvider);
     try {
-      account = await ref.read(accountRepositoryProvider).byId(id);
+      final account = await repo.byId(id);
+      if (account != null) await _setAccount(account);
     } on BackendUnavailableException {
       return;
+    } catch (_) {
+      state = const SessionState();
+      await prefs.remove(_kAccount);
+      try {
+        await repo.signOut();
+      } catch (_) {
+        // Already signed out locally; the backend session is cleared or
+        // expires on its own.
+      }
     }
-    if (account != null) await _setAccount(account);
   }
 
   Future<void> updateAccount(UserAccount Function(UserAccount a) change) async {

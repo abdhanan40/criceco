@@ -2,8 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// The two narrow seams between [SupabaseAccountRepository] and Supabase.
 /// They use the app's own types only, so the repository is tested with
-/// fakes; the real implementations (on `supabase_flutter`) arrive in
-/// Phase 2 Step 4. Every method throws a [GatewayException] on failure.
+/// fakes; the real implementations (on `supabase_flutter`) are in
+/// `supabase_sdk_gateways.dart`. Every method throws a [GatewayException] on
+/// failure.
 
 /// The signed-in Supabase Auth user, as the app needs it.
 class AuthUser {
@@ -90,6 +91,11 @@ abstract interface class ProfileGateway {
   /// `update profiles set role = role where id = userId and role is null`:
   /// never overwrites a role that is already set.
   Future<void> setRoleIfUnset(String userId, String role);
+
+  /// `update profiles set role = role where id = userId and (role is null
+  /// or role = 'player')`: Club Owner takes precedence over Player (D-C1),
+  /// and an existing `club_owner` is never touched.
+  Future<void> setRoleUnlessClubOwner(String userId, String role);
 }
 
 /// What a gateway reports when a call fails.
@@ -115,25 +121,35 @@ class GatewayConstraintException extends GatewayException {
   final String? constraint;
 }
 
-/// `42501` / RLS refusal / no valid session.
+/// No valid session: missing, invalid or expired JWT (HTTP 401 / 403,
+/// `PGRST301`–`PGRST303`). A `42501` privilege / RLS refusal is a
+/// [GatewayConstraintException] instead (sqlState `42501`): the session is
+/// fine there.
 class GatewayPermissionException extends GatewayException {
   const GatewayPermissionException();
 }
 
-/// Anything else (bad response, unexpected error).
+/// Sign-in for an account whose email address isn't confirmed yet.
+class GatewayEmailNotConfirmedException extends GatewayException {
+  const GatewayEmailNotConfirmedException();
+}
+
+/// Anything else (bad response, unexpected error). [detail] is a short code,
+/// never user data.
 class GatewayUnexpectedException extends GatewayException {
   const GatewayUnexpectedException(this.detail);
   final String detail;
 }
 
-const _notYet =
-    'CRICECO_BACKEND=supabase is not available yet: the Supabase '
-    'gateways arrive with the supabase_flutter package (Phase 2 Step 4)';
+const _notInitialized =
+    'Supabase is not initialized: start the app through main() '
+    '(backendOverrides), or override the gateway providers in tests';
 
-/// Overridden with real implementations in Step 4 (and with fakes in tests).
+/// Overridden at startup in Supabase mode (`backendOverrides`) with the
+/// real gateways, and with fakes in tests.
 final authGatewayProvider = Provider<AuthGateway>(
-  (ref) => throw UnsupportedError(_notYet),
+  (ref) => throw StateError(_notInitialized),
 );
 final profileGatewayProvider = Provider<ProfileGateway>(
-  (ref) => throw UnsupportedError(_notYet),
+  (ref) => throw StateError(_notInitialized),
 );

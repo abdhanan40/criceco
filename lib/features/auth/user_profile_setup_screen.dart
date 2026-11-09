@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/providers/core_providers.dart';
 import '../../app/router/routes.dart';
+import '../../app/session/account_error_text.dart';
 import '../../app/session/role_controller.dart';
 import '../../app/session/session_controller.dart';
 import '../../app/theme/tokens.dart';
@@ -118,9 +119,12 @@ class _UserProfileSetupScreenState extends ConsumerState<UserProfileSetupScreen>
     final phone = formatPkPhone(CeValidators.normalizePkPhone(_phone.text)!);
     try {
       await ref.read(onboardingProvider.notifier).saveProfile(phone: phone);
-    } catch (_) {
-      if (mounted) setState(() => _saving = false);
-      if (mounted) showCeToast(context, "Couldn't save your profile — please try again");
+    } catch (e) {
+      // The form keeps everything typed (the draft lives in onboardingProvider).
+      if (!mounted) return;
+      setState(() => _saving = false);
+      if (signOutIfNeeded(context, ref, e)) return;
+      showCeToast(context, accountErrorText(e, fallback: "Couldn't save your profile — please try again"));
       return;
     }
     if (!mounted) return;
