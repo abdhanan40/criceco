@@ -134,7 +134,8 @@ class SupabaseProfileGateway implements ProfileGateway {
     final row = await _client
         .from('profiles')
         .select(
-          '*, current_addresses(*), permanent_addresses(*), player_profiles(*)',
+          '*, current_addresses(*), permanent_addresses(*), player_profiles(*), '
+          'clubs(id)',
         )
         .eq('id', userId)
         .maybeSingle();
@@ -142,12 +143,15 @@ class SupabaseProfileGateway implements ProfileGateway {
     final profile = Map<String, dynamic>.of(row)
       ..remove('current_addresses')
       ..remove('permanent_addresses')
-      ..remove('player_profiles');
+      ..remove('player_profiles')
+      ..remove('clubs');
     return AccountRows(
       profile: profile,
       currentAddress: _one(row['current_addresses']),
       permanentAddress: _one(row['permanent_addresses']),
       playerProfile: _one(row['player_profiles']),
+      // The own club (one per owner, migration 5): its id only.
+      club: _one(row['clubs']),
     );
   });
 
@@ -187,15 +191,6 @@ class SupabaseProfileGateway implements ProfileGateway {
         .update({'role': role})
         .eq('id', userId)
         .isFilter('role', null),
-  );
-
-  @override
-  Future<void> setRoleUnlessClubOwner(String userId, String role) => _guard(
-    () => _client
-        .from('profiles')
-        .update({'role': role})
-        .eq('id', userId)
-        .or('role.is.null,role.eq.player'),
   );
 
   /// An embedded one-to-one relation comes back as an object (or `null`);

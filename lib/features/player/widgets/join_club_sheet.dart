@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/config/club_features.dart';
 import '../../../app/router/routes.dart';
+import '../../../app/session/account_error_text.dart';
 import '../../../app/session/session_controller.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../app/theme/typography.dart';
@@ -183,52 +185,72 @@ class _JoinClubSheetState extends ConsumerState<_JoinClubSheet> {
   bool _sending = false;
   int _lookupSeq = 0;
 
+  /// Why the last lookup couldn't run ("coming soon" in Supabase mode, or a
+  /// failed lookup) — the app's own text, never the raw error.
+  String? _problem;
+
   @override
   void dispose() {
     _code.dispose();
     super.dispose();
   }
 
-  /// Looks the code up as soon as it has a valid shape.
+  /// Looks the code up as soon as it has a valid shape. The spinner always
+  /// stops, whatever the lookup does.
   Future<void> _onCode(String value) async {
     final seq = ++_lookupSeq;
     setState(() {
       _preview = null;
       _notFound = false;
+      _problem = null;
       _looking = CeValidators.clubCode(value) == null;
     });
     if (!_looking) return;
-    final preview = await ref.read(joinClubProvider.notifier).lookup(value);
-    if (!mounted || seq != _lookupSeq) return;
-    setState(() {
-      _looking = false;
-      _preview = preview;
-      _notFound = preview == null;
-    });
+    ClubCodePreview? preview;
+    String? problem;
+    try {
+      preview = await ref.read(joinClubProvider.notifier).lookup(value);
+    } catch (e) {
+      problem = accountErrorText(e, fallback: "Couldn't look up the club — please try again");
+    } finally {
+      if (mounted && seq == _lookupSeq) {
+        setState(() {
+          _looking = false;
+          _preview = preview;
+          _problem = problem;
+          _notFound = preview == null && problem == null;
+        });
+      }
+    }
   }
 
   Future<void> _send(ClubCodePreview club) async {
     if (_sending) return;
     setState(() => _sending = true);
-    final ClubJoinRequest request;
+    ClubJoinRequest? request;
+    String? problem;
     try {
       request = await ref.read(joinClubProvider.notifier).send(club.code);
     } on JoinBlockedException catch (e) {
+      problem = e.message;
+    } catch (e) {
+      problem = accountErrorText(e, fallback: "Couldn't send the request — please try again");
+    } finally {
       if (mounted) setState(() => _sending = false);
-      if (mounted) showCeToast(context, e.message);
-      return;
-    } catch (_) {
-      if (mounted) setState(() => _sending = false);
-      if (mounted) showCeToast(context, "Couldn't send the request — please try again");
-      return;
     }
     if (!mounted) return;
+    if (problem != null || request == null) {
+      showCeToast(context, problem ?? "Couldn't send the request — please try again");
+      return;
+    }
     Navigator.of(context).pop();
     showCeToast(context, 'Join request sent to ${request.clubName}');
   }
 
   @override
   Widget build(BuildContext context) {
+    // Supabase mode, until Phase 3E: no lookup or request at all (D-3B-1).
+    if (!ref.watch(clubFeaturesProvider).joinByCode) return const _JoinComingSoon();
     final pending = ref.watch(joinClubProvider);
     if (pending != null && pending.status == JoinRequestStatus.pending) {
       return _PendingRequest(request: pending);
@@ -266,6 +288,8 @@ class _JoinClubSheetState extends ConsumerState<_JoinClubSheet> {
           padding: EdgeInsets.only(bottom: 10),
           child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
         )
+      else if (_problem != null)
+        _Note(key: const Key('joinClub.problem'), icon: 'info', tone: CeColors.muted, text: _problem!)
       else if (_notFound)
         _Note(key: const Key('joinClub.notFound'), icon: 'x-circle', tone: CeColors.red, text: 'No club found with code ${_code.text}. Check the code and try again.')
       else if (shapeError != null && _code.text.length >= 4)
@@ -295,6 +319,26 @@ class _JoinClubSheetState extends ConsumerState<_JoinClubSheet> {
       ]),
     ]);
   }
+}
+
+/// Join a Club where joining by code isn't available yet (Supabase mode,
+/// until Phase 3E).
+class _JoinComingSoon extends StatelessWidget {
+  const _JoinComingSoon();
+
+  @override
+  Widget build(BuildContext context) => Column(
+        key: const Key('joinClub.comingSoon'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Join a Club', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 14),
+          const CeEmptyState(icon: 'clock', title: 'Coming soon', body: ClubFeatures.joinComingSoon),
+          const SizedBox(height: 14),
+          CeButton.soft(label: 'Close', onPressed: () => Navigator.of(context).pop()),
+        ],
+      );
 }
 
 class _ClubPreviewCard extends StatelessWidget {

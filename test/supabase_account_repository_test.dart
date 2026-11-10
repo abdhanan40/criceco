@@ -3,6 +3,7 @@ import 'package:criceco/app/config/backend_config.dart';
 import 'package:criceco/app/providers/core_providers.dart';
 import 'package:criceco/app/session/session_controller.dart';
 import 'package:criceco/core/models/models.dart';
+import 'package:criceco/data/mock/in_memory_repositories.dart';
 import 'package:criceco/data/repositories/repositories.dart';
 import 'package:criceco/data/supabase/local_account_overlay.dart';
 import 'package:criceco/data/supabase/supabase_account_repository.dart';
@@ -44,14 +45,6 @@ void main() {
     fullName: name,
     method: ContactMethod.email,
     identifier: email,
-    password: password,
-  );
-
-  /// Another account, signed up (and now the signed-in user).
-  Future<UserAccount> signedUpAs(String address) => repo.signUp(
-    fullName: 'Bilal Khan',
-    method: ContactMethod.email,
-    identifier: address,
     password: password,
   );
 
@@ -446,19 +439,22 @@ void main() {
       expect(db.calls, isEmpty);
     });
 
-    test('settings stay on the device (D9); Club Owner flags only for this run (D6)', () async {
+    test('settings stay on the device (D9); club flags only from the clubs row (3B)', () async {
       final a = await completed();
-      await repo.update(
+      // Claiming a Club Owner profile without a club row is not believed:
+      // the account is read back from the database.
+      final saved = await repo.update(
         a.copyWith(
           settings: a.settings.copyWith(showPhone: true, publicProfile: false),
           hasClubOwnerProfile: true,
           ownedClubId: 'club-1',
         ),
       );
+      expect((saved.hasClubOwnerProfile, saved.ownedClubId), (false, null));
       final now = await repo.byId(a.id);
       expect(now!.settings.showPhone, isTrue);
-      expect(now.hasClubOwnerProfile, isTrue);
-      // Restart: settings survive, the in-memory Club Owner state does not.
+      expect(now.hasClubOwnerProfile, isFalse);
+      // Restart: settings survive.
       repo = newRepo();
       final restarted = await repo.byId(a.id);
       expect(restarted!.settings.showPhone, isTrue);
@@ -498,122 +494,148 @@ void main() {
     });
   });
 
-  group('Club Owner role (Stage 1)', () {
+  group('Club Owner profile from the clubs row (Stage 3B)', () {
     const batsman = PlayerProfile(
       role: PlayerRole.batsman,
       battingStyle: BattingStyle.rightHanded,
     );
+    late FakeClubDb clubs;
 
-    /// What club creation hands the repository.
-    UserAccount asOwner(UserAccount a) =>
-        a.copyWith(hasClubOwnerProfile: true, ownedClubId: 'club_1');
+    setUp(() => clubs = FakeClubDb(db));
 
-    int roleWrites() =>
-        db.calls.where((c) => c == 'setRoleUnlessClubOwner').length;
+    /// User Profile Setup done, then a club through the fake create_club.
+    Future<String> clubFor(UserAccount a) async {
+      db.completeProfile(a.id);
+      final row = await clubs.createClub({
+        'p_name': 'Lahore Lions CC',
+        'p_city': 'Lahore',
+        'p_club_type': 'corporate',
+      });
+      return row['id'] as String;
+    }
 
-    test('NULL → club_owner', () async {
+    int accountReads() => db.calls.where((c) => c == 'fetchAccountRows').length;
+
+    test('no club → no Club Owner profile', () async {
       final a = await signedUp();
-      expect(db.profiles[a.id]!['role'], isNull);
-      final saved = await repo.update(asOwner(a));
-      expect(db.profiles[a.id]!['role'], 'club_owner');
-      expect(saved.hasClubOwnerProfile, isTrue);
-      expect(roleWrites(), 1);
+      final read = await repo.byId(a.id);
+      expect((read!.hasClubOwnerProfile, read.ownedClubId), (false, null));
     });
 
-    test('player → club_owner (Club Owner takes precedence, D-C1)', () async {
-      final a = await signedUp();
-      final player = await repo.savePlayerProfile(a.id, batsman);
-      expect(db.profiles[a.id]!['role'], 'player');
-      await repo.update(asOwner(player));
-      expect(db.profiles[a.id]!['role'], 'club_owner');
-    });
+    test(
+      'a club row → the flags, on sign-in, byId and after a restart',
+      () async {
+        final a = await signedUp();
+        final clubId = await clubFor(a);
+        expect(
+          (
+            (await repo.byId(a.id))!.hasClubOwnerProfile,
+            (await repo.byId(a.id))!.ownedClubId,
+          ),
+          (true, clubId),
+        );
+        repo = newRepo(); // a new app run
+        expect((await repo.byId(a.id))!.ownedClubId, clubId);
+        auth.current = null;
+        final again = await repo.signIn(identifier: email, password: password);
+        expect((again!.hasClubOwnerProfile, again.ownedClubId), (true, clubId));
+      },
+    );
 
-    test('club_owner stays club_owner (never downgraded)', () async {
-      final a = await signedUp();
-      db.profiles[a.id]!['role'] = 'club_owner';
-      await repo.update(asOwner(a));
-      expect(db.profiles[a.id]!['role'], 'club_owner');
-    });
+    test(
+      'club creation, then update(flags) re-reads them from the database',
+      () async {
+        final a = await signedUp();
+        final clubId = await clubFor(a);
+        final readsBefore = accountReads();
+        final saved = await repo.update(
+          a.copyWith(hasClubOwnerProfile: true, ownedClubId: clubId),
+        );
+        expect((saved.hasClubOwnerProfile, saved.ownedClubId), (true, clubId));
+        expect(
+          accountReads(),
+          readsBefore + 1,
+          reason: 'read back, not trusted',
+        );
+      },
+    );
 
-    test('a later Player save does not overwrite club_owner', () async {
+    test('unchanged club flags: no extra account read', () async {
       final a = await signedUp();
-      final owner = await repo.update(asOwner(a));
-      await repo.savePlayerProfile(owner.id, batsman);
-      expect(db.profiles[a.id]!['role'], 'club_owner');
-    });
-
-    test('written once, on becoming Club Owner only', () async {
-      final a = await signedUp();
-      final owner = await repo.update(asOwner(a));
+      final clubId = await clubFor(a);
+      final owner = await repo.update(
+        a.copyWith(hasClubOwnerProfile: true, ownedClubId: clubId),
+      );
+      final readsBefore = accountReads();
       await repo.update(
         owner.copyWith(settings: owner.settings.copyWith(loginAlerts: false)),
       );
-      await repo.update(owner.copyWith(fullName: 'Hamza Ali'));
-      expect(roleWrites(), 1);
-      // Other updates of a non-owner never write a role.
-      db.calls.clear();
-      final b = await signedUpAs('b@example.com');
-      await repo.update(b.copyWith(fullName: 'Bilal Khan'));
-      expect(roleWrites(), 0);
-      expect(db.profiles[b.id]!['role'], isNull);
+      expect(accountReads(), readsBefore);
     });
 
-    for (final (label, failure, error) in [
-      (
-        'offline',
-        const GatewayNetworkException() as GatewayException,
-        isA<BackendUnavailableException>(),
-      ),
-      (
-        'an RLS refusal (42501)',
-        const GatewayConstraintException(
-          sqlState: '42501',
-          message: 'new row violates row-level security policy',
-        ),
-        isA<PermissionDeniedException>(),
-      ),
-    ]) {
-      test('$label: not marked Club Owner; a retry succeeds', () async {
+    test('the app writes no role: create_club (its trigger) does — NULL / player / club_owner', () async {
+      for (final (start, label) in [
+        (null, 'NULL'),
+        ('player', 'player'),
+        ('club_owner', 'club_owner'),
+      ]) {
+        db = FakeDb();
+        auth = FakeAuth(db);
+        clubs = FakeClubDb(db);
+        repo = newRepo();
         final a = await signedUp();
-        db.failNext = failure;
-        await expectLater(repo.update(asOwner(a)), throwsA(error));
-        expect(db.profiles[a.id]!['role'], isNull);
-        expect(
-          (await repo.byId(a.id))!.hasClubOwnerProfile,
-          isFalse,
-          reason: 'the in-memory Club Owner flag is not set',
+        db.profiles[a.id] = {...db.profiles[a.id]!, 'role': start};
+        final clubId = await clubFor(a);
+        await repo.update(
+          a.copyWith(hasClubOwnerProfile: true, ownedClubId: clubId),
         );
-
-        final saved = await repo.update(asOwner(a)); // retry
-        expect(saved.hasClubOwnerProfile, isTrue);
-        expect(db.profiles[a.id]!['role'], 'club_owner');
-        expect((await repo.byId(a.id))!.hasClubOwnerProfile, isTrue);
-      });
-    }
-
-    test('only the signed-in user\'s own row is written', () async {
-      final other = auth.addUser('other@example.com', password);
-      final a = await signedUp();
-      await repo.update(asOwner(a));
-      expect(db.profiles[a.id]!['role'], 'club_owner');
-      expect(db.profiles[other.id]!['role'], isNull);
-
-      // Another account id is refused before any database call.
-      db.calls.clear();
-      await expectLater(
-        repo.update(
-          UserAccount(
-            id: other.id,
-            fullName: 'Someone Else',
-            contactMethod: ContactMethod.email,
-            hasClubOwnerProfile: true,
-          ),
-        ),
-        throwsA(isA<AccountMismatchException>()),
-      );
-      expect(db.calls, isEmpty);
-      expect(db.profiles[other.id]!['role'], isNull);
+        expect(db.profiles[a.id]!['role'], 'club_owner', reason: label);
+        expect(
+          db.calls.where((c) => c.toLowerCase().contains('role')),
+          isEmpty,
+          reason: 'no role write from the app ($label)',
+        );
+      }
     });
+
+    test('a later Player save keeps club_owner and the club', () async {
+      final a = await signedUp();
+      final clubId = await clubFor(a);
+      final saved = await repo.savePlayerProfile(a.id, batsman);
+      expect(db.profiles[a.id]!['role'], 'club_owner');
+      expect((saved.hasClubOwnerProfile, saved.ownedClubId), (true, clubId));
+    });
+
+    test(
+      'memberships stay this run\'s; the club flags come from the database',
+      () async {
+        final a = await signedUp();
+        final clubId = await clubFor(a);
+        const membership = ClubMembership(
+          clubId: 'club_krc',
+          clubName: 'Karachi Ravians CC',
+          clubCode: 'KRC001',
+          role: MemberRole.player,
+        );
+        await repo.update(
+          a.copyWith(
+            hasClubOwnerProfile: true,
+            ownedClubId: clubId,
+            memberships: const [membership],
+          ),
+        );
+        final now = (await repo.byId(a.id))!;
+        expect(now.memberships.single.clubCode, 'KRC001');
+        expect(now.ownedClubId, clubId);
+        repo = newRepo(); // restart: memberships are this run's only (D6)
+        final restarted = (await repo.byId(a.id))!;
+        expect(restarted.memberships, isEmpty);
+        expect(
+          (restarted.hasClubOwnerProfile, restarted.ownedClubId),
+          (true, clubId),
+        );
+      },
+    );
   });
 
   test('signOut ends the Auth session; device data survives', () async {
@@ -639,10 +661,14 @@ void main() {
 
   group('session in Supabase mode', () {
     late ProviderContainer c;
+    late FakeClubDb clubs;
 
+    /// A (re)started app. [db] / [auth] / the clubs table model the server
+    /// and the SDK's stored session, so they outlive a restart.
     Future<void> start({Map<String, Object> saved = const {}}) async {
       SharedPreferences.setMockInitialValues(saved);
       prefs = await SharedPreferences.getInstance();
+      clubs = db.clubDb ?? FakeClubDb(db);
       c = ProviderContainer(
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
@@ -656,6 +682,7 @@ void main() {
           ),
           authGatewayProvider.overrideWithValue(auth),
           profileGatewayProvider.overrideWithValue(db),
+          clubGatewayProvider.overrideWithValue(clubs),
         ],
       );
       addTearDown(c.dispose);
@@ -868,7 +895,7 @@ void main() {
       expect(c.read(sessionProvider).status, SessionStatus.signedOut);
     });
 
-    group('Create Club stores profiles.role = club_owner', () {
+    group('Create Club: the club in Supabase, kept across restarts (3B)', () {
       Future<String> profiled() async {
         await start();
         await session().signUp(
@@ -887,21 +914,52 @@ void main() {
         type: ClubType.corporate,
       );
 
-      test('club created → Club Owner, role saved', () async {
+      test(
+        'club created → a clubs row, Club Owner, role saved by create_club',
+        () async {
+          final uid = await profiled();
+          final club = await createClub();
+          expect(clubs.clubs[uid]!['id'], club.id);
+          expect(club.code, hasLength(6));
+          expect(db.profiles[uid]!['role'], 'club_owner');
+          final s = c.read(sessionProvider);
+          expect(
+            (s.hasClubOwnerProfile, s.account!.ownedClubId),
+            (true, club.id),
+          );
+          expect(c.read(currentClubProvider)!.name, 'Lahore Lions CC');
+        },
+      );
+
+      test('a restart restores the club; so does logout + login', () async {
         final uid = await profiled();
-        await createClub();
-        expect(db.profiles[uid]!['role'], 'club_owner');
+        final club = await createClub();
+        final kept = {for (final k in prefs.getKeys()) k: prefs.get(k)!};
+
+        await start(saved: kept); // a new app run, same server + stored session
+        await session().restore();
+        expect(c.read(sessionProvider).account!.id, uid);
         expect(c.read(sessionProvider).hasClubOwnerProfile, isTrue);
+        expect(
+          (c.read(currentClubProvider)!.id, c.read(currentClubProvider)!.code),
+          (club.id, club.code),
+        );
+
+        session().logout();
+        await pumpEventQueue();
+        expect(c.read(currentClubProvider), isNull);
+        await session().signIn(identifier: email, password: password);
         expect(c.read(currentClubProvider)!.name, 'Lahore Lions CC');
       });
 
       test('offline: not a Club Owner, then a retry succeeds', () async {
         final uid = await profiled();
-        db.failNext = const GatewayNetworkException();
+        clubs.failNext = const GatewayNetworkException();
         await expectLater(
           createClub(),
           throwsA(isA<BackendUnavailableException>()),
         );
+        expect(clubs.clubs, isEmpty);
         expect(db.profiles[uid]!['role'], isNull);
         expect(c.read(sessionProvider).hasClubOwnerProfile, isFalse);
         expect(c.read(currentClubProvider), isNull);
@@ -910,18 +968,37 @@ void main() {
         expect(db.profiles[uid]!['role'], 'club_owner');
         expect(c.read(sessionProvider).hasClubOwnerProfile, isTrue);
       });
+
+      test('a club owner whose club can\'t load offline at start: the session is kept for retry', () async {
+        final uid = await profiled();
+        await createClub();
+        final kept = {for (final k in prefs.getKeys()) k: prefs.get(k)!};
+        await start(saved: kept);
+        clubs.failNext = const GatewayNetworkException();
+        await session().restore();
+        expect(c.read(sessionProvider).isAuthenticated, isFalse);
+        expect(
+          prefs.getString('criceco.session.accountId'),
+          uid,
+          reason: 'kept for the next start',
+        );
+        await session().restore(); // back online
+        expect(c.read(currentClubProvider), isNotNull);
+      });
     });
   });
 
   test('memory mode: Create Club makes no Supabase request', () async {
     SharedPreferences.setMockInitialValues({});
     final memoryPrefs = await SharedPreferences.getInstance();
+    final clubs = FakeClubDb(db);
     final c = ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(memoryPrefs),
         // Wired but unused: memory mode must never reach them.
         authGatewayProvider.overrideWithValue(auth),
         profileGatewayProvider.overrideWithValue(db),
+        clubGatewayProvider.overrideWithValue(clubs),
       ],
     );
     addTearDown(c.dispose);
@@ -933,7 +1010,9 @@ void main() {
       type: ClubType.corporate,
     );
     expect(c.read(sessionProvider).hasClubOwnerProfile, isTrue);
+    expect(c.read(clubRepositoryProvider), isA<InMemoryClubRepository>());
     expect(db.calls, isEmpty);
     expect(auth.calls, isEmpty);
+    expect(clubs.calls, isEmpty);
   });
 }

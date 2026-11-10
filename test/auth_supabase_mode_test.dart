@@ -106,6 +106,7 @@ const _password = 'Cricket@123';
 late SlowDb db;
 late SlowAuth auth;
 late FlakyAccounts accounts;
+late FakeClubDb clubDb;
 
 /// The app in Supabase mode ([supabase] true) or memory mode, at Login.
 /// [flaky] (memory mode): the account repository is [accounts].
@@ -123,6 +124,7 @@ Future<ProviderContainer> _pump(
   final prefs = await SharedPreferences.getInstance();
   db = SlowDb();
   auth = SlowAuth(db);
+  clubDb = FakeClubDb(db);
   final c = ProviderContainer(
     overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
@@ -133,6 +135,7 @@ Future<ProviderContainer> _pump(
         backendConfigProvider.overrideWithValue(_supabase),
         authGatewayProvider.overrideWithValue(auth),
         profileGatewayProvider.overrideWithValue(db),
+        clubGatewayProvider.overrideWithValue(clubDb),
       ],
       if (flaky)
         accountRepositoryProvider.overrideWith(
@@ -842,7 +845,7 @@ void main() {
     });
 
     testWidgets(
-      'Club Owner (Stage 1): offline first, retry → Dashboard, role saved',
+      'Club Owner: offline first, retry → Dashboard; the club and role saved',
       (tester) async {
         final c = await _profiled(tester);
         final uid = c.read(currentAccountProvider)!.id;
@@ -850,15 +853,17 @@ void main() {
         await _tap(tester, find.bySemanticsLabel(RegExp(r'^Club Owner\. ')));
         await fillClub(tester);
 
-        db.failNext = const GatewayNetworkException();
+        clubDb.failNext = const GatewayNetworkException();
         await _tap(tester, _button('Create Club'));
         expect(find.text(offline), findsOneWidget);
         expect(_loc(c), Routes.clubSetup);
         expect(db.profiles[uid]!['role'], isNull);
+        expect(clubDb.clubs, isEmpty);
         expect(c.read(sessionProvider).hasClubOwnerProfile, isFalse);
 
         await _tap(tester, _button('Create Club')); // retry
         expect(_loc(c), Routes.clubHome);
+        expect(clubDb.clubs[uid]!['name'], 'Karachi Kites');
         expect(db.profiles[uid]!['role'], 'club_owner');
         expect(c.read(sessionProvider).hasClubOwnerProfile, isTrue);
       },

@@ -3,11 +3,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/config/club_features.dart';
 import '../../app/router/routes.dart';
+import '../../app/session/account_error_text.dart';
 import '../../app/theme/tokens.dart';
 import '../../core/utils/validators.dart';
 import '../../demo/seed_data.dart';
 import '../../shared/widgets/ce_buttons.dart';
+import '../../shared/widgets/ce_feedback.dart';
 import '../../shared/widgets/ce_inputs.dart';
 import '../../shared/widgets/ce_surfaces.dart';
 import '../../shared/widgets/ce_top_bar.dart';
@@ -47,25 +50,34 @@ class _EnterClubCodeScreenState extends ConsumerState<EnterClubCodeScreen> {
       await ref.read(joinClubProvider.notifier).send(_code.text);
     } on JoinBlockedException catch (e) {
       blocked = e.message; // not found / already a member / pending / own club
-    } catch (_) {
-      blocked = "Couldn't send the request — please try again.";
-    }
-    if (blocked != null) {
-      if (mounted) {
-        setState(() {
-          _sending = false;
-          _error = blocked;
-        });
-      }
-      return;
+    } catch (e) {
+      // "Coming soon" (Supabase mode) or any other failure: the app's text.
+      blocked = accountErrorText(e, fallback: "Couldn't send the request — please try again.");
+    } finally {
+      if (mounted) setState(() => _sending = false);
     }
     if (!mounted) return;
-    setState(() => _sending = false);
+    if (blocked != null) {
+      setState(() => _error = blocked);
+      return;
+    }
     context.go(Routes.waitingApproval);
   }
 
   @override
   Widget build(BuildContext context) {
+    // Supabase mode, until Phase 3E: no code entry at all (D-3B-1).
+    if (!ref.watch(clubFeaturesProvider).joinByCode) {
+      return const Scaffold(
+        backgroundColor: CeColors.bg,
+        appBar: CeTopBar(title: 'Join a Club', fallbackLocation: Routes.clubSetup),
+        body: Padding(
+          key: Key('join.comingSoon'),
+          padding: EdgeInsets.fromLTRB(CeSpace.form, 20, CeSpace.form, CeSpace.form),
+          child: CeEmptyState(icon: 'clock', title: 'Coming soon', body: ClubFeatures.joinComingSoon),
+        ),
+      );
+    }
     return Scaffold(
       backgroundColor: CeColors.bg,
       appBar: const CeTopBar(title: 'Join a Club', fallbackLocation: Routes.clubSetup),

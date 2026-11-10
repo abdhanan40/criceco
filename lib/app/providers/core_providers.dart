@@ -8,7 +8,9 @@ import '../../core/models/models.dart';
 import '../../data/mock/in_memory_repositories.dart';
 import '../../data/repositories/repositories.dart';
 import '../../data/supabase/local_account_overlay.dart';
+import '../../data/supabase/local_club_overlay.dart';
 import '../../data/supabase/supabase_account_repository.dart';
+import '../../data/supabase/supabase_club_repository.dart';
 import '../../data/supabase/supabase_gateways.dart';
 import '../../demo/demo_stats.dart';
 import '../../demo/seed_data.dart';
@@ -44,8 +46,8 @@ final cityAreasProvider = FutureProvider<CityAreas>((ref) async {
 });
 
 // ---- Repositories (in-memory mocks; replace with real implementations later) ----
-/// The only repository with a backend switch (`CRICECO_BACKEND`); every other
-/// repository stays in-memory.
+/// The account and club repositories switch with the backend
+/// (`CRICECO_BACKEND`); every other repository stays in-memory.
 final accountRepositoryProvider = Provider<AccountRepository>((ref) {
   final config = ref.watch(backendConfigProvider);
   return switch (config.mode) {
@@ -60,7 +62,21 @@ final accountRepositoryProvider = Provider<AccountRepository>((ref) {
       ),
   };
 });
-final clubRepositoryProvider = Provider<ClubRepository>((ref) => InMemoryClubRepository(ref.watch(seedDataProvider)));
+/// Supabase mode: the owner's club is in `public.clubs`; members, join
+/// requests and the squad pool come from a dedicated in-memory repository of
+/// its own (keyed by the real club id), never the memory-mode instance.
+final clubRepositoryProvider = Provider<ClubRepository>((ref) {
+  final config = ref.watch(backendConfigProvider);
+  return switch (config.mode) {
+    BackendMode.memory => InMemoryClubRepository(ref.watch(seedDataProvider)),
+    BackendMode.supabase => SupabaseClubRepository(
+        auth: ref.watch(authGatewayProvider),
+        db: ref.watch(clubGatewayProvider),
+        overlay: LocalClubOverlay(ref.watch(sharedPreferencesProvider)),
+        local: InMemoryClubRepository(ref.watch(seedDataProvider)),
+      ),
+  };
+});
 final teamRepositoryProvider = Provider<TeamRepository>((ref) => InMemoryTeamRepository(ref.watch(seedDataProvider)));
 final matchRepositoryProvider =
     Provider<MatchRepository>((ref) => InMemoryMatchRepository(ref.watch(seedDataProvider)));

@@ -76,6 +76,7 @@ void main() {
               },
             ],
             'player_profiles': null,
+            'clubs': {'id': 'club-1'},
           },
         ]);
         final rows = await SupabaseProfileGateway(client).fetchAccountRows(uid);
@@ -85,14 +86,43 @@ void main() {
         expect(r.url.queryParameters['id'], 'eq.$uid');
         expect(
           r.url.queryParameters['select']!.replaceAll(' ', ''),
-          '*,current_addresses(*),permanent_addresses(*),player_profiles(*)',
+          '*,current_addresses(*),permanent_addresses(*),player_profiles(*),'
+          'clubs(id)',
         );
         expect(r.headers['apikey'], key); // the publishable key, nothing else
         expect(rows!.profile['full_name'], 'Hamza Sheikh');
         expect(rows.profile.containsKey('current_addresses'), isFalse);
+        expect(rows.profile.containsKey('clubs'), isFalse);
         expect(rows.currentAddress!['city'], 'Lahore'); // object form
         expect(rows.permanentAddress!['city'], 'Multan'); // list form tolerated
         expect(rows.playerProfile, isNull);
+        expect(rows.club, {'id': 'club-1'}); // the own club (object form)
+      },
+    );
+
+    test(
+      'fetchAccountRows: the own club as an object, a list or none',
+      () async {
+        for (final (label, embedded, expected) in [
+          ('object', {'id': 'club-1'} as Object?, {'id': 'club-1'}),
+          (
+            'one-element list',
+            [
+              {'id': 'club-1'},
+            ],
+            {'id': 'club-1'},
+          ),
+          ('empty list', <Object?>[], null),
+          ('null', null, null),
+        ]) {
+          respond = (_) => json([
+            {'id': uid, 'full_name': 'Hamza Sheikh', 'clubs': embedded},
+          ]);
+          final rows = await SupabaseProfileGateway(client)
+              .fetchAccountRows(uid);
+          expect(rows!.club, expected, reason: label);
+          expect(rows.profile.containsKey('clubs'), isFalse, reason: label);
+        }
       },
     );
 
@@ -138,25 +168,6 @@ void main() {
       expect(r.url.queryParameters['role'], 'is.null');
       expect(jsonDecode(r.body), {'role': 'player'});
     });
-
-    test(
-      'setRoleUnlessClubOwner: own row, only where role is NULL or player',
-      () async {
-        respond = (_) => http.Response('', 204);
-        await SupabaseProfileGateway(client)
-            .setRoleUnlessClubOwner(uid, 'club_owner');
-        final r = requests.single;
-        expect(r.method, 'PATCH');
-        expect(r.url.path, '/rest/v1/profiles');
-        expect(r.url.queryParameters['id'], 'eq.$uid');
-        expect(r.url.queryParameters['or'], '(role.is.null,role.eq.player)');
-        expect(r.url.queryParameters.keys.toSet(), {
-          'id',
-          'or',
-        }, reason: 'no other filter, no other row');
-        expect(jsonDecode(r.body), {'role': 'club_owner'});
-      },
-    );
 
     test(
       'updateProfileColumns / updateAddress target the own rows only',

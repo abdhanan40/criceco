@@ -3,6 +3,7 @@ import 'package:criceco/app/config/backend_config.dart';
 import 'package:criceco/app/providers/core_providers.dart';
 import 'package:criceco/data/mock/in_memory_repositories.dart';
 import 'package:criceco/data/supabase/supabase_account_repository.dart';
+import 'package:criceco/data/supabase/supabase_club_repository.dart';
 import 'package:criceco/data/supabase/supabase_gateways.dart';
 import 'package:criceco/data/supabase/supabase_sdk_gateways.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -75,6 +76,14 @@ void main() {
     final c = containerWith(overrides);
     expect(c.read(backendConfigProvider).mode, BackendMode.memory);
     expect(c.read(accountRepositoryProvider), isA<InMemoryAccountRepository>());
+    expect(c.read(clubRepositoryProvider), isA<InMemoryClubRepository>());
+    // No club gateway is wired in memory mode (it is never needed there).
+    expect(
+      () => c.read(clubGatewayProvider),
+      throwsA(
+        predicate((e) => e.toString().contains('Supabase is not initialized')),
+      ),
+    );
   });
 
   test(
@@ -117,10 +126,12 @@ void main() {
       final c = containerWith(overrides);
       expect(c.read(authGatewayProvider), isA<SupabaseAuthGateway>());
       expect(c.read(profileGatewayProvider), isA<SupabaseProfileGateway>());
+      expect(c.read(clubGatewayProvider), isA<SupabaseClubGateway>());
       expect(
         c.read(accountRepositoryProvider),
         isA<SupabaseAccountRepository>(),
       );
+      expect(c.read(clubRepositoryProvider), isA<SupabaseClubRepository>());
       expect(
         c.read(authGatewayProvider).currentUser,
         isNull,

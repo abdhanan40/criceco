@@ -305,6 +305,31 @@ void main() {
       expect(a.contactMethod, ContactMethod.phone);
       expect(a.email, isNull);
     });
+
+    test('the own club row → the Club Owner profile (Stage 3B)', () {
+      final owner = ProfileRowMapper.accountFromRows(
+        profile: profileRow(fullName: 'Hamza Sheikh', role: 'club_owner'),
+        club: const {'id': 'club-1'},
+      );
+      expect((owner.hasClubOwnerProfile, owner.ownedClubId), (true, 'club-1'));
+      expect(owner.fullName, 'Hamza Sheikh', reason: 'other fields unchanged');
+    });
+
+    test(
+      'no club row → no Club Owner profile, whatever profiles.role says',
+      () {
+        for (final role in [null, 'player', 'club_owner']) {
+          final a = ProfileRowMapper.accountFromRows(
+            profile: profileRow(role: role),
+          );
+          expect(
+            (a.hasClubOwnerProfile, a.ownedClubId),
+            (false, null),
+            reason: '$role',
+          );
+        }
+      },
+    );
   });
 
   group('account → save_profile_setup arguments', () {

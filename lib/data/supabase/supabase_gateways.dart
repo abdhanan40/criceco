@@ -49,18 +49,23 @@ abstract interface class AuthGateway {
 }
 
 /// One account's rows: `profiles` plus its (optional) address and player
-/// rows, as JSON maps.
+/// rows, and the id of the club it owns (`clubs(id)`, migration 5), as JSON
+/// maps.
 class AccountRows {
   const AccountRows({
     required this.profile,
     this.currentAddress,
     this.permanentAddress,
     this.playerProfile,
+    this.club,
   });
   final Map<String, dynamic> profile;
   final Map<String, dynamic>? currentAddress;
   final Map<String, dynamic>? permanentAddress;
   final Map<String, dynamic>? playerProfile;
+
+  /// `{id}` of the user's own club, `null` when they have none.
+  final Map<String, dynamic>? club;
 }
 
 abstract interface class ProfileGateway {
@@ -91,11 +96,6 @@ abstract interface class ProfileGateway {
   /// `update profiles set role = role where id = userId and role is null`:
   /// never overwrites a role that is already set.
   Future<void> setRoleIfUnset(String userId, String role);
-
-  /// `update profiles set role = role where id = userId and (role is null
-  /// or role = 'player')`: Club Owner takes precedence over Player (D-C1),
-  /// and an existing `club_owner` is never touched.
-  Future<void> setRoleUnlessClubOwner(String userId, String role);
 }
 
 /// The signed-in owner's own `clubs` row (migration 5). Rows are the JSON

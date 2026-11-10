@@ -3,8 +3,14 @@ import 'dart:convert';
 import 'package:criceco/app/config/backend_config.dart';
 import 'package:criceco/app/providers/core_providers.dart';
 import 'package:criceco/data/mock/in_memory_repositories.dart';
+import 'package:criceco/data/repositories/repositories.dart';
+import 'package:criceco/data/supabase/supabase_club_repository.dart';
+import 'package:criceco/data/supabase/supabase_gateways.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'supabase_fakes.dart';
 
 /// Build-time backend switch (Phase 2, Step 1). No Supabase dependency and
 /// no network: only parsing, validation and provider wiring.
@@ -205,6 +211,47 @@ void main() {
         container.read(accountRepositoryProvider),
         isA<InMemoryAccountRepository>(),
       );
+      expect(
+        container.read(clubRepositoryProvider),
+        isA<InMemoryClubRepository>(),
+      );
+    });
+
+    test('supabase mode: the Supabase club repository, with its own local data', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final db = FakeDb();
+      final auth = FakeAuth(db);
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          backendConfigProvider.overrideWithValue(
+            BackendConfig.parse(
+              backend: 'supabase',
+              supabaseUrl: url,
+              supabasePublishableKey: publishable,
+            ),
+          ),
+          authGatewayProvider.overrideWithValue(auth),
+          profileGatewayProvider.overrideWithValue(db),
+          clubGatewayProvider.overrideWithValue(FakeClubDb(db)),
+        ],
+      );
+      addTearDown(container.dispose);
+      final repo = container.read(clubRepositoryProvider);
+      expect(repo, isA<SupabaseClubRepository>());
+      final local = (repo as SupabaseClubRepository).local;
+      expect(local, isA<InMemoryClubRepository>());
+
+      // Its own instance: a memory-mode container's repository is another one,
+      // and no demo join flow leaks into Supabase mode.
+      final memory = ProviderContainer();
+      addTearDown(memory.dispose);
+      expect(identical(local, memory.read(clubRepositoryProvider)), isFalse);
+      await expectLater(
+        repo.findClubByCode('KRC001'),
+        throwsA(isA<ClubJoinUnavailableException>()),
+      );
     });
 
     test('supabase mode without the startup wiring fails clearly', () {
@@ -222,6 +269,14 @@ void main() {
       addTearDown(container.dispose);
       expect(
         () => container.read(accountRepositoryProvider),
+        throwsA(
+          predicate(
+            (e) => e.toString().contains('Supabase is not initialized'),
+          ),
+        ),
+      );
+      expect(
+        () => container.read(clubRepositoryProvider),
         throwsA(
           predicate(
             (e) => e.toString().contains('Supabase is not initialized'),

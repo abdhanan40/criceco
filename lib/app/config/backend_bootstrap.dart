@@ -26,7 +26,8 @@ Future<SupabaseClient> startSupabase({
 ///
 /// Memory mode (the default): just the config — nothing is started, the
 /// demo behaves exactly as before. Supabase mode: [start] runs once, and the
-/// real [AuthGateway] / [ProfileGateway] replace the gateway providers.
+/// real [AuthGateway] / [ProfileGateway] / [ClubGateway] replace the gateway
+/// providers.
 /// An invalid configuration has already thrown in [BackendConfig.parse].
 Future<List<Override>> backendOverrides(
   BackendConfig config, {
@@ -43,5 +44,6 @@ Future<List<Override>> backendOverrides(
     backendConfigProvider.overrideWithValue(config),
     authGatewayProvider.overrideWithValue(SupabaseAuthGateway(client.auth)),
     profileGatewayProvider.overrideWithValue(SupabaseProfileGateway(client)),
+    clubGatewayProvider.overrideWithValue(SupabaseClubGateway(client)),
   ];
 }

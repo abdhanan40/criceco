@@ -52,6 +52,7 @@ void main() {
           backendConfigProvider.overrideWithValue(supabase),
           authGatewayProvider.overrideWithValue(auth),
           profileGatewayProvider.overrideWithValue(db),
+          clubGatewayProvider.overrideWithValue(db.clubDb ?? FakeClubDb(db)),
         ],
       ],
     );

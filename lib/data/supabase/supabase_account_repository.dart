@@ -16,9 +16,9 @@ import 'supabase_gateways.dart';
 /// - Phones are stored as `+923XXXXXXXXX`.
 /// - D5: the sign-up name goes to Auth metadata; Profile Setup saves it to
 ///   `profiles`. Until then the metadata name is shown.
-/// - D6: Club Owner flags and memberships stay in memory (clubs are
-///   in-memory too). D9: photo and settings stay on the device
-///   ([LocalAccountOverlay]).
+/// - The Club Owner profile is the user's own `clubs` row (Stage 3B), read
+///   with the account. D6: memberships stay in memory. D9: photo and
+///   settings stay on the device ([LocalAccountOverlay]).
 /// - Password change / reset are not supported yet (D13).
 class SupabaseAccountRepository implements AccountRepository {
   SupabaseAccountRepository({
@@ -37,7 +37,8 @@ class SupabaseAccountRepository implements AccountRepository {
   /// user id — what `update` compares against.
   final Map<String, UserAccount> _remote = {};
 
-  /// D6: Club Owner flags and memberships, per user id, for this app run.
+  /// D6: the last saved account per user id, for this app run — only its
+  /// memberships are used (the club flags come from the database).
   final Map<String, UserAccount> _inMemory = {};
 
   // ---------------------------------------------------------------------------
@@ -98,8 +99,9 @@ class SupabaseAccountRepository implements AccountRepository {
     return _read(user);
   }
 
-  /// Database rows → account, plus the metadata name (D5), this device's
-  /// photo and settings (D9) and this run's Club Owner state (D6).
+  /// Database rows → account (the Club Owner profile from the own `clubs`
+  /// row), plus the metadata name (D5), this device's photo and settings
+  /// (D9) and this run's memberships (D6).
   Future<UserAccount> _read(AuthUser user) async {
     final rows = await _call(() => db.fetchAccountRows(user.id));
     if (rows == null) throw const BackendOperationException();
@@ -108,6 +110,7 @@ class SupabaseAccountRepository implements AccountRepository {
       currentAddress: rows.currentAddress,
       permanentAddress: rows.permanentAddress,
       playerProfile: rows.playerProfile,
+      club: rows.club,
       email: user.email,
     );
     if (remote.fullName.isEmpty && user.fullName != null) {
@@ -117,16 +120,12 @@ class SupabaseAccountRepository implements AccountRepository {
     return _withLocal(remote);
   }
 
+  /// The club flags always come from the database ([remote]); only the
+  /// memberships are this run's (D6).
   UserAccount _withLocal(UserAccount remote) {
     final local = overlay.applyTo(remote);
     final run = _inMemory[remote.id];
-    return run == null
-        ? local
-        : local.copyWith(
-            hasClubOwnerProfile: run.hasClubOwnerProfile,
-            ownedClubId: run.ownedClubId,
-            memberships: run.memberships,
-          );
+    return run == null ? local : local.copyWith(memberships: run.memberships);
   }
 
   // ---------------------------------------------------------------------------
@@ -171,8 +170,10 @@ class SupabaseAccountRepository implements AccountRepository {
 
   /// Writes only what changed: full name, phone and date of birth on
   /// `profiles`, and existing address rows; photo and settings locally
-  /// (D9); Club Owner flags and memberships in memory (D6). Becoming a Club
-  /// Owner (club creation) also stores `profiles.role = club_owner`.
+  /// (D9); memberships in memory (D6). The Club Owner flags aren't written:
+  /// they follow the `clubs` row (created by `create_club()`, which also
+  /// sets `profiles.role` in the same transaction), so a change to them
+  /// re-reads the account from the database.
   @override
   Future<UserAccount> update(UserAccount account) async {
     final user = _signedIn(account.id);
@@ -234,24 +235,16 @@ class SupabaseAccountRepository implements AccountRepository {
         () => db.updateAddress('permanent_addresses', user.id, permanent),
       );
     }
-    // Becoming a Club Owner: `club_owner` takes precedence over `player` and
-    // is never downgraded (D-C1). Saved before this run's Club Owner flag, so
-    // a failure leaves the account as it was and a retry is safe. The role
-    // isn't read back yet: clubs themselves are still in memory (D6).
-    final wasClubOwner = _inMemory[user.id]?.hasClubOwnerProfile ?? false;
-    if (account.hasClubOwnerProfile && !wasClubOwner) {
-      await _call(
-        () => db.setRoleUnlessClubOwner(
-          user.id,
-          ProfileRowMapper.userRoleCode(UserRole.clubOwner),
-        ),
-      );
-    }
     await _keepLocal(account);
 
+    // A club was just created (or is gone): read the flags back from the
+    // database rather than trusting the ones passed in.
+    final clubChanged =
+        account.hasClubOwnerProfile != before.hasClubOwnerProfile ||
+        account.ownedClubId != before.ownedClubId;
     final remoteChanged =
         columns.isNotEmpty || current != null || permanent != null;
-    return remoteChanged ? _read(user) : _withLocal(before);
+    return remoteChanged || clubChanged ? _read(user) : _withLocal(before);
   }
 
   /// The columns to write for a changed address, `null` when unchanged or
@@ -278,7 +271,7 @@ class SupabaseAccountRepository implements AccountRepository {
     return canonical(before) != canonical(after);
   }
 
-  /// D9 photo / settings on the device; D6 Club Owner state in memory.
+  /// D9 photo / settings on the device; D6 memberships in memory.
   Future<void> _keepLocal(UserAccount account) async {
     await overlay.save(account);
     _inMemory[account.id] = account;

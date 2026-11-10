@@ -80,6 +80,10 @@ class FakeAuth implements AuthGateway {
 
 class FakeDb implements ProfileGateway {
   late FakeAuth auth;
+
+  /// The clubs table, when a [FakeClubDb] is attached: the account read
+  /// embeds the user's own club (`clubs(id)`), as the real select does.
+  FakeClubDb? clubDb;
   final profiles = <String, Map<String, dynamic>>{};
   final currentAddresses = <String, Map<String, dynamic>>{};
   final permanentAddresses = <String, Map<String, dynamic>>{};
@@ -126,11 +130,13 @@ class FakeDb implements ProfileGateway {
     _own(userId);
     final p = profiles[userId];
     if (p == null) return null;
+    final club = clubDb?.clubs[userId];
     return AccountRows(
       profile: Map.of(p),
       currentAddress: currentAddresses[userId],
       permanentAddress: permanentAddresses[userId],
       playerProfile: players[userId],
+      club: club == null ? null : {'id': club['id']},
     );
   }
 
@@ -200,16 +206,6 @@ class FakeDb implements ProfileGateway {
     if (p['role'] == null) profiles[userId] = {...p, 'role': role};
   }
 
-  @override
-  Future<void> setRoleUnlessClubOwner(String userId, String role) async {
-    _maybeFail('setRoleUnlessClubOwner');
-    _own(userId);
-    final p = profiles[userId]!;
-    if (p['role'] == null || p['role'] == 'player') {
-      profiles[userId] = {...p, 'role': role};
-    }
-  }
-
   /// Marks [userId]'s User Profile Setup as done (the rows
   /// save_profile_setup() would write).
   void completeProfile(String userId) {
@@ -238,7 +234,9 @@ class FakeDb implements ProfileGateway {
 /// role club_owner (over player, never downgraded). Uses [FakeDb]'s profiles,
 /// addresses and signed-in user. [failNext] / [calls] as in [FakeDb].
 class FakeClubDb implements ClubGateway {
-  FakeClubDb(this.db);
+  FakeClubDb(this.db) {
+    db.clubDb = this;
+  }
   final FakeDb db;
 
   /// Club rows by owner id.

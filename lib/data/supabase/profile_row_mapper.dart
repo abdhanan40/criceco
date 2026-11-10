@@ -75,16 +75,19 @@ abstract final class ProfileRowMapper {
   // ---------------------------------------------------------------------------
 
   /// The account for one `profiles` row plus its (optional) address and
-  /// player rows. [email] is the Supabase Auth user's email, if any.
+  /// player rows and its own [club] (`{id}`, migration 5). [email] is the
+  /// Supabase Auth user's email, if any.
   ///
-  /// `profiles.role` (the Role Selection choice) is deliberately not mapped
-  /// onto the account yet: how it relates to the Club Owner profile is
-  /// pending decision D6. [userRoleFromCode] already decodes it.
+  /// The Club Owner profile is the club row itself: [club] present →
+  /// `hasClubOwnerProfile` and `ownedClubId` (Stage 3B). `profiles.role`
+  /// is not mapped onto the account — the club row is the source of truth;
+  /// [userRoleFromCode] already decodes it.
   static UserAccount accountFromRows({
     required Map<String, dynamic> profile,
     Map<String, dynamic>? currentAddress,
     Map<String, dynamic>? permanentAddress,
     Map<String, dynamic>? playerProfile,
+    Map<String, dynamic>? club,
     String? email,
   }) {
     final dateOfBirth = parseDate(profile['date_of_birth'] as String?);
@@ -119,6 +122,8 @@ abstract final class ProfileRowMapper {
           dateOfBirth != null &&
           currentAddress != null &&
           permanentAddress != null,
+      hasClubOwnerProfile: club != null,
+      ownedClubId: club?['id'] as String?,
     );
   }
 
