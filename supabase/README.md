@@ -14,6 +14,7 @@
 | Migration 6 (`locations`, Stage 4.2) | **Not applied.** Tested locally only (PostgreSQL 17.11: apply → tests → rollback → clean → re-apply) |
 | Location seed (D1) | **Not loaded on the live project.** Data review approved for local testing; loaded locally (twice: idempotent, stable ids) and checked with `07` |
 | Migration 7 (`user_roles`, Stage 4.2) | **Not applied.** Tested locally only (fixture → apply → `06b` / `08` → regression → rollback → re-apply) |
+| Migration 8 (address `city_id`, Stage 4.3.3) | **Not applied.** Tested locally only (fixture → `00f` preview → apply → `09` / `07b` → regression → rollback → re-apply) |
 
 The migration files are kept exactly as applied — their `NOT APPLIED` header
 lines predate the live runs and are left unchanged. Applied versions
@@ -64,6 +65,12 @@ migrations 1–4 only add columns, tables, functions and triggers.
 | `tests/08_user_roles_check.sql` | Part 1 read-only (schema, privileges, backfill = rows); part 2 with two fresh test users (grants, `create_club`, no role writes, RLS) — rolled back | rolled back |
 | `tests/local/06a_user_roles_fixture.sql`, `tests/local/06b_user_roles_local_check.sql` | Local only: accounts in every role state before migration 7, then backfill, triggers, cascades and `create_club` | local |
 | `rollback/20261110_rollback_user_roles.sql` | Removes only what migration 7 added; `profiles.role` untouched (roll back the app build that reads `user_roles` first) | drops the derived roles |
+| `tests/00f_preflight_address_cities.sql` | Read-only: migration 6 + location data present, migration 8 objects absent; backfill **preview** per distinct city text (aggregates: rows, rule, city id) | read-only |
+| `tests/00g_address_fingerprint.sql` | Read-only: count + md5 of every address row's city text, area, address, `created_at` and `last_updated_at` — run immediately before and after migration 8; the two must match | read-only |
+| `migrations/20261110090200_add_address_city_id.sql` | Migration 8: nullable `city_id` (FK → `cities`, RESTRICT, indexed) on both address tables; `resolve_city_match()` / `resolve_city_id()` (featured → unique name → unique "Name (Qualifier)" → unique alias; else NULL); backfill (city text and `last_updated_at` untouched); two sync triggers per table — `address_city_sync_from_id()` (a written id, even unchanged, sets the plain name and wins; a cleared id with new text resolves the text) then `address_city_sync_from_text()` (text alone keeps the id while it still names that city, else re-resolves); `save_profile_setup_v2()` with city ids. v1 unchanged | additive |
+| `tests/09_address_city_check.sql` | Part 1 read-only (schema, privileges, every id consistent with its text, report of NULL ids); part 2 with one fresh test user (v2 incl. "same as current", v1, both sync directions, the review cases: same id + plain or other-city text, label ↔ name, cleared id + new text; refusals; no write to another user's address) — rolled back | rolled back |
+| `tests/local/07a_address_city_fixture.sql`, `tests/local/07b_address_city_local_check.sql` | Local only: address texts of every kind before migration 8, then the exact backfill, untouched text / timestamps, sync on insert, ambiguous alias, inactive city | local |
+| `rollback/20261110_rollback_address_city_id.sql` | Removes only what migration 8 added (columns, triggers, functions); the address rows and their city text stay | drops the city ids |
 
 Order: `00_preflight` → `00b` → `00c` (note the result) → migrations 1–4 in
 filename order → `00c` again (must match) → `01` → `02` / `03` with test
@@ -81,6 +88,15 @@ Stage 4.2 (each step separately approved):
 7. Only then, an app build that reads `user_roles`.
 
 Rollback order, if ever needed: the data rollback, then `rollback/20261110_rollback_locations.sql`.
+
+Stage 4.3.3, after Stage 4.2 is live (each step separately approved):
+1. `00f_preflight_address_cities` (every check OK; note the backfill preview) and `00g_address_fingerprint` (note the result).
+2. Migration 8 (its NOTICEs are the backfill report).
+3. `00g_address_fingerprint` again, straight away — must equal step 1 (the backfill changed no city text, area, address or timestamp).
+4. `09_address_city_check` with one fresh test user.
+5. Only then, an app build that calls `save_profile_setup_v2` or reads `city_id`.
+
+To roll back, run `rollback/20261110_rollback_address_city_id.sql` first; Stage 4.2's rollbacks refuse while `city_id` references `cities`.
 
 Rollback order, if ever needed: `rollback/20261109_rollback_clubs.sql`
 **before** `rollback/20261027_rollback_profile_schema.sql` — `clubs` uses
