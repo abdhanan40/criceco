@@ -32,9 +32,13 @@ abstract final class SupabaseErrorMapper {
     'user already exists':
         'An account with this email already exists — please log in',
     'weak password': 'Choose a stronger password',
+    // Raised by create_club() (migration 5).
+    'club name is required': 'Club name is required',
+    'club city is required': 'Please select a city',
+    'club type is required': 'Please select a club type',
   };
 
-  /// CHECK constraints (migrations 1–3), matched by name.
+  /// CHECK / UNIQUE constraints (migrations 1–3 and 5), matched by name.
   static const _byConstraint = {
     'profiles_date_of_birth_check': 'Date of birth must be in 1900 or later',
     'current_addresses_city_check': 'City is required (up to 100 characters)',
@@ -54,6 +58,20 @@ abstract final class SupabaseErrorMapper {
         "The bowling style doesn't match the playing role",
     'player_profiles_wicketkeeper_batsman_only':
         'Only a Batsman can be the wicket keeper',
+    // clubs (migration 5).
+    'clubs_name_check': 'Enter a club name (up to 100 characters)',
+    'clubs_short_name_check': 'Short name must be up to 40 characters',
+    'clubs_city_check': 'City is required (up to 100 characters)',
+    'clubs_club_type_check': 'Choose a valid club type',
+    'clubs_owner_name_check': 'Owner name must be 2–100 characters',
+    'clubs_address_check': 'Address must be up to 500 characters',
+    'clubs_email_check': 'Enter a valid email address',
+    'clubs_home_ground_id_check': 'Choose a valid home ground',
+    'clubs_established_year_check':
+        'Established year must be between 1800 and 2100',
+    // A join-code collision (≈1 in 10⁹): no automatic retry (D-S3-3).
+    'clubs_code_key': "Couldn't create the club — please try again",
+    'clubs_owner_id_key': 'You already have a club',
   };
 
   static Exception _constraint(GatewayConstraintException e) {

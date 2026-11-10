@@ -247,6 +247,63 @@ class SupabaseProfileGateway implements ProfileGateway {
       _guarded(run, timeout, translate);
 }
 
+class SupabaseClubGateway implements ClubGateway {
+  SupabaseClubGateway(this._client, {this.timeout = kGatewayTimeout});
+  final sb.SupabaseClient _client;
+  final Duration timeout;
+
+  @override
+  Future<Map<String, dynamic>?> fetchOwnClub(String userId) => _guard(
+    () async => _row(
+      await _client.from('clubs').select().eq('owner_id', userId).maybeSingle(),
+    ),
+  );
+
+  @override
+  Future<Map<String, dynamic>> createClub(Map<String, Object?> params) =>
+      _guard(() async {
+        final row = _row(
+          await _client.rpc<dynamic>('create_club', params: params),
+        );
+        if (row == null) {
+          throw const GatewayUnexpectedException('create_club-no-row');
+        }
+        return row;
+      });
+
+  // The updated rows come back as a list (not `.maybeSingle()`): an empty
+  // list is "no row updated" whatever the PostgREST version, while a
+  // single-object request would turn that into an HTTP 406 error.
+  @override
+  Future<Map<String, dynamic>?> updateClub(
+    String clubId,
+    String userId,
+    Map<String, Object?> columns,
+  ) => _guard(
+    () async => _row(
+      await _client
+          .from('clubs')
+          .update(columns)
+          .eq('id', clubId)
+          .eq('owner_id', userId)
+          .select(),
+    ),
+  );
+
+  /// A function returning one row comes back as an object; tolerate a
+  /// one-element list too.
+  static Map<String, dynamic>? _row(Object? v) => switch (v) {
+    final Map<dynamic, dynamic> m => Map<String, dynamic>.from(m),
+    final List<dynamic> l when l.isNotEmpty && l.first is Map =>
+      Map<String, dynamic>.from(l.first as Map),
+    _ => null,
+  };
+
+  // Same PostgREST / network translation as the profile tables.
+  Future<T> _guard<T>(Future<T> Function() run) =>
+      _guarded(run, timeout, SupabaseProfileGateway.translate);
+}
+
 /// Runs one gateway call with [timeout]; any failure, a timeout included,
 /// becomes a [GatewayException] through [translate].
 Future<T> _guarded<T>(

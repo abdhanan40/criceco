@@ -264,6 +264,173 @@ void main() {
     });
   });
 
+  group('ClubGateway requests (Stage 3A)', () {
+    const clubId = 'c1a1b2c3-0000-4000-8000-000000000001';
+    Map<String, Object?> clubRow() => {
+      'id': clubId,
+      'owner_id': uid,
+      'name': 'Lahore Lions CC',
+      'short_name': null,
+      'city': 'Lahore',
+      'club_type': 'corporate',
+      'code': 'K7MQ2X',
+      'owner_name': 'Hamza Sheikh',
+      'address': null,
+      'email': null,
+      'home_ground_id': null,
+      'established_year': 2026,
+    };
+
+    test('fetchOwnClub: one select on the own owner_id', () async {
+      respond = (_) => json([clubRow()]);
+      final row = await SupabaseClubGateway(client).fetchOwnClub(uid);
+      final r = requests.single;
+      expect(r.method, 'GET');
+      expect(r.url.path, '/rest/v1/clubs');
+      expect(r.url.queryParameters['owner_id'], 'eq.$uid');
+      expect(r.url.queryParameters['select'], '*');
+      expect(r.url.queryParameters.keys.toSet(), {'owner_id', 'select'});
+      expect(r.headers['apikey'], key);
+      expect(row!['code'], 'K7MQ2X');
+    });
+
+    test('fetchOwnClub: no club → null', () async {
+      respond = (_) => json([]);
+      expect(await SupabaseClubGateway(client).fetchOwnClub(uid), isNull);
+    });
+
+    test('createClub calls create_club with the parameters', () async {
+      respond = (_) => json(clubRow());
+      final params = {
+        'p_name': 'Lahore Lions CC',
+        'p_city': 'Lahore',
+        'p_club_type': 'corporate',
+        'p_owner_name': 'Hamza Sheikh',
+        'p_address': null,
+        'p_email': null,
+        'p_home_ground_id': null,
+      };
+      final row = await SupabaseClubGateway(client).createClub(params);
+      final r = requests.single;
+      expect(r.method, 'POST');
+      expect(r.url.path, '/rest/v1/rpc/create_club');
+      expect(jsonDecode(r.body), params);
+      expect((row['id'], row['code']), (clubId, 'K7MQ2X'));
+    });
+
+    test(
+      'createClub: a one-element list is accepted; no row is an error',
+      () async {
+        respond = (_) => json([clubRow()]);
+        expect(
+          (await SupabaseClubGateway(client).createClub(const {}))['id'],
+          clubId,
+        );
+        respond = (_) => json([]);
+        await expectLater(
+          SupabaseClubGateway(client).createClub(const {}),
+          throwsA(isA<GatewayUnexpectedException>()),
+        );
+      },
+    );
+
+    test('updateClub: own row only (id and owner_id), only the columns, returns the row', () async {
+      respond = (_) => json([
+        {...clubRow(), 'city': 'Karachi'},
+      ]);
+      final row = await SupabaseClubGateway(client)
+          .updateClub(clubId, uid, {'city': 'Karachi', 'email': null});
+      final r = requests.single;
+      expect(r.method, 'PATCH');
+      expect(r.url.path, '/rest/v1/clubs');
+      expect(r.url.queryParameters['id'], 'eq.$clubId');
+      expect(r.url.queryParameters['owner_id'], 'eq.$uid');
+      expect(r.url.queryParameters.keys.toSet(), {'id', 'owner_id', 'select'});
+      expect(jsonDecode(r.body), {'city': 'Karachi', 'email': null});
+      expect(r.headers['Prefer'], contains('return=representation'));
+      expect(row!['city'], 'Karachi');
+    });
+
+    test(
+      'updateClub: no row updated (not the caller\'s club) → null',
+      () async {
+        respond = (_) => json([]);
+        expect(
+          await SupabaseClubGateway(client)
+              .updateClub(clubId, uid, const {'city': 'Karachi'}),
+          isNull,
+        );
+      },
+    );
+  });
+
+  group('ClubGateway errors', () {
+    Future<Object?> failure(http.Response Function(http.Request) r) async {
+      respond = r;
+      try {
+        await SupabaseClubGateway(client).createClub(const {});
+      } catch (e) {
+        return e;
+      }
+      return null;
+    }
+
+    test('a CHECK refusal keeps its SQLSTATE and constraint text', () async {
+      final e = await failure(
+        (_) => json({
+          'code': '23514',
+          'message': 'new row for relation "clubs" violates check constraint "clubs_email_check"',
+        }, 400),
+      );
+      expect(e, isA<GatewayConstraintException>());
+      expect((e as GatewayConstraintException).sqlState, '23514');
+      expect(e.message, contains('clubs_email_check'));
+    });
+
+    test('create_club\'s own refusals keep their message', () async {
+      final e = await failure(
+        (_) => json({
+          'code': '23514',
+          'message': 'profile_completed requires a completed User Profile Setup before creating a club',
+        }, 400),
+      );
+      expect(
+        (e as GatewayConstraintException).message,
+        startsWith('profile_completed requires'),
+      );
+    });
+
+    test('42501 stays a refusal; JWT problems are a lost session', () async {
+      expect(
+        await failure(
+          (_) => json({'code': '42501', 'message': 'not authenticated'}, 403),
+        ),
+        isA<GatewayConstraintException>().having(
+          (e) => e.sqlState,
+          'sqlState',
+          '42501',
+        ),
+      );
+      expect(
+        await failure(
+          (_) => json({'code': 'PGRST303', 'message': 'JWT expired'}, 401),
+        ),
+        isA<GatewayPermissionException>(),
+      );
+    });
+
+    test('5xx and a dropped connection → network', () async {
+      expect(
+        await failure((_) => http.Response('Bad Gateway', 502)),
+        isA<GatewayNetworkException>(),
+      );
+      expect(
+        await failure((_) => throw http.ClientException('Connection reset')),
+        isA<GatewayNetworkException>(),
+      );
+    });
+  });
+
   group('AuthGateway requests', () {
     Map<String, Object?> userJson([Map<String, Object?> meta = const {}]) => {
       'id': uid,
@@ -405,6 +572,23 @@ void main() {
       );
       await expectLater(
         g.upsertPlayerProfile({'user_id': uid}),
+        throwsA(isA<GatewayNetworkException>()),
+      );
+    });
+
+    test('stalled club calls → GatewayNetworkException', () async {
+      final g = SupabaseClubGateway(stalled, timeout: short);
+      expect(SupabaseClubGateway(client).timeout, kGatewayTimeout);
+      await expectLater(
+        g.fetchOwnClub(uid),
+        throwsA(isA<GatewayNetworkException>()),
+      );
+      await expectLater(
+        g.createClub(const {}),
+        throwsA(isA<GatewayNetworkException>()),
+      );
+      await expectLater(
+        g.updateClub('club-1', uid, const {'city': 'Karachi'}),
         throwsA(isA<GatewayNetworkException>()),
       );
     });

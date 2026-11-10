@@ -209,4 +209,179 @@ class FakeDb implements ProfileGateway {
       profiles[userId] = {...p, 'role': role};
     }
   }
+
+  /// Marks [userId]'s User Profile Setup as done (the rows
+  /// save_profile_setup() would write).
+  void completeProfile(String userId) {
+    profiles[userId] = {
+      ...profiles[userId]!,
+      'full_name': 'Test Owner',
+      'phone': '+923001234567',
+      'date_of_birth': '2000-05-01',
+      'profile_completed': true,
+    };
+    final address = {
+      'user_id': userId,
+      'city': 'Lahore',
+      'area': 'Gulberg',
+      'address': 'Street 1',
+    };
+    currentAddresses[userId] = address;
+    permanentAddresses[userId] = Map.of(address);
+  }
+}
+
+/// Stand-in for `public.clubs` + `create_club()` (migration 5): RLS keeps
+/// every call to the signed-in owner's club; create_club() refuses a missing
+/// name / city / type and an unfinished Profile Setup, keeps one club per
+/// owner (a retry returns it), generates the join code and makes the owner's
+/// role club_owner (over player, never downgraded). Uses [FakeDb]'s profiles,
+/// addresses and signed-in user. [failNext] / [calls] as in [FakeDb].
+class FakeClubDb implements ClubGateway {
+  FakeClubDb(this.db);
+  final FakeDb db;
+
+  /// Club rows by owner id.
+  final clubs = <String, Map<String, dynamic>>{};
+  GatewayException? failNext;
+  final calls = <String>[];
+  Map<String, Object?>? lastCreateParams;
+  Map<String, Object?>? lastUpdateColumns;
+
+  /// The join code the next new club gets (then a generated one).
+  String? nextCode;
+  var _next = 0;
+
+  void _maybeFail(String call) {
+    calls.add(call);
+    final f = failNext;
+    if (f != null) {
+      failNext = null;
+      throw f;
+    }
+  }
+
+  static GatewayConstraintException _check(String constraint) =>
+      GatewayConstraintException(
+        sqlState: '23514',
+        message:
+            'new row for relation "clubs" violates check constraint '
+            '"$constraint"',
+      );
+
+  @override
+  Future<Map<String, dynamic>?> fetchOwnClub(String userId) async {
+    _maybeFail('fetchOwnClub');
+    final uid = db.auth.current?.id;
+    if (uid == null) throw const GatewayPermissionException();
+    final row = clubs[userId];
+    return userId == uid && row != null ? Map.of(row) : null; // RLS
+  }
+
+  @override
+  Future<Map<String, dynamic>> createClub(Map<String, Object?> params) async {
+    _maybeFail('createClub');
+    lastCreateParams = params;
+    final uid = db.auth.current?.id;
+    if (uid == null) {
+      throw const GatewayConstraintException(
+        sqlState: '42501',
+        message: 'not authenticated',
+      );
+    }
+    String? text(String key) {
+      final v = (params[key] as String?)?.trim();
+      return v == null || v.isEmpty ? null : v;
+    }
+
+    for (final (key, message) in [
+      ('p_name', 'club name is required'),
+      ('p_city', 'club city is required'),
+      ('p_club_type', 'club type is required'),
+    ]) {
+      if (text(key) == null) {
+        throw GatewayConstraintException(sqlState: '23514', message: message);
+      }
+    }
+    if (!const {
+      'professional',
+      'college_university',
+      'corporate',
+    }.contains(text('p_club_type'))) {
+      throw _check('clubs_club_type_check');
+    }
+    final p = db.profiles[uid];
+    if (p == null ||
+        p['profile_completed'] != true ||
+        p['date_of_birth'] == null ||
+        !db.currentAddresses.containsKey(uid) ||
+        !db.permanentAddresses.containsKey(uid)) {
+      throw const GatewayConstraintException(
+        sqlState: '23514',
+        message:
+            'profile_completed requires a completed User Profile Setup '
+            'before creating a club',
+      );
+    }
+    final existing = clubs[uid];
+    if (existing != null) return Map.of(existing); // on conflict do nothing
+
+    final n = ++_next;
+    final code = nextCode ?? 'CL${2222 + n}';
+    nextCode = null;
+    if (clubs.values.any((c) => c['code'] == code)) {
+      throw const GatewayConstraintException(
+        sqlState: '23505',
+        message:
+            'duplicate key value violates unique constraint "clubs_code_key"',
+      );
+    }
+    final row = <String, dynamic>{
+      'id': 'club-$n',
+      'owner_id': uid,
+      'name': text('p_name'),
+      'short_name': null,
+      'city': text('p_city'),
+      'club_type': text('p_club_type'),
+      'code': code,
+      'owner_name': text('p_owner_name'),
+      'address': text('p_address'),
+      'email': text('p_email'),
+      'home_ground_id': text('p_home_ground_id'),
+      'established_year': DateTime.now().year,
+      'created_at': '2026-11-09T10:00:00+00:00',
+      'last_updated_at': '2026-11-09T10:00:00+00:00',
+    };
+    clubs[uid] = row;
+    // clubs_set_owner_role: club_owner over player, never downgraded.
+    if (p['role'] == null || p['role'] == 'player') {
+      db.profiles[uid] = {...p, 'role': 'club_owner'};
+    }
+    return Map.of(row);
+  }
+
+  @override
+  Future<Map<String, dynamic>?> updateClub(
+    String clubId,
+    String userId,
+    Map<String, Object?> columns,
+  ) async {
+    _maybeFail('updateClub');
+    lastUpdateColumns = columns;
+    final uid = db.auth.current?.id;
+    if (uid == null) throw const GatewayPermissionException();
+    final row = clubs[userId];
+    if (userId != uid || row == null || row['id'] != clubId) return null;
+    final name = columns['name'];
+    if (name is String && name.trim().isEmpty) {
+      throw _check('clubs_name_check');
+    }
+    final email = columns['email'];
+    if (email is String && !email.contains('@')) {
+      throw _check('clubs_email_check');
+    }
+    final updated = {...row, ...columns};
+    clubs[userId] = updated;
+    return Map.of(updated);
+  }
 }

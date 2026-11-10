@@ -48,6 +48,13 @@ class UnsupportedSignInMethodException extends AccountException {
     : super('Please use your email address');
 }
 
+/// Joining a club by its code isn't available on this backend yet (Supabase
+/// mode, until Phase 3E) — never a simulated request.
+class ClubJoinUnavailableException extends AccountException {
+  const ClubJoinUnavailableException()
+    : super('Joining a club by code is coming soon');
+}
+
 /// Anything else the backend reported. The raw backend text is never shown.
 class BackendOperationException extends AccountException {
   const BackendOperationException()

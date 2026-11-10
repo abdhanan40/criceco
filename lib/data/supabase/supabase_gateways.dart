@@ -98,6 +98,28 @@ abstract interface class ProfileGateway {
   Future<void> setRoleUnlessClubOwner(String userId, String role);
 }
 
+/// The signed-in owner's own `clubs` row (migration 5). Rows are the JSON
+/// maps the REST API returns; RLS limits every call to the caller's club.
+abstract interface class ClubGateway {
+  /// `select * from clubs where owner_id = userId` — `null` when the user
+  /// has no club.
+  Future<Map<String, dynamic>?> fetchOwnClub(String userId);
+
+  /// `rpc('create_club', params)` — the club, its join code and
+  /// `profiles.role` in one transaction; returns the club row (the existing
+  /// one when the user already has a club).
+  Future<Map<String, dynamic>> createClub(Map<String, Object?> params);
+
+  /// `update clubs set columns where id = clubId and owner_id = userId`,
+  /// returning the updated row — `null` when no row was updated (not the
+  /// caller's club).
+  Future<Map<String, dynamic>?> updateClub(
+    String clubId,
+    String userId,
+    Map<String, Object?> columns,
+  );
+}
+
 /// What a gateway reports when a call fails.
 sealed class GatewayException implements Exception {
   const GatewayException();
@@ -151,5 +173,8 @@ final authGatewayProvider = Provider<AuthGateway>(
   (ref) => throw StateError(_notInitialized),
 );
 final profileGatewayProvider = Provider<ProfileGateway>(
+  (ref) => throw StateError(_notInitialized),
+);
+final clubGatewayProvider = Provider<ClubGateway>(
   (ref) => throw StateError(_notInitialized),
 );

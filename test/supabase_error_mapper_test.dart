@@ -135,6 +135,108 @@ void main() {
     );
   });
 
+  group('clubs (migration 5, Stage 3A)', () {
+    test('every clubs rule has its message, by constraint name', () {
+      const expected = {
+        'clubs_name_check': 'Enter a club name (up to 100 characters)',
+        'clubs_short_name_check': 'Short name must be up to 40 characters',
+        'clubs_city_check': 'City is required (up to 100 characters)',
+        'clubs_club_type_check': 'Choose a valid club type',
+        'clubs_owner_name_check': 'Owner name must be 2–100 characters',
+        'clubs_address_check': 'Address must be up to 500 characters',
+        'clubs_email_check': 'Enter a valid email address',
+        'clubs_home_ground_id_check': 'Choose a valid home ground',
+        'clubs_established_year_check':
+            'Established year must be between 1800 and 2100',
+      };
+      for (final MapEntry(key: name, value: text) in expected.entries) {
+        // As PostgREST reports it: the name only inside the message.
+        expect(
+          messageOf(
+            GatewayConstraintException(
+              sqlState: '23514',
+              message:
+                  'new row for relation "clubs" violates check constraint "$name"',
+            ),
+          ),
+          text,
+          reason: name,
+        );
+      }
+    });
+
+    test('create_club()\'s own refusals', () {
+      for (final (raw, text) in [
+        ('club name is required', 'Club name is required'),
+        ('club city is required', 'Please select a city'),
+        ('club type is required', 'Please select a club type'),
+        (
+          'profile_completed requires a completed User Profile Setup before creating a club',
+          'Please complete all profile details',
+        ),
+      ]) {
+        expect(
+          messageOf(
+            GatewayConstraintException(sqlState: '23514', message: raw),
+          ),
+          text,
+          reason: raw,
+        );
+      }
+      expect(
+        SupabaseErrorMapper.map(
+          const GatewayConstraintException(
+            sqlState: '42501',
+            message: 'not authenticated',
+          ),
+        ),
+        isA<NotSignedInException>(),
+      );
+    });
+
+    test(
+      'a join-code collision asks for a retry; a second club is refused',
+      () {
+        expect(
+          messageOf(
+            const GatewayConstraintException(
+              sqlState: '23505',
+              message: 'duplicate key value violates unique constraint "clubs_code_key"',
+            ),
+          ),
+          "Couldn't create the club — please try again",
+        );
+        expect(
+          messageOf(
+            const GatewayConstraintException(
+              sqlState: '23505',
+              message: 'duplicate key value violates unique constraint "clubs_owner_id_key"',
+            ),
+          ),
+          'You already have a club',
+        );
+      },
+    );
+
+    test('no raw clubs text reaches the user', () {
+      for (final e in const [
+        GatewayConstraintException(
+          sqlState: '23514',
+          message: 'new row for relation "clubs" violates check constraint "clubs_secret_check"',
+        ),
+        GatewayConstraintException(
+          sqlState: '23505',
+          message:
+              'duplicate key value violates unique constraint "clubs_pkey"',
+        ),
+      ]) {
+        final text = messageOf(e);
+        expect(text, SupabaseErrorMapper.generic);
+        expect(text, isNot(contains('clubs')));
+      }
+    });
+  });
+
   group('storedPhone', () {
     test('every accepted spelling becomes +923XXXXXXXXX', () {
       for (final p in [

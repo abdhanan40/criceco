@@ -78,6 +78,8 @@ void main() {
             'Something went wrong — please try again',
         const PermissionDeniedException():
             "You don't have permission to do that",
+        const ClubJoinUnavailableException():
+            'Joining a club by code is coming soon',
       };
       for (final MapEntry(key: e, value: text) in cases.entries) {
         expect(accountErrorText(e, fallback: fallback), text, reason: '$e');
@@ -126,6 +128,7 @@ void main() {
         const UnsupportedSignInMethodException(),
         const BackendOperationException(),
         const PermissionDeniedException(), // M1: an RLS refusal keeps the session
+        const ClubJoinUnavailableException(),
         const ProfileValidationException('Full name is required'),
         StateError('x'),
       ]) {
