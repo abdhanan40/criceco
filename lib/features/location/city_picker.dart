@@ -9,12 +9,14 @@ import '../../core/models/models.dart';
 import '../../data/repositories/repositories.dart';
 import '../../shared/widgets/ce_feedback.dart';
 import '../../shared/widgets/ce_icons.dart';
+import '../../shared/widgets/ce_indicators.dart';
 import '../../shared/widgets/ce_inputs.dart';
 import '../../shared/widgets/ce_list_sheet.dart';
 import '../../shared/widgets/ce_rows.dart';
 import '../../shared/widgets/ce_surfaces.dart';
 
-/// Stage 4.3.1: searchable city selection on [LocationRepository].
+/// Stage 4.3.1 / 4.3.2: searchable city selection on [LocationRepository],
+/// with optional province and district filters.
 ///
 /// Not used by any screen yet — Profile Setup, the player profile and the
 /// club screens switch to it in later Stage 4.3 steps.
@@ -38,6 +40,10 @@ Future<CityOption?> showCityPicker(
 /// sheet. Shows the picked city's label ("Kamra (Attock)"); validates inside
 /// a [Form] like any other field. The cities come from
 /// [locationRepositoryProvider] (memory mode: the 20 featured cities).
+///
+/// [onChanged] fires only when a *different* city is picked, so a screen can
+/// reset what depends on the city (its Area) right there; re-picking the
+/// same city, or closing the sheet, changes nothing.
 class CityPickerField extends ConsumerStatefulWidget {
   const CityPickerField({
     super.key,
@@ -94,7 +100,7 @@ class _CityPickerFieldState extends ConsumerState<CityPickerField> {
       selected: widget.value,
       title: widget.sheetTitle,
     );
-    if (picked == null || !mounted) return;
+    if (picked == null || !mounted || picked.id == widget.value?.id) return;
     _controller.text = picked.label;
     widget.onChanged(picked);
   }
@@ -114,9 +120,11 @@ class _CityPickerFieldState extends ConsumerState<CityPickerField> {
   );
 }
 
-/// The sheet body: a search box, then the featured cities (empty / short
-/// query) or the matches. Searches 250 ms after typing stops; a slower,
-/// older answer never replaces a newer one.
+/// The sheet body: a search box, the province / district filters (when the
+/// repository has provinces — never in memory mode), then the featured
+/// cities (no filter, empty / short query), the filtered cities, or the
+/// matches. Searches 250 ms after typing stops; a filter change searches at
+/// once. A slower, older answer never replaces a newer one.
 class CityPickerSheet extends StatefulWidget {
   const CityPickerSheet({
     super.key,
@@ -133,26 +141,43 @@ class CityPickerSheet extends StatefulWidget {
   State<CityPickerSheet> createState() => _CityPickerSheetState();
 }
 
+/// What the city list on screen was searched with (its label and empty-state
+/// wording follow this, not the text still being typed).
+class _Shown {
+  const _Shown(this.query, this.province, this.district);
+  final String query;
+  final Province? province;
+  final District? district;
+
+  bool get shortQuery => query.trim().length < 2;
+  bool get filtered => province != null || district != null;
+}
+
 class _CityPickerSheetState extends State<CityPickerSheet> {
   Timer? _debounce;
   String _query = '';
-
-  /// The query whose answer is on screen (the label and the empty-state
-  /// wording follow it, not the text still being typed).
-  String _shownQuery = '';
+  _Shown _shown = const _Shown('', null, null);
   List<CityOption>? _cities;
   bool _loading = false;
   bool _failed = false;
 
-  /// Increments with every request; only the latest one may update the list.
+  /// Increments with every city request; only the latest may update the list.
   int _request = 0;
 
-  bool get _showingFeatured => _shownQuery.trim().length < 2;
+  // Filters. Provinces load once per sheet; an empty list hides the filters.
+  List<Province>? _provinces;
+  bool _provincesFailed = false;
+  Province? _province;
+  List<District>? _districts;
+  bool _districtsFailed = false;
+  District? _district;
+  int _districtRequest = 0;
 
   @override
   void initState() {
     super.initState();
-    _load('');
+    _load();
+    _loadProvinces();
   }
 
   @override
@@ -161,24 +186,34 @@ class _CityPickerSheetState extends State<CityPickerSheet> {
     super.dispose();
   }
 
+  // ---------------------------------------------------------------------------
+  // Cities
+  // ---------------------------------------------------------------------------
+
   void _onChanged(String q) {
     _query = q;
     _debounce?.cancel();
-    _debounce = Timer(kCitySearchDebounce, () => _load(q));
+    _debounce = Timer(kCitySearchDebounce, _load);
   }
 
-  Future<void> _load(String q) async {
+  /// Searches with the current text and filters.
+  Future<void> _load() async {
     final request = ++_request;
+    final shown = _Shown(_query, _province, _district);
     setState(() {
       _loading = true;
       _failed = false;
     });
     try {
-      final cities = await widget.repository.searchCities(q);
+      final cities = await widget.repository.searchCities(
+        shown.query,
+        provinceId: shown.province?.id,
+        districtId: shown.district?.id,
+      );
       if (!mounted || request != _request) return;
       setState(() {
         _cities = cities;
-        _shownQuery = q;
+        _shown = shown;
         _loading = false;
       });
     } catch (_) {
@@ -190,10 +225,117 @@ class _CityPickerSheetState extends State<CityPickerSheet> {
     }
   }
 
-  void _retry() {
+  /// A filter changed: search now (no debounce), with the text as it is.
+  void _reload() {
     _debounce?.cancel();
-    _load(_query);
+    _load();
   }
+
+  // ---------------------------------------------------------------------------
+  // Province / district filters
+  // ---------------------------------------------------------------------------
+
+  Future<void> _loadProvinces() async {
+    setState(() => _provincesFailed = false);
+    try {
+      final provinces = await widget.repository.provinces();
+      if (!mounted) return;
+      setState(() => _provinces = provinces);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _provincesFailed = true);
+    }
+  }
+
+  /// Selecting a province (or "All", `null`) clears the district and reloads
+  /// the cities; the district list is loaded for the new province.
+  void _selectProvince(Province? p) {
+    if (p?.id == _province?.id) return;
+    setState(() {
+      _province = p;
+      _district = null;
+      _districts = null;
+      _districtsFailed = false;
+    });
+    if (p != null) _loadDistricts(p);
+    _reload();
+  }
+
+  Future<void> _loadDistricts(Province p) async {
+    final request = ++_districtRequest;
+    setState(() => _districtsFailed = false);
+    try {
+      final districts = await widget.repository.districts(p.id);
+      if (!mounted || request != _districtRequest) return;
+      setState(() => _districts = districts);
+    } catch (_) {
+      if (!mounted || request != _districtRequest) return;
+      setState(() => _districtsFailed = true);
+    }
+  }
+
+  void _selectDistrict(District? d) {
+    if (d?.id == _district?.id) return;
+    setState(() => _district = d);
+    _reload();
+  }
+
+  void _clearFilters() {
+    setState(() {
+      _province = null;
+      _district = null;
+      _districts = null;
+      _districtsFailed = false;
+    });
+    _reload();
+  }
+
+  /// The district list (with "All districts" to clear) in the shared sheet.
+  Future<void> _pickDistrict() async {
+    final districts = _districts;
+    if (districts == null) return;
+    // A one-element list distinguishes "All districts" ([null]) from closing.
+    final picked = await showCeSheet<List<District?>>(
+      context,
+      builder: (ctx) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'District in ${_province?.name ?? ''}',
+            style: Theme.of(ctx).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 8),
+          _DistrictOption(
+            key: const Key('district-option-all'),
+            label: 'All districts',
+            selected: _district == null,
+            onTap: () => Navigator.of(ctx).pop(const <District?>[null]),
+          ),
+          for (final d in districts)
+            _DistrictOption(
+              key: Key('district-option-${d.id}'),
+              label: d.name,
+              selected: d.id == _district?.id,
+              onTap: () => Navigator.of(ctx).pop(<District?>[d]),
+            ),
+          if (districts.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Text(
+                'No districts listed for this province.',
+                style: Theme.of(ctx).textTheme.bodyMedium,
+              ),
+            ),
+        ],
+      ),
+    );
+    if (picked == null || !mounted) return;
+    _selectDistrict(picked.single);
+  }
+
+  // ---------------------------------------------------------------------------
+  // UI
+  // ---------------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) => CeListSheetFrame(
@@ -212,9 +354,92 @@ class _CityPickerSheetState extends State<CityPickerSheet> {
           onChanged: _onChanged,
         ),
       ),
+      ..._filters(),
     ],
     children: _body(context),
   );
+
+  List<Widget> _filters() {
+    if (_provincesFailed) {
+      return [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 0, 6, 2),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Couldn\'t load provinces',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+              TextButton(
+                key: const Key('province-retry'),
+                onPressed: _loadProvinces,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      ];
+    }
+    final provinces = _provinces;
+    // Still loading, or none (memory mode): no filters.
+    if (provinces == null || provinces.isEmpty) return const [];
+    return [
+      Semantics(
+        container: true,
+        label: 'Filter by province',
+        child: CeChipRow<Province?>(
+          key: const Key('province-filter'),
+          values: [null, ...provinces],
+          selected: _province,
+          labelOf: (p) => p?.name ?? 'All',
+          onSelected: _selectProvince,
+          padding: const EdgeInsets.fromLTRB(
+            CeSpace.gutter,
+            2,
+            CeSpace.gutter,
+            4,
+          ),
+        ),
+      ),
+      if (_province != null)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            CeSpace.gutter,
+            2,
+            CeSpace.gutter,
+            4,
+          ),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Semantics(label: 'District filter', child: _districtChip()),
+          ),
+        ),
+    ];
+  }
+
+  Widget _districtChip() {
+    if (_districtsFailed) {
+      return CeChip(
+        key: const Key('district-filter'),
+        label: 'Couldn\'t load districts · Retry',
+        icon: 'repeat',
+        selected: false,
+        onTap: () => _loadDistricts(_province!),
+      );
+    }
+    final loading = _districts == null;
+    return CeChip(
+      key: const Key('district-filter'),
+      label: loading
+          ? 'Loading districts…'
+          : _district?.name ?? 'All districts',
+      icon: 'map-pin',
+      selected: _district != null,
+      onTap: loading ? null : _pickDistrict,
+    );
+  }
 
   List<Widget> _body(BuildContext context) {
     final cities = _cities;
@@ -230,7 +455,7 @@ class _CityPickerSheetState extends State<CityPickerSheet> {
           child: CeErrorState(
             key: const Key('city-picker-error'),
             title: 'Couldn\'t load cities',
-            onRetry: _retry,
+            onRetry: _reload,
           ),
         ),
       ];
@@ -253,6 +478,7 @@ class _CityPickerSheetState extends State<CityPickerSheet> {
         ),
       ];
     }
+    final shown = _shown;
     return [
       // A newer search is on its way: keep the old list, show a thin bar.
       SizedBox(
@@ -276,14 +502,18 @@ class _CityPickerSheetState extends State<CityPickerSheet> {
             key: const Key('city-picker-empty'),
             icon: 'search',
             title: 'No matching city',
-            body: _showingFeatured
-                ? 'No cities are available right now.'
-                : 'Check the spelling, or choose the nearest city.',
+            body: !shown.shortQuery
+                ? 'Check the spelling, or choose the nearest city.'
+                : shown.filtered
+                ? 'No cities are listed here yet.'
+                : 'No cities are available right now.',
+            secondaryLabel: shown.filtered ? 'Clear filters' : null,
+            onSecondary: shown.filtered ? _clearFilters : null,
           ),
         )
       else ...[
         CeSectionHeader(
-          _showingFeatured ? 'Popular cities' : 'Results',
+          _sectionTitle(shown),
           key: const Key('city-picker-section'),
           padding: const EdgeInsets.fromLTRB(
             CeSpace.gutter,
@@ -295,6 +525,12 @@ class _CityPickerSheetState extends State<CityPickerSheet> {
         for (final c in cities) _row(context, c),
       ],
     ];
+  }
+
+  static String _sectionTitle(_Shown shown) {
+    if (!shown.shortQuery) return 'Results';
+    final place = shown.district?.name ?? shown.province?.name;
+    return place == null ? 'Popular cities' : 'Cities in $place';
   }
 
   Widget _row(BuildContext context, CityOption c) {
@@ -317,4 +553,51 @@ class _CityPickerSheetState extends State<CityPickerSheet> {
       onTap: () => Navigator.of(context).pop(c),
     );
   }
+}
+
+/// One row of the district list (the same look as [CeSelectField]'s sheet).
+class _DistrictOption extends StatelessWidget {
+  const _DistrictOption({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    selected: selected,
+    button: true,
+    child: InkWell(
+      borderRadius: BorderRadius.circular(CeRadius.sm),
+      onTap: onTap,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 44),
+        child: Row(
+          children: [
+            const SizedBox(width: 4),
+            Icon(CeIcons.of('map-pin'), size: 16, color: CeColors.muted),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected ? CeColors.primaryDark : CeColors.ink2,
+                ),
+              ),
+            ),
+            if (selected)
+              Icon(CeIcons.of('check'), size: 16, color: CeColors.primary),
+            const SizedBox(width: 4),
+          ],
+        ),
+      ),
+    ),
+  );
 }
