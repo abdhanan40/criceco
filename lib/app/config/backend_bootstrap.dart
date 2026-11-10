@@ -45,5 +45,6 @@ Future<List<Override>> backendOverrides(
     authGatewayProvider.overrideWithValue(SupabaseAuthGateway(client.auth)),
     profileGatewayProvider.overrideWithValue(SupabaseProfileGateway(client)),
     clubGatewayProvider.overrideWithValue(SupabaseClubGateway(client)),
+    locationGatewayProvider.overrideWithValue(SupabaseLocationGateway(client)),
   ];
 }

@@ -135,7 +135,7 @@ class SupabaseProfileGateway implements ProfileGateway {
         .from('profiles')
         .select(
           '*, current_addresses(*), permanent_addresses(*), player_profiles(*), '
-          'clubs(id)',
+          'clubs(id), $userRolesEmbed',
         )
         .eq('id', userId)
         .maybeSingle();
@@ -144,7 +144,8 @@ class SupabaseProfileGateway implements ProfileGateway {
       ..remove('current_addresses')
       ..remove('permanent_addresses')
       ..remove('player_profiles')
-      ..remove('clubs');
+      ..remove('clubs')
+      ..remove('user_roles');
     return AccountRows(
       profile: profile,
       currentAddress: _one(row['current_addresses']),
@@ -152,8 +153,21 @@ class SupabaseProfileGateway implements ProfileGateway {
       playerProfile: _one(row['player_profiles']),
       // The own club (one per owner, migration 5): its id only.
       club: _one(row['clubs']),
+      roles: _many(row['user_roles']),
     );
   });
+
+  /// `user_roles` has two foreign keys to `profiles` (`user_id`,
+  /// `granted_by`), so the embed must name the one it follows — otherwise
+  /// PostgREST refuses the request as ambiguous (PGRST201).
+  static const userRolesEmbed = 'user_roles!user_roles_user_id_fkey(role)';
+
+  /// A one-to-many embed: a list of objects (tolerates `null`).
+  static List<Map<String, dynamic>> _many(Object? v) => [
+    if (v is List)
+      for (final e in v)
+        if (e is Map) Map<String, dynamic>.from(e),
+  ];
 
   @override
   Future<void> saveProfileSetup(Map<String, Object?> params) =>
@@ -295,6 +309,61 @@ class SupabaseClubGateway implements ClubGateway {
   };
 
   // Same PostgREST / network translation as the profile tables.
+  Future<T> _guard<T>(Future<T> Function() run) =>
+      _guarded(run, timeout, SupabaseProfileGateway.translate);
+}
+
+class SupabaseLocationGateway implements LocationGateway {
+  SupabaseLocationGateway(this._client, {this.timeout = kGatewayTimeout});
+  final sb.SupabaseClient _client;
+  final Duration timeout;
+
+  @override
+  Future<List<Map<String, dynamic>>> fetchProvinces() => _guard(
+    () async => _rows(
+      await _client
+          .from('provinces')
+          .select('id, name, display_name, kind, sort_order')
+          .eq('is_active', true)
+          // postgrest's order() is descending unless told otherwise.
+          .order('sort_order', ascending: true),
+    ),
+  );
+
+  @override
+  Future<List<Map<String, dynamic>>> fetchDistricts(int provinceId) => _guard(
+    () async => _rows(
+      await _client
+          .from('districts')
+          .select('id, province_id, name')
+          .eq('province_id', provinceId)
+          .eq('is_active', true)
+          .order('name', ascending: true),
+    ),
+  );
+
+  @override
+  Future<List<Map<String, dynamic>>> searchCities(
+    Map<String, Object?> params,
+  ) => _guard(
+    () async =>
+        _rows(await _client.rpc<dynamic>('search_cities', params: params)),
+  );
+
+  @override
+  Future<Map<String, dynamic>?> fetchCity(int id) => _guard(() async {
+    final rows = _rows(
+      await _client.from('v_city_options').select().eq('id', id).limit(1),
+    );
+    return rows.isEmpty ? null : rows.first;
+  });
+
+  static List<Map<String, dynamic>> _rows(Object? v) => [
+    if (v is List)
+      for (final e in v)
+        if (e is Map) Map<String, dynamic>.from(e),
+  ];
+
   Future<T> _guard<T>(Future<T> Function() run) =>
       _guarded(run, timeout, SupabaseProfileGateway.translate);
 }

@@ -11,6 +11,9 @@
 | `review/…_REVIEW.sql` | **Not applied** — the guard is still in place; a separate, later decision |
 | `rollback/…` | **Never run** on the live project (the clubs rollback was tested locally only) |
 | Flutter app | Uses `profiles`, the address tables, `player_profiles` and `save_profile_setup()` in Supabase mode; `clubs` from Stage 3 |
+| Migration 6 (`locations`, Stage 4.2) | **Not applied.** Tested locally only (PostgreSQL 17.11: apply → tests → rollback → clean → re-apply) |
+| Location seed (D1) | **Not loaded on the live project.** Data review approved for local testing; loaded locally (twice: idempotent, stable ids) and checked with `07` |
+| Migration 7 (`user_roles`, Stage 4.2) | **Not applied.** Tested locally only (fixture → apply → `06b` / `08` → regression → rollback → re-apply) |
 
 The migration files are kept exactly as applied — their `NOT APPLIED` header
 lines predate the live runs and are left unchanged. Applied versions
@@ -49,12 +52,35 @@ migrations 1–4 only add columns, tables, functions and triggers.
 | `tests/04_clubs_rls_check.sql` | Clubs RLS, grants, protected columns, `create_club()` and retry, role precedence (one transaction, rolled back) | rolled back |
 | `tests/05_clubs_constraints_check.sql` | Every clubs value rule, `create_club()` inputs, boundary values, timestamps (rolled back) | rolled back |
 | `rollback/20261109_rollback_clubs.sql` | Removes only what migration 5 added (every club); leaves `profiles.role` as it is | destructive for club data |
+| `tests/00e_preflight_stage42.sql` | Read-only: Stage 4.2 objects absent, `pg_trgm` / schema `extensions` ready, prerequisites; reports city text values in use and `profiles.role` against the data rows (aggregates only) | read-only |
+| `migrations/20261110090000_create_locations.sql` | Migration 6: `provinces`, `districts`, `cities`, `city_districts` (a city may span districts), `city_aliases`; `pg_trgm`; `location_search_key()`, `v_city_options` (security invoker), `search_cities()`; RLS: signed-in users read, no API writes. Starts empty | additive |
+| `tests/06_locations_check.sql` | Location schema, keys, indexes, function properties and access rules; needs no test users (rolled back) | rolled back |
+| `tests/local/05_locations_local_check.sql` | Local only: constraints and search behaviour on made-up rows (rolled back) | local |
+| `seed/locations/` | GeoNames-derived location seed and its data script `apply_locations.sql` — see `seed/locations/README.md` | data (reviewed) |
+| `rollback/20261110_rollback_locations_data.sql` | Deletes every location row (keeps the schema); refuses while other tables reference the location tables | destructive for location data |
+| `rollback/20261110_rollback_locations.sql` | Removes only what migration 6 added (leaves `pg_trgm`); refuses while other tables reference the location tables | destructive for location data |
+| `tests/07_locations_data_check.sql` | After the D1 load: counts, provenance, province names, the 20 featured cities, reviewed exclusions, search as a signed-in user (read-only, rolled back) | rolled back |
+| `migrations/20261110090100_create_user_roles.sql` | Migration 7: `app_role`, `user_roles` (read own; no client writes); roles granted / removed by triggers on `player_profiles` and `clubs`; backfill from those rows (not from `profiles.role`, which is kept unchanged) | additive |
+| `tests/08_user_roles_check.sql` | Part 1 read-only (schema, privileges, backfill = rows); part 2 with two fresh test users (grants, `create_club`, no role writes, RLS) — rolled back | rolled back |
+| `tests/local/06a_user_roles_fixture.sql`, `tests/local/06b_user_roles_local_check.sql` | Local only: accounts in every role state before migration 7, then backfill, triggers, cascades and `create_club` | local |
+| `rollback/20261110_rollback_user_roles.sql` | Removes only what migration 7 added; `profiles.role` untouched (roll back the app build that reads `user_roles` first) | drops the derived roles |
 
 Order: `00_preflight` → `00b` → `00c` (note the result) → migrations 1–4 in
 filename order → `00c` again (must match) → `01` → `02` / `03` with test
 users. Then, for migration 5: `00d` → `00c` (note the result) → migration 5
 → `00c` again (must match) → `04` / `05` with test users. The review
 migration is a separate, later decision.
+
+Stage 4.2 (each step separately approved):
+1. `00e_preflight_stage42` (every check OK) and `00c` (note the result).
+2. Migration 6.
+3. `06_locations_check`.
+4. The location seed `seed/locations/apply_locations.sql`, then `07`.
+5. Migration 7, then `08`.
+6. `00c` again (must match).
+7. Only then, an app build that reads `user_roles`.
+
+Rollback order, if ever needed: the data rollback, then `rollback/20261110_rollback_locations.sql`.
 
 Rollback order, if ever needed: `rollback/20261109_rollback_clubs.sql`
 **before** `rollback/20261027_rollback_profile_schema.sql` — `clubs` uses

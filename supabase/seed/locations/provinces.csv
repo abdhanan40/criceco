@@ -1,0 +1,8 @@
+geonames_admin1,geonames_id,name,display_name,kind,sort_order,alt_names
+04,1167710,Punjab,,province,1,Punjab Province
+05,1164807,Sindh,,province,2,
+03,1168873,Khyber Pakhtunkhwa,,province,3,Khyber Pakhtunkhwa Province
+02,1183606,Balochistan,,province,4,
+08,1162015,Islamabad Capital Territory,,federal_territory,5,Islamabad
+07,1168878,Gilgit-Baltistan,Gilgit-Baltistan,administrative_territory,6,
+06,1184196,Azad Jammu and Kashmir,Azad Jammu and Kashmir,administrative_territory,7,

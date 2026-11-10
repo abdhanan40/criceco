@@ -58,6 +58,7 @@ class AccountRows {
     this.permanentAddress,
     this.playerProfile,
     this.club,
+    this.roles = const [],
   });
   final Map<String, dynamic> profile;
   final Map<String, dynamic>? currentAddress;
@@ -66,6 +67,9 @@ class AccountRows {
 
   /// `{id}` of the user's own club, `null` when they have none.
   final Map<String, dynamic>? club;
+
+  /// The user's `user_roles` rows (`{role}`, migration 7); empty when none.
+  final List<Map<String, dynamic>> roles;
 }
 
 abstract interface class ProfileGateway {
@@ -118,6 +122,24 @@ abstract interface class ClubGateway {
     String userId,
     Map<String, Object?> columns,
   );
+}
+
+/// The location lookup (migration 6), read-only. Rows are the JSON maps the
+/// REST API returns; RLS lets any signed-in user read them.
+abstract interface class LocationGateway {
+  /// `select id, name, display_name, kind, sort_order from provinces
+  /// where is_active order by sort_order`.
+  Future<List<Map<String, dynamic>>> fetchProvinces();
+
+  /// `select id, province_id, name from districts where province_id = …
+  /// and is_active order by name`.
+  Future<List<Map<String, dynamic>>> fetchDistricts(int provinceId);
+
+  /// `rpc('search_cities', params)` — rows of `v_city_options`.
+  Future<List<Map<String, dynamic>>> searchCities(Map<String, Object?> params);
+
+  /// `select * from v_city_options where id = …` — `null` when not listed.
+  Future<Map<String, dynamic>?> fetchCity(int id);
 }
 
 /// What a gateway reports when a call fails.
@@ -176,5 +198,8 @@ final profileGatewayProvider = Provider<ProfileGateway>(
   (ref) => throw StateError(_notInitialized),
 );
 final clubGatewayProvider = Provider<ClubGateway>(
+  (ref) => throw StateError(_notInitialized),
+);
+final locationGatewayProvider = Provider<LocationGateway>(
   (ref) => throw StateError(_notInitialized),
 );

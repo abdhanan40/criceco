@@ -111,6 +111,7 @@ class SupabaseAccountRepository implements AccountRepository {
       permanentAddress: rows.permanentAddress,
       playerProfile: rows.playerProfile,
       club: rows.club,
+      roles: rows.roles,
       email: user.email,
     );
     if (remote.fullName.isEmpty && user.fullName != null) {

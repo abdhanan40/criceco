@@ -57,6 +57,18 @@ abstract final class ProfileRowMapper {
       ? null
       : _decode<UserRole>(UserRole.values, userRoleCode, code, 'role');
 
+  /// `user_roles` rows (`{role}`, migration 7) → the roles the app knows.
+  /// Unlike the columns above, an unknown value is skipped, not an error:
+  /// `app_role` also has `ground_owner` / `admin`, which this app version
+  /// doesn't use — an account holding one must still sign in.
+  static Set<UserRole> grantedRolesFromRows(
+    Iterable<Map<String, dynamic>> rows,
+  ) => {
+    for (final r in rows)
+      for (final role in UserRole.values)
+        if (userRoleCode(role) == r['role']) role,
+  };
+
   /// An unknown code means the app and the schema disagree — fail loudly.
   static T _decode<T>(
     List<T> values,
@@ -81,13 +93,15 @@ abstract final class ProfileRowMapper {
   /// The Club Owner profile is the club row itself: [club] present →
   /// `hasClubOwnerProfile` and `ownedClubId` (Stage 3B). `profiles.role`
   /// is not mapped onto the account — the club row is the source of truth;
-  /// [userRoleFromCode] already decodes it.
+  /// [userRoleFromCode] already decodes it. [roles] (`user_roles`, Stage
+  /// 4.2) become `grantedRoles` — informational only, no routing change.
   static UserAccount accountFromRows({
     required Map<String, dynamic> profile,
     Map<String, dynamic>? currentAddress,
     Map<String, dynamic>? permanentAddress,
     Map<String, dynamic>? playerProfile,
     Map<String, dynamic>? club,
+    Iterable<Map<String, dynamic>> roles = const [],
     String? email,
   }) {
     final dateOfBirth = parseDate(profile['date_of_birth'] as String?);
@@ -124,6 +138,7 @@ abstract final class ProfileRowMapper {
           permanentAddress != null,
       hasClubOwnerProfile: club != null,
       ownedClubId: club?['id'] as String?,
+      grantedRoles: grantedRolesFromRows(roles),
     );
   }
 

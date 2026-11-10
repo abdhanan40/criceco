@@ -77,6 +77,9 @@ void main() {
             ],
             'player_profiles': null,
             'clubs': {'id': 'club-1'},
+            'user_roles': [
+              {'role': 'club_owner'},
+            ],
           },
         ]);
         final rows = await SupabaseProfileGateway(client).fetchAccountRows(uid);
@@ -84,13 +87,18 @@ void main() {
         expect(r.method, 'GET');
         expect(r.url.path, '/rest/v1/profiles');
         expect(r.url.queryParameters['id'], 'eq.$uid');
+        // user_roles names its foreign key: it has two to profiles (PGRST201).
         expect(
           r.url.queryParameters['select']!.replaceAll(' ', ''),
           '*,current_addresses(*),permanent_addresses(*),player_profiles(*),'
-          'clubs(id)',
+          'clubs(id),user_roles!user_roles_user_id_fkey(role)',
         );
+        expect(rows!.roles, [
+          {'role': 'club_owner'},
+        ]);
+        expect(rows.profile.containsKey('user_roles'), isFalse);
         expect(r.headers['apikey'], key); // the publishable key, nothing else
-        expect(rows!.profile['full_name'], 'Hamza Sheikh');
+        expect(rows.profile['full_name'], 'Hamza Sheikh');
         expect(rows.profile.containsKey('current_addresses'), isFalse);
         expect(rows.profile.containsKey('clubs'), isFalse);
         expect(rows.currentAddress!['city'], 'Lahore'); // object form

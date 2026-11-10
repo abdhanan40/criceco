@@ -214,3 +214,30 @@ abstract interface class AnnouncementRepository {
   Future<ClubAnnouncement> publish(ClubAnnouncement announcement);
   Future<ClubAnnouncement?> byId(String id);
 }
+
+/// Nationwide location lookup (Stage 4.2): provinces → districts → cities.
+/// Supabase mode reads `provinces` / `districts` / `v_city_options` and
+/// `search_cities()`; memory mode offers the 20 featured cities only.
+abstract interface class LocationRepository {
+  /// Active provinces and territories, in display order.
+  Future<List<Province>> provinces();
+
+  /// Active districts of one province, by name.
+  Future<List<District>> districts(int provinceId);
+
+  /// The featured cities, in rank order (the picker's starting list).
+  Future<List<CityOption>> featuredCities();
+
+  /// Cities matching [query] (exact, prefix, alias, similar spelling), one
+  /// row per city, at most [limit] (1–50). A query shorter than two
+  /// characters lists the featured cities, or the filtered cities by name.
+  Future<List<CityOption>> searchCities(
+    String query, {
+    int? provinceId,
+    int? districtId,
+    int limit = 20,
+  });
+
+  /// One active city, `null` when unknown or inactive.
+  Future<CityOption?> cityById(int id);
+}

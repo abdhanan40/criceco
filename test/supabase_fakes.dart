@@ -137,6 +137,11 @@ class FakeDb implements ProfileGateway {
       permanentAddress: permanentAddresses[userId],
       playerProfile: players[userId],
       club: club == null ? null : {'id': club['id']},
+      // As migration 7's triggers: the rows grant the roles.
+      roles: [
+        if (players[userId] != null) {'role': 'player'},
+        if (club != null) {'role': 'club_owner'},
+      ],
     );
   }
 

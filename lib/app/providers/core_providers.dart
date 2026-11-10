@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/constants/city_areas.dart';
 import '../../core/models/models.dart';
+import '../../data/mock/in_memory_location_repository.dart';
 import '../../data/mock/in_memory_repositories.dart';
 import '../../data/repositories/repositories.dart';
 import '../../data/supabase/local_account_overlay.dart';
@@ -12,6 +13,7 @@ import '../../data/supabase/local_club_overlay.dart';
 import '../../data/supabase/supabase_account_repository.dart';
 import '../../data/supabase/supabase_club_repository.dart';
 import '../../data/supabase/supabase_gateways.dart';
+import '../../data/supabase/supabase_location_repository.dart';
 import '../../demo/demo_stats.dart';
 import '../../demo/seed_data.dart';
 import '../config/backend_config.dart';
@@ -94,6 +96,17 @@ final notificationRepositoryProvider =
     Provider<NotificationRepository>((ref) => InMemoryNotificationRepository(ref.watch(seedDataProvider)));
 final announcementRepositoryProvider =
     Provider<AnnouncementRepository>((ref) => InMemoryAnnouncementRepository());
+
+/// Location lookup (Stage 4.2). Supabase mode: the location tables of
+/// migration 6 (read-only); memory mode: the 20 featured cities only. Not yet
+/// used by any screen — the city pickers switch in Stage 4.3.
+final locationRepositoryProvider = Provider<LocationRepository>((ref) {
+  final config = ref.watch(backendConfigProvider);
+  return switch (config.mode) {
+    BackendMode.memory => InMemoryLocationRepository(),
+    BackendMode.supabase => SupabaseLocationRepository(db: ref.watch(locationGatewayProvider)),
+  };
+});
 
 /// Scouting stats per player name. Backed by the demo generator for now;
 /// swap for a repository call when a backend exists (screens don't change).
