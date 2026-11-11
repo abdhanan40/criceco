@@ -16,9 +16,13 @@ class OnboardingDraft {
     this.phone = '',
     this.photoPath,
     this.currentCity,
+    this.currentCityId,
+    this.currentCityQualifier,
     this.currentArea,
     this.currentAddress,
     this.permanentCity,
+    this.permanentCityId,
+    this.permanentCityQualifier,
     this.permanentArea,
     this.permanentAddress,
     this.isPermanentSameAsCurrent = true,
@@ -38,9 +42,17 @@ class OnboardingDraft {
   bool get hasPhoto => photoPath != null;
 
   final String? currentCity;
+
+  /// The picked city's id (`null`: not picked from the list in this session,
+  /// e.g. a saved city text without a database id) and its qualifier (only
+  /// to label the field, e.g. "Kamra (Attock)").
+  final int? currentCityId;
+  final String? currentCityQualifier;
   final String? currentArea;
   final String? currentAddress;
   final String? permanentCity;
+  final int? permanentCityId;
+  final String? permanentCityQualifier;
   final String? permanentArea;
   final String? permanentAddress;
   final bool isPermanentSameAsCurrent;
@@ -59,9 +71,15 @@ class OnboardingDraft {
     String? phone,
     String? photoPath,
     String? currentCity,
+    int? currentCityId,
+    String? currentCityQualifier,
+    bool clearCurrentCityId = false,
     String? currentArea,
     String? currentAddress,
     String? permanentCity,
+    int? permanentCityId,
+    String? permanentCityQualifier,
+    bool clearPermanentCityId = false,
     String? permanentArea,
     String? permanentAddress,
     bool? isPermanentSameAsCurrent,
@@ -81,9 +99,14 @@ class OnboardingDraft {
         phone: phone ?? this.phone,
         photoPath: clearPhoto ? null : (photoPath ?? this.photoPath),
         currentCity: currentCity ?? this.currentCity,
+        currentCityId: clearCurrentCityId ? null : (currentCityId ?? this.currentCityId),
+        currentCityQualifier: clearCurrentCityId ? null : (currentCityQualifier ?? this.currentCityQualifier),
         currentArea: clearCurrentArea ? null : (currentArea ?? this.currentArea),
         currentAddress: currentAddress ?? this.currentAddress,
         permanentCity: permanentCity ?? this.permanentCity,
+        permanentCityId: clearPermanentCityId ? null : (permanentCityId ?? this.permanentCityId),
+        permanentCityQualifier:
+            clearPermanentCityId ? null : (permanentCityQualifier ?? this.permanentCityQualifier),
         permanentArea: clearPermanentArea ? null : (permanentArea ?? this.permanentArea),
         permanentAddress: permanentAddress ?? this.permanentAddress,
         isPermanentSameAsCurrent: isPermanentSameAsCurrent ?? this.isPermanentSameAsCurrent,
@@ -126,9 +149,11 @@ class OnboardingController extends Notifier<OnboardingDraft> {
       phone: account.phone ?? '',
       photoPath: account.photoPath,
       currentCity: account.currentCity,
+      currentCityId: account.currentCityId,
       currentArea: account.currentArea,
       currentAddress: account.currentAddress,
       permanentCity: account.permanentCity,
+      permanentCityId: account.permanentCityId,
       permanentArea: account.permanentArea,
       permanentAddress: account.permanentAddress,
       isPermanentSameAsCurrent: account.isPermanentSameAsCurrent,
@@ -144,14 +169,22 @@ class OnboardingController extends Notifier<OnboardingDraft> {
   void setPhone(String v) => state = state.copyWith(phone: v);
   /// A different city clears an Area that isn't one of its listed areas
   /// (a listed area, or an area typed under the old city, no longer applies).
-  void setCurrentCity(String? v) => state = state.copyWith(
+  /// [id] / [qualifier] come with a city picked from the list (City Picker);
+  /// a city set without an id clears the old one.
+  void setCurrentCity(String? v, {int? id, String? qualifier}) => state = state.copyWith(
         currentCity: v,
+        currentCityId: id,
+        currentCityQualifier: qualifier,
+        clearCurrentCityId: id == null,
         clearCurrentArea: !_areaStillValid(state.currentCity, v, state.currentArea),
       );
   void setCurrentArea(String v) => state = state.copyWith(currentArea: v);
   void setCurrentAddress(String v) => state = state.copyWith(currentAddress: v);
-  void setPermanentCity(String? v) => state = state.copyWith(
+  void setPermanentCity(String? v, {int? id, String? qualifier}) => state = state.copyWith(
         permanentCity: v,
+        permanentCityId: id,
+        permanentCityQualifier: qualifier,
+        clearPermanentCityId: id == null,
         clearPermanentArea: !_areaStillValid(state.permanentCity, v, state.permanentArea),
       );
 
@@ -199,9 +232,11 @@ class OnboardingController extends Notifier<OnboardingDraft> {
           dateOfBirth: d.dateOfBirth!,
           photoPath: d.photoPath,
           currentCity: text(d.currentCity),
+          currentCityId: d.currentCityId,
           currentArea: text(d.currentArea),
           currentAddress: text(d.currentAddress),
           permanentCity: text(d.permanentCity),
+          permanentCityId: d.permanentCityId,
           permanentArea: text(d.permanentArea),
           permanentAddress: text(d.permanentAddress),
           isPermanentSameAsCurrent: d.isPermanentSameAsCurrent,

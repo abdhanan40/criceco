@@ -79,6 +79,10 @@ abstract interface class ProfileGateway {
   /// `rpc('save_profile_setup', params)` — one transaction.
   Future<void> saveProfileSetup(Map<String, Object?> params);
 
+  /// `rpc('save_profile_setup_v2', params)` — the same with city ids
+  /// (migration 8); one transaction.
+  Future<void> saveProfileSetupV2(Map<String, Object?> params);
+
   /// Upsert into `player_profiles` on `user_id`.
   Future<void> upsertPlayerProfile(Map<String, Object?> row);
 

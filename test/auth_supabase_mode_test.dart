@@ -136,6 +136,7 @@ Future<ProviderContainer> _pump(
         authGatewayProvider.overrideWithValue(auth),
         profileGatewayProvider.overrideWithValue(db),
         clubGatewayProvider.overrideWithValue(clubDb),
+        locationGatewayProvider.overrideWithValue(FakeLocationGateway()),
       ],
       if (flaky)
         accountRepositoryProvider.overrideWith(

@@ -11,9 +11,11 @@ class UserAccount {
     this.city,
     this.dateOfBirth,
     this.currentCity,
+    this.currentCityId,
     this.currentArea,
     this.currentAddress,
     this.permanentCity,
+    this.permanentCityId,
     this.permanentArea,
     this.permanentAddress,
     this.isPermanentSameAsCurrent = true,
@@ -36,9 +38,16 @@ class UserAccount {
   final String? city;
   final DateTime? dateOfBirth;
   final String? currentCity;
+
+  /// The current address city's `public.cities` id (Supabase mode; `null` in
+  /// memory mode, or when the saved city text has no unique match).
+  final int? currentCityId;
   final String? currentArea;
   final String? currentAddress;
   final String? permanentCity;
+
+  /// The permanent address city's `public.cities` id (as [currentCityId]).
+  final int? permanentCityId;
   final String? permanentArea;
   final String? permanentAddress;
   final bool isPermanentSameAsCurrent;
@@ -83,9 +92,13 @@ class UserAccount {
     String? city,
     DateTime? dateOfBirth,
     String? currentCity,
+    int? currentCityId,
+    bool clearCurrentCityId = false,
     String? currentArea,
     String? currentAddress,
     String? permanentCity,
+    int? permanentCityId,
+    bool clearPermanentCityId = false,
     String? permanentArea,
     String? permanentAddress,
     bool? isPermanentSameAsCurrent,
@@ -109,9 +122,11 @@ class UserAccount {
         city: city ?? this.city,
         dateOfBirth: dateOfBirth ?? this.dateOfBirth,
         currentCity: currentCity ?? this.currentCity,
+        currentCityId: clearCurrentCityId ? null : (currentCityId ?? this.currentCityId),
         currentArea: currentArea ?? this.currentArea,
         currentAddress: currentAddress ?? this.currentAddress,
         permanentCity: permanentCity ?? this.permanentCity,
+        permanentCityId: clearPermanentCityId ? null : (permanentCityId ?? this.permanentCityId),
         permanentArea: permanentArea ?? this.permanentArea,
         permanentAddress: permanentAddress ?? this.permanentAddress,
         isPermanentSameAsCurrent: isPermanentSameAsCurrent ?? this.isPermanentSameAsCurrent,

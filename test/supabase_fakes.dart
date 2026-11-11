@@ -92,6 +92,19 @@ class FakeDb implements ProfileGateway {
   final calls = <String>[];
   Map<String, Object?>? lastSetupParams;
 
+  /// The parameters of the last save_profile_setup_v2 call.
+  Map<String, Object?>? lastSetupV2Params;
+
+  /// `public.cities` as save_profile_setup_v2 sees it: id → name (active).
+  /// An id not listed here is refused like an inactive / unknown city.
+  Map<int, String> cities = const {
+    1: 'Karachi',
+    2: 'Lahore',
+    6: 'Multan',
+    101: 'Kamra',
+    102: 'Kamra',
+  };
+
   static Map<String, dynamic> freshProfile(String id) => {
     'id': id,
     'created_at': '2026-10-29T10:00:00+00:00',
@@ -169,6 +182,50 @@ class FakeDb implements ProfileGateway {
     permanentAddresses[uid] = same
         ? Map.of(currentAddresses[uid]!)
         : address('permanent');
+  }
+
+  /// As migration 8: the city ids must be active cities (else a 23514 with
+  /// the function's message); the city text is stored from the id.
+  @override
+  Future<void> saveProfileSetupV2(Map<String, Object?> params) async {
+    _maybeFail('saveProfileSetupV2');
+    final uid = _uid();
+    lastSetupV2Params = params;
+    final same = params['p_permanent_same_as_current'] as bool;
+    final currentId = params['p_current_city_id'] as int?;
+    final permanentId = same
+        ? currentId
+        : params['p_permanent_city_id'] as int?;
+    for (final (id, which) in [
+      (currentId, 'current'),
+      (permanentId, 'permanent'),
+    ]) {
+      if (id == null || !cities.containsKey(id)) {
+        throw GatewayConstraintException(
+          sqlState: '23514',
+          message: '${which}_city_id must be an active city',
+        );
+      }
+    }
+    profiles[uid] = {
+      ...profiles[uid]!,
+      'full_name': params['p_full_name'],
+      'phone': params['p_phone'],
+      'date_of_birth': params['p_date_of_birth'],
+      'permanent_same_as_current': same,
+      'profile_completed': true,
+    };
+    Map<String, dynamic> address(String prefix, int id) => {
+      'user_id': uid,
+      'city_id': id,
+      'city': cities[id],
+      'area': params['p_${prefix}_area'],
+      'address': params['p_${prefix}_address'],
+    };
+    currentAddresses[uid] = address('current', currentId!);
+    permanentAddresses[uid] = same
+        ? Map.of(currentAddresses[uid]!)
+        : address('permanent', permanentId!);
   }
 
   @override
@@ -386,5 +443,69 @@ class FakeClubDb implements ClubGateway {
     final updated = {...row, ...columns};
     clubs[userId] = updated;
     return Map.of(updated);
+  }
+}
+
+/// The location lookup (migration 6) for Supabase-mode widget tests: three
+/// featured cities and the two Kamra towns, with the ids [FakeDb.cities]
+/// knows, as `v_city_options` rows. No provinces (the filters stay hidden).
+class FakeLocationGateway implements LocationGateway {
+  final searches = <Map<String, Object?>>[];
+
+  static Map<String, dynamic> row(
+    int id,
+    String name, {
+    int? rank,
+    String? qualifier,
+    String province = 'Punjab',
+  }) => {
+    'id': id,
+    'name': name,
+    'qualifier': qualifier,
+    'kind': 'city',
+    'featured_rank': rank,
+    'province_id': 1,
+    'province_name': province,
+    'primary_district_id': null,
+    'primary_district_name': null,
+    'district_count': 0,
+  };
+
+  static final featured = [
+    row(1, 'Karachi', rank: 1, province: 'Sindh'),
+    row(2, 'Lahore', rank: 2),
+    row(6, 'Multan', rank: 3),
+  ];
+  static final others = [
+    row(101, 'Kamra', qualifier: 'Attock'),
+    row(102, 'Kamra', qualifier: 'Rawalpindi'),
+  ];
+
+  @override
+  Future<List<Map<String, dynamic>>> fetchProvinces() async => const [];
+
+  @override
+  Future<List<Map<String, dynamic>>> fetchDistricts(int provinceId) async =>
+      const [];
+
+  @override
+  Future<List<Map<String, dynamic>>> searchCities(
+    Map<String, Object?> params,
+  ) async {
+    searches.add(params);
+    final q = (params['p_query'] as String?)?.trim().toLowerCase();
+    if (q == null || q.length < 2) return featured;
+    return [
+      for (final r in [...featured, ...others])
+        if ((r['name'] as String).toLowerCase().startsWith(q)) r,
+    ];
+  }
+
+  @override
+  Future<Map<String, dynamic>?> fetchCity(int id) async {
+    for (final r in [...featured, ...others]) {
+      if (r['id'] == id) return r;
+    }
+    return null;
   }
 }

@@ -28,6 +28,10 @@ abstract final class SupabaseErrorMapper {
     'date_of_birth cannot be in the future':
         "Date of birth can't be in the future",
     'profile_completed requires': 'Please complete all profile details',
+    // save_profile_setup_v2 (migration 8): a city id that isn't an active city.
+    'current_city_id must be an active city': 'Please choose your city again',
+    'permanent_city_id must be an active city':
+        'Please choose your permanent city again',
     // Supabase Auth refusals (translated by the SDK gateway).
     'user already exists':
         'An account with this email already exists — please log in',

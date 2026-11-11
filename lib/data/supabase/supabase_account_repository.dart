@@ -140,10 +140,18 @@ class SupabaseAccountRepository implements AccountRepository {
   }) async {
     final user = _signedIn(account.id);
     ProfileRules.checkProfileSetup(account, at);
-    final params = ProfileRowMapper.saveProfileSetupParams(
-      account.copyWith(phone: SupabaseErrorMapper.storedPhone(account.phone!)),
+    final stored = account.copyWith(
+      phone: SupabaseErrorMapper.storedPhone(account.phone!),
     );
-    await _call(() => db.saveProfileSetup(params));
+    // City ids picked from the list → save_profile_setup_v2 (migration 8);
+    // without them (e.g. an older caller) → v1 with the city text, as before.
+    if (ProfileRowMapper.hasCityIds(stored)) {
+      final params = ProfileRowMapper.saveProfileSetupV2Params(stored);
+      await _call(() => db.saveProfileSetupV2(params));
+    } else {
+      final params = ProfileRowMapper.saveProfileSetupParams(stored);
+      await _call(() => db.saveProfileSetup(params));
+    }
     await _keepLocal(account);
     return _read(user);
   }

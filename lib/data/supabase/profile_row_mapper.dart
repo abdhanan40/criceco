@@ -121,9 +121,12 @@ abstract final class ProfileRowMapper {
       city: currentCity,
       dateOfBirth: dateOfBirth,
       currentCity: currentCity,
+      // city_id (migration 8); absent on an older database → null.
+      currentCityId: _cityId(currentAddress),
       currentArea: currentAddress?['area'] as String?,
       currentAddress: currentAddress?['address'] as String?,
       permanentCity: permanentAddress?['city'] as String?,
+      permanentCityId: _cityId(permanentAddress),
       permanentArea: permanentAddress?['area'] as String?,
       permanentAddress: permanentAddress?['address'] as String?,
       isPermanentSameAsCurrent:
@@ -141,6 +144,13 @@ abstract final class ProfileRowMapper {
       grantedRoles: grantedRolesFromRows(roles),
     );
   }
+
+  static int? _cityId(Map<String, dynamic>? address) =>
+      switch (address?['city_id']) {
+        final int i => i,
+        final num n => n.toInt(),
+        _ => null,
+      };
 
   static PlayerProfile playerProfileFromRow(Map<String, dynamic> row) {
     final batting = row['batting_style'] as String?;
@@ -186,6 +196,47 @@ abstract final class ProfileRowMapper {
       'p_current_address': account.currentAddress,
       'p_permanent_same_as_current': same,
       'p_permanent_city': same ? null : account.permanentCity,
+      'p_permanent_area': same ? null : account.permanentArea,
+      'p_permanent_address': same ? null : account.permanentAddress,
+    };
+  }
+
+  /// Whether Profile Setup can use `save_profile_setup_v2`: the current city
+  /// has an id, and so has the permanent one unless "same as current".
+  static bool hasCityIds(UserAccount account) =>
+      account.currentCityId != null &&
+      (account.isPermanentSameAsCurrent || account.permanentCityId != null);
+
+  /// Named arguments for `public.save_profile_setup_v2(...)` (migration 8):
+  /// city ids instead of city text (the function stores each city's name).
+  /// Under "same as current" the permanent fields are left out (the function
+  /// copies the current address). Throws [StateError] when a field or an id
+  /// the function needs is missing.
+  static Map<String, Object?> saveProfileSetupV2Params(UserAccount account) {
+    final same = account.isPermanentSameAsCurrent;
+    final missing = [
+      if (account.fullName.trim().isEmpty) 'fullName',
+      if (account.phone == null) 'phone',
+      if (account.dateOfBirth == null) 'dateOfBirth',
+      if (account.currentCityId == null) 'currentCityId',
+      if (account.currentArea == null) 'currentArea',
+      if (account.currentAddress == null) 'currentAddress',
+      if (!same && account.permanentCityId == null) 'permanentCityId',
+      if (!same && account.permanentArea == null) 'permanentArea',
+      if (!same && account.permanentAddress == null) 'permanentAddress',
+    ];
+    if (missing.isNotEmpty) {
+      throw StateError('Profile Setup is missing: ');
+    }
+    return {
+      'p_full_name': account.fullName,
+      'p_phone': account.phone,
+      'p_date_of_birth': formatDate(account.dateOfBirth!),
+      'p_current_city_id': account.currentCityId,
+      'p_current_area': account.currentArea,
+      'p_current_address': account.currentAddress,
+      'p_permanent_same_as_current': same,
+      'p_permanent_city_id': same ? null : account.permanentCityId,
       'p_permanent_area': same ? null : account.permanentArea,
       'p_permanent_address': same ? null : account.permanentAddress,
     };

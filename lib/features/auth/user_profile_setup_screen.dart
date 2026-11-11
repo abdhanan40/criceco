@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/config/backend_config.dart';
 import '../../app/providers/core_providers.dart';
 import '../../app/router/routes.dart';
 import '../../app/session/account_error_text.dart';
@@ -9,8 +10,8 @@ import '../../app/session/role_controller.dart';
 import '../../app/session/session_controller.dart';
 import '../../app/theme/tokens.dart';
 import '../../app/theme/typography.dart';
-import '../../core/constants/cities.dart';
 import '../../core/constants/city_areas.dart';
+import '../../core/models/models.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/validators.dart';
 import '../../shared/media/photo_picker.dart';
@@ -19,6 +20,7 @@ import '../../shared/widgets/ce_feedback.dart';
 import '../../shared/widgets/ce_form_widgets.dart';
 import '../../shared/widgets/ce_inputs.dart';
 import '../../shared/widgets/ce_surfaces.dart';
+import '../location/city_picker.dart';
 import 'onboarding_controller.dart';
 import 'widgets/auth_widgets.dart';
 
@@ -49,16 +51,25 @@ class _UserProfileSetupScreenState extends ConsumerState<UserProfileSetupScreen>
   bool _permanentOther = false;
   bool _saving = false;
 
-  /// City picked: the draft clears an Area that no longer fits — mirror that
-  /// in the typed field.
-  void _pickCity({required bool current, required String city}) {
+  /// City picked (City Picker: a different city only): the draft clears an
+  /// Area that no longer fits — mirror that in the typed field. The city's
+  /// name, id and qualifier go to the draft.
+  void _pickCity({required bool current, required CityOption city}) {
     final notifier = ref.read(onboardingProvider.notifier);
-    current ? notifier.setCurrentCity(city) : notifier.setPermanentCity(city);
+    final id = city.id > 0 ? city.id : null;
+    current
+        ? notifier.setCurrentCity(city.name, id: id, qualifier: city.qualifier)
+        : notifier.setPermanentCity(city.name, id: id, qualifier: city.qualifier);
     final d = ref.read(onboardingProvider);
     if ((current ? d.currentArea : d.permanentArea) != null) return;
     setState(() => current ? _currentOther = false : _permanentOther = false);
     (current ? _currentArea : _permanentArea).clear();
   }
+
+  /// The draft's city as the picker's value. Id 0 matches no city: a saved
+  /// city text without an id shows as it is, and picking any city replaces it.
+  static CityOption? _cityOption(String? name, int? id, String? qualifier) =>
+      name == null || name.trim().isEmpty ? null : CityOption(id: id ?? 0, name: name, qualifier: qualifier);
 
   /// Area picked from the list, or "Other (type it)" (keeps a typed area; a
   /// listed one is cleared so the user types their own).
@@ -149,6 +160,14 @@ class _UserProfileSetupScreenState extends ConsumerState<UserProfileSetupScreen>
     final draft = ref.watch(onboardingProvider);
     // City → areas (none listed yet, or still loading → typed Area field).
     final areaData = ref.watch(cityAreasProvider).value ?? CityAreas.empty;
+    // Supabase mode saves city ids (save_profile_setup_v2): a city must be
+    // picked from the list. Memory mode keeps any listed city name.
+    final requireListedCity = ref.watch(backendConfigProvider).isSupabase;
+    String? cityError(CityOption? c) {
+      if (c == null) return 'City is required';
+      if (requireListedCity && c.id <= 0) return 'Please choose your city from the list';
+      return null;
+    }
     final notifier = ref.read(onboardingProvider.notifier);
     final same = draft.isPermanentSameAsCurrent;
     return PopScope(
@@ -239,6 +258,8 @@ class _UserProfileSetupScreenState extends ConsumerState<UserProfileSetupScreen>
                     keyPrefix: 'profile.current',
                     areaData: areaData,
                     city: draft.currentCity,
+                    cityOption: _cityOption(draft.currentCity, draft.currentCityId, draft.currentCityQualifier),
+                    cityValidator: cityError,
                     onCity: (v) => _pickCity(current: true, city: v),
                     areaValue: draft.currentArea,
                     otherPicked: _currentOther,
@@ -267,6 +288,9 @@ class _UserProfileSetupScreenState extends ConsumerState<UserProfileSetupScreen>
                       keyPrefix: 'profile.permanent',
                       areaData: areaData,
                       city: draft.permanentCity,
+                      cityOption:
+                          _cityOption(draft.permanentCity, draft.permanentCityId, draft.permanentCityQualifier),
+                      cityValidator: cityError,
                       onCity: (v) => _pickCity(current: false, city: v),
                       areaValue: draft.permanentArea,
                       otherPicked: _permanentOther,
@@ -322,6 +346,8 @@ class _AddressFields extends StatelessWidget {
     required this.keyPrefix,
     required this.areaData,
     required this.city,
+    required this.cityOption,
+    required this.cityValidator,
     required this.onCity,
     required this.areaValue,
     required this.otherPicked,
@@ -335,8 +361,13 @@ class _AddressFields extends StatelessWidget {
 
   final String keyPrefix;
   final CityAreas areaData;
+  /// The city's name (its areas are looked up by name).
   final String? city;
-  final ValueChanged<String> onCity;
+
+  /// The city as the picker shows it (name, id, qualifier).
+  final CityOption? cityOption;
+  final String? Function(CityOption?) cityValidator;
+  final ValueChanged<CityOption> onCity;
 
   /// The draft's Area (listed or typed).
   final String? areaValue;
@@ -370,16 +401,15 @@ class _AddressFields extends StatelessWidget {
     );
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         const CeFieldLabel('City', required: true),
-        CeSelectField<String>(
+        // Searchable nationwide city list (featured cities first; province /
+        // district filters in Supabase mode).
+        CityPickerField(
           fieldKey: Key('${keyPrefix}City'),
-          items: kPakistanCities,
-          labelOf: (v) => v,
+          value: cityOption,
           sheetTitle: 'Select City',
-          itemIcon: 'building-2',
-          value: city,
           hint: 'Select city',
           icon: 'building-2',
-          validator: CeValidators.city,
+          validator: cityValidator,
           onChanged: onCity,
         ),
         const CeFieldLabel('Area', required: true),

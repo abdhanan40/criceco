@@ -174,6 +174,10 @@ class SupabaseProfileGateway implements ProfileGateway {
       _guard(() => _client.rpc<void>('save_profile_setup', params: params));
 
   @override
+  Future<void> saveProfileSetupV2(Map<String, Object?> params) =>
+      _guard(() => _client.rpc<void>('save_profile_setup_v2', params: params));
+
+  @override
   Future<void> upsertPlayerProfile(Map<String, Object?> row) => _guard(
     () => _client.from('player_profiles').upsert(row, onConflict: 'user_id'),
   );

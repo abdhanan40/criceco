@@ -145,7 +145,11 @@ class SessionController extends Notifier<SessionState> {
       return current == after.city ? after : after.copyWith(city: current);
     }
     final city = picked(after.city);
-    if (city != null && city != picked(before.city) && city != current) return after.copyWith(currentCity: city);
+    // A City typed / picked on Edit Profile has no id: the old one no longer
+    // applies (the database resolves the new text).
+    if (city != null && city != picked(before.city) && city != current) {
+      return after.copyWith(currentCity: city, clearCurrentCityId: true);
+    }
     return after;
   }
 
@@ -203,9 +207,11 @@ class SessionController extends Notifier<SessionState> {
     required DateTime dateOfBirth,
     String? photoPath,
     required String currentCity,
+    int? currentCityId,
     required String currentArea,
     required String currentAddress,
     required String permanentCity,
+    int? permanentCityId,
     required String permanentArea,
     required String permanentAddress,
     required bool isPermanentSameAsCurrent,
@@ -223,9 +229,14 @@ class SessionController extends Notifier<SessionState> {
             photoPath: photoPath,
             clearPhoto: photoPath == null,
             currentCity: currentCity,
+            // The ids of cities picked from the list (none → v1 / memory mode).
+            currentCityId: currentCityId,
+            clearCurrentCityId: currentCityId == null,
             currentArea: currentArea,
             currentAddress: currentAddress,
             permanentCity: same ? currentCity : permanentCity,
+            permanentCityId: same ? currentCityId : permanentCityId,
+            clearPermanentCityId: (same ? currentCityId : permanentCityId) == null,
             permanentArea: same ? currentArea : permanentArea,
             permanentAddress: same ? currentAddress : permanentAddress,
             isPermanentSameAsCurrent: isPermanentSameAsCurrent,
