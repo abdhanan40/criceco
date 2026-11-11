@@ -257,8 +257,40 @@ class FakeDb implements ProfileGateway {
         ? currentAddresses
         : permanentAddresses;
     final row = rows[userId];
-    if (row != null) rows[userId] = {...row, ...columns};
+    if (row == null) return;
+    final next = {...row, ...columns};
+    // Migration 8's address_city_sync_* triggers and foreign key: a written
+    // city_id sets the plain name (an id not in [cities] is refused, 23503);
+    // a changed text alone keeps the id while it names that city, else
+    // re-resolves it (a unique name, or NULL).
+    final id = columns['city_id'] as int?;
+    if (id != null) {
+      final name = cities[id];
+      if (name == null) {
+        throw GatewayConstraintException(
+          sqlState: '23503',
+          message:
+              'insert or update on table "$table" violates foreign key '
+              'constraint "${table}_city_id_fkey"',
+        );
+      }
+      next['city'] = name;
+    } else if (columns.containsKey('city') && columns['city'] != row['city']) {
+      final text = columns['city'];
+      if (cities[row['city_id']] != text) {
+        final named = [
+          for (final e in cities.entries)
+            if (e.value == text) e.key,
+        ];
+        next['city_id'] = named.length == 1 ? named.single : null;
+      }
+    }
+    lastAddressUpdate[table] = columns;
+    rows[userId] = next;
   }
+
+  /// The columns of the last update of each address table.
+  final lastAddressUpdate = <String, Map<String, Object?>>{};
 
   @override
   Future<void> setRoleIfUnset(String userId, String role) async {

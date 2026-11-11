@@ -136,8 +136,18 @@ class SessionController extends Notifier<SessionState> {
   /// The profile City (My Profile, Edit Profile, the "available to clubs"
   /// listing) and the Current Address city are one value: a changed Current
   /// City (Profile Setup) sets City, a changed City (Edit Profile) sets
-  /// Current City. The Permanent City never does. Unchanged or empty values
-  /// leave both as they are, so existing accounts keep their City.
+  /// Current City. A Permanent City never sets City or Current City.
+  /// Unchanged or empty values leave both as they are, so existing accounts
+  /// keep their City.
+  ///
+  /// Edit Profile (Stage 4.3.5): a City picked from the list comes with its
+  /// id (a new [UserAccount.currentCityId]), which is kept — also for a town
+  /// with the same name as the old one; a City set without a new id clears
+  /// the old one (the database resolves the text). The permanent address
+  /// changes only when it is "same as current" (before and after the edit)
+  /// and already exists: its city, id and Area then follow the changed
+  /// current ones. A separate permanent address is never changed, and Profile
+  /// Setup (a new Current City) keeps its own permanent answers.
   static UserAccount syncProfileCity(UserAccount before, UserAccount after) {
     String? picked(String? v) => (v == null || v.trim().isEmpty) ? null : v.trim();
     final current = picked(after.currentCity);
@@ -145,12 +155,32 @@ class SessionController extends Notifier<SessionState> {
       return current == after.city ? after : after.copyWith(city: current);
     }
     final city = picked(after.city);
-    // A City typed / picked on Edit Profile has no id: the old one no longer
-    // applies (the database resolves the new text).
+    final newId = after.currentCityId != before.currentCityId ? after.currentCityId : null;
     if (city != null && city != picked(before.city) && city != current) {
-      return after.copyWith(currentCity: city, clearCurrentCityId: true);
+      return _samePermanent(
+        before,
+        after.copyWith(currentCity: city, currentCityId: newId, clearCurrentCityId: newId == null),
+      );
     }
-    return after;
+    return _samePermanent(before, after);
+  }
+
+  /// "Same as current": the permanent copy takes a changed current city, id
+  /// and Area (Edit Profile). Only an existing copy (Profile Setup made it).
+  static UserAccount _samePermanent(UserAccount before, UserAccount after) {
+    if (!before.isPermanentSameAsCurrent || !after.isPermanentSameAsCurrent || before.permanentCity == null) {
+      return after;
+    }
+    final changed = after.currentCity != before.currentCity ||
+        after.currentCityId != before.currentCityId ||
+        after.currentArea != before.currentArea;
+    if (!changed) return after;
+    return after.copyWith(
+      permanentCity: after.currentCity,
+      permanentCityId: after.currentCityId,
+      clearPermanentCityId: after.currentCityId == null,
+      permanentArea: after.currentArea,
+    );
   }
 
   /// Privacy / sign-in toggles (Settings).

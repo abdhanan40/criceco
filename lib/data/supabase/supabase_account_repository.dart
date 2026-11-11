@@ -210,8 +210,18 @@ class SupabaseAccountRepository implements AccountRepository {
     final current = _addressChange(
       before.currentCity == null
           ? null
-          : (before.currentCity, before.currentArea, before.currentAddress),
-      (account.currentCity, account.currentArea, account.currentAddress),
+          : (
+              before.currentCity,
+              before.currentArea,
+              before.currentAddress,
+              before.currentCityId,
+            ),
+      (
+        account.currentCity,
+        account.currentArea,
+        account.currentAddress,
+        account.currentCityId,
+      ),
     );
     // "Same as current": the stored permanent address is the current copy.
     final permanent = account.isPermanentSameAsCurrent
@@ -223,11 +233,13 @@ class SupabaseAccountRepository implements AccountRepository {
                     before.permanentCity,
                     before.permanentArea,
                     before.permanentAddress,
+                    before.permanentCityId,
                   ),
             (
               account.permanentCity,
               account.permanentArea,
               account.permanentAddress,
+              account.permanentCityId,
             ),
           );
 
@@ -258,20 +270,33 @@ class SupabaseAccountRepository implements AccountRepository {
 
   /// The columns to write for a changed address, `null` when unchanged or
   /// when there is no stored row to update (Profile Setup creates it).
+  ///
+  /// A new city id (picked from the list, also a town with the same name as
+  /// the stored one) is written as `city_id` with the text: the database
+  /// sets the city's plain name from it (migration 8). No new id → text only,
+  /// as before (the database keeps or re-resolves the id from the text); an
+  /// id is never cleared from here.
   Map<String, Object?>? _addressChange(
-    (String?, String?, String?)? stored,
-    (String?, String?, String?) next,
+    (String?, String?, String?, int?)? stored,
+    (String?, String?, String?, int?) next,
   ) {
     if (stored == null) return null;
     String t(String? v) => (v ?? '').trim();
-    final (city, area, address) = next;
-    if (t(city) == t(stored.$1) &&
+    final (city, area, address, cityId) = next;
+    final newId = cityId != null && cityId != stored.$4 ? cityId : null;
+    if (newId == null &&
+        t(city) == t(stored.$1) &&
         t(area) == t(stored.$2) &&
         t(address) == t(stored.$3)) {
       return null;
     }
     ProfileRules.check(ProfileRules.addressErrors(city, area, address));
-    return {'city': t(city), 'area': t(area), 'address': t(address)};
+    return {
+      'city': t(city),
+      'area': t(area),
+      'address': t(address),
+      'city_id': ?newId,
+    };
   }
 
   static bool _phoneChanged(String? before, String? after) {

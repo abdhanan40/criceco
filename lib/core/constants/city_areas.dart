@@ -42,6 +42,19 @@ class CityAreas {
 
   /// [area] is one of [city]'s listed areas (exact match).
   bool isListed(String? city, String? area) => area != null && areasFor(city).contains(area);
+
+  /// Whether [area] still fits after the city changes from [oldCity] to
+  /// [newCity] (Profile Setup and Edit Profile):
+  /// * same city, no area yet, or the area is listed under the new city → keep;
+  /// * the new city has listed areas (the area isn't one) → clear;
+  /// * the new city has none (typed Area) → keep a typed area, clear one that
+  ///   came from the old city's list.
+  bool keepsArea(String? oldCity, String? newCity, String? area) {
+    if (oldCity == newCity || area == null || area.trim().isEmpty) return true;
+    if (isListed(newCity, area)) return true;
+    if (areasFor(newCity).isNotEmpty) return false;
+    return !isListed(oldCity, area);
+  }
 }
 
 /// The Area picker's last option: type an area that isn't listed.

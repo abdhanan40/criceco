@@ -188,18 +188,9 @@ class OnboardingController extends Notifier<OnboardingDraft> {
         clearPermanentArea: !_areaStillValid(state.permanentCity, v, state.permanentArea),
       );
 
-  /// Whether [area] still fits after the city changes:
-  /// * same city, or the area is listed under the new city → keep;
-  /// * the new city has listed areas (the area isn't one) → clear;
-  /// * the new city has none (typed Area) → keep a typed area, clear one that
-  ///   came from the old city's list.
-  bool _areaStillValid(String? oldCity, String? newCity, String? area) {
-    if (oldCity == newCity || area == null || area.trim().isEmpty) return true;
-    final areas = ref.read(cityAreasProvider).value ?? CityAreas.empty;
-    if (areas.isListed(newCity, area)) return true;
-    if (areas.areasFor(newCity).isNotEmpty) return false;
-    return !areas.isListed(oldCity, area);
-  }
+  /// Whether [area] still fits after the city changes ([CityAreas.keepsArea]).
+  bool _areaStillValid(String? oldCity, String? newCity, String? area) =>
+      (ref.read(cityAreasProvider).value ?? CityAreas.empty).keepsArea(oldCity, newCity, area);
   void setPermanentArea(String v) => state = state.copyWith(permanentArea: v);
   void setPermanentAddress(String v) => state = state.copyWith(permanentAddress: v);
   /// Yes / No only flips the flag — permanent answers typed under No stay.

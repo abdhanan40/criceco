@@ -20,6 +20,7 @@ import '../../shared/widgets/ce_feedback.dart';
 import '../../shared/widgets/ce_form_widgets.dart';
 import '../../shared/widgets/ce_inputs.dart';
 import '../../shared/widgets/ce_surfaces.dart';
+import '../location/area_field.dart';
 import '../location/city_picker.dart';
 import 'onboarding_controller.dart';
 import 'widgets/auth_widgets.dart';
@@ -78,7 +79,7 @@ class _UserProfileSetupScreenState extends ConsumerState<UserProfileSetupScreen>
     final controller = current ? _currentArea : _permanentArea;
     final other = area == kOtherArea;
     setState(() => current ? _currentOther = other : _permanentOther = other);
-    final text = other ? (listed.contains(controller.text) ? '' : controller.text) : area;
+    final text = AreaField.textFor(area, listed: listed, typed: controller.text);
     controller.text = text;
     current ? notifier.setCurrentArea(text) : notifier.setPermanentArea(text);
   }
@@ -336,10 +337,11 @@ class _SectionHeading extends StatelessWidget {
 /// City (picker) · Area · Address — the same three required fields for the
 /// current and the permanent address.
 ///
-/// Area is a picker (like City) of the selected city's listed areas plus
-/// "Other (type it)", which opens the typed field below it. Before a city is
-/// chosen the picker reads "Select a city first". A city with no listed areas
-/// keeps the typed Area field. Keys: `<keyPrefix>City`, `AreaPicker`,
+/// Area is the shared [AreaField]: a picker (like City) of the selected
+/// city's listed areas plus "Other (type it)", which opens the typed field
+/// below it. Before a city is chosen the picker reads "Select a city first".
+/// A city with no listed areas keeps the typed Area field.
+/// Keys: `<keyPrefix>City`, `AreaPicker`,
 /// `Area` (the typed field), `Address`.
 class _AddressFields extends StatelessWidget {
   const _AddressFields({
@@ -383,22 +385,6 @@ class _AddressFields extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final listed = areaData.areasFor(city);
-    final picker = areaData.isNotEmpty && (city == null || listed.isNotEmpty);
-    final typed = (areaValue ?? '').trim().isNotEmpty && !listed.contains(areaValue);
-    // Typed field: no listed areas for this city, or "Other" in the picker.
-    final other = picker && city != null && (otherPicked || typed);
-    final typedField = CeTextField(
-      fieldKey: Key('${keyPrefix}Area'),
-      controller: area,
-      maxLength: CeValidators.areaMaxLength,
-      hint: other ? 'Type your area' : 'e.g. Gulshan-e-Iqbal',
-      icon: 'map',
-      textCapitalization: TextCapitalization.words,
-      textInputAction: TextInputAction.next,
-      validator: (v) => CeValidators.addressPart(v, 'Area'),
-      onChanged: onArea,
-    );
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         const CeFieldLabel('City', required: true),
         // Searchable nationwide city list (featured cities first; province /
@@ -412,27 +398,16 @@ class _AddressFields extends StatelessWidget {
           validator: cityValidator,
           onChanged: onCity,
         ),
-        const CeFieldLabel('Area', required: true),
-        if (picker) ...[
-          // Tappable once a city is chosen (its areas depend on it).
-          IgnorePointer(
-            ignoring: city == null,
-            child: CeSelectField<String>(
-              fieldKey: Key('${keyPrefix}AreaPicker'),
-              items: [...listed, kOtherArea],
-              labelOf: (v) => v,
-              sheetTitle: 'Select Area',
-              itemIcon: 'map',
-              value: other ? kOtherArea : (listed.contains(areaValue) ? areaValue : null),
-              hint: city == null ? 'Select a city first' : 'Select area',
-              icon: 'map',
-              validator: (v) => v == null ? 'Area is required' : null,
-              onChanged: onPickArea,
-            ),
-          ),
-          if (other) typedField,
-        ] else
-          typedField,
+        AreaField(
+          keyPrefix: keyPrefix,
+          areaData: areaData,
+          city: city,
+          areaValue: areaValue,
+          otherPicked: otherPicked,
+          onPickArea: onPickArea,
+          controller: area,
+          onArea: onArea,
+        ),
         const CeFieldLabel('Address', required: true),
         CeTextField(
           fieldKey: Key('${keyPrefix}Address'),

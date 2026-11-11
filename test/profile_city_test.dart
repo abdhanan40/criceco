@@ -129,12 +129,20 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Lahore').last);
       await tester.pumpAndSettle();
+      // A changed City asks for its Area (Clifton isn't one of Lahore's).
+      final areaPicker = find.byKey(const Key('edit.currentAreaPicker'));
+      await tester.ensureVisible(areaPicker);
+      await tester.tap(areaPicker);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Gulberg').last);
+      await tester.pumpAndSettle();
       final save = find.widgetWithText(CeButton, 'Save Changes');
       await tester.ensureVisible(save);
       await tester.tap(save);
       await tester.pumpAndSettle();
       final a = _account(c);
       expect((a.city, a.currentCity, a.permanentCity), ('Lahore', 'Lahore', 'Multan'));
+      expect((a.currentArea, a.permanentArea), ('Gulberg', 'Cantt'));
       expect(find.text('Lahore'), findsOneWidget);
     });
   });

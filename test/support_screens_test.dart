@@ -530,9 +530,13 @@ void main() {
       await tester.enterText(find.byKey(const Key('edit.phone')), '0300-1234567');
       await _tap(tester, find.byKey(const Key('edit.city')));
       await _tap(tester, find.text('Lahore'));
+      // A changed City asks for its Area.
+      await _tap(tester, find.byKey(const Key('edit.currentAreaPicker')));
+      await _tap(tester, find.text('Gulberg').last);
       await _tap(tester, _button('Save Changes'));
       final a = c.read(currentAccountProvider)!;
       expect((a.fullName, a.phone, a.city), ('Aman Ullah', '0300 1234567', 'Lahore'));
+      expect(a.currentArea, 'Gulberg');
       expect(_loc(c), Routes.playerProfile);
       expect(find.text('Profile updated'), findsOneWidget);
       expect(find.text('Aman Ullah'), findsOneWidget);

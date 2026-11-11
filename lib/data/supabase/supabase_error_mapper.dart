@@ -42,7 +42,8 @@ abstract final class SupabaseErrorMapper {
     'club type is required': 'Please select a club type',
   };
 
-  /// CHECK / UNIQUE constraints (migrations 1–3 and 5), matched by name.
+  /// CHECK / UNIQUE / FOREIGN KEY constraints (migrations 1–3, 5 and 8),
+  /// matched by name.
   static const _byConstraint = {
     'profiles_date_of_birth_check': 'Date of birth must be in 1900 or later',
     'current_addresses_city_check': 'City is required (up to 100 characters)',
@@ -53,6 +54,10 @@ abstract final class SupabaseErrorMapper {
         'Address is required (up to 500 characters)',
     'permanent_addresses_address_check':
         'Address is required (up to 500 characters)',
+    // city_id → public.cities (migration 8, 23503): an unknown city id.
+    'current_addresses_city_id_fkey': 'Please choose your city again',
+    'permanent_addresses_city_id_fkey':
+        'Please choose your permanent city again',
     'player_profiles_player_role_check': 'Choose your playing role',
     'player_profiles_batting_style_check': 'Choose a valid batting style',
     'player_profiles_bowling_style_check': 'Choose a valid bowling style',
