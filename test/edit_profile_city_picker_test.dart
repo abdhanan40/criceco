@@ -119,7 +119,8 @@ Future<ProviderContainer> _editing(
   await tester.pumpAndSettle();
   await _tap(tester, find.text('Edit'));
   db.calls.clear();
-  db.lastAddressUpdate.clear();
+  db.lastDetailsParams = null;
+  db.detailsWrites.clear();
   return c;
 }
 
@@ -180,6 +181,19 @@ final _areaTyped = find.byKey(const Key('edit.currentArea'));
 
 UserAccount _account(ProviderContainer c) => c.read(currentAccountProvider)!;
 
+/// The address arguments of the last update_profile_details call.
+(Object?, Object?, Object?, Object?) _sent(String which) {
+  final p = db.lastDetailsParams!;
+  return (
+    p['p_${which}_city'],
+    p['p_${which}_city_id'],
+    p['p_${which}_area'],
+    p['p_${which}_address'],
+  );
+}
+
+const _untouched = (null, null, null, null);
+
 void main() {
   group('Supabase mode', () {
     testWidgets('a non-featured saved city shows as it is; a name-only save '
@@ -201,7 +215,8 @@ void main() {
       await tester.enterText(find.byKey(const Key('edit.name')), 'Hamza S.');
       await _save(tester);
       expect(find.text('Profile updated'), findsOneWidget);
-      expect(db.lastAddressUpdate, isEmpty);
+      expect(_sent('current'), _untouched);
+      expect(db.detailsWrites, ['profiles.full_name']);
       final a = _account(c);
       expect(
         (a.fullName, a.city, a.currentCityId, a.currentArea),
@@ -220,14 +235,9 @@ void main() {
       await _save(tester);
 
       expect(find.text('Profile updated'), findsOneWidget);
-      const columns = {
-        'city': 'Kamra',
-        'area': 'Cantt',
-        'address': 'Street 1',
-        'city_id': 101,
-      };
-      expect(db.lastAddressUpdate['current_addresses'], columns);
-      expect(db.lastAddressUpdate['permanent_addresses'], columns);
+      expect(_sent('current'), ('Kamra', 101, 'Cantt', 'Street 1'));
+      expect(_sent('permanent'), _untouched); // the database copies
+      expect(db.detailsWrites, ['current_addresses', 'permanent_addresses']);
       final a = _account(c);
       expect((a.city, a.currentCity, a.currentCityId), ('Kamra', 'Kamra', 101));
       expect((a.permanentCity, a.permanentCityId), ('Kamra', 101));
@@ -249,7 +259,7 @@ void main() {
         'Cantt',
       ); // same name: kept
       await _save(tester);
-      expect(db.lastAddressUpdate['current_addresses']!['city_id'], 102);
+      expect(_sent('current').$2, 102);
       final a = _account(c);
       expect((a.city, a.currentCityId, a.currentArea), ('Kamra', 102, 'Cantt'));
       expect(a.permanentCityId, 102);
@@ -278,14 +288,8 @@ void main() {
       await _save(tester);
 
       expect(find.text('Profile updated'), findsOneWidget);
-      const columns = {
-        'city': 'Lahore',
-        'area': 'Gulberg',
-        'address': 'Street 1',
-        'city_id': 2,
-      };
-      expect(db.lastAddressUpdate['current_addresses'], columns);
-      expect(db.lastAddressUpdate['permanent_addresses'], columns);
+      expect(_sent('current'), ('Lahore', 2, 'Gulberg', 'Street 1'));
+      expect(db.detailsWrites, ['current_addresses', 'permanent_addresses']);
       expect(db.currentAddresses.values.single['city_id'], 2);
       expect(db.permanentAddresses.values.single['city_id'], 2);
       final a = _account(c);
@@ -311,12 +315,7 @@ void main() {
       await _save(tester);
 
       expect(find.text('Profile updated'), findsOneWidget);
-      expect(db.lastAddressUpdate['current_addresses'], {
-        'city': 'Lahore',
-        'area': 'Township',
-        'address': 'Street 1',
-        'city_id': 2,
-      });
+      expect(_sent('current'), ('Lahore', 2, 'Township', 'Street 1'));
       final a = _account(c);
       expect(
         (a.city, a.currentCityId, a.currentArea),
@@ -344,7 +343,7 @@ void main() {
       await _save(tester);
       expect(find.text('Area is required'), findsOneWidget);
       expect(find.text('Profile updated'), findsNothing);
-      expect(db.lastAddressUpdate, isEmpty);
+      expect(db.lastDetailsParams, isNull); // no call
       expect(_account(c).city, 'Karachi');
 
       await _pickArea(tester, 'Gulberg');
@@ -364,7 +363,7 @@ void main() {
       expect(_areaPicker, findsNothing);
       await _save(tester);
       expect(find.text('Profile updated'), findsOneWidget);
-      expect(db.lastAddressUpdate, isEmpty);
+      expect(db.calls, isNot(contains('updateProfileDetails')));
       expect(
         (_account(c).city, _account(c).currentArea),
         ('Karachi', 'Clifton'),
@@ -376,7 +375,8 @@ void main() {
       await _pickCity(tester, 'Lahore');
       await _pickArea(tester, 'Gulberg');
       await _save(tester);
-      expect(db.lastAddressUpdate.keys, ['current_addresses']);
+      expect(_sent('permanent'), _untouched);
+      expect(db.detailsWrites, ['current_addresses']);
       final a = _account(c);
       expect((a.city, a.currentCityId), ('Lahore', 2));
       expect(
@@ -423,7 +423,7 @@ void main() {
       await _pickArea(tester, 'Gulberg');
       await _tap(tester, _button('Cancel'));
       expect(find.byKey(const Key('edit.city')), findsNothing);
-      expect(db.calls, isNot(contains('updateAddress:current_addresses')));
+      expect(db.calls, isNot(contains('updateProfileDetails')));
       expect(
         (_account(c).city, _account(c).currentArea),
         ('Karachi', 'Clifton'),
@@ -475,6 +475,173 @@ void main() {
         (a.city, a.currentCity, a.currentCityId, a.currentArea),
         ('Karachi', 'Karachi', null, 'Clifton'),
       );
+    });
+  });
+
+  group('Edit Profile save → update_profile_details (Stage 4.3.6b)', () {
+    String uid() => db.profiles.keys.single;
+
+    testWidgets('name and phone in ONE call; the screen shows the saved '
+        'values and leaves edit mode', (tester) async {
+      final c = await _editing(tester);
+      await tester.enterText(find.byKey(const Key('edit.name')), 'Hamza Ali');
+      await tester.enterText(
+        find.byKey(const Key('edit.phone')),
+        '0321-7654321',
+      );
+      await _save(tester);
+
+      expect(find.text('Profile updated'), findsOneWidget);
+      expect(db.calls.where((c) => c == 'updateProfileDetails'), hasLength(1));
+      expect(db.detailsWrites, ['profiles.full_name', 'profiles.phone']);
+      expect(db.lastDetailsParams!['p_phone'], '+923217654321');
+      expect(_sent('current'), _untouched);
+      expect(db.profiles[uid()]!['full_name'], 'Hamza Ali');
+      expect(db.profiles[uid()]!['phone'], '+923217654321');
+      final a = _account(c);
+      expect((a.fullName, a.phone), ('Hamza Ali', '03217654321'));
+      expect(find.byKey(const Key('edit.name')), findsNothing); // view mode
+    });
+
+    testWidgets('a blank phone clears the saved one (an email account)', (
+      tester,
+    ) async {
+      final c = await _editing(tester);
+      expect(db.profiles[uid()]!['phone'], '+923339876543');
+      await tester.enterText(find.byKey(const Key('edit.phone')), '');
+      await _save(tester);
+
+      expect(find.text('Profile updated'), findsOneWidget);
+      expect(db.lastDetailsParams!['p_phone'], isNull);
+      expect(db.detailsWrites, ['profiles.phone']);
+      expect(db.profiles[uid()]!['phone'], isNull);
+      expect(_account(c).phone, isNull);
+
+      // Still cleared after the account is read back from the database.
+      final read = await c.read(accountRepositoryProvider).byId(uid());
+      expect(read!.phone, isNull);
+    });
+
+    testWidgets('a refusal from the database: its message, still editing, '
+        'nothing saved — also not the name sent with it', (tester) async {
+      final c = await _editing(tester);
+      db.cities = const {1: 'Karachi', 2: 'Lahore', 6: 'Multan'};
+      await tester.enterText(find.byKey(const Key('edit.name')), 'Hamza Ali');
+      await _pickCity(tester, 'Kamra (Attock)', search: 'kam');
+      await tester.enterText(_areaTyped, 'Cantt');
+      await _save(tester);
+
+      expect(find.text('Please choose your city again'), findsOneWidget);
+      expect(find.text('Profile updated'), findsNothing);
+      expect(find.byKey(const Key('edit.name')), findsOneWidget);
+      expect(db.detailsWrites, isEmpty);
+      expect(db.profiles[uid()]!['full_name'], 'Hamza Sheikh');
+      final a = _account(c);
+      expect(
+        (a.fullName, a.city, a.currentCityId),
+        ('Hamza Sheikh', 'Karachi', 1),
+      );
+    });
+
+    testWidgets('a value check refused by the function (23514): the mapped '
+        'message; the account is unchanged', (tester) async {
+      final c = await _editing(tester);
+      db.failNext = const GatewayConstraintException(
+        sqlState: '23514',
+        message: 'phone must be a Pakistani mobile number',
+      );
+      await tester.enterText(
+        find.byKey(const Key('edit.phone')),
+        '0321-7654321',
+      );
+      await _save(tester);
+      expect(
+        find.text('Enter a valid mobile number (03XX-XXXXXXX)'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('edit.phone')), findsOneWidget);
+      expect(_account(c).phone, '03339876543');
+      expect(db.profiles[uid()]!['phone'], '+923339876543');
+    });
+
+    testWidgets('no profile row (P0002): the friendly message; still signed '
+        'in and editing (D2)', (tester) async {
+      final c = await _editing(tester);
+      db.profiles.remove(uid());
+      await tester.enterText(find.byKey(const Key('edit.name')), 'Hamza Ali');
+      await _save(tester);
+      expect(
+        find.text("Your profile couldn't be loaded — please sign in again"),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('edit.name')), findsOneWidget);
+      expect(_account(c).fullName, 'Hamza Sheikh');
+      expect(c.read(currentAccountProvider), isNotNull); // not signed out
+    });
+
+    testWidgets('"not authenticated" (42501): signs out and goes to Login', (
+      tester,
+    ) async {
+      final c = await _editing(tester);
+      db.failNext = const GatewayConstraintException(
+        sqlState: '42501',
+        message: 'not authenticated',
+      );
+      await tester.enterText(find.byKey(const Key('edit.name')), 'Hamza Ali');
+      await _save(tester);
+      expect(find.text('Please sign in again'), findsOneWidget);
+      expect(c.read(currentAccountProvider), isNull);
+      expect(
+        c.read(routerProvider).routerDelegate.currentConfiguration.uri.path,
+        Routes.login,
+      );
+    });
+
+    testWidgets('the function missing (PGRST202, D5): the generic message; '
+        'no other request is tried', (tester) async {
+      final c = await _editing(tester);
+      db.failNext = const GatewayUnexpectedException('postgrest:PGRST202');
+      await tester.enterText(find.byKey(const Key('edit.name')), 'Hamza Ali');
+      await _save(tester);
+      expect(
+        find.text(const BackendOperationException().message),
+        findsOneWidget,
+      );
+      expect(db.calls, ['updateProfileDetails']); // no fallback, no re-read
+      expect(_account(c).fullName, 'Hamza Sheikh');
+    });
+  });
+
+  group('clearing the phone: the model and phone accounts (Stage 4.3.6b)', () {
+    test(
+      'copyWith(clearPhone: true) clears it; without it a null keeps it',
+      () {
+        const a = UserAccount(
+          id: 'u1',
+          fullName: 'A',
+          contactMethod: ContactMethod.email,
+          phone: '03001234567',
+        );
+        expect(a.copyWith().phone, '03001234567');
+        expect(a.copyWith(phone: null).phone, '03001234567');
+        expect(a.copyWith(clearPhone: true).phone, isNull);
+        expect(
+          a.copyWith(phone: '03111111111', clearPhone: true).phone,
+          isNull,
+        );
+      },
+    );
+
+    testWidgets('an account that signs in by phone can\'t blank it (memory '
+        'mode: the demo player)', (tester) async {
+      final c = await _editing(tester, supabase: false);
+      final before = _account(c);
+      expect(before.contactMethod, ContactMethod.phone);
+      await tester.enterText(find.byKey(const Key('edit.phone')), '');
+      await _save(tester);
+      expect(find.text('Profile updated'), findsNothing);
+      expect(find.byKey(const Key('edit.phone')), findsOneWidget); // editing
+      expect(_account(c).phone, before.phone);
     });
   });
 }

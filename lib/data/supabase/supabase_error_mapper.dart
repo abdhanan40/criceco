@@ -18,7 +18,8 @@ abstract final class SupabaseErrorMapper {
   static const generic =
       "Some details aren't valid — please check and try again";
 
-  /// Messages raised by `save_profile_setup` / `profiles_validate`.
+  /// Messages raised by `save_profile_setup` / `profiles_validate` (and by
+  /// `update_profile_details`, migration 9, which uses the same texts).
   static const _byMessage = {
     'not authenticated': null, // → NotSignedInException
     'full_name must be 2': 'Enter your full name (2–100 characters)',
@@ -91,6 +92,11 @@ abstract final class SupabaseErrorMapper {
       return e.message.contains('not authenticated')
           ? const NotSignedInException()
           : const PermissionDeniedException();
+    }
+    // update_profile_details() (migration 9): no profile row for the
+    // signed-in user — nothing was written.
+    if (e.sqlState == 'P0002' && e.message.contains('profile not found')) {
+      return const ProfileNotFoundException();
     }
     if (e.sqlState == '23502') {
       return const ProfileValidationException(

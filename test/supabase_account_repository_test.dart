@@ -6,6 +6,7 @@ import 'package:criceco/core/models/models.dart';
 import 'package:criceco/data/mock/in_memory_repositories.dart';
 import 'package:criceco/data/repositories/repositories.dart';
 import 'package:criceco/data/supabase/local_account_overlay.dart';
+import 'package:criceco/data/supabase/profile_row_mapper.dart';
 import 'package:criceco/data/supabase/supabase_account_repository.dart';
 import 'package:criceco/data/supabase/supabase_gateways.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -380,11 +381,14 @@ void main() {
       return repo.saveProfileSetup(filledIn(a), at: today);
     }
 
-    test('writes only the changed columns; phone stored as +92', () async {
+    test('one update_profile_details call; only the changed column is '
+        'written; phone stored as +92', () async {
       final a = await completed();
       db.calls.clear();
       await repo.update(a.copyWith(phone: '0333 1112223'));
-      expect(db.calls, ['updateProfileColumns', 'fetchAccountRows']);
+      expect(db.calls, ['updateProfileDetails', 'fetchAccountRows']);
+      expect(db.lastDetailsParams!['p_phone'], '+923331112223');
+      expect(db.detailsWrites, ['profiles.phone']);
       expect(db.profiles[a.id]!['phone'], '+923331112223');
       expect(db.profiles[a.id]!['full_name'], 'Hamza Sheikh'); // unchanged
     });
@@ -405,14 +409,21 @@ void main() {
       );
       expect(db.currentAddresses[a.id]!['city'], 'Karachi');
       expect(db.permanentAddresses[a.id]!['city'], 'Karachi');
+      expect(db.detailsWrites, ['current_addresses', 'permanent_addresses']);
       expect(saved.currentCity, 'Karachi');
     });
 
-    test('no address rows yet → none are created by update', () async {
+    test('D1: a changed address without its row is refused before any '
+        'call — none is created', () async {
       final a = await signedUp();
-      await repo.update(a.copyWith(currentCity: 'Karachi'));
+      db.calls.clear();
+      await expectLater(
+        repo.update(a.copyWith(currentCity: 'Karachi', fullName: 'Hamza Ali')),
+        validation('Please complete Profile Setup first'),
+      );
       expect(db.currentAddresses, isEmpty);
-      expect(db.calls.where((c) => c.startsWith('updateAddress')), isEmpty);
+      expect(db.calls, isEmpty);
+      expect(db.profiles[a.id]!['full_name'], isNull); // nothing saved
     });
 
     test(
@@ -477,6 +488,203 @@ void main() {
       );
       expect(db.profiles[a.id]!['full_name'], 'Hamza Sheikh');
       expect((await repo.byId(a.id))!.settings.showPhone, isFalse);
+    });
+
+    group('update_profile_details arguments (Stage 4.3.6b)', () {
+      Map<String, Object?> params() => db.lastDetailsParams!;
+
+      /// [a] without its phone / date of birth (`copyWith` can't clear them).
+      UserAccount without(
+        UserAccount a, {
+        bool phone = false,
+        bool dob = false,
+      }) => UserAccount(
+        id: a.id,
+        fullName: a.fullName,
+        contactMethod: a.contactMethod,
+        phone: phone ? null : a.phone,
+        email: a.email,
+        city: a.city,
+        dateOfBirth: dob ? null : a.dateOfBirth,
+        currentCity: a.currentCity,
+        currentCityId: a.currentCityId,
+        currentArea: a.currentArea,
+        currentAddress: a.currentAddress,
+        permanentCity: a.permanentCity,
+        permanentCityId: a.permanentCityId,
+        permanentArea: a.permanentArea,
+        permanentAddress: a.permanentAddress,
+        isPermanentSameAsCurrent: a.isPermanentSameAsCurrent,
+        playerProfile: a.playerProfile,
+        hasClubOwnerProfile: a.hasClubOwnerProfile,
+        ownedClubId: a.ownedClubId,
+        grantedRoles: a.grantedRoles,
+        memberships: a.memberships,
+        profileComplete: a.profileComplete,
+        hasPhoto: a.hasPhoto,
+        photoPath: a.photoPath,
+        settings: a.settings,
+      );
+
+      test('all eleven arguments; unchanged phone / date of birth are sent '
+          'as stored; an unchanged address is all NULL', () async {
+        final a = await completed();
+        await repo.update(a.copyWith(fullName: '  Hamza Ali '));
+        expect(params().keys, ProfileRowMapper.updateProfileDetailsArgs);
+        expect(params(), {
+          'p_full_name': 'Hamza Ali',
+          'p_phone': '03001234567',
+          'p_date_of_birth': '2000-05-01',
+          'p_current_city': null,
+          'p_current_city_id': null,
+          'p_current_area': null,
+          'p_current_address': null,
+          'p_permanent_city': null,
+          'p_permanent_city_id': null,
+          'p_permanent_area': null,
+          'p_permanent_address': null,
+        });
+        expect(db.detailsWrites, ['profiles.full_name']);
+        expect(db.profiles[a.id]!['phone'], '+923001234567'); // not rewritten
+      });
+
+      test('a changed current address is sent complete', () async {
+        final a = await completed();
+        await repo.update(
+          a.copyWith(currentArea: ' DHA ', currentCity: 'Lahore '),
+        );
+        expect(
+          (
+            params()['p_current_city'],
+            params()['p_current_city_id'],
+            params()['p_current_area'],
+            params()['p_current_address'],
+          ),
+          ('Lahore', null, 'DHA', 'House 1, Street 2'),
+        );
+      });
+
+      test('the phone can be cleared (blank = no phone)', () async {
+        final a = await completed();
+        final saved = await repo.update(without(a, phone: true));
+        expect(params()['p_phone'], isNull);
+        expect(db.detailsWrites, ['profiles.phone']);
+        expect(db.profiles[a.id]!['phone'], isNull);
+        expect(saved.phone, isNull);
+      });
+
+      test('a stored legacy phone — another spelling, or one today\'s rule '
+          'refuses — is sent back unchanged and never rewritten', () async {
+        for (final legacy in ['0300-1234567', '12345']) {
+          db = FakeDb();
+          auth = FakeAuth(db);
+          repo = newRepo();
+          final a = await completed();
+          db.profiles[a.id]!['phone'] = legacy;
+          final read = (await repo.byId(a.id))!;
+          await repo.update(read.copyWith(fullName: 'Hamza Ali'));
+          expect(db.detailsWrites, ['profiles.full_name'], reason: legacy);
+          expect(db.profiles[a.id]!['phone'], legacy, reason: legacy);
+        }
+      });
+
+      test('D3: the date of birth can be changed, not cleared', () async {
+        final a = await completed();
+        db.calls.clear();
+        await expectLater(
+          repo.update(without(a, dob: true)),
+          validation('Date of birth is required'),
+        );
+        expect(db.calls, isEmpty);
+        await repo.update(a.copyWith(dateOfBirth: DateTime(1999, 1, 2)));
+        expect(params()['p_date_of_birth'], '1999-01-02');
+        expect(db.profiles[a.id]!['date_of_birth'], '1999-01-02');
+      });
+
+      test('"same as current": no permanent arguments — the database copies '
+          'the current row', () async {
+        final a = await completed();
+        await repo.update(
+          a.copyWith(currentArea: 'DHA', permanentArea: 'Somewhere else'),
+        );
+        expect(params()['p_permanent_area'], isNull);
+        expect(params()['p_permanent_city'], isNull);
+        expect(db.permanentAddresses[a.id]!['area'], 'DHA'); // the copy
+      });
+
+      test('a separate permanent address: its own complete arguments, only '
+          'when it changed', () async {
+        final a = await repo.saveProfileSetup(
+          filledIn(await signedUp(), same: false),
+          at: today,
+        );
+        await repo.update(a.copyWith(fullName: 'Hamza Ali'));
+        expect(params()['p_permanent_city'], isNull);
+        await repo.update(
+          (await repo.byId(a.id))!.copyWith(permanentArea: 'Saddar'),
+        );
+        expect(
+          (
+            params()['p_permanent_city'],
+            params()['p_permanent_area'],
+            params()['p_permanent_address'],
+          ),
+          ('Multan', 'Saddar', 'Street 9'),
+        );
+        expect(params()['p_current_city'], isNull);
+        expect(db.detailsWrites, ['permanent_addresses']);
+      });
+
+      test('settings, photo or memberships only: no call at all', () async {
+        final a = await completed();
+        db.calls.clear();
+        await repo.update(
+          a.copyWith(settings: a.settings.copyWith(showPhone: true)),
+        );
+        expect(db.calls, isEmpty);
+      });
+
+      test('a refusal from the database: nothing saved, the device copy '
+          'unchanged too', () async {
+        final a = await completed();
+        db.cities = const {1: 'Karachi'};
+        await expectLater(
+          repo.update(
+            a.copyWith(
+              fullName: 'Hamza Ali',
+              currentCity: 'Lahore',
+              currentCityId: 2,
+              settings: a.settings.copyWith(showPhone: true),
+            ),
+          ),
+          validation('Please choose your city again'),
+        );
+        expect(db.profiles[a.id]!['full_name'], 'Hamza Sheikh');
+        expect(db.currentAddresses[a.id]!['city'], 'Lahore');
+        expect(db.detailsWrites, isEmpty);
+        final now = (await repo.byId(a.id))!;
+        expect(now.fullName, 'Hamza Sheikh');
+        expect(now.settings.showPhone, isFalse);
+      });
+
+      test('P0002 (no profile row) → ProfileNotFoundException (D2); nothing '
+          'saved on the device', () async {
+        final a = await completed();
+        db.profiles.remove(a.id);
+        await expectLater(
+          repo.update(
+            a.copyWith(
+              fullName: 'Hamza Ali',
+              settings: a.settings.copyWith(showPhone: true),
+            ),
+          ),
+          throwsA(isA<ProfileNotFoundException>()),
+        );
+        expect(
+          LocalAccountOverlay(prefs).applyTo(a).settings.showPhone,
+          isFalse,
+        );
+      });
     });
 
     test('another id → AccountMismatchException', () async {

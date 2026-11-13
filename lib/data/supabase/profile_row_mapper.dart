@@ -1,6 +1,16 @@
 import '../../core/models/models.dart';
 import '../../core/utils/validators.dart';
 
+/// One changed address for `update_profile_details()`: the city text, a NEW
+/// city id (else `null`: the database keeps or re-resolves the stored one),
+/// the Area and the Address.
+typedef ProfileAddressArgs = ({
+  String city,
+  int? cityId,
+  String area,
+  String address,
+});
+
 /// Pure conversions between the Supabase rows of the four ERD v8 tables
 /// (`profiles`, `current_addresses`, `permanent_addresses`,
 /// `player_profiles`) and the app's [UserAccount]. Rows are the JSON maps the
@@ -241,6 +251,52 @@ abstract final class ProfileRowMapper {
       'p_permanent_address': same ? null : account.permanentAddress,
     };
   }
+
+  /// The arguments of `public.update_profile_details(...)` (migration 9), in
+  /// its order. The app always sends all of them (explicit NULLs included).
+  static const updateProfileDetailsArgs = [
+    'p_full_name',
+    'p_phone',
+    'p_date_of_birth',
+    'p_current_city',
+    'p_current_city_id',
+    'p_current_area',
+    'p_current_address',
+    'p_permanent_city',
+    'p_permanent_city_id',
+    'p_permanent_area',
+    'p_permanent_address',
+  ];
+
+  /// Named arguments for `public.update_profile_details(...)` (Edit
+  /// Profile's save, migration 9). Every argument is sent, as the function
+  /// reads them:
+  /// - [fullName], [phone], [dateOfBirth] are the values to keep — NULL
+  ///   clears the phone / date of birth, so the caller sends the stored
+  ///   value when one is unchanged (the function then writes nothing);
+  /// - an address is either complete (a changed address: its text, Area
+  ///   and Address, and a new city id or NULL) or all four NULL (leave the
+  ///   row alone). Under "same as current" the function copies the current
+  ///   row, so the caller passes no permanent address.
+  static Map<String, Object?> updateProfileDetailsParams({
+    required String? fullName,
+    required String? phone,
+    required DateTime? dateOfBirth,
+    ProfileAddressArgs? current,
+    ProfileAddressArgs? permanent,
+  }) => {
+    'p_full_name': fullName,
+    'p_phone': phone,
+    'p_date_of_birth': dateOfBirth == null ? null : formatDate(dateOfBirth),
+    'p_current_city': current?.city,
+    'p_current_city_id': current?.cityId,
+    'p_current_area': current?.area,
+    'p_current_address': current?.address,
+    'p_permanent_city': permanent?.city,
+    'p_permanent_city_id': permanent?.cityId,
+    'p_permanent_area': permanent?.area,
+    'p_permanent_address': permanent?.address,
+  };
 
   /// A `player_profiles` row for [userId]. The database enforces the role
   /// rules (styles per role, wicket keeping for Batsmen only).

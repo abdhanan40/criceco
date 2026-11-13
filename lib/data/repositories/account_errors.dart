@@ -55,6 +55,14 @@ class ClubJoinUnavailableException extends AccountException {
     : super('Joining a club by code is coming soon');
 }
 
+/// The signed-in user has no profile row (`P0002 profile not found`, from
+/// `update_profile_details()`): nothing was saved. The session itself is
+/// valid, so this doesn't sign the user out.
+class ProfileNotFoundException extends AccountException {
+  const ProfileNotFoundException()
+    : super("Your profile couldn't be loaded — please sign in again");
+}
+
 /// Anything else the backend reported. The raw backend text is never shown.
 class BackendOperationException extends AccountException {
   const BackendOperationException()

@@ -237,6 +237,109 @@ void main() {
     });
   });
 
+  group('update_profile_details (migration 9, Stage 4.3.6b)', () {
+    GatewayConstraintException check(String message) =>
+        GatewayConstraintException(sqlState: '23514', message: message);
+
+    test('every refusal it raises has a user-facing message', () {
+      for (final (raised, shown) in [
+        (
+          'full_name must be 2–100 characters',
+          'Enter your full name (2–100 characters)',
+        ),
+        (
+          'phone must be a Pakistani mobile number',
+          'Enter a valid mobile number (03XX-XXXXXXX)',
+        ),
+        (
+          'date_of_birth is required (1900 or later)',
+          'Date of birth must be in 1900 or later',
+        ),
+        (
+          'date_of_birth cannot be in the future',
+          "Date of birth can't be in the future",
+        ),
+        (
+          'current_city_id must be an active city',
+          'Please choose your city again',
+        ),
+        (
+          'permanent_city_id must be an active city',
+          'Please choose your permanent city again',
+        ),
+        for (final table in ['current_addresses', 'permanent_addresses']) ...[
+          (
+            '$table.city must be 1–100 characters '
+                '(constraint "${table}_city_check")',
+            'City is required (up to 100 characters)',
+          ),
+          (
+            '$table.area must be 1–150 characters '
+                '(constraint "${table}_area_check")',
+            'Area is required (up to 150 characters)',
+          ),
+          (
+            '$table.address must be 1–500 characters '
+                '(constraint "${table}_address_check")',
+            'Address is required (up to 500 characters)',
+          ),
+        ],
+      ]) {
+        expect(messageOf(check(raised)), shown, reason: raised);
+      }
+    });
+
+    test('P0002 "profile not found" → ProfileNotFoundException (D2), which '
+        'does not sign the user out', () {
+      final e = SupabaseErrorMapper.map(
+        const GatewayConstraintException(
+          sqlState: 'P0002',
+          message: 'profile not found',
+        ),
+      );
+      expect(e, isA<ProfileNotFoundException>());
+      expect(
+        (e as AccountException).message,
+        "Your profile couldn't be loaded — please sign in again",
+      );
+      expect(e, isNot(isA<NotSignedInException>()));
+    });
+
+    test('another P0002 stays a generic backend error', () {
+      expect(
+        SupabaseErrorMapper.map(
+          const GatewayConstraintException(
+            sqlState: 'P0002',
+            message: 'query returned no rows',
+          ),
+        ),
+        isA<BackendOperationException>(),
+      );
+    });
+
+    test('its own "not authenticated" (42501) asks to sign in again', () {
+      expect(
+        SupabaseErrorMapper.map(
+          const GatewayConstraintException(
+            sqlState: '42501',
+            message: 'not authenticated',
+          ),
+        ),
+        isA<NotSignedInException>(),
+      );
+    });
+
+    test('the function missing (PGRST202, D5: no fallback) → the generic '
+        'error', () {
+      expect(
+        SupabaseErrorMapper.map(
+          const GatewayUnexpectedException('postgrest:PGRST202'),
+        ),
+        isA<BackendOperationException>(),
+      );
+    });
+  });
+
   group('storedPhone', () {
     test('every accepted spelling becomes +923XXXXXXXXX', () {
       for (final p in [

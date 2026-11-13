@@ -177,37 +177,35 @@ class SupabaseAccountRepository implements AccountRepository {
     return _read(user);
   }
 
-  /// Writes only what changed: full name, phone and date of birth on
-  /// `profiles`, and existing address rows; photo and settings locally
-  /// (D9); memberships in memory (D6). The Club Owner flags aren't written:
-  /// they follow the `clubs` row (created by `create_club()`, which also
-  /// sets `profiles.role` in the same transaction), so a change to them
-  /// re-reads the account from the database.
+  /// Edit Profile's save (Stage 4.3.6b): full name, phone, date of birth and
+  /// the existing address rows in ONE call, `update_profile_details()`
+  /// (migration 9) — all written or nothing. Photo and settings stay on the
+  /// device (D9), memberships in memory (D6); they are saved only after the
+  /// call succeeded. The Club Owner flags aren't written: they follow the
+  /// `clubs` row (created by `create_club()`), so a change to them re-reads
+  /// the account from the database.
+  ///
+  /// Only changed values are checked here (the database checks them again);
+  /// the date of birth can't be cleared (D3: a profile without one is
+  /// incomplete); a changed address needs its row (D1: Profile Setup creates
+  /// it — the function never does). No change to any of these fields → no
+  /// call at all.
   @override
   Future<UserAccount> update(UserAccount account) async {
     final user = _signedIn(account.id);
     final before = _remote[user.id] ?? await _read(user);
 
-    final columns = <String, Object?>{};
-    if (account.fullName.trim() != before.fullName.trim()) {
-      ProfileRules.check([ProfileRules.nameError(account.fullName)]);
-      columns['full_name'] = account.fullName.trim();
-    }
-    if (_phoneChanged(before.phone, account.phone)) {
-      columns['phone'] = account.phone == null
-          ? null
-          : SupabaseErrorMapper.storedPhone(account.phone!);
-    }
-    if (account.dateOfBirth != before.dateOfBirth) {
+    final name = account.fullName.trim();
+    final nameChanged = name != before.fullName.trim();
+    if (nameChanged) ProfileRules.check([ProfileRules.nameError(name)]);
+    final phoneChanged = _phoneChanged(before.phone, account.phone);
+    final dobChanged = account.dateOfBirth != before.dateOfBirth;
+    if (dobChanged) {
       ProfileRules.check([
         ProfileRules.dateOfBirthError(account.dateOfBirth, clock.now()),
       ]);
-      columns['date_of_birth'] = ProfileRowMapper.formatDate(
-        account.dateOfBirth!,
-      );
     }
-
-    final current = _addressChange(
+    final current = _addressArgs(
       before.currentCity == null
           ? null
           : (
@@ -223,10 +221,11 @@ class SupabaseAccountRepository implements AccountRepository {
         account.currentCityId,
       ),
     );
-    // "Same as current": the stored permanent address is the current copy.
-    final permanent = account.isPermanentSameAsCurrent
-        ? (before.permanentCity == null ? null : current)
-        : _addressChange(
+    // "Same as current" is the STORED flag, as in the function: the
+    // database copies the current row itself, so no permanent arguments.
+    final permanent = before.isPermanentSameAsCurrent
+        ? null
+        : _addressArgs(
             before.permanentCity == null
                 ? null
                 : (
@@ -243,18 +242,27 @@ class SupabaseAccountRepository implements AccountRepository {
             ),
           );
 
-    if (columns.isNotEmpty) {
-      await _call(() => db.updateProfileColumns(user.id, columns));
-    }
-    if (current != null) {
-      await _call(
-        () => db.updateAddress('current_addresses', user.id, current),
+    final remoteChanged =
+        nameChanged ||
+        phoneChanged ||
+        dobChanged ||
+        current != null ||
+        permanent != null;
+    if (remoteChanged) {
+      final params = ProfileRowMapper.updateProfileDetailsParams(
+        fullName: name.isEmpty ? null : name,
+        // Unchanged: the stored value as read — the function compares it in
+        // its canonical form, so it is never re-checked or rewritten.
+        phone: !phoneChanged
+            ? before.phone
+            : account.phone == null
+            ? null
+            : SupabaseErrorMapper.storedPhone(account.phone!),
+        dateOfBirth: account.dateOfBirth,
+        current: current,
+        permanent: permanent,
       );
-    }
-    if (permanent != null) {
-      await _call(
-        () => db.updateAddress('permanent_addresses', user.id, permanent),
-      );
+      await _call(() => db.updateProfileDetails(params));
     }
     await _keepLocal(account);
 
@@ -263,27 +271,34 @@ class SupabaseAccountRepository implements AccountRepository {
     final clubChanged =
         account.hasClubOwnerProfile != before.hasClubOwnerProfile ||
         account.ownedClubId != before.ownedClubId;
-    final remoteChanged =
-        columns.isNotEmpty || current != null || permanent != null;
     return remoteChanged || clubChanged ? _read(user) : _withLocal(before);
   }
 
-  /// The columns to write for a changed address, `null` when unchanged or
-  /// when there is no stored row to update (Profile Setup creates it).
+  /// The four address arguments for a changed address, `null` when it is
+  /// unchanged (the function then leaves the row alone).
   ///
   /// A new city id (picked from the list, also a town with the same name as
-  /// the stored one) is written as `city_id` with the text: the database
-  /// sets the city's plain name from it (migration 8). No new id → text only,
-  /// as before (the database keeps or re-resolves the id from the text); an
-  /// id is never cleared from here.
-  Map<String, Object?>? _addressChange(
+  /// the stored one) is sent with the text: the database stores that city's
+  /// plain name (migration 9). No new id → text only, as before (the
+  /// database keeps or re-resolves the id from the text); an id is never
+  /// cleared from here. D1: a changed address without a stored row is
+  /// refused — the function would ignore it, and it never creates the row.
+  static ProfileAddressArgs? _addressArgs(
     (String?, String?, String?, int?)? stored,
     (String?, String?, String?, int?) next,
   ) {
-    if (stored == null) return null;
     String t(String? v) => (v ?? '').trim();
     final (city, area, address, cityId) = next;
-    final newId = cityId != null && cityId != stored.$4 ? cityId : null;
+    final newId = cityId != null && cityId != stored?.$4 ? cityId : null;
+    if (stored == null) {
+      if (newId == null &&
+          t(city).isEmpty &&
+          t(area).isEmpty &&
+          t(address).isEmpty) {
+        return null;
+      }
+      throw const ProfileValidationException(noAddressRow);
+    }
     if (newId == null &&
         t(city) == t(stored.$1) &&
         t(area) == t(stored.$2) &&
@@ -291,13 +306,11 @@ class SupabaseAccountRepository implements AccountRepository {
       return null;
     }
     ProfileRules.check(ProfileRules.addressErrors(city, area, address));
-    return {
-      'city': t(city),
-      'area': t(area),
-      'address': t(address),
-      'city_id': ?newId,
-    };
+    return (city: t(city), cityId: newId, area: t(area), address: t(address));
   }
+
+  /// D1: an address can only be changed once Profile Setup has saved it.
+  static const noAddressRow = 'Please complete Profile Setup first';
 
   static bool _phoneChanged(String? before, String? after) {
     String? canonical(String? p) =>

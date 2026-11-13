@@ -210,7 +210,6 @@ void main() {
         at: DateTime(2026, 11, 11),
       );
       db.calls.clear();
-      db.lastAddressUpdate.clear();
       return saved;
     }
 
@@ -226,26 +225,32 @@ void main() {
           ),
         );
 
-    test(
-      'a picked id is written with the text; the read-back has it',
-      () async {
-        final a = await profiled();
-        final saved = await repo.update(edit(a, 'Kamra', 101, 'Cantt'));
-        const columns = {
-          'city': 'Kamra',
-          'area': 'Cantt',
-          'address': 'Street 1',
-          'city_id': 101,
-        };
-        expect(db.lastAddressUpdate['current_addresses'], columns);
-        expect(db.lastAddressUpdate['permanent_addresses'], columns);
-        expect(
-          (saved.city, saved.currentCityId, saved.currentArea),
-          ('Kamra', 101, 'Cantt'),
-        );
-        expect((saved.permanentCity, saved.permanentCityId), ('Kamra', 101));
-      },
-    );
+    /// The address arguments of the last update_profile_details call.
+    (Object?, Object?, Object?, Object?) sent(String which) {
+      final p = db.lastDetailsParams!;
+      return (
+        p['p_${which}_city'],
+        p['p_${which}_city_id'],
+        p['p_${which}_area'],
+        p['p_${which}_address'],
+      );
+    }
+
+    const untouched = (null, null, null, null);
+
+    test('a picked id is sent with the text; the read-back has it', () async {
+      final a = await profiled();
+      final saved = await repo.update(edit(a, 'Kamra', 101, 'Cantt'));
+      expect(sent('current'), ('Kamra', 101, 'Cantt', 'Street 1'));
+      // Same as current: the database copies the current row.
+      expect(sent('permanent'), untouched);
+      expect(db.detailsWrites, ['current_addresses', 'permanent_addresses']);
+      expect(
+        (saved.city, saved.currentCityId, saved.currentArea),
+        ('Kamra', 101, 'Cantt'),
+      );
+      expect((saved.permanentCity, saved.permanentCityId), ('Kamra', 101));
+    });
 
     test(
       'same text, another id (two towns named Kamra) is still a change',
@@ -253,39 +258,34 @@ void main() {
         final a = await repo.update(
           edit(await profiled(), 'Kamra', 101, 'Cantt'),
         );
-        db.lastAddressUpdate.clear();
         final saved = await repo.update(edit(a, 'Kamra', 102, 'Cantt'));
-        expect(db.lastAddressUpdate['current_addresses']!['city_id'], 102);
+        expect(sent('current').$2, 102);
         expect((saved.currentCityId, saved.permanentCityId), (102, 102));
       },
     );
 
-    test('unchanged city, Area and address: no address write', () async {
+    test('unchanged city, Area and address: the address is left alone '
+        '(all four NULL)', () async {
       final a = await profiled();
       await repo.update(a.copyWith(fullName: 'Hamza S.'));
-      expect(db.calls.where((c) => c.startsWith('updateAddress')), isEmpty);
+      expect(sent('current'), untouched);
+      expect(db.detailsWrites, ['profiles.full_name']);
     });
 
     test('an unchanged id is not sent again; text only, as before', () async {
       final a = await profiled();
       // e.g. an Area change by another caller: the id stays the stored one.
       await repo.update(a.copyWith(currentArea: 'DHA', permanentArea: 'DHA'));
-      expect(db.lastAddressUpdate['current_addresses'], {
-        'city': 'Karachi',
-        'area': 'DHA',
-        'address': 'Street 1',
-      });
+      expect(sent('current'), ('Karachi', null, 'DHA', 'Street 1'));
       expect(db.currentAddresses.values.single['city_id'], 1); // kept
+      expect(db.permanentAddresses.values.single['area'], 'DHA'); // the copy
     });
 
-    test('a City without an id (v1 / text-only) writes no city_id; the '
+    test('a City without an id (v1 / text-only) sends no city_id; the '
         'database resolves the text', () async {
       final a = await profiled(ids: false);
       final saved = await repo.update(edit(a, 'Lahore', null, 'Gulberg'));
-      expect(
-        db.lastAddressUpdate['current_addresses']!.containsKey('city_id'),
-        isFalse,
-      );
+      expect(sent('current'), ('Lahore', null, 'Gulberg', 'Street 1'));
       expect(saved.currentCityId, 2); // the fake's unique-name resolution
       final ambiguous = await repo.update(edit(saved, 'Kamra', null, 'Cantt'));
       expect(ambiguous.currentCityId, isNull); // two cities named Kamra
@@ -294,12 +294,13 @@ void main() {
     test('a separate permanent address is not written', () async {
       final a = await profiled(same: false);
       final saved = await repo.update(edit(a, 'Lahore', 2, 'Gulberg'));
-      expect(db.lastAddressUpdate.keys, ['current_addresses']);
+      expect(sent('permanent'), untouched);
+      expect(db.detailsWrites, ['current_addresses']);
       expect((saved.permanentCity, saved.permanentCityId), ('Multan', 6));
     });
 
-    test('an unknown id (23503, foreign key) → "Please choose your city '
-        'again"; nothing changes', () async {
+    test('an unknown id (refused by the function, 23514) → "Please choose '
+        'your city again"; nothing changes', () async {
       final a = await profiled();
       await expectLater(
         repo.update(edit(a, 'Atlantis', 999, 'Cantt')),
@@ -313,6 +314,7 @@ void main() {
       );
       expect(db.currentAddresses.values.single['city_id'], 1);
       expect(db.currentAddresses.values.single['city'], 'Karachi');
+      expect(db.detailsWrites, isEmpty);
     });
   });
 

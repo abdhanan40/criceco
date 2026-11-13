@@ -126,9 +126,6 @@ class SupabaseProfileGateway implements ProfileGateway {
   final sb.SupabaseClient _client;
   final Duration timeout;
 
-  /// The only tables [updateAddress] may write.
-  static const addressTables = {'current_addresses', 'permanent_addresses'};
-
   @override
   Future<AccountRows?> fetchAccountRows(String userId) => _guard(() async {
     final row = await _client
@@ -178,29 +175,13 @@ class SupabaseProfileGateway implements ProfileGateway {
       _guard(() => _client.rpc<void>('save_profile_setup_v2', params: params));
 
   @override
+  Future<void> updateProfileDetails(Map<String, Object?> params) =>
+      _guard(() => _client.rpc<void>('update_profile_details', params: params));
+
+  @override
   Future<void> upsertPlayerProfile(Map<String, Object?> row) => _guard(
     () => _client.from('player_profiles').upsert(row, onConflict: 'user_id'),
   );
-
-  @override
-  Future<void> updateProfileColumns(
-    String userId,
-    Map<String, Object?> columns,
-  ) => _guard(() => _client.from('profiles').update(columns).eq('id', userId));
-
-  @override
-  Future<void> updateAddress(
-    String table,
-    String userId,
-    Map<String, Object?> columns,
-  ) {
-    if (!addressTables.contains(table)) {
-      throw ArgumentError.value(table, 'table', 'not an address table');
-    }
-    return _guard(
-      () => _client.from(table).update(columns).eq('user_id', userId),
-    );
-  }
 
   @override
   Future<void> setRoleIfUnset(String userId, String role) => _guard(

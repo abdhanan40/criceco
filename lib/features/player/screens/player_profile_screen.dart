@@ -154,13 +154,17 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
     // Area shown for it; an unchanged City leaves the address alone.
     final city = _cityChanged ? _city : null;
     final cityId = city != null && city.id > 0 ? city.id : null;
+    // A blank phone clears the saved one (allowed for email accounts only:
+    // the form requires it otherwise).
+    final clearPhone = phone == null;
     try {
       await ref.read(sessionProvider.notifier).updateAccount(
             (a) => city == null
-                ? a.copyWith(fullName: _name.text.trim(), phone: phone)
+                ? a.copyWith(fullName: _name.text.trim(), phone: phone, clearPhone: clearPhone)
                 : a.copyWith(
                     fullName: _name.text.trim(),
                     phone: phone,
+                    clearPhone: clearPhone,
                     city: city.name,
                     currentCityId: cityId,
                     clearCurrentCityId: cityId == null,

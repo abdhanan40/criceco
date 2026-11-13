@@ -155,6 +155,71 @@ void main() {
       expect(jsonDecode(r.body), params);
     });
 
+    test('updateProfileDetails calls update_profile_details with all '
+        'eleven arguments, nulls included (Stage 4.3.6b)', () async {
+      respond = (_) => http.Response('', 204);
+      final params = <String, Object?>{
+        'p_full_name': 'Hamza Sheikh',
+        'p_phone': null,
+        'p_date_of_birth': '2000-05-01',
+        'p_current_city': 'Kamra',
+        'p_current_city_id': 101,
+        'p_current_area': 'Cantt',
+        'p_current_address': 'Street 1',
+        'p_permanent_city': null,
+        'p_permanent_city_id': null,
+        'p_permanent_area': null,
+        'p_permanent_address': null,
+      };
+      await SupabaseProfileGateway(client).updateProfileDetails(params);
+      final r = requests.single;
+      expect(r.method, 'POST');
+      expect(r.url.path, '/rest/v1/rpc/update_profile_details');
+      expect(jsonDecode(r.body), params); // explicit nulls are sent
+    });
+
+    test('updateProfileDetails: P0002 / 23514 keep their SQLSTATE and '
+        'message; a missing function (PGRST202) is unexpected', () async {
+      final g = SupabaseProfileGateway(client);
+      Future<Object?> fail(Map<String, Object?> body, int status) async {
+        respond = (_) => json(body, status);
+        try {
+          await g.updateProfileDetails(const {});
+        } catch (e) {
+          return e;
+        }
+        return null;
+      }
+
+      final notFound = await fail({
+        'code': 'P0002',
+        'message': 'profile not found',
+      }, 400);
+      expect(
+        notFound,
+        isA<GatewayConstraintException>()
+            .having((e) => e.sqlState, 'sqlState', 'P0002')
+            .having((e) => e.message, 'message', 'profile not found'),
+      );
+      final check = await fail({
+        'code': '23514',
+        'message': 'current_city_id must be an active city',
+      }, 400);
+      expect(
+        check,
+        isA<GatewayConstraintException>().having(
+          (e) => e.sqlState,
+          'sqlState',
+          '23514',
+        ),
+      );
+      final missing = await fail({
+        'code': 'PGRST202',
+        'message': 'Could not find the function public.update_profile_details',
+      }, 404);
+      expect(missing, isA<GatewayUnexpectedException>());
+    });
+
     test('upsertPlayerProfile upserts on user_id', () async {
       respond = (_) => http.Response('', 201);
       await SupabaseProfileGateway(client)
@@ -175,33 +240,6 @@ void main() {
       expect(r.url.queryParameters['id'], 'eq.$uid');
       expect(r.url.queryParameters['role'], 'is.null');
       expect(jsonDecode(r.body), {'role': 'player'});
-    });
-
-    test(
-      'updateProfileColumns / updateAddress target the own rows only',
-      () async {
-        respond = (_) => http.Response('', 204);
-        final g = SupabaseProfileGateway(client);
-        await g.updateProfileColumns(uid, {'phone': '+923331112223'});
-        await g.updateAddress('current_addresses', uid, {'city': 'Karachi'});
-        expect(
-          requests.map((r) => '${r.method} ${r.url.path} ${r.url.query}'),
-          [
-            'PATCH /rest/v1/profiles id=eq.$uid',
-            'PATCH /rest/v1/current_addresses user_id=eq.$uid',
-          ],
-        );
-      },
-    );
-
-    test('updateAddress refuses any other table, before a request', () {
-      expect(
-        () =>
-            SupabaseProfileGateway(client)
-                .updateAddress('profiles', uid, {'role': 'club_owner'}),
-        throwsArgumentError,
-      );
-      expect(requests, isEmpty);
     });
   });
 

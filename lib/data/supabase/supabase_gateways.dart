@@ -83,23 +83,13 @@ abstract interface class ProfileGateway {
   /// (migration 8); one transaction.
   Future<void> saveProfileSetupV2(Map<String, Object?> params);
 
+  /// `rpc('update_profile_details', params)` — Edit Profile's save
+  /// (migration 9): the profile details and the existing address rows in
+  /// one transaction.
+  Future<void> updateProfileDetails(Map<String, Object?> params);
+
   /// Upsert into `player_profiles` on `user_id`.
   Future<void> upsertPlayerProfile(Map<String, Object?> row);
-
-  /// `update profiles set <columns> where id = userId`.
-  Future<void> updateProfileColumns(
-    String userId,
-    Map<String, Object?> columns,
-  );
-
-  /// `update <table> set <columns> where user_id = userId` — updates an
-  /// existing address row only ([table] is `current_addresses` or
-  /// `permanent_addresses`).
-  Future<void> updateAddress(
-    String table,
-    String userId,
-    Map<String, Object?> columns,
-  );
 
   /// `update profiles set role = role where id = userId and role is null`:
   /// never overwrites a role that is already set.

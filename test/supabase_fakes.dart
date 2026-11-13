@@ -235,62 +235,222 @@ class FakeDb implements ProfileGateway {
     players[row['user_id'] as String] = Map.of(row);
   }
 
-  @override
-  Future<void> updateProfileColumns(
-    String userId,
-    Map<String, Object?> columns,
-  ) async {
-    _maybeFail('updateProfileColumns');
-    _own(userId);
-    profiles[userId] = {...profiles[userId]!, ...columns};
-  }
+  /// The arguments of the last update_profile_details call.
+  Map<String, Object?>? lastDetailsParams;
 
+  /// What the last update_profile_details call wrote, in order: a profile
+  /// column (`profiles.full_name` / `profiles.phone` /
+  /// `profiles.date_of_birth`) or an address table. Empty: nothing written.
+  final detailsWrites = <String>[];
+
+  /// Stand-in for `public.update_profile_details()` (migration 9): the
+  /// caller's profile must exist (P0002); only changed values are checked
+  /// (23514, with the function's messages) and written; every check runs
+  /// before the first write, so a refusal writes nothing. Address arguments
+  /// are used only for an existing row and only when one of the four is
+  /// given; a supplied id wins (its city's name; a NEW id must be in
+  /// [cities]); without one, the text is written and the id kept or
+  /// re-resolved as migration 8 does. "Same as current" (the stored flag)
+  /// copies the current row as stored after the save.
   @override
-  Future<void> updateAddress(
-    String table,
-    String userId,
-    Map<String, Object?> columns,
-  ) async {
-    _maybeFail('updateAddress:$table');
-    _own(userId);
-    final rows = table == 'current_addresses'
-        ? currentAddresses
-        : permanentAddresses;
-    final row = rows[userId];
-    if (row == null) return;
-    final next = {...row, ...columns};
-    // Migration 8's address_city_sync_* triggers and foreign key: a written
-    // city_id sets the plain name (an id not in [cities] is refused, 23503);
-    // a changed text alone keeps the id while it names that city, else
-    // re-resolves it (a unique name, or NULL).
-    final id = columns['city_id'] as int?;
-    if (id != null) {
-      final name = cities[id];
-      if (name == null) {
-        throw GatewayConstraintException(
-          sqlState: '23503',
-          message:
-              'insert or update on table "$table" violates foreign key '
-              'constraint "${table}_city_id_fkey"',
-        );
+  Future<void> updateProfileDetails(Map<String, Object?> params) async {
+    _maybeFail('updateProfileDetails');
+    final uid = _uid();
+    lastDetailsParams = Map.of(params);
+    detailsWrites.clear();
+    final profile = profiles[uid];
+    if (profile == null) {
+      throw const GatewayConstraintException(
+        sqlState: 'P0002',
+        message: 'profile not found',
+      );
+    }
+    Never refuse(String message) =>
+        throw GatewayConstraintException(sqlState: '23514', message: message);
+
+    // Profile details.
+    final name = (params['p_full_name'] as String?)?.trim();
+    final setName = name != (profile['full_name'] as String?)?.trim();
+    if (setName && (name == null || name.length < 2 || name.length > 100)) {
+      refuse('full_name must be 2–100 characters');
+    }
+    final sentPhone = params['p_phone'] as String?;
+    final storedPhone = profile['phone'] as String?;
+    final phone = _canonicalPhone(sentPhone);
+    final setPhone =
+        phone != _canonicalPhone(storedPhone) ||
+        (phone == null && storedPhone != null && sentPhone != storedPhone);
+    if (setPhone &&
+        phone != null &&
+        !RegExp(r'^\+923[0-9]{9}$').hasMatch(phone)) {
+      refuse('phone must be a Pakistani mobile number');
+    }
+    final dob = params['p_date_of_birth'] as String?;
+    final setDob = dob != profile['date_of_birth'];
+    if (setDob && dob != null) {
+      final d = DateTime.parse(dob);
+      if (d.isBefore(DateTime(1900))) {
+        refuse('date_of_birth is required (1900 or later)');
       }
-      next['city'] = name;
-    } else if (columns.containsKey('city') && columns['city'] != row['city']) {
-      final text = columns['city'];
-      if (cities[row['city_id']] != text) {
-        final named = [
-          for (final e in cities.entries)
-            if (e.value == text) e.key,
-        ];
-        next['city_id'] = named.length == 1 ? named.single : null;
+      if (d.isAfter(DateTime.now())) {
+        refuse('date_of_birth cannot be in the future');
       }
     }
-    lastAddressUpdate[table] = columns;
-    rows[userId] = next;
+
+    // Addresses.
+    String? arg(String which, String field) =>
+        params['p_${which}_$field'] as String?;
+    int? idArg(String which) => params['p_${which}_city_id'] as int?;
+    bool given(String which) =>
+        arg(which, 'city') != null ||
+        idArg(which) != null ||
+        arg(which, 'area') != null ||
+        arg(which, 'address') != null;
+
+    final same = (profile['permanent_same_as_current'] as bool?) ?? true;
+    final currentRow = currentAddresses[uid];
+    final permanentRow = permanentAddresses[uid];
+    final current = currentRow != null && given('current')
+        ? _plannedAddress(
+            'current',
+            currentRow,
+            city: arg('current', 'city'),
+            cityId: idArg('current'),
+            area: arg('current', 'area'),
+            address: arg('current', 'address'),
+            refuse: refuse,
+          )
+        : null;
+    Map<String, dynamic>? permanent;
+    if (same && currentRow != null) {
+      if (permanentRow != null && given('current')) {
+        final c = current ?? currentRow;
+        final copy = {
+          ...permanentRow,
+          'city_id': c['city_id'],
+          'city': c['city'],
+          'area': c['area'],
+          'address': c['address'],
+        };
+        if (!_sameAddress(copy, permanentRow)) permanent = copy;
+      }
+    } else {
+      final which = same ? 'current' : 'permanent';
+      if (permanentRow != null && given(which)) {
+        permanent = _plannedAddress(
+          'permanent',
+          permanentRow,
+          city: arg(which, 'city'),
+          cityId: idArg(which),
+          area: arg(which, 'area'),
+          address: arg(which, 'address'),
+          refuse: refuse,
+        );
+      }
+    }
+
+    // Writes — all checks have passed.
+    final next = {...profile};
+    if (setName) {
+      next['full_name'] = name;
+      detailsWrites.add('profiles.full_name');
+    }
+    if (setPhone) {
+      next['phone'] = phone;
+      detailsWrites.add('profiles.phone');
+    }
+    if (setDob) {
+      next['date_of_birth'] = dob;
+      detailsWrites.add('profiles.date_of_birth');
+    }
+    profiles[uid] = next;
+    if (current != null) {
+      currentAddresses[uid] = current;
+      detailsWrites.add('current_addresses');
+    }
+    if (permanent != null) {
+      permanentAddresses[uid] = permanent;
+      detailsWrites.add('permanent_addresses');
+    }
   }
 
-  /// The columns of the last update of each address table.
-  final lastAddressUpdate = <String, Map<String, Object?>>{};
+  /// Migration 9's phone normalisation, for the sent and the stored value.
+  static String? _canonicalPhone(String? raw) {
+    final r = raw ?? '';
+    final digits = r.replaceAll(RegExp(r'[\s-]'), '');
+    if (RegExp(r'^03[0-9]{9}$').hasMatch(digits)) {
+      return '+92${digits.substring(1)}';
+    }
+    if (RegExp(r'^923[0-9]{9}$').hasMatch(digits)) return '+$digits';
+    final noSpace = r.replaceAll(RegExp(r'\s'), '');
+    if (digits.isEmpty && noSpace.isNotEmpty) return noSpace;
+    return digits.isEmpty ? null : digits;
+  }
+
+  static bool _sameAddress(Map<String, dynamic> a, Map<String, dynamic> b) =>
+      a['city_id'] == b['city_id'] &&
+      a['city'] == b['city'] &&
+      a['area'] == b['area'] &&
+      a['address'] == b['address'];
+
+  /// One address row after the save, or `null` when nothing changes.
+  Map<String, dynamic>? _plannedAddress(
+    String which,
+    Map<String, dynamic> row, {
+    required String? city,
+    required int? cityId,
+    required String? area,
+    required String? address,
+    required Never Function(String) refuse,
+  }) {
+    String? t(Object? v) => (v as String?)?.trim();
+    final a = t(area), ad = t(address);
+    String? text;
+    var isNew = false;
+    if (cityId != null) {
+      isNew = cityId != row['city_id'];
+      final name = cities[cityId];
+      if (isNew && name == null) {
+        refuse('${which}_city_id must be an active city');
+      }
+      // A kept id whose city is no longer listed keeps the stored name.
+      text = name ?? row['city'] as String?;
+    } else {
+      text = t(city);
+    }
+    final write =
+        isNew ||
+        text != t(row['city']) ||
+        a != t(row['area']) ||
+        ad != t(row['address']);
+    if (!write) return null;
+    final table = '${which}_addresses';
+    for (final (field, value, max) in [
+      ('city', text, 100),
+      ('area', a, 150),
+      ('address', ad, 500),
+    ]) {
+      if (value == null || value.isEmpty || value.length > max) {
+        refuse(
+          '$table.$field must be 1–$max characters '
+          '(constraint "${table}_${field}_check")',
+        );
+      }
+    }
+    final next = {...row, 'city': text, 'area': a, 'address': ad};
+    if (cityId != null) {
+      next['city_id'] = cityId;
+    } else if (text != row['city'] && cities[row['city_id']] != text) {
+      // Migration 8: a changed text keeps the id while it names that city,
+      // else re-resolves it (a unique name, or NULL).
+      final named = [
+        for (final e in cities.entries)
+          if (e.value == text) e.key,
+      ];
+      next['city_id'] = named.length == 1 ? named.single : null;
+    }
+    return next;
+  }
 
   @override
   Future<void> setRoleIfUnset(String userId, String role) async {
