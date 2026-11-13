@@ -1,0 +1,205 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+/// The two narrow seams between [SupabaseAccountRepository] and Supabase.
+/// They use the app's own types only, so the repository is tested with
+/// fakes; the real implementations (on `supabase_flutter`) are in
+/// `supabase_sdk_gateways.dart`. Every method throws a [GatewayException] on
+/// failure.
+
+/// The signed-in Supabase Auth user, as the app needs it.
+class AuthUser {
+  const AuthUser({required this.id, this.email, this.metadata = const {}});
+  final String id;
+  final String? email;
+
+  /// Auth user metadata (`raw_user_meta_data`), e.g. `full_name` (D5).
+  final Map<String, Object?> metadata;
+
+  String? get fullName {
+    final v = metadata['full_name'];
+    return v is String && v.trim().isNotEmpty ? v.trim() : null;
+  }
+}
+
+class SignUpResult {
+  const SignUpResult({required this.user, required this.hasSession});
+  final AuthUser user;
+
+  /// `false` when the email address must be confirmed first.
+  final bool hasSession;
+}
+
+abstract interface class AuthGateway {
+  /// The user of the persisted session, or `null` when signed out.
+  AuthUser? get currentUser;
+
+  /// `null` for wrong credentials.
+  Future<AuthUser?> signInWithPassword({
+    required String email,
+    required String password,
+  });
+
+  Future<SignUpResult> signUp({
+    required String email,
+    required String password,
+    required Map<String, Object?> metadata,
+  });
+
+  Future<void> signOut();
+}
+
+/// One account's rows: `profiles` plus its (optional) address and player
+/// rows, and the id of the club it owns (`clubs(id)`, migration 5), as JSON
+/// maps.
+class AccountRows {
+  const AccountRows({
+    required this.profile,
+    this.currentAddress,
+    this.permanentAddress,
+    this.playerProfile,
+    this.club,
+    this.roles = const [],
+  });
+  final Map<String, dynamic> profile;
+  final Map<String, dynamic>? currentAddress;
+  final Map<String, dynamic>? permanentAddress;
+  final Map<String, dynamic>? playerProfile;
+
+  /// `{id}` of the user's own club, `null` when they have none.
+  final Map<String, dynamic>? club;
+
+  /// The user's `user_roles` rows (`{role}`, migration 7); empty when none.
+  final List<Map<String, dynamic>> roles;
+}
+
+abstract interface class ProfileGateway {
+  /// `null` when the user has no `profiles` row (RLS: own row only).
+  Future<AccountRows?> fetchAccountRows(String userId);
+
+  /// `rpc('save_profile_setup', params)` — one transaction.
+  Future<void> saveProfileSetup(Map<String, Object?> params);
+
+  /// Upsert into `player_profiles` on `user_id`.
+  Future<void> upsertPlayerProfile(Map<String, Object?> row);
+
+  /// `update profiles set <columns> where id = userId`.
+  Future<void> updateProfileColumns(
+    String userId,
+    Map<String, Object?> columns,
+  );
+
+  /// `update <table> set <columns> where user_id = userId` — updates an
+  /// existing address row only ([table] is `current_addresses` or
+  /// `permanent_addresses`).
+  Future<void> updateAddress(
+    String table,
+    String userId,
+    Map<String, Object?> columns,
+  );
+
+  /// `update profiles set role = role where id = userId and role is null`:
+  /// never overwrites a role that is already set.
+  Future<void> setRoleIfUnset(String userId, String role);
+}
+
+/// The signed-in owner's own `clubs` row (migration 5). Rows are the JSON
+/// maps the REST API returns; RLS limits every call to the caller's club.
+abstract interface class ClubGateway {
+  /// `select * from clubs where owner_id = userId` — `null` when the user
+  /// has no club.
+  Future<Map<String, dynamic>?> fetchOwnClub(String userId);
+
+  /// `rpc('create_club', params)` — the club, its join code and
+  /// `profiles.role` in one transaction; returns the club row (the existing
+  /// one when the user already has a club).
+  Future<Map<String, dynamic>> createClub(Map<String, Object?> params);
+
+  /// `update clubs set columns where id = clubId and owner_id = userId`,
+  /// returning the updated row — `null` when no row was updated (not the
+  /// caller's club).
+  Future<Map<String, dynamic>?> updateClub(
+    String clubId,
+    String userId,
+    Map<String, Object?> columns,
+  );
+}
+
+/// The location lookup (migration 6), read-only. Rows are the JSON maps the
+/// REST API returns; RLS lets any signed-in user read them.
+abstract interface class LocationGateway {
+  /// `select id, name, display_name, kind, sort_order from provinces
+  /// where is_active order by sort_order`.
+  Future<List<Map<String, dynamic>>> fetchProvinces();
+
+  /// `select id, province_id, name from districts where province_id = …
+  /// and is_active order by name`.
+  Future<List<Map<String, dynamic>>> fetchDistricts(int provinceId);
+
+  /// `rpc('search_cities', params)` — rows of `v_city_options`.
+  Future<List<Map<String, dynamic>>> searchCities(Map<String, Object?> params);
+
+  /// `select * from v_city_options where id = …` — `null` when not listed.
+  Future<Map<String, dynamic>?> fetchCity(int id);
+}
+
+/// What a gateway reports when a call fails.
+sealed class GatewayException implements Exception {
+  const GatewayException();
+}
+
+/// Offline, timeout, DNS, 5xx — the call may not have reached the server.
+class GatewayNetworkException extends GatewayException {
+  const GatewayNetworkException();
+}
+
+/// The database refused the data (`23514` check, `23502` not-null, …).
+/// [constraint] is the constraint name when the backend reports one.
+class GatewayConstraintException extends GatewayException {
+  const GatewayConstraintException({
+    required this.sqlState,
+    required this.message,
+    this.constraint,
+  });
+  final String sqlState;
+  final String message;
+  final String? constraint;
+}
+
+/// No valid session: missing, invalid or expired JWT (HTTP 401 / 403,
+/// `PGRST301`–`PGRST303`). A `42501` privilege / RLS refusal is a
+/// [GatewayConstraintException] instead (sqlState `42501`): the session is
+/// fine there.
+class GatewayPermissionException extends GatewayException {
+  const GatewayPermissionException();
+}
+
+/// Sign-in for an account whose email address isn't confirmed yet.
+class GatewayEmailNotConfirmedException extends GatewayException {
+  const GatewayEmailNotConfirmedException();
+}
+
+/// Anything else (bad response, unexpected error). [detail] is a short code,
+/// never user data.
+class GatewayUnexpectedException extends GatewayException {
+  const GatewayUnexpectedException(this.detail);
+  final String detail;
+}
+
+const _notInitialized =
+    'Supabase is not initialized: start the app through main() '
+    '(backendOverrides), or override the gateway providers in tests';
+
+/// Overridden at startup in Supabase mode (`backendOverrides`) with the
+/// real gateways, and with fakes in tests.
+final authGatewayProvider = Provider<AuthGateway>(
+  (ref) => throw StateError(_notInitialized),
+);
+final profileGatewayProvider = Provider<ProfileGateway>(
+  (ref) => throw StateError(_notInitialized),
+);
+final clubGatewayProvider = Provider<ClubGateway>(
+  (ref) => throw StateError(_notInitialized),
+);
+final locationGatewayProvider = Provider<LocationGateway>(
+  (ref) => throw StateError(_notInitialized),
+);

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/models/models.dart';
 import '../../core/utils/validators.dart';
+import '../../data/repositories/repositories.dart';
 import '../providers/core_providers.dart';
 
 /// `onboarding` = authenticated, common user profile not yet complete.
@@ -97,11 +98,32 @@ class SessionController extends Notifier<SessionState> {
 
   /// App start: restore a remembered session so the persisted active role
   /// (approved P21) takes the user straight back into their role.
+  /// Offline (a remote backend can't be reached): stays signed out for now
+  /// and clears nothing, so the next start can restore normally.
+  /// Any other failure — an invalid or expired session, a missing or
+  /// unreadable profile — must not stop the app from starting (`main()`
+  /// awaits this before `runApp`): the remembered account is forgotten, the
+  /// backend session ended, and the user starts at Login. Never throws.
   Future<void> restore() async {
-    final id = ref.read(sharedPreferencesProvider).getString(_kAccount);
+    final prefs = ref.read(sharedPreferencesProvider);
+    final id = prefs.getString(_kAccount);
     if (id == null) return;
-    final account = await ref.read(accountRepositoryProvider).byId(id);
-    if (account != null) await _setAccount(account);
+    final repo = ref.read(accountRepositoryProvider);
+    try {
+      final account = await repo.byId(id);
+      if (account != null) await _setAccount(account);
+    } on BackendUnavailableException {
+      return;
+    } catch (_) {
+      state = const SessionState();
+      await prefs.remove(_kAccount);
+      try {
+        await repo.signOut();
+      } catch (_) {
+        // Already signed out locally; the backend session is cleared or
+        // expires on its own.
+      }
+    }
   }
 
   Future<void> updateAccount(UserAccount Function(UserAccount a) change) async {
@@ -172,7 +194,9 @@ class SessionController extends Notifier<SessionState> {
   /// the account, not a role) and moves on to Role Selection.
   /// When [isPermanentSameAsCurrent] is true, the permanent address mirrors
   /// the current address so the account stays consistent. The current city
-  /// also becomes the profile City ([syncProfileCity]).
+  /// also becomes the profile City ([syncProfileCity]). Saved in one step by
+  /// [AccountRepository.saveProfileSetup], which re-checks the profile rules
+  /// (throws [ProfileValidationException]; the screen validates first).
   Future<void> completeProfile({
     required String fullName,
     required String phone,
@@ -187,28 +211,42 @@ class SessionController extends Notifier<SessionState> {
     required bool isPermanentSameAsCurrent,
   }) async {
     final same = isPermanentSameAsCurrent;
-    await updateAccount((a) => a.copyWith(
-          fullName: fullName,
-          phone: phone,
-          dateOfBirth: dateOfBirth,
-          hasPhoto: photoPath != null,
-          photoPath: photoPath,
-          clearPhoto: photoPath == null,
-          currentCity: currentCity,
-          currentArea: currentArea,
-          currentAddress: currentAddress,
-          permanentCity: same ? currentCity : permanentCity,
-          permanentArea: same ? currentArea : permanentArea,
-          permanentAddress: same ? currentAddress : permanentAddress,
-          isPermanentSameAsCurrent: isPermanentSameAsCurrent,
-          profileComplete: true,
-        ));
+    final current = state.account;
+    if (current != null) {
+      final setup = syncProfileCity(
+          current,
+          current.copyWith(
+            fullName: fullName,
+            phone: phone,
+            dateOfBirth: dateOfBirth,
+            hasPhoto: photoPath != null,
+            photoPath: photoPath,
+            clearPhoto: photoPath == null,
+            currentCity: currentCity,
+            currentArea: currentArea,
+            currentAddress: currentAddress,
+            permanentCity: same ? currentCity : permanentCity,
+            permanentArea: same ? currentArea : permanentArea,
+            permanentAddress: same ? currentAddress : permanentAddress,
+            isPermanentSameAsCurrent: isPermanentSameAsCurrent,
+            profileComplete: true,
+          ));
+      final saved =
+          await ref.read(accountRepositoryProvider).saveProfileSetup(setup, at: ref.read(clockProvider).now());
+      state = state.copyWith(account: saved);
+    }
     state = state.copyWith(status: SessionStatus.signedIn);
   }
 
-  /// Role Selection → Player → Continue: saves the Player role profile.
-  Future<void> savePlayerProfile(PlayerProfile profile) =>
-      updateAccount((a) => a.copyWith(playerProfile: profile));
+  /// Role Selection → Player → Continue: saves the Player role profile
+  /// through [AccountRepository.savePlayerProfile], which re-checks the role
+  /// rules (throws [ProfileValidationException]; the screen validates first).
+  Future<void> savePlayerProfile(PlayerProfile profile) async {
+    final account = state.account;
+    if (account == null) return;
+    final saved = await ref.read(accountRepositoryProvider).savePlayerProfile(account.id, profile);
+    state = state.copyWith(account: saved);
+  }
 
   /// Create Club → Club Details submit. The only path that grants the
   /// account-level Club Owner profile.
@@ -254,9 +292,12 @@ class SessionController extends Notifier<SessionState> {
 
   /// Clears the session; `RoleController` clears the active role in response
   /// and the router guard sends the user to Login with an empty stack.
+  /// The backend session is ended too ([AccountRepository.signOut]; a no-op
+  /// in memory mode). The app signs out locally even if that call fails.
   void logout() {
     state = const SessionState();
     ref.read(sharedPreferencesProvider).remove(_kAccount);
+    ref.read(accountRepositoryProvider).signOut().catchError((Object _) {});
   }
 }
 

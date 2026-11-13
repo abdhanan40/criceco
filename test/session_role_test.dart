@@ -89,6 +89,7 @@ void main() {
     final c = await makeContainer(prefs: {
       'criceco.session.accountId': 'acc_aman',
       'criceco.activeRole': 'player',
+      'criceco.activeRole.account': 'acc_aman', // the role's owner (account-scoped)
       'criceco.lastRoute.player': Routes.myMatches,
       'criceco.lastRoute.clubOwner': '/not/a/top/level', // stale value is healed
     });

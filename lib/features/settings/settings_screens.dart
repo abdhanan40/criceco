@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/config/auth_features.dart';
 import '../../app/config/demo_mode.dart';
 import '../../app/router/routes.dart';
+import '../../app/session/account_error_text.dart';
 import '../../app/session/role_controller.dart';
 import '../../app/session/session_controller.dart';
 import '../../app/theme/tokens.dart';
@@ -106,6 +108,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final role = ref.watch(activeRoleProvider);
     final demo = ref.watch(demoModeProvider);
     final canToggleDemo = ref.read(demoModeProvider.notifier).canToggle;
+    final canChangePassword = ref.watch(authFeaturesProvider).passwordChange;
     return Scaffold(
       appBar: CeTopBar(title: 'Settings', fallbackLocation: _roleHome(ref)),
       body: ListView(padding: const EdgeInsets.only(bottom: 28), children: [
@@ -144,7 +147,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           CeSettingsRow(
             icon: 'key',
             title: 'Password & security',
-            subtitle: 'Change password, sign-in alerts',
+            subtitle: canChangePassword ? 'Change password, sign-in alerts' : 'Sign-in alerts',
             showDivider: false,
             onTap: () => context.go(Routes.securitySettings),
           ),
@@ -322,7 +325,15 @@ class _SecuritySettingsScreenState extends ConsumerState<SecuritySettingsScreen>
     setState(() => _currentError = null);
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
-    final ok = await ref.read(sessionProvider.notifier).changePassword(current: _current.text, next: _next.text);
+    final bool ok;
+    try {
+      ok = await ref.read(sessionProvider.notifier).changePassword(current: _current.text, next: _next.text);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      showCeToast(context, accountErrorText(e, fallback: "Couldn't update your password — please try again"));
+      return;
+    }
     if (!mounted) return;
     setState(() => _saving = false);
     if (!ok) {
@@ -358,72 +369,78 @@ class _SecuritySettingsScreenState extends ConsumerState<SecuritySettingsScreen>
   Widget build(BuildContext context) {
     final s = ref.watch(currentAccountProvider.select((a) => a?.settings)) ?? const AccountSettings();
     final session = ref.read(sessionProvider.notifier);
+    // Supabase builds: no password change or reset here (not configured on
+    // the backend); the sign-in toggles below stay.
+    final features = ref.watch(authFeaturesProvider);
     return Scaffold(
       appBar: const CeTopBar(title: 'Password & security', fallbackLocation: Routes.settings),
       body: ListView(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: EdgeInsets.only(bottom: 28 + MediaQuery.viewInsetsOf(context).bottom),
         children: [
-          const CeSectionHeader('Password'),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: CeSpace.gutter),
-            child: Form(
-              key: _formKey,
-              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                const CeFieldLabel('Current password'),
-                CeTextField(
-                  fieldKey: const Key('security.current'),
-                  controller: _current,
-                  hint: 'Enter current password',
-                  icon: 'lock',
-                  obscure: true,
-                  textInputAction: TextInputAction.next,
-                  validator: (v) => (v == null || v.isEmpty) ? 'Enter your current password' : null,
-                  onChanged: (_) {
-                    if (_currentError != null) setState(() => _currentError = null);
-                  },
-                ),
-                if (_currentError != null)
-                  Padding(padding: const EdgeInsets.only(bottom: 10), child: CeInlineError(_currentError)),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    key: const Key('security.forgot'),
-                    onPressed: _saving ? null : _forgotPassword,
-                    style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
-                    child: Text('Forgot current password?', style: CeType.buttonSmall.copyWith(color: CeColors.primary)),
+          if (features.passwordChange) ...[
+            const CeSectionHeader('Password'),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: CeSpace.gutter),
+              child: Form(
+                key: _formKey,
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  const CeFieldLabel('Current password'),
+                  CeTextField(
+                    fieldKey: const Key('security.current'),
+                    controller: _current,
+                    hint: 'Enter current password',
+                    icon: 'lock',
+                    obscure: true,
+                    textInputAction: TextInputAction.next,
+                    validator: (v) => (v == null || v.isEmpty) ? 'Enter your current password' : null,
+                    onChanged: (_) {
+                      if (_currentError != null) setState(() => _currentError = null);
+                    },
                   ),
-                ),
-                const CeFieldLabel('New password'),
-                CeTextField(
-                  fieldKey: const Key('security.new'),
-                  controller: _next,
-                  hint: 'e.g. Cricket@123',
-                  icon: 'key',
-                  obscure: true,
-                  textInputAction: TextInputAction.done,
-                  validator: (v) => validateNewPassword(v, _current.text),
-                  onFieldSubmitted: (_) => _update(),
-                ),
-                CePasswordChecklist(controller: _next),
-                if (s.passwordChangedAt != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Text('Last changed ${CeFormat.date(s.passwordChangedAt!)}',
-                        style: CeType.bodySmall.copyWith(fontSize: 12)),
+                  if (_currentError != null)
+                    Padding(padding: const EdgeInsets.only(bottom: 10), child: CeInlineError(_currentError)),
+                  if (features.passwordReset)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        key: const Key('security.forgot'),
+                        onPressed: _saving ? null : _forgotPassword,
+                        style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
+                        child: Text('Forgot current password?', style: CeType.buttonSmall.copyWith(color: CeColors.primary)),
+                      ),
+                    ),
+                  const CeFieldLabel('New password'),
+                  CeTextField(
+                    fieldKey: const Key('security.new'),
+                    controller: _next,
+                    hint: 'e.g. Cricket@123',
+                    icon: 'key',
+                    obscure: true,
+                    textInputAction: TextInputAction.done,
+                    validator: (v) => validateNewPassword(v, _current.text),
+                    onFieldSubmitted: (_) => _update(),
                   ),
-                // Off until the new password meets every requirement.
-                ListenableBuilder(
-                  listenable: _next,
-                  builder: (context, _) => CeButton(
-                    label: 'Update Password',
-                    loading: _saving,
-                    onPressed: _saving || !CeValidators.isStrongPassword(_next.text) ? null : _update,
+                  CePasswordChecklist(controller: _next),
+                  if (s.passwordChangedAt != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Text('Last changed ${CeFormat.date(s.passwordChangedAt!)}',
+                          style: CeType.bodySmall.copyWith(fontSize: 12)),
+                    ),
+                  // Off until the new password meets every requirement.
+                  ListenableBuilder(
+                    listenable: _next,
+                    builder: (context, _) => CeButton(
+                      label: 'Update Password',
+                      loading: _saving,
+                      onPressed: _saving || !CeValidators.isStrongPassword(_next.text) ? null : _update,
+                    ),
                   ),
-                ),
-              ]),
+                ]),
+              ),
             ),
-          ),
+          ],
           const CeSectionHeader('Sign-in'),
           CeGroupCard(children: [
             CeToggleRow(

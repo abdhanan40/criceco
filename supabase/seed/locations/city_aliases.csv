@@ -1,0 +1,492 @@
+geonames_alternatename_id,city_geonames_id,alias,language,kind,is_searchable
+12190290,1106880,Hājiān ki Dhok,,alternate,true
+551188,1111188,Timugara,,alternate,true
+3076571,1111188,Tīmurgara,en,alternate,true
+20024894,1161983,راولا کوٹ,ur,alternate,true
+612541,1161991,Pir Goth,,alternate,true
+11996390,1161991,Kingri,,alternate,true
+612556,1162004,Khairpur Mīrs,,alternate,true
+612557,1162004,Khaipur,,alternate,true
+13574834,1162004,Khairpur,en,alternate,false
+612637,1162105,Apozai,,alternate,true
+612638,1162105,Fort Sanderman,,alternate,true
+612639,1162105,Fort Sandeman,,alternate,true
+612714,1162285,Zaffarwal,,alternate,true
+18101394,1162285,ظفروال,ur,alternate,true
+18101405,1162316,یزمان,ur,alternate,true
+18101423,1162456,وزیر آباد,ur,alternate,true
+3933530,1162572,Wārburton,,alternate,true
+1926060,1162813,Vehari,en,alternate,true
+613010,1162855,Uttmanzai,,alternate,true
+613011,1162855,Uttamanza,,alternate,true
+833,1162862,Utal,,alternate,true
+613017,1162868,Ushda,,alternate,true
+613018,1162868,Usta,,alternate,true
+19768155,1162959,Umerkot,,alternate,true
+19768156,1162959,Amarkot,,alternate,true
+19768157,1162959,امرڪوٽ,ur,alternate,true
+18101454,1163021,اباؤرو,ur,alternate,true
+9709892,1163054,تُربت,ur,alternate,true
+11633520,1163054,تربت,ur,alternate,true
+18101465,1163198,توردھر,ur,alternate,true
+613286,1163414,Thul Sind,,alternate,true
+613371,1163582,Tatta,,alternate,true
+9389728,1163582,ٹھٹہ,ur,alternate,true
+613573,1163952,Tando Mohammad Khan,,alternate,true
+18101539,1163958,ٹنڈو جام,ur,alternate,true
+18101546,1163964,ٹنڈو باگو,ur,alternate,true
+613586,1163965,Tando Alahyar,,alternate,true
+18101557,1163968,تاندلیانوالہ,ur,alternate,true
+613637,1164064,Tolamba,,alternate,true
+613638,1164064,Tulamba Town,,alternate,true
+613644,1164076,Tāl,,alternate,true
+613722,1164245,Surakhpur,,alternate,true
+613750,1164306,Soorab,,alternate,true
+613751,1164306,Sorab,,alternate,true
+8317974,1164408,سکھر,ur,alternate,true
+613920,1164679,Sohdra Town,,alternate,true
+613921,1164679,Sodlira,,alternate,true
+18101576,1164679,Sodhra,en,alternate,true
+18101578,1164679,سوہدرہ,ur,alternate,true
+613931,1164698,Sobbodero,,alternate,true
+613932,1164698,Sobho Dero,,alternate,true
+3934249,1164698,Sobhādero,,alternate,true
+20024869,1164709,سکردو,ur,alternate,true
+613971,1164776,Sinjihoro,,alternate,true
+18101584,1164776,سنجھورو,ur,alternate,true
+18101615,1164825,سلانوالی,ur,alternate,true
+614026,1164896,Ibis,,alternate,true
+9458678,1164896,سبی,ur,alternate,true
+8727543,1164909,سیالکوٹ,ur,alternate,true
+614047,1164970,Shujabad,,alternate,true
+3934335,1164987,Shorko,,alternate,true
+614143,1165221,Qila Sheikhupura,,alternate,true
+614144,1165221,Sheikhupura,,alternate,true
+9460470,1165221,شیخوپورہ,ur,alternate,true
+614175,1165260,Sharakpur,,alternate,true
+614176,1165260,Shargpur,,alternate,true
+3934427,1165260,Sharqpur,,alternate,true
+11389342,1165388,Shakargarr,,alternate,true
+614323,1165507,Shāhpur Chaka,,alternate,true
+614324,1165507,Shahpur Chaker,,alternate,true
+7752303,1165569,Shāh kot,,alternate,true
+18101673,1165635,شہدادپور,ur,alternate,true
+614365,1165638,Shāhdādpur,,alternate,false
+3147891,1165638,Shāhdādkot,,alternate,true
+614410,1165744,Shabkadar,,alternate,true
+614411,1165744,Shabgadar Fort,,alternate,true
+614412,1165744,Shapqadar,,alternate,true
+16473447,1165778,Sensa,,alternate,true
+18101700,1165789,سیہون شریف,ur,alternate,true
+8313431,1166000,سرگودھا,ur,alternate,true
+614566,1166066,Naurang Sarāi,,alternate,true
+9408242,1166073,سرائے عالمگیر,ur,alternate,true
+614610,1166164,Sangar,,alternate,true
+18101742,1166265,سمبڑیال,ur,alternate,true
+614708,1166381,Sakrano,,alternate,true
+3148120,1166475,Saidu,,alternate,true
+614775,1166480,Saiyidpur,,alternate,true
+614805,1166548,Montgomery,en,historic,true
+8234150,1166548,ساہِيوال,ur,alternate,true
+8743297,1166548,ساہیوال,ur,alternate,true
+614859,1166652,Sādikābād,,alternate,true
+3934863,1166652,Sādiqābād,,alternate,true
+614951,1166827,Lohri,,alternate,true
+11494758,1166827,روہڑی,ur,alternate,true
+615013,1166933,Renāla,,alternate,true
+18101776,1166933,رینالہ خورد,ur,alternate,true
+1598288,1166993,راولپنڈی,ur,alternate,true
+20026638,1166993,Ralalpindi,,alternate,true
+615052,1167031,Dero,,alternate,true
+615053,1167031,Rato,,alternate,true
+18101817,1167031,رتودیرو,ur,alternate,true
+615070,1167064,Rasūlnager,,alternate,true
+615071,1167064,Rāmnagar,,alternate,true
+615106,1167142,Raripur,,alternate,true
+18101850,1167142,رانی پور، سندھ,ur,alternate,true
+615220,1167386,Baja Jang,,alternate,true
+18101864,1167386,راجہ جنگ,ur,alternate,true
+18101877,1167398,رائے ونڈ,ur,alternate,true
+615248,1167460,Bahim Yar Khan,,alternate,true
+3148386,1167460,Rahīmyār Khān,,alternate,true
+8234636,1167460,رحیم یار خان,ur,alternate,true
+13291053,1167501,Rādhan,,alternate,true
+12255029,1167507,Chenab Nagar,,alternate,true
+615285,1167528,Shālkot,,alternate,true
+615286,1167528,Kwatah,,alternate,true
+615287,1167528,Kotah,,alternate,true
+615288,1167528,Shāl,,alternate,true
+8226172,1167528,کوئٹہ,ur,alternate,true
+615294,1167534,Qubo Saeed Khan Tehsil,,alternate,true
+615298,1167550,Killa Saifulla Bazar,,alternate,true
+615300,1167550,Killa-Saifulla,,alternate,true
+615301,1167550,Kila Saifulla,,alternate,true
+3148412,1167550,New Qila Saifullāh,,alternate,true
+1624323,1167579,Killa Abdullah,,alternate,true
+18101890,1167622,Qambar,en,alternate,true
+18101893,1167622,قمبر,ur,alternate,true
+615389,1167669,Qabala,,alternate,true
+2342225,1167821,پشی,ur,alternate,true
+615552,1168021,Pindi Battian,,alternate,true
+615553,1168021,Pindi Bhatian,,alternate,true
+18101909,1168021,پنڈی بھٹیاں,ur,alternate,true
+615559,1168036,Pindi Dadan Khan,,alternate,true
+1901935,1168197,پشاور,ur,alternate,true
+615668,1168226,Mandi Pattoki,,alternate,true
+11563975,1168226,پتوكى,ur,alternate,true
+615703,1168307,Pasūr,,alternate,true
+18101956,1168307,پسرور,ur,alternate,true
+615705,1168312,Pansi,,alternate,true
+18101973,1168312,پسنی,ur,alternate,true
+615755,1168394,Parachiner,,alternate,true
+11567556,1168394,پاڑاچنار,ur,alternate,true
+615763,1168412,Pano Akil,,alternate,true
+615782,1168446,Chukan,,alternate,true
+3148670,1168544,Palandri,,alternate,true
+3148702,1168643,Pagowāl,,alternate,true
+19526575,1168643,بھاگووال,ur,alternate,true
+18101990,1168700,اورماڑہ,ur,alternate,true
+616000,1168864,Nowshehra,,alternate,true
+616001,1168864,Naushahra,,alternate,true
+11558377,1168864,نوشہرہ,ur,alternate,true
+616020,1168889,Kundi,,alternate,true
+616021,1168889,Nag Kundi,,alternate,true
+616022,1168889,Kondi,,alternate,true
+616023,1168889,Nok Kondi,,alternate,true
+616024,1168889,Norkundi,,alternate,true
+20024882,1169027,Mirpur,en,alternate,true
+20024884,1169027,نیا میرپر شہر,ur,alternate,true
+20024885,1169027,ميرپور,ur,alternate,true
+616131,1169143,Naushahro,,alternate,true
+616132,1169143,Naushahro Piroz,,alternate,true
+16490379,1169143,Naushahro Feroze,,alternate,true
+616133,1169145,Naushera Virkhan,,alternate,true
+616134,1169145,Naushehra Werkan,,alternate,true
+3148850,1169145,Naushahra Virkhan,,alternate,true
+616165,1169187,Naundero,,alternate,true
+3148905,1169334,Nārang,,alternate,true
+18102025,1169334,نارنگ,ur,alternate,true
+616237,1169367,Nawakot,,alternate,true
+3148907,1169367,Naokot,,alternate,true
+616240,1169372,Nanakana Sahib,,alternate,true
+616241,1169372,Nankana Municipality,,alternate,true
+18102047,1169372,ننکانہ صاحب,ur,alternate,true
+616326,1169544,Nagar,,alternate,true
+16673889,1169544,Oyum Nagar,,alternate,true
+16673890,1169544,Nagar Khas,,alternate,true
+11571152,1169605,مظفر گڑھ,ur,alternate,true
+616348,1169607,Musaffarābād,,alternate,true
+20024558,1169607,مظفر آباد,ur,alternate,true
+616373,1169663,Musakhel,,alternate,true
+8321122,1169684,مری,ur,alternate,true
+18102103,1169692,مریدکے,ur,alternate,true
+12134553,1169825,مُلتان,ur,alternate,true
+616596,1170157,Walton,,alternate,true
+616636,1170219,Mitti,,alternate,true
+616660,1170281,Mīrwāh,,alternate,true
+616669,1170294,Mīrpur,,alternate,true
+8181477,1170295,میر پور خاص,ur,alternate,true
+11458733,1170295,میرپور خاص,ur,alternate,true
+16490381,1170312,Mirokhan,,alternate,true
+3936047,1170395,Mingāora,en,alternate,true
+11472763,1170395,مینگورہ,ur,alternate,true
+616709,1170398,Manchinabad,,alternate,true
+13142141,1170398,Minchianabad,,alternate,true
+1927554,1170486,Mian Channu,en,alternate,true
+18102228,1170667,ماتلی,ur,alternate,true
+616845,1170677,Matari,,alternate,true
+9455629,1170880,مردان,ur,alternate,true
+616977,1170974,Mankora,,alternate,true
+616993,1171006,Manhiāla Kalān,,alternate,true
+616994,1171006,Manhala Kalan,,alternate,true
+617048,1171123,Bahauddin,,alternate,true
+18102257,1171198,ماموں کانجن,ur,alternate,true
+18102279,1171376,ملکوال,ur,alternate,true
+617185,1171389,Malakaud,,alternate,true
+18102297,1171502,میلسی,ur,alternate,true
+617426,1171868,Loraiar,,alternate,true
+617482,1171991,Laliāni,,alternate,true
+617483,1171991,Lalliani,,alternate,true
+3149607,1172035,Leiah,,alternate,true
+18102343,1172295,لالیاں,ur,alternate,true
+8041309,1172318,Lalamusa,en,alternate,true
+17831418,1172318,لالہ موسی,ur,alternate,true
+617629,1172339,Laki-Marwat,,alternate,true
+3149678,1172339,Lakki Marwat,,alternate,true
+617677,1172451,Lāhaur,,alternate,true
+1596981,1172451,لاھور,ur,alternate,true
+1635078,1172451,لاہور,ur,alternate,true
+617756,1172595,Kuri Dolal,,alternate,true
+18102378,1172663,کنجاہ,ur,alternate,true
+617800,1172682,Kundian Pacca,,alternate,true
+18102392,1172682,كندياں,ur,alternate,true
+617888,1172904,Koti,,alternate,true
+9461715,1172904,کوٹری,ur,alternate,true
+18102409,1172915,کوٹ رادھا کشن,ur,alternate,true
+617908,1172964,Kot Mamin,,alternate,true
+617909,1172964,Kot-Moman,,alternate,true
+20024904,1173055,کوٹلی,ur,alternate,true
+20981047,1173176,Kot Khera,,alternate,true
+618048,1173302,Diji,,alternate,true
+618075,1173378,Kot-Adu,,alternate,true
+618214,1173664,Khozdar,,alternate,true
+20738762,1173664,خضدار,ur,alternate,true
+618227,1173687,Khushah,,alternate,true
+618229,1173692,Kurrianwala,,alternate,true
+618230,1173692,Khurianwala,,alternate,true
+3937062,1173692,Khurrianwala,,alternate,true
+13338398,1173692,Chak Two Hundred Sixty-six Rakh Branch,,alternate,true
+17754125,1174042,کھاریاں,ur,alternate,true
+618419,1174062,Khārān Kalāt,,alternate,true
+618420,1174062,Kharon Kalat,,alternate,true
+618424,1174074,Kharak,,alternate,true
+618425,1174074,Kark,,alternate,true
+16492168,1174094,Khapalu,,alternate,true
+618457,1174171,Khanpoor,,alternate,true
+3150142,1174171,Khānpur,,alternate,true
+618481,1174217,Khangah-Dogra,,alternate,true
+618482,1174217,Khānqāh Dogrān,,alternate,true
+618483,1174217,Khāngān Dogrān,,alternate,true
+618484,1174217,Khanga Dogran,,alternate,true
+618544,1174344,Khairpur Nathoshah,,alternate,true
+618545,1174344,Khairpur,,alternate,false
+12255347,1174355,Khairpur,,alternate,true
+618551,1174357,Khairpur Daherki,,alternate,true
+618694,1174625,Kansūr,,alternate,true
+618709,1174653,Kashmore,,alternate,true
+618739,1174720,Haror,,alternate,true
+618740,1174720,Karor Lal Isa,,alternate,true
+618822,1174872,Kurrachee,,alternate,true
+618824,1174872,Kurrachi,,alternate,true
+1596923,1174872,کراچی,ur,alternate,true
+8796852,1174872,Karanchi,en,alternate,true
+618931,1175082,Kamara,,alternate,true
+618934,1175088,Kāmoki,,alternate,true
+13142331,1175098,Kamīr,,alternate,true
+18102517,1175125,کمر مشانی,ur,alternate,true
+18102540,1175156,کمالیہ,ur,alternate,true
+618967,1175180,Kallur Kot Town,,alternate,true
+619001,1175232,Kalar Kahar,,alternate,true
+619025,1175283,Mandi Kaleke,,alternate,true
+619034,1175296,Khelat,,alternate,true
+619035,1175296,Kelat,,alternate,true
+18102562,1175365,کالا باغ,ur,alternate,true
+18102587,1175436,کہوٹہ,ur,alternate,true
+619099,1175446,Kharor,,alternate,true
+619100,1175446,Kahror,,alternate,true
+619101,1175446,Kehror Pakka Town,,alternate,true
+3150447,1175446,Kohror Pakka,,alternate,true
+619108,1175453,Khāna,,alternate,true
+3937676,1175453,Kāhna,,alternate,true
+18102629,1175560,کبیر والا,ur,alternate,true
+18102649,1175678,جوہی,ur,alternate,true
+619251,1175712,Jiyuni,,alternate,true
+619252,1175712,Jiunri,,alternate,true
+619253,1175712,Jīnwri,,alternate,true
+619277,1175748,Chak Jumra,,alternate,true
+3150532,1175748,Jhumra,,alternate,true
+8215578,1175864,جہلم,ur,alternate,true
+619348,1175873,Jhatpat Sadar,,alternate,true
+3150611,1175873,Jhatpat,,alternate,true
+619360,1175892,Maghiāna,,alternate,true
+619361,1175892,Jhang Marghiānā,,alternate,true
+619363,1175892,Jhang-Maghiāna,,alternate,true
+18102682,1175892,جھنگ صدر,ur,alternate,true
+18102689,1175892,Jhang Sadar,en,alternate,true
+619422,1176022,Joharabad,,alternate,true
+619426,1176035,Jatoi Shumali,,alternate,true
+18102724,1176106,جڑانوالہ,ur,alternate,true
+13501162,1176218,Jand Ja,,alternate,true
+619530,1176229,Jamsboro,,alternate,true
+619531,1176229,Jamshore,,alternate,true
+619532,1176229,Jams Shoro,,alternate,true
+2800210,1176229,Jām Shoro,en,alternate,true
+619535,1176233,Jamrūd Fort,,alternate,true
+18102792,1176233,جمرود,ur,alternate,true
+20898903,1176261,جمگھ,ur,alternate,true
+619579,1176358,Jalalpur,,alternate,true
+18102807,1176358,جلالپور پیروالا,ur,alternate,true
+3150753,1176368,Jalālpur,,alternate,true
+12097758,1176445,Jahānia,,alternate,true
+18102815,1176452,Jehangira,en,alternate,true
+18102819,1176452,جہانگیرا,ur,alternate,true
+619636,1176515,Jacobādad,,alternate,true
+13343663,1176515,Khangarh,en,alternate,true
+13343668,1176515,جیکب آباد,ur,alternate,true
+619674,1176615,Islamahbad,,alternate,true
+7588752,1176615,اسلام آباد,ur,alternate,true
+619720,1176734,Haidarabad,,alternate,true
+9445808,1176734,حیدرآباد، سندھ,ur,alternate,true
+17486344,1176734,Hyderabad City,,alternate,true
+7299124,1176800,Hujra,,alternate,true
+18102861,1176948,Hazro,en,alternate,true
+18102867,1176948,حضرو,ur,alternate,true
+18102890,1176995,حویلیاں,ur,alternate,true
+13142406,1176997,Haveli,,alternate,true
+619884,1177042,Hāsipur,,alternate,true
+18102918,1177042,حاصل پور,ur,alternate,true
+13291582,1177064,Hasan Abdāl,,alternate,true
+13291583,1177064,Hasanābād,,alternate,true
+619901,1177073,Badruwāla Mandi,,alternate,true
+619902,1177073,Haru Zbad,,alternate,true
+619903,1177073,Haroonabad Municipality,,alternate,true
+619918,1177089,Haranoli,,alternate,true
+619921,1177098,Harnai Bazar,,alternate,true
+619923,1177107,Kharipur,,alternate,true
+1994133,1177169,ہڑپہ,ur,alternate,true
+619973,1177278,Halu,,alternate,true
+18102964,1177278,ہالا، سندھ,ur,alternate,true
+619984,1177303,Hāji Shāh Nahia,,alternate,true
+16589129,1177308,ہجیرہ,ur,alternate,true
+620064,1177446,Gwadur,,alternate,true
+1947980,1177446,گوادر,ur,alternate,true
+1923309,1177654,گجرات,ur,alternate,true
+2034323,1177662,گوجرانوالہ,ur,alternate,true
+18102994,1177682,گوجر خان,ur,alternate,true
+11657351,1178231,گوجرہ,ur,alternate,true
+3151220,1178338,گلگت,ur,alternate,true
+620450,1178456,Gotki,,alternate,true
+620504,1178560,Ghouspur,,alternate,true
+620516,1178587,Garho,,alternate,true
+620636,1178843,Gāri Yāsin,,alternate,true
+620637,1178843,Gharhi Yasin,,alternate,true
+3151328,1178843,Garhi Yāsīn,,alternate,true
+620734,1179030,Gandawah,,alternate,true
+620740,1179038,Gandāka,,alternate,true
+11389691,1179038,Gandakna,,alternate,true
+620749,1179061,Gumbad,,alternate,true
+620750,1179061,Gampat,,alternate,true
+18103104,1179061,گمبٹ,ur,alternate,true
+3151384,1179082,Gakuch,,alternate,true
+620833,1179223,Mandi,,alternate,true
+620834,1179223,Abbas,,alternate,true
+11389697,1179255,Fazalpur,,alternate,true
+3938889,1179305,Chak Two Hundred Forty-Nine TDA,,alternate,true
+13393136,1179305,Chak Two Hundred Forty-nine Thal Development Authority,en,alternate,true
+17416331,1179305,Fateh Pur,en,alternate,true
+620891,1179331,Fatahjang,,alternate,true
+620896,1179346,Farooka,,alternate,true
+620908,1179377,Faqīrwāla,,alternate,true
+620909,1179377,Fagīrwāli,,alternate,true
+18103128,1179377,فقیروالی,ur,alternate,true
+620921,1179400,Shah Faisalabad,,alternate,true
+1995559,1179400,فیصل آباد,ur,alternate,true
+19466716,1179400,Lyallpur,en,historic,true
+620932,1179423,Bara Drush Khel,,alternate,true
+620933,1179423,Kuza Drushkela,,alternate,true
+620934,1179423,Bar Durshkhela,,alternate,true
+620935,1179423,Kuz Durshkela,,alternate,true
+3938922,1179423,Durshkhela,,alternate,true
+16490101,1179423,Durushkhela,,alternate,true
+18103138,1179463,ڈونگا بونگا,ur,alternate,true
+620973,1179496,Dull-wali,,alternate,true
+620974,1179496,Dulliwala,,alternate,true
+620975,1179496,Dullewali,,alternate,true
+18103148,1179496,دُلےوالا,ur,alternate,true
+18103164,1179660,ڈوکری,ur,alternate,true
+3151574,1179757,Dīr,en,alternate,true
+18103191,1179760,دیپالپور,ur,alternate,true
+18103204,1179790,ڈینگا,ur,alternate,true
+18103216,1179834,ڈجکوٹ,ur,alternate,true
+621260,1180071,Dhaonkal,,alternate,true
+18103234,1180071,دھونکل,ur,alternate,true
+16489290,1180133,Dhanote,en,alternate,true
+621361,1180289,Deri-Ghazi Khan,,alternate,true
+621362,1180289,Dera Ghoz Khan,,alternate,true
+8290084,1180289,ڈیرہ غازی خان,ur,alternate,true
+621366,1180295,Dera Bagti,,alternate,true
+621431,1180397,Doulatpur,,alternate,true
+621461,1180454,Darya Khan Daggar,,alternate,true
+621462,1180454,Darva Khān,,alternate,true
+18103301,1180454,دریا خان,ur,alternate,true
+621483,1180491,Durro,,alternate,true
+3151774,1180491,Dāro Mehar,,alternate,true
+3151775,1180491,Daro,,alternate,true
+621602,1180757,Daira Din Pannah Mustaqil,,alternate,true
+621617,1180787,Dagar,,alternate,true
+8331004,1180809,دادُو,ur,alternate,true
+621631,1180825,Dhadar,,alternate,true
+18103325,1180942,چونیاں,ur,alternate,true
+621704,1180983,Chuchar-kana Mandi,,alternate,true
+621705,1180983,Chūhar Kānd,,alternate,true
+621725,1181022,Chhor Purano,,alternate,true
+3939439,1181022,Chor,,alternate,true
+621740,1181053,Saiyidān Shāh,,alternate,true
+621741,1181053,Saidān Shāh,,alternate,true
+16473148,1181053,Choa Saidanshah,,alternate,true
+18103351,1181053,چوآسیدن شاہ,ur,alternate,true
+8233831,1181065,چترال,ur,alternate,true
+8233833,1181065,Chetrar,en,alternate,true
+621755,1181073,Chistian,,alternate,true
+3939452,1181073,Chishtiān Mandi,,alternate,true
+18103372,1181073,چشتیاں,ur,alternate,true
+621769,1181096,Chinot,,alternate,true
+621770,1181096,Chaniot,,alternate,true
+8296697,1181096,چنیوٹ,ur,alternate,true
+2342235,1181138,چلاس,ur,alternate,true
+622032,1181600,Chakkar,,alternate,true
+3152046,1181600,Chambar,,alternate,true
+11568268,1181611,چمن,ur,alternate,true
+622157,1181887,Chak Azam Saho,,alternate,true
+3939709,1181887,Chak Āzam Saffo,,alternate,true
+3152202,1182122,بُنِی,ur,alternate,true
+3152339,1182637,Bhimbar,,alternate,true
+622542,1182665,Bwera,,alternate,true
+18103465,1182665,بھیرہ,ur,alternate,true
+622549,1182682,Bawana,,alternate,true
+622550,1182682,Bhowana,,alternate,true
+18103488,1182682,بھوانہ,ur,alternate,true
+18103540,1182787,بھلوال، ضلع سرگودھا,ur,alternate,true
+622633,1182829,Miān-ki-Maur,,alternate,true
+622634,1182829,Bhar Pheru,,alternate,true
+3939987,1182829,Bhāi Pheru,,alternate,true
+13338627,1182829,Mianke Mor,,alternate,true
+13338628,1182829,Miānwāla,,alternate,true
+622707,1182998,Armail,,alternate,true
+622708,1182998,Beila,,alternate,true
+622709,1182998,Las Bela,,alternate,true
+622710,1182998,Karabel,,alternate,true
+622711,1182998,Armel,,alternate,true
+622712,1182998,Kambakia,,alternate,true
+622713,1182998,Armabel,,alternate,true
+622751,1183090,Batkhel,,alternate,true
+622754,1183105,Batgrām,,alternate,true
+3152456,1183105,Batgrān,,alternate,true
+3152457,1183105,Batagrām,,alternate,true
+12132509,1183105,Battagram City,en,alternate,true
+3152533,1183307,بارکھان,ur,alternate,true
+11471537,1183460,بنوں,ur,alternate,true
+623027,1183614,Hunza,,alternate,true
+623029,1183614,Khunza,,alternate,true
+2051420,1183614,Baltit,,historic,true
+20647508,1183614,كريم آباد,ur,alternate,true
+623158,1183883,Bahawatnagar,,alternate,true
+1925586,1183883,Bahawalpur,en,alternate,false
+2036458,1183883,بہاولپور,ur,alternate,true
+18103645,1184075,بادومالہی,ur,alternate,true
+623327,1184249,Campbellpore,,alternate,true
+623328,1184249,Campbellpur,,alternate,true
+19254997,1184249,Attock,,alternate,true
+11663036,1184569,Aman Garh,,alternate,true
+3940614,1184752,Akora,en,alternate,true
+623599,1184845,Ahmadpur,,alternate,true
+623600,1184845,Ahmedpur East Municipality,,alternate,true
+1925963,1184845,Ahmedpur East,en,alternate,true
+18103726,1184845,احمد پور شرقیہ,ur,alternate,true
+3261393,1330335,Jhang,,alternate,true
+20946760,1359673,Kurkali,,alternate,true
+4816835,1385128,Musa Banda,en,alternate,true
+16589132,1386114,کھائیگلا,ur,alternate,true
+13869396,1386329,Akālgarh,,alternate,true
+13302423,1387846,Chak One Hundred Thirty-eight-Nine L,,alternate,true
+3286771,1397479,Temple Dera,,alternate,true
+12206239,1412851,Dhera Virkan,,alternate,true
+12206240,1412851,Sūkh Kaiān,,alternate,true
+4842192,1448637,Risālpur,en,alternate,true
+11269831,7419667,Dumbudas,,alternate,true
+11270036,7423730,Eidgah,,alternate,true
+11270037,7423730,Īdgāh,,alternate,true
+16472895,10944629,Athmuqam,en,alternate,false
+16472896,10944629,Athmakam,en,alternate,true
+13174260,11535259,Elah Abad,,alternate,true
+13174261,11535259,Thing Mor,,alternate,true

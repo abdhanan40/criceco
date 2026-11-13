@@ -49,3 +49,6 @@ app.*.map.json
 
 # Local agent/tooling config (machine-specific paths)
 .claude/
+
+# Local Supabase build values (project URL, publishable key) — never commit
+supabase.local.json

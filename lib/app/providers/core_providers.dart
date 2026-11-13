@@ -5,10 +5,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/constants/city_areas.dart';
 import '../../core/models/models.dart';
+import '../../data/mock/in_memory_location_repository.dart';
 import '../../data/mock/in_memory_repositories.dart';
 import '../../data/repositories/repositories.dart';
+import '../../data/supabase/local_account_overlay.dart';
+import '../../data/supabase/local_club_overlay.dart';
+import '../../data/supabase/supabase_account_repository.dart';
+import '../../data/supabase/supabase_club_repository.dart';
+import '../../data/supabase/supabase_gateways.dart';
+import '../../data/supabase/supabase_location_repository.dart';
 import '../../demo/demo_stats.dart';
 import '../../demo/seed_data.dart';
+import '../config/backend_config.dart';
 
 /// Injectable time source. Tests override with a fixed/fake [Clock].
 final clockProvider = Provider<Clock>((ref) => const Clock());
@@ -40,9 +48,37 @@ final cityAreasProvider = FutureProvider<CityAreas>((ref) async {
 });
 
 // ---- Repositories (in-memory mocks; replace with real implementations later) ----
-final accountRepositoryProvider =
-    Provider<AccountRepository>((ref) => InMemoryAccountRepository(ref.watch(seedDataProvider)));
-final clubRepositoryProvider = Provider<ClubRepository>((ref) => InMemoryClubRepository(ref.watch(seedDataProvider)));
+/// The account and club repositories switch with the backend
+/// (`CRICECO_BACKEND`); every other repository stays in-memory.
+final accountRepositoryProvider = Provider<AccountRepository>((ref) {
+  final config = ref.watch(backendConfigProvider);
+  return switch (config.mode) {
+    BackendMode.memory => InMemoryAccountRepository(ref.watch(seedDataProvider)),
+    // The gateway providers throw "not available yet" until Step 4 adds
+    // supabase_flutter; tests override them with fakes.
+    BackendMode.supabase => SupabaseAccountRepository(
+        auth: ref.watch(authGatewayProvider),
+        db: ref.watch(profileGatewayProvider),
+        overlay: LocalAccountOverlay(ref.watch(sharedPreferencesProvider)),
+        clock: ref.watch(clockProvider),
+      ),
+  };
+});
+/// Supabase mode: the owner's club is in `public.clubs`; members, join
+/// requests and the squad pool come from a dedicated in-memory repository of
+/// its own (keyed by the real club id), never the memory-mode instance.
+final clubRepositoryProvider = Provider<ClubRepository>((ref) {
+  final config = ref.watch(backendConfigProvider);
+  return switch (config.mode) {
+    BackendMode.memory => InMemoryClubRepository(ref.watch(seedDataProvider)),
+    BackendMode.supabase => SupabaseClubRepository(
+        auth: ref.watch(authGatewayProvider),
+        db: ref.watch(clubGatewayProvider),
+        overlay: LocalClubOverlay(ref.watch(sharedPreferencesProvider)),
+        local: InMemoryClubRepository(ref.watch(seedDataProvider)),
+      ),
+  };
+});
 final teamRepositoryProvider = Provider<TeamRepository>((ref) => InMemoryTeamRepository(ref.watch(seedDataProvider)));
 final matchRepositoryProvider =
     Provider<MatchRepository>((ref) => InMemoryMatchRepository(ref.watch(seedDataProvider)));
@@ -60,6 +96,17 @@ final notificationRepositoryProvider =
     Provider<NotificationRepository>((ref) => InMemoryNotificationRepository(ref.watch(seedDataProvider)));
 final announcementRepositoryProvider =
     Provider<AnnouncementRepository>((ref) => InMemoryAnnouncementRepository());
+
+/// Location lookup (Stage 4.2). Supabase mode: the location tables of
+/// migration 6 (read-only); memory mode: the 20 featured cities only. Not yet
+/// used by any screen — the city pickers switch in Stage 4.3.
+final locationRepositoryProvider = Provider<LocationRepository>((ref) {
+  final config = ref.watch(backendConfigProvider);
+  return switch (config.mode) {
+    BackendMode.memory => InMemoryLocationRepository(),
+    BackendMode.supabase => SupabaseLocationRepository(db: ref.watch(locationGatewayProvider)),
+  };
+});
 
 /// Scouting stats per player name. Backed by the demo generator for now;
 /// swap for a repository call when a backend exists (screens don't change).

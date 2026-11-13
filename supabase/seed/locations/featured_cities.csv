@@ -1,0 +1,26 @@
+# CURATED (reviewed by hand). The app's 20 featured cities, in kPakistanCities
+# order (lib/core/constants/cities.dart), pinned to one GeoNames record each.
+# Each id was checked against the GeoNames dump: the capital / admin-seat record
+# of that name (PPLC / PPLA / PPLA2). Sahiwal is the district seat 1166548,
+# not 1166547 (a small place in Sargodha District with a copied population).
+featured_rank,name,geonames_id
+1,Karachi,1174872
+2,Lahore,1172451
+3,Islamabad,1176615
+4,Rawalpindi,1166993
+5,Faisalabad,1179400
+6,Multan,1169825
+7,Peshawar,1168197
+8,Quetta,1167528
+9,Sialkot,1164909
+10,Hyderabad,1176734
+11,Gujranwala,1177662
+12,Sargodha,1166000
+13,Bahawalpur,1183880
+14,Sukkur,1164408
+15,Larkana,1172128
+16,Abbottabad,1185056
+17,Mardan,1170880
+18,Sahiwal,1166548
+19,Gujrat,1177654
+20,Rahim Yar Khan,1167460

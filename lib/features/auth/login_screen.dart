@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/config/auth_features.dart';
 import '../../app/router/routes.dart';
+import '../../app/session/account_error_text.dart';
 import '../../app/session/session_controller.dart';
 import '../../app/theme/tokens.dart';
 import '../../app/theme/typography.dart';
@@ -15,8 +17,9 @@ import 'forgot_password_sheet.dart';
 import 'widgets/auth_widgets.dart';
 
 /// Login (prototype `screens.login`, criceco-app.js :2898).
-/// Phone + password, as in the prototype. After a successful sign-in the
-/// router guard takes the user to Continue As (or the remembered role home).
+/// Phone + password, as in the prototype; email + password in Supabase builds
+/// ([AuthFeatures.phoneSignIn] off). After a successful sign-in the router
+/// guard takes the user to Continue As (or the remembered role home).
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -27,6 +30,7 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _phone = TextEditingController();
+  final _email = TextEditingController();
   final _password = TextEditingController();
   bool _submitting = false;
   String? _error;
@@ -34,6 +38,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void dispose() {
     _phone.dispose();
+    _email.dispose();
     _password.dispose();
     super.dispose();
   }
@@ -44,22 +49,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     FocusScope.of(context).unfocus();
     setState(() => _submitting = true);
-    bool? ok;
+    // Supabase builds sign in by email only (no phone sign-in there).
+    final byPhone = ref.read(authFeaturesProvider).phoneSignIn;
+    String? error;
     try {
-      ok = await ref.read(sessionProvider.notifier).signIn(
-            identifier: CeValidators.normalizePkPhone(_phone.text) ?? _phone.text.trim(),
+      final ok = await ref.read(sessionProvider.notifier).signIn(
+            identifier: byPhone ? (CeValidators.normalizePkPhone(_phone.text) ?? _phone.text.trim()) : _email.text.trim(),
             password: _password.text,
           );
-    } catch (_) {
-      ok = null; // unexpected failure, not wrong credentials
+      if (!ok) {
+        error = byPhone
+            ? 'Incorrect phone number or password. Please try again.'
+            : 'Incorrect email or password. Please try again.';
+      }
+    } catch (e) {
+      // Unexpected failure, not wrong credentials: offline, email not yet
+      // confirmed, … — the app's own message, never the raw error.
+      error = accountErrorText(e, fallback: "Couldn't log in right now. Please try again.");
     }
     if (!mounted) return;
     setState(() {
       _submitting = false;
-      if (ok == false) _error = 'Incorrect phone number or password. Please try again.';
-      if (ok == null) _error = "Couldn't log in right now. Please try again.";
+      _error = error;
     });
-    // On success the router redirect moves to Continue As / role home.
+    // On success the router redirect moves to Continue As / role home. The
+    // redirect leaves an incomplete profile on the auth screens (so Back from
+    // Profile Setup works), so that case — e.g. the first login after email
+    // confirmation — goes to User Profile Setup here.
+    if (error == null && ref.read(sessionProvider).status == SessionStatus.onboarding) {
+      context.go(Routes.profileSetup);
+    }
   }
 
   /// Reset by phone number or email (bottom sheet), then log in with the new
@@ -78,6 +97,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final features = ref.watch(authFeaturesProvider);
     return Scaffold(
       backgroundColor: CeColors.bg,
       body: SingleChildScrollView(
@@ -93,18 +113,32 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(height: 18),
                   const AuthHeading(title: 'Welcome back', subtitle: 'Login to manage your cricket club'),
                   const SizedBox(height: 18),
-                  const CeFieldLabel('Phone number'),
-                  CeTextField(
-                    fieldKey: const Key('login.phone'),
-                    controller: _phone,
-                    hint: '03XX-XXXXXXX',
-                    icon: 'phone',
-                    keyboardType: TextInputType.phone,
-                    inputFormatters: kPhoneInputFormatters,
-                    textInputAction: TextInputAction.next,
-                    autofillHints: const [AutofillHints.telephoneNumber],
-                    validator: CeValidators.pkPhone,
-                  ),
+                  if (features.phoneSignIn) ...[
+                    const CeFieldLabel('Phone number'),
+                    CeTextField(
+                      fieldKey: const Key('login.phone'),
+                      controller: _phone,
+                      hint: '03XX-XXXXXXX',
+                      icon: 'phone',
+                      keyboardType: TextInputType.phone,
+                      inputFormatters: kPhoneInputFormatters,
+                      textInputAction: TextInputAction.next,
+                      autofillHints: const [AutofillHints.telephoneNumber],
+                      validator: CeValidators.pkPhone,
+                    ),
+                  ] else ...[
+                    const CeFieldLabel('Email address'),
+                    CeTextField(
+                      fieldKey: const Key('login.email'),
+                      controller: _email,
+                      hint: 'you@example.com',
+                      icon: 'mail',
+                      keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
+                      autofillHints: const [AutofillHints.email],
+                      validator: CeValidators.email,
+                    ),
+                  ],
                   const CeFieldLabel('Password'),
                   CeTextField(
                     fieldKey: const Key('login.password'),
@@ -117,15 +151,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     validator: (v) => (v == null || v.isEmpty) ? 'Password is required' : null,
                     onFieldSubmitted: (_) => _submit(),
                   ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      key: const Key('login.forgot'),
-                      onPressed: _forgotPassword,
-                      style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(0, 36)),
-                      child: Text('Forgot password?', style: CeType.buttonSmall.copyWith(color: CeColors.primary)),
-                    ),
-                  ),
+                  // Password reset isn't configured on the Supabase backend.
+                  if (features.passwordReset)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        key: const Key('login.forgot'),
+                        onPressed: _forgotPassword,
+                        style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(0, 36)),
+                        child: Text('Forgot password?', style: CeType.buttonSmall.copyWith(color: CeColors.primary)),
+                      ),
+                    )
+                  else
+                    const SizedBox(height: 14),
                   const SizedBox(height: 2),
                   if (_error != null) CeErrorBanner(_error!),
                   CeButton(label: 'Login', loading: _submitting, onPressed: _submit),
