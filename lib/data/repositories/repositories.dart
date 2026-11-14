@@ -1,5 +1,8 @@
 import '../../core/models/models.dart';
 
+export 'account_errors.dart';
+export 'profile_rules.dart' show ProfileRules, ProfileValidationException;
+
 /// Repository contracts. Every method is async so an HTTP/Firebase backend can
 /// replace the in-memory mocks without touching controllers or screens.
 
@@ -13,6 +16,23 @@ abstract interface class AccountRepository {
   });
   Future<UserAccount?> byId(String accountId);
   Future<UserAccount> update(UserAccount account);
+
+  /// User Profile Setup → Continue: saves the details and both addresses and
+  /// marks the profile complete, all or nothing. [account] is the signed-in
+  /// account. [at] is "today" for the date-of-birth rule. Throws
+  /// [ProfileValidationException] when the data breaks a [ProfileRules] rule;
+  /// nothing is saved then. A remote backend may also throw an
+  /// [AccountException] (signed out, another account, unreachable).
+  Future<UserAccount> saveProfileSetup(UserAccount account, {required DateTime at});
+
+  /// Role Selection → Player → Continue: saves the signed-in account's
+  /// player profile. Throws [ProfileValidationException] when it breaks a
+  /// role rule, and [StateError] for an unknown account; nothing is saved
+  /// then. A remote backend may also throw an [AccountException].
+  Future<UserAccount> savePlayerProfile(String accountId, PlayerProfile profile);
+
+  /// Ends the backend session (a no-op where there is none, e.g. in-memory).
+  Future<void> signOut();
 
   /// `false` when [current] doesn't match the account's password.
   Future<bool> changePassword(String accountId, {required String current, required String next});
@@ -193,4 +213,31 @@ abstract interface class NotificationRepository {
 abstract interface class AnnouncementRepository {
   Future<ClubAnnouncement> publish(ClubAnnouncement announcement);
   Future<ClubAnnouncement?> byId(String id);
+}
+
+/// Nationwide location lookup (Stage 4.2): provinces → districts → cities.
+/// Supabase mode reads `provinces` / `districts` / `v_city_options` and
+/// `search_cities()`; memory mode offers the 20 featured cities only.
+abstract interface class LocationRepository {
+  /// Active provinces and territories, in display order.
+  Future<List<Province>> provinces();
+
+  /// Active districts of one province, by name.
+  Future<List<District>> districts(int provinceId);
+
+  /// The featured cities, in rank order (the picker's starting list).
+  Future<List<CityOption>> featuredCities();
+
+  /// Cities matching [query] (exact, prefix, alias, similar spelling), one
+  /// row per city, at most [limit] (1–50). A query shorter than two
+  /// characters lists the featured cities, or the filtered cities by name.
+  Future<List<CityOption>> searchCities(
+    String query, {
+    int? provinceId,
+    int? districtId,
+    int limit = 20,
+  });
+
+  /// One active city, `null` when unknown or inactive.
+  Future<CityOption?> cityById(int id);
 }

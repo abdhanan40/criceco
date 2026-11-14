@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/providers/core_providers.dart';
 import '../../../app/router/routes.dart';
+import '../../../app/session/account_error_text.dart';
 import '../../../app/session/session_controller.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../app/theme/typography.dart';
@@ -105,9 +106,11 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
       if (ref.read(playerAvailabilityProvider).openToOffers) {
         await ref.read(playerAvailabilityProvider.notifier).setOpenToOffers(true);
       }
-    } catch (_) {
-      if (mounted) setState(() => _saving = false);
-      if (mounted) showCeToast(context, "Couldn't save your profile — please try again");
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      if (signOutIfNeeded(context, ref, e)) return;
+      showCeToast(context, accountErrorText(e, fallback: "Couldn't save your profile — please try again"));
       return;
     }
     if (!mounted) return;
@@ -122,9 +125,16 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
     final hasPhoto = ref.read(currentAccountProvider)?.photoPath != null;
     final change = await choosePhoto(context, ref, title: 'Profile picture', hasPhoto: hasPhoto);
     if (change == null || !mounted) return;
-    await ref.read(sessionProvider.notifier).updateAccount((a) => change.path == null
-        ? a.copyWith(hasPhoto: false, clearPhoto: true)
-        : a.copyWith(hasPhoto: true, photoPath: change.path));
+    try {
+      await ref.read(sessionProvider.notifier).updateAccount((a) => change.path == null
+          ? a.copyWith(hasPhoto: false, clearPhoto: true)
+          : a.copyWith(hasPhoto: true, photoPath: change.path));
+    } catch (e) {
+      if (!mounted) return;
+      if (signOutIfNeeded(context, ref, e)) return;
+      showCeToast(context, accountErrorText(e, fallback: "Couldn't update your profile picture — please try again"));
+      return;
+    }
     if (mounted) showCeToast(context, change.path == null ? 'Profile picture removed' : 'Profile picture updated');
   }
 

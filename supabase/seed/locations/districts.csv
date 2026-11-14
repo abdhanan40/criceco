@@ -1,0 +1,157 @@
+geonames_id,geonames_admin1,name,is_active,alt_names
+6641896,02,Awaran,true,Awaran District|Awārān District
+6641912,02,Barkhan,true,Barkhan District
+1181950,02,Chagai,true,Chagai District|Chāgai District
+6641919,02,Dera Bugti,true,Dera Bugti District
+1177445,02,Gwadar,true,
+8309758,02,Harnai,true,
+6641922,02,Jafarabad,true,Jafarabad District|Jāfarābād District
+6641923,02,Jhal Magsi,true,Jhal Magsi District
+1175527,02,Kachhi,true,Kachhi District
+1175293,02,Kalat,true,
+1163052,02,Kech,true,Kech District
+1174059,02,Kharan,true,Kharan District|Khārān District
+1173663,02,Khuzdar,true,Khuzdar District|Khuzdār District
+1173463,02,Kohlu,true,Kohlu District
+1172115,02,Lasbela,true,Lasbela District
+1171867,02,Loralai,true,Loralai District
+6641952,02,Mastung,true,Mastung District
+6641955,02,Musa Khel,true,Musa Khel District
+1169249,02,Nasirabad,true,
+6641960,02,Nushki,true,Nushki District
+1168444,02,Panjgur,true,Panjgur District
+1167820,02,Pishin,true,Pishin District
+6641961,02,Qila Abdullah,true,Qila Abdullah District
+6641963,02,Qila Saifullah,true,
+1167527,02,Quetta,true,Quetta District
+8309759,02,Shirani,true,
+1164895,02,Sibi,true,Sibi District
+11744842,02,Sohbatpur,true,Sohbatpur District
+13631695,02,Usta Muhammad,true,Usta Muhammad District
+6641965,02,Washuk,true,Washuk District|Wāshuk District
+1162104,02,Zhob,true,Zhob District
+6641972,02,Ziarat,true,Ziarat District|Ziārat District
+1185055,03,Abbottabad,true,Abbottabad District|Abbottābād District
+1183781,03,Bajaur Agency,true,
+1183459,03,Bannu,true,Bannu District
+7419043,03,Bannu Tribal Area,true,
+8224052,03,Battagram,true,Battagram District
+1182146,03,Buner,true,Buner District
+7419051,03,Charsadda,true,Charsadda District|Chārsadda District
+1181064,03,Chitral,true,Chitral District|Chitrāl District
+1180282,03,Dera Ismail Khan,true,
+1180280,03,Dera Ismail Khan Tribal Area,true,
+7419048,03,Hangu,true,Hangu District
+7419054,03,Haripur,true,Haripur District|Harīpur District
+7419047,03,Karak,true,Karak District
+1173641,03,Khyber Agency,true,
+1173489,03,Kohat,true,
+1172574,03,Kurram,true,Kurram District
+7419039,03,Lakki Marwat,true,Lakki Marwat District
+7419044,03,Lakki Marwat Tribal Area,true,
+7419056,03,Lower Dir,true,Lower Dir District|Lower Dīr District
+12105028,03,Lower Kohistan,true,Lower Kohistan District
+1171388,03,Malakand Protected Area,true,
+1170950,03,Mansehra,true,Mansehra District|Mānsehra District
+1170875,03,Mardan,true,
+1170122,03,Mohmand Agency,true,
+1168875,03,North Waziristan,true,North Waziristan District|North Wazīristān District
+7419052,03,Nowshera,true,Nowshera District
+1168705,03,Orakzai Agency,true,
+1168195,03,Peshawar,true,Peshawar District
+7419049,03,Peshawar Frontier Region,true,
+7419053,03,Shangla,true,Shangla District|Shāngla District
+1164536,03,South Waziristan Agency,true,
+7419055,03,Swabi,true,Swabi District|Swābi District
+1164211,03,Swat,true,
+7419040,03,Tank,true,
+7419041,03,Tank Frontier Region,true,
+8061265,03,Tor Ghar,true,
+7419050,03,Tribal Area Adjoining Kohat,true,Tribal Area Adjoining Kohat District
+1179754,03,Upper Dir,true,Upper Dir District
+12105031,03,Upper Kohistan,true,Upper Kohistan District
+1184248,04,Attock,true,Attock District
+1183882,04,Bahawalnagar,true,Bahawalnagar District|Bahāwalnagar District
+1183876,04,Bahawalpur,true,Bahawalpur District|Bahāwalpur District
+7418966,04,Bhakkar,true,Bhakkar District
+7418964,04,Chakwal,true,Chakwal District
+11886901,04,Chiniot,true,
+1180287,04,Dera Ghazi Khan,true,Dera Ghazi Khan District|Dera Ghāzi Khān District
+1179399,04,Faisalabad,true,Faisalabad District|Faisalābād District
+1177658,04,Gujranwala,true,Gujranwala District|Gujrānwāla District
+1177651,04,Gujrat,true,Gujrat District|Gujrāt District
+7418962,04,Hafizabad,true,Hafizabad District|Hāfizābād District
+1175906,04,Jhang,true,Jhang District
+1175862,04,Jhelum,true,Jhelum District
+1174623,04,Kasur,true,
+7418890,04,Khanewal,true,Khanewal District|Khānewāl District
+7418965,04,Khushab,true,
+1172449,04,Lahore,true,Lahore District
+7418967,04,Layyah,true,Layyah District
+7418846,04,Lodhran,true,Lodhran District|Lodhrān District
+7418963,04,Mandi Bahauddin,true,Mandi Bahauddin District|Mandi Bahāuddīn District
+1170424,04,Mianwali,true,
+1169821,04,Multan,true,Multan District|Multān District
+1169603,04,Muzaffargarh,true,Muzaffargarh District
+7419159,04,Nankana Sahib,true,Nankana Sahib District|Nankāna Sāhib District
+7418968,04,Narowal,true,Narowal District|Nārowāl District
+7418888,04,Okara,true,Okara District|Okāra District
+7418850,04,Pakpattan,true,Pakpattan District|Pākpattan District
+1167458,04,Rahimyar Khan,true,
+8309731,04,Rajanpur,true,
+1166991,04,Rawalpindi,true,Rawalpindi District
+1166545,04,Sahiwal,true,Sahiwal District
+1165999,04,Sargodha,true,Sargodha District
+1165218,04,Shekhupura,true,Shekhupura District
+1164908,04,Sialkot,true,
+7331706,04,Toba Tek Singh,true,Toba Tek Singh District
+10344547,04,Vehari,true,Vehari District
+1184051,05,Badin,true,Badin District|Badīn District
+1180802,05,Dadu,true,
+12105033,05,District of West Karachi,true,
+7418822,05,Ghotki,true,Ghotki District
+1176733,05,Hyderabad,true,Hyderabad District
+1176514,05,Jacobabad,true,Jacobabad District
+7419156,05,Jamshoro,true,Jamshoro District|Jāmshoro District
+11744831,05,Karachi Central,true,Karachi Central District
+11744832,05,Karachi East,true,Karachi East District
+11744833,05,Karachi South,true,Karachi South District
+9035095,05,Kashmore,true,Kashmore District
+1174349,05,Khairpur,true,Khairpur District
+11744835,05,Korangi,true,Korangi District
+1172127,05,Larkana,true,
+11744837,05,Malir,true,Malir District
+7419157,05,Matiari,true,Matiari District|Matiāri District
+1376894,05,Mirpur Khas,true,Mirpur Khas District
+7352189,05,Naushahro Firoz,true,
+1169115,05,Nawabshah,true,Nawabshah District
+9034783,05,Qamber Shahdadkot,true,Qamber Shahdadkot District
+1166162,05,Sanghar,true,
+1165106,05,Shikarpur,true,Shikarpur District
+10300608,05,Sujawal,true,Sujawal District
+1164407,05,Sukkur,true,Sukkur District
+9625763,05,Tando Allahyar,true,Tando Allahyar District
+9625902,05,Tando Mohammad Khan,true,Tando Mohammad Khan District
+1163602,05,Thar Parkar,true,Thar Parkar District
+1163570,05,Thatta,true,Thatta District
+9072726,05,Umerkot,true,Umerkot District
+7536188,06,Bagh,true,
+7536187,06,Bhimbar,true,Bhimbar District
+8309755,06,Hatian,true,
+8309754,06,Haveli,true,
+1173037,06,Kotli,true,Kotli District
+1170297,06,Mirpur,true,Mirpur District
+1169606,06,Muzaffarabad,true,Muzaffarabad District
+8199376,06,Neelum,true,Neelum District
+1167717,06,Poonch,true,Poonch District
+8986039,06,Sudhanoti,true,Sudhanoti District
+8309748,07,Astor,true,
+8358421,07,Diamir,true,
+7419077,07,Ghanche,true,Ghanche District
+11594770,07,Ghizer,true,Ghizer District
+8358419,07,Gilgit,true,
+1176775,07,Hunza-Nagar,true,Hunza-Nagar District
+11744834,07,Kharmang,true,Kharmang District
+11744838,07,Nagar,true,Nagar District
+11744839,07,Shigar,true,Shigar District
+1183615,07,Skardu,true,

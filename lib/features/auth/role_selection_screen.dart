@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/router/routes.dart';
+import '../../app/session/account_error_text.dart';
 import '../../app/session/role_controller.dart';
 import '../../app/session/session_controller.dart';
 import '../../app/theme/tokens.dart';
@@ -87,13 +88,24 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
   }
 
   Future<void> _continueAsPlayer() async {
+    if (_saving) return;
     // Only the fields shown for the chosen role are required.
     if (ref.read(onboardingProvider).missingPlayerDetail != null) {
       setState(() => _showErrors = true);
       return;
     }
     setState(() => _saving = true);
-    await ref.read(onboardingProvider.notifier).completePlayerSetup();
+    try {
+      await ref.read(onboardingProvider.notifier).completePlayerSetup();
+    } catch (e) {
+      // The details stay open with the user's choices (the onboarding draft);
+      // Continue works again for a retry.
+      if (!mounted) return;
+      setState(() => _saving = false);
+      if (signOutIfNeeded(context, ref, e)) return;
+      showCeToast(context, accountErrorText(e, fallback: "Couldn't save your player profile — please try again"));
+      return;
+    }
     if (!mounted) return;
     // `go` replaces the stack: Back from the dashboard never reopens onboarding.
     context.go(Routes.playerHome);

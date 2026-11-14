@@ -1,0 +1,11 @@
+# CURATED (reviewed by hand). One row per GeoNames ADM1 record (admin1 code).
+# name = CricEco's canonical name; display_name = what the app shows (empty = name).
+# Approved: display names "Azad Jammu and Kashmir" and "Gilgit-Baltistan" (Stage 4.2, P2).
+geonames_admin1,name,display_name,kind,sort_order
+04,Punjab,,province,1
+05,Sindh,,province,2
+03,Khyber Pakhtunkhwa,,province,3
+02,Balochistan,,province,4
+08,Islamabad Capital Territory,,federal_territory,5
+07,Gilgit-Baltistan,Gilgit-Baltistan,administrative_territory,6
+06,Azad Jammu and Kashmir,Azad Jammu and Kashmir,administrative_territory,7

@@ -1,0 +1,13 @@
+# CURATED (reviewed by hand). Corrections applied on top of GeoNames; every row needs a reason.
+# entity,geonames_id,action[,value]: district exclude|inactive|rename · city exclude|inactive|rename|qualifier|district|no_district
+# · alias (geonames_id = alternateNameId) exclude|not_searchable.
+# Approved in the Stage 4.2 data review (2026-11-10). Administrative changes not shown by the data itself
+# (former FATA/PATA units, renamed districts, Keamari, Athmuqam duplicate) are DEFERRED until verified.
+entity,geonames_id,action,value,reason
+district,1178336,exclude,,"Duplicate of Gilgit (8358419): older record, no population, and no GeoNames place refers to it (222 places use 8358419)"
+city,1166547,exclude,,"Population 538344 is copied from the Sahiwal district seat 1166548; a different, small place in Sargodha District that would not qualify otherwise"
+city,1332083,exclude,,"Population 241873 is copied from the Bahawalnagar district seat 1183883; a different place in Okara District that would not qualify otherwise"
+city,1177009,exclude,,"Duplicate record of Hattian Bala: about 1 km from the district seat 9030991, same district; the seat record is kept"
+city,1175082,qualifier,Rawalpindi,"Two different towns named Kamra in Punjab (Rawalpindi and Attock districts); the district tells them apart"
+city,1340665,qualifier,Attock,"Two different towns named Kamra in Punjab (Rawalpindi and Attock districts); the district tells them apart"
+city,11250625,exclude,,"Suspicious record: ""Arif Wala"" in Balochistan (Lasbela area) with population 157063, while the known Arifwala (1184370, Punjab) is a separate record; no corroborating evidence for a town of this size there. Excluded pending verification"

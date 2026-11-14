@@ -4,6 +4,7 @@ export 'announcement.dart';
 export 'challenge_hunt.dart';
 export 'club.dart';
 export 'fitness.dart';
+export 'location.dart';
 export 'match_booking.dart';
 export 'notification.dart';
 export 'player.dart';

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/providers/core_providers.dart';
 import '../../app/router/routes.dart';
+import '../../app/session/account_error_text.dart';
 import '../../app/session/role_controller.dart';
 import '../../app/theme/tokens.dart';
 import '../../app/theme/typography.dart';
@@ -99,8 +100,10 @@ class _ClubSetupScreenState extends ConsumerState<ClubSetupScreen> {
       await ref.read(clubSetupProvider.notifier).createClub();
       // `go` replaces the stack: Back from the dashboard never reopens setup.
       if (mounted) context.go(Routes.clubHome);
-    } catch (_) {
-      if (mounted) setState(() => _error = "We couldn't create your club. Please try again.");
+    } catch (e) {
+      if (!mounted) return;
+      if (signOutIfNeeded(context, ref, e)) return;
+      setState(() => _error = accountErrorText(e, fallback: "We couldn't create your club. Please try again."));
     } finally {
       if (mounted) setState(() => _creating = false);
     }

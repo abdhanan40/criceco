@@ -20,6 +20,7 @@ class UserAccount {
     this.playerProfile = const PlayerProfile(),
     this.hasClubOwnerProfile = false,
     this.ownedClubId,
+    this.grantedRoles = const {},
     this.memberships = const [],
     this.profileComplete = false,
     this.hasPhoto = false,
@@ -47,6 +48,11 @@ class UserAccount {
   /// a club membership (approved fix C).
   final bool hasClubOwnerProfile;
   final String? ownedClubId;
+
+  /// Roles the server has granted this account (`public.user_roles`, Supabase
+  /// mode only; empty in memory mode). Informational in Stage 4.2: routing and
+  /// dashboards still follow [playerProfile] and [hasClubOwnerProfile].
+  final Set<UserRole> grantedRoles;
 
   /// Membership of other clubs (Player / Coach / Manager).
   final List<ClubMembership> memberships;
@@ -86,6 +92,7 @@ class UserAccount {
     PlayerProfile? playerProfile,
     bool? hasClubOwnerProfile,
     String? ownedClubId,
+    Set<UserRole>? grantedRoles,
     List<ClubMembership>? memberships,
     bool? profileComplete,
     bool? hasPhoto,
@@ -111,6 +118,7 @@ class UserAccount {
         playerProfile: playerProfile ?? this.playerProfile,
         hasClubOwnerProfile: hasClubOwnerProfile ?? this.hasClubOwnerProfile,
         ownedClubId: ownedClubId ?? this.ownedClubId,
+        grantedRoles: grantedRoles ?? this.grantedRoles,
         memberships: memberships ?? this.memberships,
         profileComplete: profileComplete ?? this.profileComplete,
         hasPhoto: hasPhoto ?? this.hasPhoto,

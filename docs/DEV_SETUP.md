@@ -17,6 +17,17 @@ C:\src\android-sdk\emulator\emulator.exe -avd CricEco_API35 -no-snapshot -gpu sw
 C:\src\flutter\bin\flutter.bat run -d emulator-5554
 ```
 
+## Run against Supabase
+
+The default build uses the in-memory demo data (`CRICECO_BACKEND=memory`, prototype controls on). To use a Supabase project, pass the backend values **and turn the demo build off**, so the prototype controls are not mixed with real accounts:
+
+```bash
+C:\src\flutter\bin\flutter.bat run -d emulator-5554 --dart-define=CRICECO_BACKEND=supabase --dart-define=SUPABASE_URL=https://<project-ref>.supabase.co --dart-define=SUPABASE_PUBLISHABLE_KEY=<publishable-key> --dart-define=CRICECO_DEMO=false
+```
+
+- Use the project's **publishable (anon) key** only. The app refuses a secret or service-role key in every mode. Don't commit real values.
+- In Supabase mode, users sign in and sign up with **email and password only**. Phone sign-in, Continue with Google and password reset / change are hidden. If the project requires email confirmation, Create Account shows "Check your email", and the user then logs in.
+
 ## Known pitfalls (found during setup)
 
 - **Gradle hangs on NDK auto-install.** On the first build, AGP runs `sdkmanager` to install the NDK. That download stalled at 0 bytes for over 3 hours, because `sdkmanager` has no read timeout. The NDK is now pre-installed. If it happens again, kill the `sdkmanager` Java process and run `sdkmanager "ndk;<version>"` directly.
