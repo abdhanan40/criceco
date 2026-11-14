@@ -1,6 +1,6 @@
 # CricEco — Supabase schema (ERD v8)
 
-## Live status (2026-11-09)
+## Live status (verified 2026-11-14)
 
 | Item | Live state |
 |---|---|
@@ -10,20 +10,40 @@
 | Verification (5) | `00d_preflight_clubs` passed beforehand (all 15 checks); afterwards `public.clubs`, its 4 functions and 3 policies were present; `04_clubs_rls_check` and `05_clubs_constraints_check` passed with two temporary test users, which were deleted afterwards; the 9 existing profiles stayed unchanged (fingerprint matched before and after) |
 | `review/…_REVIEW.sql` | **Not applied** — the guard is still in place; a separate, later decision |
 | `rollback/…` | **Never run** on the live project (the clubs rollback was tested locally only) |
-| Flutter app | Uses `profiles`, the address tables, `player_profiles` and `save_profile_setup()` in Supabase mode; `clubs` from Stage 3 |
-| Migration 6 (`locations`, Stage 4.2) | **Not applied.** Tested locally only (PostgreSQL 17.11: apply → tests → rollback → clean → re-apply) |
-| Location seed (D1) | **Not loaded on the live project.** Data review approved for local testing; loaded locally (twice: idempotent, stable ids) and checked with `07` |
-| Migration 7 (`user_roles`, Stage 4.2) | **Not applied.** Tested locally only (fixture → apply → `06b` / `08` → regression → rollback → re-apply) |
-| Migration 8 (address `city_id`, Stage 4.3.3) | **Not applied.** Tested locally only (fixture → `00f` preview → apply → `09` / `07b` → regression → rollback → re-apply) |
-| Migration 9 (`update_profile_details`, Stage 4.3.6a) | **Not applied.** Tested locally only (refused without 8 → apply → guard → `10` / `local/08` / `local/08b` (two-session locking) → regression 01–09 → rollback → re-apply) |
-| Migration 10 (`profiles` grants, Stage 4.3.7) | **Not applied.** To be applied **first**, before migration 6 (approved order below). Tested locally only (PostgreSQL 17.11: before 6–9 and after them — guard / post-check refusals → apply → re-apply → `00h` / `11` / `local/09` → 6–9 → regression 01–11 → rollback → re-apply) |
+| Flutter app | Uses `profiles`, the address tables, `player_profiles` and `save_profile_setup()` in Supabase mode; `clubs` from Stage 3. The app build that needs migrations 6–9 (`feature/flutter-integration`) is **not released yet** (step 5 of the sequence below) |
+| Migration 10 (`profiles` grants, Stage 4.3.7) | **Applied** to the live project in the SQL Editor, **first** — before migration 6, as approved (sequence below). Tested locally beforehand (PostgreSQL 17.11: before 6–9 and after them — guard / post-check refusals → apply → re-apply → `00h` / `11` / `local/09` → 6–9 → regression 01–11 → rollback → re-apply) |
+| Verification (10) | `00h_preflight_profiles_grants` beforehand; afterwards `11_profiles_grants_check` passed with one temporary test user (B5 SKIPPED, as designed before migration 9); its profiles fingerprint `05f13dfaab2ef57436bb964cda650ecd` equals `00h`'s result 8 from before the migration |
+| Migration 6 (`locations`, Stage 4.2) | **Applied** to the live project, after migration 10 |
+| Verification (6) | `06_locations_check` passed |
+| Location seed (D1) | **Loaded** on the live project after migration 6: 7 provinces, 156 districts, 436 cities, 432 city–district links, 491 city aliases |
+| Verification (D1) | `07_locations_data_check` passed |
+| Migration 7 (`user_roles`, Stage 4.2) | **Applied** to the live project after D1. Its backfill: 2 `player` roles (= the 2 `player_profiles` rows) and 3 `club_owner` roles (= the 3 clubs); nothing taken from `profiles.role` |
+| Verification (7) | `08_user_roles_check` passed with two temporary test users |
+| Migration 8 (address `city_id`, Stage 4.3.3) | **Applied** to the live project after migration 7 |
+| Verification (8) | `09_address_city_check` passed with one temporary test user |
+| Migration 9 (`update_profile_details`, Stage 4.3.6a) | **Applied** to the live project after migration 8 |
+| Verification (9) | `update_profile_details` is `SECURITY INVOKER` with `search_path=""`; `authenticated` may execute it, `anon` / PUBLIC may not; its body hash (`md5` of `prosrc`, carriage returns removed) is `ee5b27963d7b918509abd66c867b0892`; the profiles fingerprint is still `05f13dfaab2ef57436bb964cda650ecd`. `10_update_profile_details_check` passed with two temporary test users (self-test: 5 valid / 28 invalid cases); then `11_profiles_grants_check` passed again with one temporary test user, now including B5 (`update_profile_details`) |
+| Test accounts (tests 08–11) | Every temporary test user was deleted afterwards (their rows went with them: `ON DELETE CASCADE`); `profiles` is back to **13** rows |
+
+Dates: migrations 1–4 have their recorded application date above. For
+migration 10, Stage 4.2 (6, D1, 7), 4.3.3 (8) and 4.3.6a (9) no per-step
+application date is recorded here: they were applied in the approved order,
+after migration 10's commit (2026-11-13), and the production verification
+was completed on **2026-11-14** (the date in the heading).
 
 The migration files are kept exactly as applied — their `NOT APPLIED` header
 lines predate the live runs and are left unchanged. Applied versions
 (SHA-256 prefix): `eb0cd25cdd55d447`, `d92c8c1275d9ab0f`, `13468f9a1258cb01`,
-`b0f23f215fb7a54a`; migration 5: `dead73a7e9a8c1e6`. The SQL Editor stored
+`b0f23f215fb7a54a`; migration 5: `dead73a7e9a8c1e6`; migration 6:
+`8f12255e429eb349`; the location seed (D1, `seed/locations/apply_locations.sql`):
+`81d956d9514eda3c`; migration 7: `038de3ca5cb2883a`; migration 8:
+`91a37a5c3da63425`; migration 9: `15e662f90fc3ad69`; migration 10:
+`86ddf8d2374ccef1`. The SQL Editor stored
 the function bodies of 1–4 with CRLF line endings; with line endings
-normalised they are identical to these files.
+normalised they are identical to these files. A paste into the SQL Editor
+can turn a test's line endings into CRLF too: `10`'s self-test accepts both
+(before that fix, a CRLF copy stopped at the self-test itself, before any
+write).
 
 When running `02`–`05` again, copy the test users' UUIDs from Dashboard →
 Authentication → Users (copy button) rather than retyping them: a mistyped

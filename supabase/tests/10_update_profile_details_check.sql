@@ -127,7 +127,7 @@ begin
     ('valid plain', ok, null),
     ('valid odd whitespace', replace(replace(replace(ok, ' for no key update;', E'\tFOR   NO\n  KEY  UPDATE ;'),
        'from public.current', E'FROM\n public.current'), 'where pa.user_id', E'WHERE\tpa.user_id'), null),
-    ('valid comments inside clauses', replace(ok, E'\n     for no key update;', ' for /* row lock */ no -- note' || E'\n key update ;'), null),
+    ('valid comments inside clauses', regexp_replace(ok, E'\r?\n     for no key update;', ' for /* row lock */ no -- note' || E'\n key update ;', 'g'), null),
     ('valid lock words in strings / comments', ok || $s$ raise exception 'for update nowait; lock table x; execute'; /* for share */ -- skip locked $s$, null),
     ('valid wrapped in $function$', wrapped, null),
     -- invalid (want: the refusal named)
@@ -141,7 +141,7 @@ begin
     ('quoted identifier with a quote', ok || $s$ perform 1 from public.clubs as "it's" for update; -- '$s$, 'quoted identifier'),
     ('EXECUTE a lock', ok || $s$ execute 'select 1 from public.clubs for update';$s$, 'dynamic SQL'),
     ('EXECUTE lock table', ok || $s$ execute 'lock table public.clubs';$s$, 'dynamic SQL'),
-    ('a required lock missing', replace(ok, E'ca.user_id = v_uid\n     for no key update;', 'ca.user_id = v_uid;'), 'not all there'),
+    ('a required lock missing', regexp_replace(ok, E'ca\\.user_id = v_uid\r?\n     for no key update;', 'ca.user_id = v_uid;', 'g'), 'not all there'),
     ('FOR UPDATE instead', regexp_replace(ok, 'for no key update;', 'for update;'), 'not all there'),
     ('wrong order', replace(replace(replace(ok, 'public.profiles pr where pr.id', 'public.XX'),
        'public.current_addresses ca where ca.user_id', 'public.profiles pr where pr.id'),
