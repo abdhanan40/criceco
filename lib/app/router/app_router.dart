@@ -56,10 +56,15 @@ import 'routes.dart';
 final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
 /// Pure redirect rules (approved revised architecture §4.4) — unit tested.
+///
+/// [freshStart]: the first navigation after the app started — a cold start,
+/// or a browser reload on the web, where the address bar still shows the auth
+/// screen Profile Setup was pushed from (AUTH-02G).
 String? resolveRedirect({
   required String location,
   required SessionState session,
   required UserRole? activeRole,
+  bool freshStart = false,
 }) {
   final isPublic = Routes.publicRoutes.contains(location);
   final isOnboarding = Routes.onboardingRoutes.contains(location);
@@ -68,9 +73,13 @@ String? resolveRedirect({
   if (!session.isAuthenticated) return isPublic ? null : Routes.login;
 
   // 2. Common profile incomplete → User Profile Setup. Auth screens stay
-  //    reachable so Back from Profile Setup returns to Create Account / Sign Up.
+  //    reachable so Back from Profile Setup returns to Create Account / Sign Up
+  //    — but arriving fresh on one (app start, browser reload) continues the
+  //    onboarding on Profile Setup instead.
   if (session.status == SessionStatus.onboarding) {
-    return (isOnboarding || isPublic) ? null : Routes.profileSetup;
+    if (isOnboarding) return null;
+    if (isPublic) return freshStart ? Routes.profileSetup : null;
+    return Routes.profileSetup;
   }
 
   // 3. Profile complete: auth and profile setup are behind the user. Enter
@@ -104,15 +113,23 @@ class _RouterRefresh extends ChangeNotifier {
 
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = _RouterRefresh(ref);
+  // The router's first redirect is the app's first navigation (cold start, or
+  // a reload on the web); every later one is navigation inside the app.
+  var freshStart = true;
   final router = GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: Routes.login,
     refreshListenable: refresh,
-    redirect: (context, state) => resolveRedirect(
-      location: state.uri.path,
-      session: ref.read(sessionProvider),
-      activeRole: ref.read(activeRoleProvider),
-    ),
+    redirect: (context, state) {
+      final fresh = freshStart;
+      freshStart = false;
+      return resolveRedirect(
+        location: state.uri.path,
+        session: ref.read(sessionProvider),
+        activeRole: ref.read(activeRoleProvider),
+        freshStart: fresh,
+      );
+    },
     routes: appRoutes,
     errorBuilder: (context, state) => const NotFoundScreen(),
   );
