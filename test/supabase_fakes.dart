@@ -18,6 +18,30 @@ class FakeAuth implements AuthGateway {
   final calls = <String>[];
   var _next = 0;
 
+  /// AUTH-02 sign-up codes, as Supabase with email confirmation on: a
+  /// sign-up without a session gets a 6-digit code ([lastCode]); the code
+  /// works once, until [codeLifetime] after it was sent; a resend replaces
+  /// it, no sooner than [resendInterval]. Wrong, expired and used codes are
+  /// all [GatewayInvalidCodeException]. [now] is the fake's clock.
+  DateTime Function() now = DateTime.now;
+  Duration codeLifetime = const Duration(seconds: 900);
+  Duration resendInterval = const Duration(seconds: 60);
+  final _codes = <String, ({String code, DateTime sentAt})>{};
+  final _unconfirmed = <String>{};
+  var _codeSeq = 0;
+
+  /// The current sign-up code for [email] (what the email would contain).
+  String? lastCode(String email) => _codes[email]?.code;
+
+  /// [email] signed up and has not verified its code yet.
+  bool isUnconfirmed(String email) => _unconfirmed.contains(email);
+
+  String _issueCode(String email) {
+    final code = (123456 + 1111 * _codeSeq++).toString().padLeft(6, '0');
+    _codes[email] = (code: code, sentAt: now());
+    return code;
+  }
+
   void _maybeFail(String call) {
     calls.add(call);
     final f = failNext;
@@ -55,6 +79,9 @@ class FakeAuth implements AuthGateway {
     _maybeFail('signInWithPassword');
     final u = _users[email];
     if (u == null || u.password != password) return null;
+    if (_unconfirmed.contains(email)) {
+      throw const GatewayEmailNotConfirmedException();
+    }
     return current = u.user;
   }
 
@@ -66,9 +93,44 @@ class FakeAuth implements AuthGateway {
   }) async {
     _maybeFail('signUp');
     final user = addUser(email, password, metadata: metadata);
-    if (requireConfirmation) return SignUpResult(user: user, hasSession: false);
+    if (requireConfirmation) {
+      _unconfirmed.add(email);
+      _issueCode(email);
+      return SignUpResult(user: user, hasSession: false);
+    }
     current = user;
     return SignUpResult(user: user, hasSession: true);
+  }
+
+  @override
+  Future<AuthUser> verifySignUpCode({
+    required String email,
+    required String code,
+  }) async {
+    _maybeFail('verifySignUpCode');
+    final sent = _codes[email];
+    final u = _users[email];
+    if (sent == null ||
+        u == null ||
+        sent.code != code ||
+        !now().isBefore(sent.sentAt.add(codeLifetime))) {
+      throw const GatewayInvalidCodeException();
+    }
+    _codes.remove(email); // used: works once
+    _unconfirmed.remove(email);
+    return current = u.user;
+  }
+
+  @override
+  Future<void> resendSignUpCode({required String email}) async {
+    _maybeFail('resendSignUpCode');
+    final sent = _codes[email];
+    if (sent != null && now().isBefore(sent.sentAt.add(resendInterval))) {
+      throw const GatewayRateLimitedException();
+    }
+    // As Supabase: only a sign-up waiting for its code gets a new one; any
+    // other address gets the same (silent) answer.
+    if (_unconfirmed.contains(email)) _issueCode(email);
   }
 
   @override

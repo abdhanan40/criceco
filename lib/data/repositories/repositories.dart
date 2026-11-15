@@ -14,6 +14,17 @@ abstract interface class AccountRepository {
     required String identifier,
     required String password,
   });
+
+  /// Sign-up email verification (AUTH-02): confirms [email] with the 6-digit
+  /// [code] sent after [signUp] threw [EmailConfirmationRequiredException],
+  /// and returns the now signed-in account. A wrong, expired or used code:
+  /// [InvalidVerificationCodeException].
+  Future<UserAccount> verifySignUpCode(String email, String code, {required DateTime at});
+
+  /// Sends a new sign-up code to [email] (the previous one stops working).
+  /// Too soon or too often: [TooManyRequestsException].
+  Future<SignUpCodeTicket> resendSignUpCode(String email, {required DateTime at});
+
   Future<UserAccount?> byId(String accountId);
   Future<UserAccount> update(UserAccount account);
 

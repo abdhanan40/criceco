@@ -80,6 +80,52 @@ class SupabaseAccountRepository implements AccountRepository {
     return _read(result.user);
   }
 
+  /// AUTH-02: the code from the sign-up email starts the session; then the
+  /// account is read as after a sign-in. A code that can't be one (not 6
+  /// digits) is refused without a request.
+  @override
+  Future<UserAccount> verifySignUpCode(
+    String email,
+    String code, {
+    required DateTime at,
+  }) async {
+    final address = _email(email);
+    final digits = code.trim();
+    if (!_sixDigits.hasMatch(digits)) {
+      throw const InvalidVerificationCodeException();
+    }
+    final user = await _call(
+      () => auth.verifySignUpCode(email: address, code: digits),
+    );
+    try {
+      return await _read(user);
+    } on AccountException {
+      // AUTH-02D: the code was accepted (the email is confirmed and used up)
+      // but the account couldn't be read. End the half-started session so
+      // nothing stays signed in unseen; the user logs in next.
+      try {
+        await auth.signOut();
+      } on GatewayException {
+        // Already gone locally, or offline: it expires on its own.
+      }
+      throw const EmailConfirmedSignInRequiredException();
+    }
+  }
+
+  /// AUTH-02: a new sign-up code (the backend decides whether one is sent —
+  /// never revealed here, so an address in use can't be told apart).
+  @override
+  Future<SignUpCodeTicket> resendSignUpCode(
+    String email, {
+    required DateTime at,
+  }) async {
+    final address = _email(email);
+    await _call(() => auth.resendSignUpCode(email: address));
+    return SignUpCodeTicket(destination: SignUpCodeTicket.maskEmail(address));
+  }
+
+  static final _sixDigits = RegExp(r'^\d{6}$');
+
   @override
   Future<void> signOut() async {
     await _call(auth.signOut);

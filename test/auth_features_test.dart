@@ -58,6 +58,51 @@ void main() {
         change: false,
       ));
     });
+
+    // AUTH-02E: the email-codes switch.
+    test('email codes: OFF by default in every build and mode', () {
+      expect(kEmailCodesBuild, isFalse, reason: 'no --dart-define in tests');
+      expect(AuthFeatures.of(const BackendConfig.memory()).emailCodes, isFalse);
+      expect(AuthFeatures.of(supabase).emailCodes, isFalse);
+      final c = ProviderContainer();
+      addTearDown(c.dispose);
+      expect(c.read(emailCodesEnabledProvider), isFalse);
+      expect(c.read(authFeaturesProvider).emailCodes, isFalse);
+    });
+
+    test('email codes: turned on explicitly, in either mode; the other '
+        'features stay as they are', () {
+      final memory = AuthFeatures.of(
+        const BackendConfig.memory(),
+        emailCodes: true,
+      );
+      final remote = AuthFeatures.of(supabase, emailCodes: true);
+      expect((memory.emailCodes, remote.emailCodes), (true, true));
+      expect(flags(memory), (
+        phone: true,
+        google: true,
+        reset: true,
+        change: true,
+      ));
+      expect(flags(remote), (
+        phone: false,
+        google: false,
+        reset: false,
+        change: false,
+      ));
+    });
+
+    test('the provider follows the switch override', () {
+      final c = ProviderContainer(
+        overrides: [
+          backendConfigProvider.overrideWithValue(supabase),
+          emailCodesEnabledProvider.overrideWithValue(true),
+        ],
+      );
+      addTearDown(c.dispose);
+      expect(c.read(authFeaturesProvider).emailCodes, isTrue);
+      expect(flags(c.read(authFeaturesProvider)).reset, isFalse);
+    });
   });
 
   group('accountErrorText', () {

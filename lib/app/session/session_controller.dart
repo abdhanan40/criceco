@@ -64,6 +64,26 @@ class SessionController extends Notifier<SessionState> {
     await _setAccount(account);
   }
 
+  /// AUTH-02: confirms a sign-up with the 6-digit code from its email (after
+  /// [signUp] threw [EmailConfirmationRequiredException]). Success signs the
+  /// account in exactly as a sign-up with a session does ([_setAccount]:
+  /// onboarding until User Profile Setup is done, the account id remembered
+  /// for [restore]). A wrong, expired or used code throws
+  /// [InvalidVerificationCodeException]; other failures their own
+  /// [AccountException]. On any failure the session stays as it was.
+  Future<void> verifySignUpCode({required String email, required String code}) async {
+    final account = await ref
+        .read(accountRepositoryProvider)
+        .verifySignUpCode(email, code, at: ref.read(clockProvider).now());
+    await _setAccount(account);
+  }
+
+  /// AUTH-02: sends a new sign-up code to [email]; the previous one stops
+  /// working. Too soon or too often: [TooManyRequestsException]. Never
+  /// changes the session.
+  Future<SignUpCodeTicket> resendSignUpCode(String email) =>
+      ref.read(accountRepositoryProvider).resendSignUpCode(email, at: ref.read(clockProvider).now());
+
   /// "Continue with Google" — a new account that goes straight to User
   /// Profile Setup (no password step), then Role Selection.
   Future<void> signInWithGoogle() async {

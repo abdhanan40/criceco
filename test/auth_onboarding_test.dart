@@ -30,6 +30,12 @@ class _RejectingAccounts implements AccountRepository {
   Future<UserAccount> signUp({required String fullName, required ContactMethod method, required String identifier, required String password}) =>
       inner.signUp(fullName: fullName, method: method, identifier: identifier, password: password);
   @override
+  Future<UserAccount> verifySignUpCode(String email, String code, {required DateTime at}) =>
+      inner.verifySignUpCode(email, code, at: at);
+  @override
+  Future<SignUpCodeTicket> resendSignUpCode(String email, {required DateTime at}) =>
+      inner.resendSignUpCode(email, at: at);
+  @override
   Future<UserAccount?> byId(String accountId) => inner.byId(accountId);
   @override
   Future<UserAccount> update(UserAccount account) => inner.update(account);
@@ -363,11 +369,18 @@ void main() {
       expect(_loc(c), Routes.login, reason: 'system Back on Sign Up returns to Login');
     });
 
-    testWidgets('Create Account asks credentials only and validates them inline', (tester) async {
+    testWidgets('Create Account asks Full Name and credentials and validates them inline', (tester) async {
       final c = await _pump(tester);
       c.read(routerProvider).go(Routes.createAccount);
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('signup.name')), findsNothing, reason: 'name belongs to User Profile Setup');
+      // AUTH-02C: Full Name first (demo mode too), at most 40 characters.
+      expect(find.byKey(const Key('signup.name')), findsOneWidget);
+      expect(tester.getTopLeft(find.byKey(const Key('signup.name'))).dy,
+          lessThan(tester.getTopLeft(find.text('Sign up with')).dy));
+      await _enter(tester, 'signup.name', 'B' * 45);
+      expect(tester.widget<TextField>(find.descendant(of: find.byKey(const Key('signup.name')), matching: find.byType(TextField))).controller!.text,
+          'B' * 40);
+      await _enter(tester, 'signup.name', '');
       // Submission stays off until the password meets every requirement.
       CeButton createButton() => tester.widget<CeButton>(_button('Create Account'));
       expect(createButton().onPressed, isNull);
@@ -384,8 +397,12 @@ void main() {
       }
       await _enter(tester, 'signup.confirm', 'Cricket@12');
       await _tap(tester, _button('Create Account'));
+      expect(find.text('Full name is required'), findsOneWidget);
       expect(find.text('Phone number is required'), findsOneWidget);
       expect(find.text('Passwords do not match'), findsOneWidget);
+      await _enter(tester, 'signup.name', '42');
+      await _tap(tester, _button('Create Account'));
+      expect(find.text('Enter a valid name'), findsOneWidget, reason: 'a name needs a letter');
       await _enter(tester, 'signup.phone', '03ab33-98x76543');
       expect(tester.widget<TextField>(find.descendant(of: find.byKey(const Key('signup.phone')), matching: find.byType(TextField))).controller!.text,
           '0333-9876543', reason: 'phone accepts digits, spaces, + and - only');
@@ -396,10 +413,11 @@ void main() {
       expect(_loc(c), Routes.createAccount);
     });
 
-    testWidgets('Sign Up → User Profile Setup (phone prefilled); Back returns to Create Account', (tester) async {
+    testWidgets('Sign Up → User Profile Setup (name and phone prefilled); Back returns to Create Account', (tester) async {
       final c = await _pump(tester);
       c.read(routerProvider).go(Routes.createAccount);
       await tester.pumpAndSettle();
+      await _enter(tester, 'signup.name', 'Aman Ullah');
       await _enter(tester, 'signup.phone', '0333 9876543');
       await _enter(tester, 'signup.password', 'Cricket@123');
       await _enter(tester, 'signup.confirm', 'Cricket@123');
@@ -410,6 +428,9 @@ void main() {
       expect((a.profileComplete, a.playerProfile.isComplete, a.hasClubOwnerProfile), (false, false, false),
           reason: 'a new account: nothing set up');
       expect(find.text('03339876543'), findsOneWidget, reason: 'sign-up phone prefilled');
+      expect(a.fullName, 'Aman Ullah', reason: 'the demo account keeps the sign-up name');
+      expect(tester.widget<TextField>(find.descendant(of: find.byKey(const Key('profile.name')), matching: find.byType(TextField))).controller!.text,
+          'Aman Ullah', reason: 'sign-up name prefilled');
       await _tap(tester, find.byTooltip('Back'));
       expect(_loc(c), Routes.createAccount);
     });

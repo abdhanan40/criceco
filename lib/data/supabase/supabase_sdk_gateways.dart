@@ -57,6 +57,27 @@ class SupabaseAuthGateway implements AuthGateway {
   });
 
   @override
+  Future<AuthUser> verifySignUpCode({
+    required String email,
+    required String code,
+  }) => _guardAuth(() async {
+    final r = await _auth.verifyOTP(
+      type: sb.OtpType.signup,
+      email: email,
+      token: code,
+    );
+    final user = _toUser(r.user);
+    if (user == null || r.session == null) {
+      throw const GatewayUnexpectedException('verify-no-session');
+    }
+    return user;
+  });
+
+  @override
+  Future<void> resendSignUpCode({required String email}) =>
+      _guardAuth(() => _auth.resend(type: sb.OtpType.signup, email: email));
+
+  @override
   Future<void> signOut() => _guardAuth(() => _auth.signOut());
 
   static AuthUser? _toUser(sb.User? u) => u == null
@@ -87,9 +108,15 @@ class SupabaseAuthGateway implements AuthGateway {
     }
     if (e is sb.AuthException) {
       final status = int.tryParse(e.statusCode ?? '');
+      // By error code first: a wrong code comes back as 403, which must not
+      // read as a missing session below.
       switch (e.code) {
         case 'email_not_confirmed':
           return const GatewayEmailNotConfirmedException();
+        case 'otp_expired':
+          return const GatewayInvalidCodeException();
+        case 'over_email_send_rate_limit' || 'over_request_rate_limit':
+          return const GatewayRateLimitedException();
         case 'user_already_exists' || 'email_exists':
           return const GatewayConstraintException(
             sqlState: '23505',
@@ -101,6 +128,7 @@ class SupabaseAuthGateway implements AuthGateway {
             message: 'weak password',
           );
       }
+      if (status == 429) return const GatewayRateLimitedException();
       if (e is sb.AuthSessionMissingException ||
           status == 401 ||
           status == 403) {

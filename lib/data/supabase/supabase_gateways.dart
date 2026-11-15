@@ -45,6 +45,18 @@ abstract interface class AuthGateway {
     required Map<String, Object?> metadata,
   });
 
+  /// Confirms a sign-up with the 6-digit code from the email (AUTH-02) and
+  /// starts the session. A wrong, expired or already used code is a
+  /// [GatewayInvalidCodeException] (the backend doesn't tell them apart).
+  Future<AuthUser> verifySignUpCode({
+    required String email,
+    required String code,
+  });
+
+  /// Sends a new sign-up code to [email]. Too soon after the last one, or
+  /// too many: [GatewayRateLimitedException].
+  Future<void> resendSignUpCode({required String email});
+
   Future<void> signOut();
 }
 
@@ -170,6 +182,18 @@ class GatewayPermissionException extends GatewayException {
 /// Sign-in for an account whose email address isn't confirmed yet.
 class GatewayEmailNotConfirmedException extends GatewayException {
   const GatewayEmailNotConfirmedException();
+}
+
+/// A verification code that is wrong, expired or already used (Supabase
+/// answers all three with `otp_expired`).
+class GatewayInvalidCodeException extends GatewayException {
+  const GatewayInvalidCodeException();
+}
+
+/// Too many requests or emails in a short time (HTTP 429,
+/// `over_email_send_rate_limit`, `over_request_rate_limit`).
+class GatewayRateLimitedException extends GatewayException {
+  const GatewayRateLimitedException();
 }
 
 /// Anything else (bad response, unexpected error). [detail] is a short code,

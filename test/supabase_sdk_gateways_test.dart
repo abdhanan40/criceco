@@ -697,6 +697,163 @@ void main() {
       );
     });
 
+    // AUTH-02: sign-up codes.
+    Map<String, Object?> verifiedSession() => {
+      'access_token': 'test-access-token',
+      'token_type': 'bearer',
+      'expires_in': 3600,
+      'refresh_token': 'test-refresh-token',
+      'user': {
+        'id': uid,
+        'aud': 'authenticated',
+        'email': 'a@example.com',
+        'app_metadata': <String, Object?>{},
+        'user_metadata': {'full_name': 'Hamza Sheikh'},
+        'created_at': '2026-10-29T10:00:00Z',
+      },
+    };
+
+    test(
+      'verifySignUpCode: POST /verify (type signup) → the user, signed in',
+      () async {
+        respond = (_) => json(verifiedSession());
+        final g = SupabaseAuthGateway(client.auth);
+        final user = await g.verifySignUpCode(
+          email: 'a@example.com',
+          code: '123456',
+        );
+        expect(user.id, uid);
+        expect(user.fullName, 'Hamza Sheikh');
+        expect(g.currentUser!.id, uid, reason: 'the session has started');
+        final req = requests.single;
+        expect((req.method, req.url.path), ('POST', '/auth/v1/verify'));
+        final body = jsonDecode(req.body) as Map<String, dynamic>;
+        expect(
+          (body['type'], body['email'], body['token']),
+          ('signup', 'a@example.com', '123456'),
+        );
+      },
+    );
+
+    test('verifySignUpCode: a wrong / expired / used code (403 otp_expired) '
+        '→ GatewayInvalidCodeException, never a lost session', () async {
+      respond = (_) => json({
+        'code': 403,
+        'error_code': 'otp_expired',
+        'msg': 'Token has expired or is invalid',
+      }, 403);
+      final g = SupabaseAuthGateway(client.auth);
+      await expectLater(
+        g.verifySignUpCode(email: 'a@example.com', code: '000000'),
+        throwsA(isA<GatewayInvalidCodeException>()),
+      );
+      expect(g.currentUser, isNull);
+    });
+
+    test(
+      'verifySignUpCode: an answer without a session → unexpected',
+      () async {
+        respond = (_) => json({
+          'id': uid,
+          'aud': 'authenticated',
+          'email': 'a@example.com',
+          'app_metadata': <String, Object?>{},
+          'user_metadata': <String, Object?>{},
+          'created_at': '2026-10-29T10:00:00Z',
+        });
+        await expectLater(
+          SupabaseAuthGateway(client.auth)
+              .verifySignUpCode(email: 'a@example.com', code: '123456'),
+          throwsA(isA<GatewayUnexpectedException>()),
+        );
+      },
+    );
+
+    test('resendSignUpCode: POST /resend (type signup, the email)', () async {
+      respond = (_) => json(<String, Object?>{});
+      await SupabaseAuthGateway(client.auth)
+          .resendSignUpCode(email: 'a@example.com');
+      final req = requests.single;
+      expect((req.method, req.url.path), ('POST', '/auth/v1/resend'));
+      final body = jsonDecode(req.body) as Map<String, dynamic>;
+      expect((body['type'], body['email']), ('signup', 'a@example.com'));
+    });
+
+    test('resendSignUpCode: too soon (429 over_email_send_rate_limit) '
+        '→ GatewayRateLimitedException', () async {
+      respond = (_) => json({
+        'code': 429,
+        'error_code': 'over_email_send_rate_limit',
+        'msg': 'For security purposes, you can only request this after 60 seconds.',
+      }, 429);
+      await expectLater(
+        SupabaseAuthGateway(client.auth)
+            .resendSignUpCode(email: 'a@example.com'),
+        throwsA(isA<GatewayRateLimitedException>()),
+      );
+    });
+
+    test('a stalled code check → GatewayNetworkException', () async {
+      final stalled = sb.SupabaseClient(
+        url,
+        key,
+        httpClient: MockClient((_) => Completer<http.Response>().future),
+        authOptions: const sb.AuthClientOptions(
+          autoRefreshToken: false,
+          authFlowType: sb.AuthFlowType.implicit,
+        ),
+      );
+      addTearDown(stalled.dispose);
+      final g = SupabaseAuthGateway(
+        stalled.auth,
+        timeout: const Duration(milliseconds: 50),
+      );
+      await expectLater(
+        g.verifySignUpCode(email: 'a@example.com', code: '123456'),
+        throwsA(isA<GatewayNetworkException>()),
+      );
+      await expectLater(
+        g.resendSignUpCode(email: 'a@example.com'),
+        throwsA(isA<GatewayNetworkException>()),
+      );
+    });
+
+    test('translate: the code and rate-limit errors', () {
+      GatewayException t(sb.AuthException e) =>
+          SupabaseAuthGateway.translate(e);
+      // 403 with otp_expired: the code, not the session.
+      expect(
+        t(
+          const sb.AuthApiException(
+            'Token has expired or is invalid',
+            statusCode: '403',
+            code: 'otp_expired',
+          ),
+        ),
+        isA<GatewayInvalidCodeException>(),
+      );
+      expect(
+        t(
+          const sb.AuthApiException(
+            'slow down',
+            statusCode: '429',
+            code: 'over_request_rate_limit',
+          ),
+        ),
+        isA<GatewayRateLimitedException>(),
+      );
+      expect(
+        t(const sb.AuthApiException('slow down', statusCode: '429')),
+        isA<GatewayRateLimitedException>(),
+        reason: 'a 429 without a code',
+      );
+      // A 403 without a code is still a lost session (unchanged).
+      expect(
+        t(const sb.AuthApiException('forbidden', statusCode: '403')),
+        isA<GatewayPermissionException>(),
+      );
+    });
+
     test('translate: Auth error codes → gateway errors', () {
       GatewayException t(sb.AuthException e) =>
           SupabaseAuthGateway.translate(e);

@@ -192,8 +192,12 @@ Future<void> _toastGone(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+/// The Full Name typed on Create Account (AUTH-02C).
+const _signUpName = 'Hamza Sheikh';
+
 Future<void> _signUp(WidgetTester tester, ProviderContainer c) async {
   await _go(tester, c, Routes.createAccount);
+  await _enter(tester, 'signup.name', _signUpName);
   await _enter(tester, 'signup.email', _email);
   await _enter(tester, 'signup.password', _password);
   await _enter(tester, 'signup.confirm', _password);
@@ -434,6 +438,69 @@ void main() {
       expect(c.read(currentAccountProvider)!.email, _email);
     });
 
+    // AUTH-02C: Full Name on Create Account.
+    testWidgets('Full Name: asked on Create Account (email only), sent as '
+        'Auth metadata full_name, prefilled on Profile Setup', (tester) async {
+      final c = await _pump(tester);
+      await _go(tester, c, Routes.createAccount);
+      expect(find.byKey(const Key('signup.name')), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.byKey(const Key('signup.name'))).dy,
+        lessThan(tester.getTopLeft(find.byKey(const Key('signup.email'))).dy),
+        reason: 'the name comes first',
+      );
+      await _enter(tester, 'signup.name', '  Hamza Sheikh  ');
+      await _enter(tester, 'signup.email', _email);
+      await _enter(tester, 'signup.password', _password);
+      await _enter(tester, 'signup.confirm', _password);
+      await _tap(tester, _button('Create Account'));
+      expect(auth.current!.metadata, {
+        'full_name': 'Hamza Sheikh',
+      }, reason: 'trimmed');
+      expect(_loc(c), Routes.profileSetup);
+      expect(_fieldText(tester, 'profile.name'), 'Hamza Sheikh');
+    });
+
+    testWidgets('Full Name: empty or invalid → its message, no sign-up '
+        'request', (tester) async {
+      final c = await _pump(tester);
+      await _go(tester, c, Routes.createAccount);
+      await _enter(tester, 'signup.email', _email);
+      await _enter(tester, 'signup.password', _password);
+      await _enter(tester, 'signup.confirm', _password);
+      await _tap(tester, _button('Create Account'));
+      expect(find.text('Full name is required'), findsOneWidget);
+      for (final (bad, message) in [
+        ('A', 'Enter your full name'),
+        ('123', 'Enter a valid name'),
+      ]) {
+        await _enter(tester, 'signup.name', bad);
+        await _tap(tester, _button('Create Account'));
+        expect(find.text(message), findsOneWidget, reason: bad);
+      }
+      expect(_count(auth.calls, 'signUp'), 0);
+      expect(_loc(c), Routes.createAccount);
+    });
+
+    testWidgets('Full Name: at most 40 characters', (tester) async {
+      final c = await _pump(tester);
+      await _go(tester, c, Routes.createAccount);
+      await _enter(tester, 'signup.name', 'A' * 45);
+      expect(_fieldText(tester, 'signup.name'), 'A' * 40);
+    });
+
+    testWidgets('Profile Setup: the prefilled sign-up name can be changed and '
+        'the changed one is saved', (tester) async {
+      final c = await _pump(tester);
+      await _signUp(tester, c);
+      expect(_fieldText(tester, 'profile.name'), _signUpName);
+      await _fillProfile(tester);
+      await _enter(tester, 'profile.name', 'Hamza Ali Sheikh');
+      await _tap(tester, _button('Continue'));
+      expect(c.read(currentAccountProvider)!.fullName, 'Hamza Ali Sheikh');
+      expect(db.profiles[auth.current!.id]!['full_name'], 'Hamza Ali Sheikh');
+    });
+
     testWidgets('confirmation required → "Check your email", then Login', (
       tester,
     ) async {
@@ -474,6 +541,7 @@ void main() {
     testWidgets('a double tap sends one sign-up request', (tester) async {
       final c = await _pump(tester);
       await _go(tester, c, Routes.createAccount);
+      await _enter(tester, 'signup.name', _signUpName);
       await _enter(tester, 'signup.email', _email);
       await _enter(tester, 'signup.password', _password);
       await _enter(tester, 'signup.confirm', _password);

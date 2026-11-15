@@ -1,4 +1,5 @@
 import 'package:clock/clock.dart';
+import 'package:criceco/app/config/auth_features.dart';
 import 'package:criceco/app/providers/core_providers.dart';
 import 'package:criceco/app/session/session_controller.dart';
 import 'package:criceco/core/models/models.dart';
@@ -450,6 +451,181 @@ void main() {
       );
     });
   });
+
+  group('AUTH-02: demo sign-up codes (the email-codes switch)', () {
+    const address = 'new.user@example.com';
+    late DateTime t;
+    late InMemoryAccountRepository codes;
+
+    setUp(() {
+      t = today;
+      codes = InMemoryAccountRepository(
+        SeedData(today),
+        requireEmailCode: true,
+        clock: Clock(() => t),
+      );
+    });
+
+    Future<String> pendingCode() async {
+      try {
+        await codes.signUp(
+          fullName: 'New User',
+          method: ContactMethod.email,
+          identifier: address,
+          password: 'Cricket@2026',
+        );
+      } on EmailConfirmationRequiredException catch (e) {
+        expect(e.demoCode, matches(RegExp(r'^\d{6}$')));
+        return e.demoCode!;
+      }
+      fail('an email sign-up must wait for its code');
+    }
+
+    test('switch OFF (default): sign-up is immediate, as before', () async {
+      final a = await InMemoryAccountRepository(SeedData(today)).signUp(
+        fullName: 'New User',
+        method: ContactMethod.email,
+        identifier: address,
+        password: 'Cricket@2026',
+      );
+      expect((a.fullName, a.email), ('New User', address));
+    });
+
+    test(
+      'switch ON: the account exists only once the code is verified',
+      () async {
+        final code = await pendingCode();
+        final a = await codes.verifySignUpCode(address, code, at: t);
+        expect(
+          (a.fullName, a.email, a.profileComplete),
+          ('New User', address, false),
+        );
+        expect(await codes.byId(a.id), isNotNull);
+      },
+    );
+
+    test(
+      'wrong, expired (900 s) and reused codes are one typed error',
+      () async {
+        final code = await pendingCode();
+        await expectLater(
+          codes.verifySignUpCode(address, '000000', at: t),
+          throwsA(isA<InvalidVerificationCodeException>()),
+          reason: 'wrong',
+        );
+        await expectLater(
+          codes.verifySignUpCode(
+            address,
+            code,
+            at: t.add(const Duration(seconds: 900)),
+          ),
+          throwsA(isA<InvalidVerificationCodeException>()),
+          reason: 'expired',
+        );
+        final fresh = await pendingCode();
+        await codes.verifySignUpCode(address, fresh, at: t);
+        await expectLater(
+          codes.verifySignUpCode(address, fresh, at: t),
+          throwsA(isA<InvalidVerificationCodeException>()),
+          reason: 'reused',
+        );
+      },
+    );
+
+    test('five wrong codes use the code up until a new one is sent', () async {
+      final code = await pendingCode();
+      for (
+        var i = 0;
+        i < InMemoryAccountRepository.signUpCodeMaxAttempts;
+        i++
+      ) {
+        await expectLater(
+          codes.verifySignUpCode(address, '000000', at: t),
+          throwsA(isA<InvalidVerificationCodeException>()),
+        );
+      }
+      await expectLater(
+        codes.verifySignUpCode(address, code, at: t),
+        throwsA(isA<InvalidVerificationCodeException>()),
+        reason: 'even the right code, once used up',
+      );
+      t = t.add(InMemoryAccountRepository.signUpCodeResendInterval);
+      final ticket = await codes.resendSignUpCode(address, at: t);
+      await codes.verifySignUpCode(address, ticket.demoCode!, at: t);
+    });
+
+    test(
+      'resend: not within 60 s; then a new code replaces the old one',
+      () async {
+        final first = await pendingCode();
+        await expectLater(
+          codes.resendSignUpCode(
+            address,
+            at: t.add(const Duration(seconds: 59)),
+          ),
+          throwsA(isA<TooManyRequestsException>()),
+        );
+        t = t.add(const Duration(seconds: 60));
+        final ticket = await codes.resendSignUpCode(address, at: t);
+        expect(ticket.destination, 'n•••@example.com');
+        expect(ticket.demoCode, isNot(first));
+        await expectLater(
+          codes.verifySignUpCode(address, first, at: t),
+          throwsA(isA<InvalidVerificationCodeException>()),
+        );
+        await codes.verifySignUpCode(address, ticket.demoCode!, at: t);
+      },
+    );
+
+    test('resend with no sign-up waiting: a neutral ticket, no code', () async {
+      final ticket = await codes.resendSignUpCode('nobody@example.com', at: t);
+      expect(ticket.destination, 'n•••@example.com');
+      expect(ticket.demoCode, isNull);
+    });
+
+    test('phone sign-ups are unchanged (immediate)', () async {
+      final a = await codes.signUp(
+        fullName: 'Phone User',
+        method: ContactMethod.phone,
+        identifier: '03001234567',
+        password: 'Cricket@2026',
+      );
+      expect(a.phone, '03001234567');
+    });
+
+    test('the provider passes the switch (OFF unless overridden)', () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      Future<bool> waits(List<dynamic> extra) async {
+        final c = ProviderContainer(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            ...extra.cast(),
+          ],
+        );
+        addTearDown(c.dispose);
+        try {
+          await c
+              .read(accountRepositoryProvider)
+              .signUp(
+                fullName: 'New User',
+                method: ContactMethod.email,
+                identifier: address,
+                password: 'Cricket@2026',
+              );
+          return false;
+        } on EmailConfirmationRequiredException {
+          return true;
+        }
+      }
+
+      expect(await waits(const []), isFalse);
+      expect(
+        await waits([emailCodesEnabledProvider.overrideWithValue(true)]),
+        isTrue,
+      );
+    });
+  });
 }
 
 /// Records which write methods the session uses; delegates everything.
@@ -476,6 +652,17 @@ class _SpyAccounts implements AccountRepository {
     identifier: identifier,
     password: password,
   );
+  @override
+  Future<UserAccount> verifySignUpCode(
+    String email,
+    String code, {
+    required DateTime at,
+  }) => inner.verifySignUpCode(email, code, at: at);
+  @override
+  Future<SignUpCodeTicket> resendSignUpCode(
+    String email, {
+    required DateTime at,
+  }) => inner.resendSignUpCode(email, at: at);
   @override
   Future<UserAccount?> byId(String accountId) => inner.byId(accountId);
   @override

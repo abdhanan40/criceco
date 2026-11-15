@@ -117,6 +117,30 @@ void main() {
     );
   });
 
+  test('AUTH-02: sign-up code and rate-limit errors get their own messages', () {
+    expect(
+      SupabaseErrorMapper.map(const GatewayInvalidCodeException()),
+      isA<InvalidVerificationCodeException>().having(
+        (e) => e.message,
+        'message',
+        'That code is incorrect or has expired — check it or request a new one',
+      ),
+    );
+    expect(
+      SupabaseErrorMapper.map(const GatewayRateLimitedException()),
+      isA<TooManyRequestsException>().having(
+        (e) => e.message,
+        'message',
+        'Too many attempts — please wait a moment and try again',
+      ),
+    );
+    // Neither is a lost session: the user stays where they are.
+    expect(
+      SupabaseErrorMapper.map(const GatewayInvalidCodeException()),
+      isNot(isA<NotSignedInException>()),
+    );
+  });
+
   test('raw database text is never passed on', () {
     const raw = 'internal detail: relation secret_table';
     final m = messageOf(

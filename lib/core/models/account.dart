@@ -354,5 +354,21 @@ class PasswordResetTicket {
   final String? demoCode;
 }
 
+/// A sign-up verification code sent (AUTH-02): where it went, masked, e.g.
+/// "ha•••@example.com". [demoCode] is set in the demo only (nothing is sent).
+class SignUpCodeTicket {
+  const SignUpCodeTicket({required this.destination, this.demoCode});
+
+  final String destination;
+  final String? demoCode;
+
+  /// "hamza@example.com" → "h•••@example.com" (as the reset code's masking).
+  static String maskEmail(String email) {
+    final v = email.trim().toLowerCase();
+    final at = v.indexOf('@');
+    return at <= 0 ? '•••' : '${v[0]}•••${v.substring(at)}';
+  }
+}
+
 /// Result of checking a reset code (or using it to set a new password).
 enum ResetCodeCheck { ok, wrong, expired, tooManyAttempts, noRequest }

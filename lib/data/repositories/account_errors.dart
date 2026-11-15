@@ -35,10 +35,40 @@ class BackendUnavailableException extends AccountException {
 }
 
 /// Sign-up succeeded, but the email address must be confirmed before the
-/// user can sign in.
+/// user can sign in. [demoCode]: the demo's sign-up code (AUTH-02, nothing
+/// is sent there); `null` on a real backend.
 class EmailConfirmationRequiredException extends AccountException {
-  const EmailConfirmationRequiredException()
+  const EmailConfirmationRequiredException({this.demoCode})
     : super('Check your email to confirm your account, then sign in');
+
+  final String? demoCode;
+}
+
+/// A sign-up verification code that is wrong, expired or already used
+/// (AUTH-02). One message for all three: the backend doesn't tell them
+/// apart.
+class InvalidVerificationCodeException extends AccountException {
+  const InvalidVerificationCodeException()
+    : super(
+        'That code is incorrect or has expired — check it or request a new one',
+      );
+}
+
+/// The sign-up code was accepted — the email address is confirmed — but the
+/// account couldn't be read straight after (AUTH-02D: offline, a server
+/// hiccup). Nothing is signed in; the user logs in with email and password.
+class EmailConfirmedSignInRequiredException extends AccountException {
+  const EmailConfirmedSignInRequiredException()
+    : super(
+        'Your email is confirmed, but we couldn’t sign you in just now — '
+        'please log in with your email and password',
+      );
+}
+
+/// Too many attempts or emails in a short time (rate limited).
+class TooManyRequestsException extends AccountException {
+  const TooManyRequestsException()
+    : super('Too many attempts — please wait a moment and try again');
 }
 
 /// The backend does not support this way of signing in or up (e.g. phone

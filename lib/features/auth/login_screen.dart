@@ -9,11 +9,13 @@ import '../../app/session/session_controller.dart';
 import '../../app/theme/tokens.dart';
 import '../../app/theme/typography.dart';
 import '../../core/utils/validators.dart';
+import '../../data/repositories/account_errors.dart';
 import '../../shared/widgets/ce_buttons.dart';
 import '../../shared/widgets/ce_feedback.dart';
 import '../../shared/widgets/ce_form_widgets.dart';
 import '../../shared/widgets/ce_inputs.dart';
 import 'forgot_password_sheet.dart';
+import 'verify_email_sheet.dart';
 import 'widgets/auth_widgets.dart';
 
 /// Login (prototype `screens.login`, criceco-app.js :2898).
@@ -35,6 +37,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _submitting = false;
   String? _error;
 
+  /// AUTH-02D (email-codes switch on): the email of an account that signed
+  /// up but hasn't verified its code yet — Login then offers "Verify Email".
+  String? _unverifiedEmail;
+
   @override
   void dispose() {
     _phone.dispose();
@@ -45,13 +51,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _submit() async {
     if (_submitting) return; // keyboard "done" can't double-submit either
-    setState(() => _error = null);
+    setState(() {
+      _error = null;
+      _unverifiedEmail = null;
+    });
     if (!(_formKey.currentState?.validate() ?? false)) return;
     FocusScope.of(context).unfocus();
     setState(() => _submitting = true);
     // Supabase builds sign in by email only (no phone sign-in there).
     final byPhone = ref.read(authFeaturesProvider).phoneSignIn;
     String? error;
+    String? unverified;
     try {
       final ok = await ref.read(sessionProvider.notifier).signIn(
             identifier: byPhone ? (CeValidators.normalizePkPhone(_phone.text) ?? _phone.text.trim()) : _email.text.trim(),
@@ -62,15 +72,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ? 'Incorrect phone number or password. Please try again.'
             : 'Incorrect email or password. Please try again.';
       }
+    } on EmailConfirmationRequiredException catch (e) {
+      // Signed up, email not verified yet. With the email-codes switch on,
+      // the account can be verified with a code from here.
+      if (!byPhone && ref.read(authFeaturesProvider).emailCodes) {
+        error = 'Verify your email to log in — we’ll send you a 6-digit code.';
+        unverified = _email.text.trim();
+      } else {
+        error = accountErrorText(e, fallback: "Couldn't log in right now. Please try again.");
+      }
     } catch (e) {
-      // Unexpected failure, not wrong credentials: offline, email not yet
-      // confirmed, … — the app's own message, never the raw error.
+      // Unexpected failure, not wrong credentials: offline, … — the app's
+      // own message, never the raw error.
       error = accountErrorText(e, fallback: "Couldn't log in right now. Please try again.");
     }
     if (!mounted) return;
     setState(() {
       _submitting = false;
       _error = error;
+      _unverifiedEmail = unverified;
     });
     // On success the router redirect moves to Continue As / role home. The
     // redirect leaves an incomplete profile on the auth screens (so Back from
@@ -78,6 +98,39 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // confirmation — goes to User Profile Setup here.
     if (error == null && ref.read(sessionProvider).status == SessionStatus.onboarding) {
       context.go(Routes.profileSetup);
+    }
+  }
+
+  /// AUTH-02D: verify a signed-up account from Login — a fresh code is sent,
+  /// then the code sheet. Verified → User Profile Setup (a verified account
+  /// has not set its profile up yet; a completed one is moved on by the
+  /// router guard).
+  Future<void> _verifyEmail() async {
+    final email = _unverifiedEmail;
+    if (email == null) return;
+    FocusScope.of(context).unfocus();
+    final outcome = await showVerifyEmailSheet(context, email: email, sendCode: true);
+    if (!mounted) return;
+    switch (outcome) {
+      case VerifyEmailOutcome.verified:
+        setState(() {
+          _error = null;
+          _unverifiedEmail = null;
+        });
+        if (ref.read(sessionProvider).status == SessionStatus.onboarding) context.go(Routes.profileSetup);
+      case VerifyEmailOutcome.changeEmail:
+        setState(() {
+          _error = null;
+          _unverifiedEmail = null;
+        });
+      case VerifyEmailOutcome.confirmedPleaseLogIn:
+        setState(() {
+          _error = null;
+          _unverifiedEmail = null;
+        });
+        showCeToast(context, 'Email confirmed. Log in to continue.');
+      case null:
+        break;
     }
   }
 
@@ -166,6 +219,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     const SizedBox(height: 14),
                   const SizedBox(height: 2),
                   if (_error != null) CeErrorBanner(_error!),
+                  if (_unverifiedEmail != null) ...[
+                    CeButton.soft(key: const Key('login.verifyEmail'), label: 'Verify Email', onPressed: _verifyEmail),
+                    const SizedBox(height: 10),
+                  ],
                   CeButton(label: 'Login', loading: _submitting, onPressed: _submit),
                   CeSwitchLine(
                     prompt: "Don't have an account?",

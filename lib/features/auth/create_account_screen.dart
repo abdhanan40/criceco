@@ -5,11 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../app/config/auth_features.dart';
+import '../../app/providers/core_providers.dart';
 import '../../app/router/routes.dart';
 import '../../app/session/account_error_text.dart';
 import '../../app/session/session_controller.dart';
 import '../../app/theme/tokens.dart';
 import '../../core/enums/enums.dart';
+import '../../core/models/models.dart' show SignUpCodeTicket;
 import '../../core/utils/validators.dart';
 import '../../data/repositories/account_errors.dart';
 import '../../shared/widgets/ce_buttons.dart';
@@ -17,12 +19,13 @@ import '../../shared/widgets/ce_feedback.dart';
 import '../../shared/widgets/ce_form_widgets.dart';
 import '../../shared/widgets/ce_inputs.dart';
 import '../../shared/widgets/ce_top_bar.dart';
+import 'verify_email_sheet.dart';
 import 'widgets/auth_widgets.dart';
 
-/// Create Account (prototype `screens.createAccount`, :2953) — the Sign Up
-/// credentials: Phone-or-Email (email only in Supabase builds), Password,
-/// Confirm Password → User Profile Setup, or "Check your email" when the
-/// backend wants the address confirmed first.
+/// Create Account (prototype `screens.createAccount`, :2953) — Full Name and
+/// the Sign Up credentials: Phone-or-Email (email only in Supabase builds),
+/// Password, Confirm Password → User Profile Setup, or "Check your email"
+/// when the backend wants the address confirmed first.
 class CreateAccountScreen extends ConsumerStatefulWidget {
   const CreateAccountScreen({super.key});
 
@@ -32,6 +35,7 @@ class CreateAccountScreen extends ConsumerStatefulWidget {
 
 class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _name = TextEditingController();
   final _phone = TextEditingController();
   final _email = TextEditingController();
   final _password = TextEditingController();
@@ -43,9 +47,14 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
   /// (Supabase): the screen shows "Check your email" instead of the form.
   String? _confirmEmail;
 
+  /// AUTH-02D (email-codes switch on): when the newest sign-up code was
+  /// sent, and the demo's code (nothing is sent in the demo).
+  DateTime? _codeSentAt;
+  String? _demoCode;
+
   @override
   void dispose() {
-    for (final c in [_phone, _email, _password, _confirm]) {
+    for (final c in [_name, _phone, _email, _password, _confirm]) {
       c.dispose();
     }
     super.dispose();
@@ -64,20 +73,25 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
         ? (CeValidators.normalizePkPhone(_phone.text) ?? _phone.text.trim())
         : _email.text.trim();
     try {
+      // The name goes with the account (Supabase: Auth metadata `full_name`)
+      // and prefills User Profile Setup, where it can still be changed.
       await ref.read(sessionProvider.notifier).signUp(
-            fullName: '',
+            fullName: _name.text.trim(),
             method: method,
             identifier: identifier,
             password: _password.text,
           );
-    } on EmailConfirmationRequiredException {
-      // Not a failure: the account exists, the email link comes next.
-      if (mounted) {
-        setState(() {
-          _submitting = false;
-          _confirmEmail = identifier;
-        });
-      }
+    } on EmailConfirmationRequiredException catch (e) {
+      // Not a failure: the account exists; its email link (or, with the
+      // email-codes switch on, its 6-digit code) comes next.
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _confirmEmail = identifier;
+        _codeSentAt = ref.read(clockProvider).now();
+        _demoCode = e.demoCode;
+      });
+      if (ref.read(authFeaturesProvider).emailCodes) await _enterCode();
       return;
     } catch (e) {
       if (!mounted) return;
@@ -91,6 +105,57 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
     // Onboarding session → User Profile Setup (pushed, so Back returns here).
     unawaited(context.push(Routes.completeProfile));
   }
+
+  /// AUTH-02D: the code sheet. Verified → User Profile Setup, as after a
+  /// sign-up with a session (pushed, so Back returns here, to the form).
+  /// Closed → the "Enter your code" panel stays, to open it again.
+  Future<void> _enterCode() async {
+    final email = _confirmEmail;
+    if (email == null) return;
+    final outcome = await showVerifyEmailSheet(
+      context,
+      email: email,
+      sentAt: _codeSentAt,
+      demoCode: _demoCode,
+      onCodeSent: (ticket, at) {
+        _codeSentAt = at;
+        _demoCode = ticket.demoCode;
+      },
+    );
+    if (!mounted) return;
+    switch (outcome) {
+      case VerifyEmailOutcome.verified:
+        setState(() => _confirmEmail = null);
+        unawaited(context.push(Routes.completeProfile));
+      case VerifyEmailOutcome.changeEmail:
+        setState(() => _confirmEmail = null); // the form, as typed
+      case VerifyEmailOutcome.confirmedPleaseLogIn:
+        context.go(Routes.login);
+      case null:
+        break;
+    }
+  }
+
+  /// AUTH-02D: the sign-up is waiting for its code (the sheet was closed).
+  Widget _codePending(String email) => Column(
+        key: const Key('signup.codePending'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          CeSuccessPanel(
+            icon: 'mail',
+            title: 'Verify your email',
+            body: Text('Enter the 6-digit code sent to ${SignUpCodeTicket.maskEmail(email)} to finish creating your account.'),
+          ),
+          CeButton(key: const Key('signup.enterCode'), label: 'Enter Code', onPressed: _enterCode),
+          const SizedBox(height: 10),
+          CeButton.soft(
+            key: const Key('signup.changeEmail'),
+            label: 'Change Email',
+            onPressed: () => setState(() => _confirmEmail = null),
+          ),
+          CeSwitchLine(prompt: 'Already have an account?', action: 'Login', onTap: () => context.go(Routes.login)),
+        ],
+      );
 
   /// After sign-up when the email must be confirmed before the first login.
   Widget _checkEmail(String email) => Column(
@@ -125,15 +190,29 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
             onBack: () => CeTopBar.goBack(context, Routes.signup),
           ),
           if (confirmEmail != null)
-            AuthPanel(child: _checkEmail(confirmEmail))
+            AuthPanel(child: features.emailCodes ? _codePending(confirmEmail) : _checkEmail(confirmEmail))
           else
             AuthPanel(
               child: Form(
                 key: _formKey,
                 child: AutofillGroup(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                    // Credentials only: name, phone, date of birth and picture are
-                    // the common profile, collected once on User Profile Setup.
+                    // Full Name (AUTH-02C), then the credentials. Phone, date of
+                    // birth, picture and addresses are the common profile,
+                    // collected on User Profile Setup (the name is prefilled
+                    // there and can still be changed).
+                    const CeFieldLabel('Full Name', required: true),
+                    CeTextField(
+                      fieldKey: const Key('signup.name'),
+                      controller: _name,
+                      maxLength: CeValidators.nameMaxLength,
+                      hint: 'Muhammad Ali',
+                      icon: 'user',
+                      textCapitalization: TextCapitalization.words,
+                      textInputAction: TextInputAction.next,
+                      autofillHints: const [AutofillHints.name],
+                      validator: CeValidators.personName,
+                    ),
                     // Phone or Email — email only when phone sign-in is off.
                     if (features.phoneSignIn) ...[
                       const CeFieldLabel('Sign up with'),

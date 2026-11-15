@@ -107,6 +107,211 @@ void main() {
       },
     );
 
+    test('AUTH-02C: a saved profile name always wins over the Auth metadata '
+        'name (never overwritten by the sign-up name)', () async {
+      final u = auth.addUser(
+        email,
+        password,
+        metadata: {'full_name': 'Sign-up Name'},
+      );
+      db.completeProfile(u.id); // profiles.full_name = 'Test Owner'
+      final a = await repo.signIn(identifier: email, password: password);
+      expect(a!.fullName, 'Test Owner');
+      expect(db.profiles[u.id]!['full_name'], 'Test Owner');
+    });
+
+    test('AUTH-02C: an empty profile name shows the metadata name (Profile '
+        'Setup prefill) without writing it', () async {
+      final u = auth.addUser(
+        email,
+        password,
+        metadata: {'full_name': 'Sign-up Name'},
+      );
+      final a = await repo.signIn(identifier: email, password: password);
+      expect(a!.fullName, 'Sign-up Name');
+      expect(db.profiles[u.id]!['full_name'], isNull, reason: 'read only');
+    });
+
+    group('AUTH-02: sign-up codes', () {
+      Future<void> pending() async {
+        auth.requireConfirmation = true;
+        await expectLater(
+          signedUp(),
+          throwsA(isA<EmailConfirmationRequiredException>()),
+        );
+      }
+
+      test('the emailed code signs in; the account is read as after a '
+          'sign-in (metadata name, onboarding)', () async {
+        await pending();
+        final a = await repo.verifySignUpCode(
+          email,
+          auth.lastCode(email)!,
+          at: today,
+        );
+        expect(auth.calls, ['signUp', 'verifySignUpCode']);
+        expect(auth.current, isNotNull);
+        expect(a.email, email);
+        expect(a.fullName, 'Hamza Sheikh');
+        expect(a.profileComplete, isFalse);
+        expect(db.calls, contains('fetchAccountRows'));
+      });
+
+      test('a wrong code: typed error, still signed out; the right one '
+          'then works', () async {
+        await pending();
+        await expectLater(
+          repo.verifySignUpCode(email, '000000', at: today),
+          throwsA(isA<InvalidVerificationCodeException>()),
+        );
+        expect(auth.current, isNull);
+        await repo.verifySignUpCode(email, auth.lastCode(email)!, at: today);
+        expect(auth.current, isNotNull);
+      });
+
+      test('not six digits: refused without an Auth call', () async {
+        await pending();
+        auth.calls.clear();
+        for (final bad in ['12345', '1234567', '12a456', '']) {
+          await expectLater(
+            repo.verifySignUpCode(email, bad, at: today),
+            throwsA(isA<InvalidVerificationCodeException>()),
+            reason: bad,
+          );
+        }
+        expect(auth.calls, isEmpty);
+      });
+
+      test('a code works once', () async {
+        await pending();
+        final code = auth.lastCode(email)!;
+        await repo.verifySignUpCode(email, code, at: today);
+        await repo.signOut();
+        await expectLater(
+          repo.verifySignUpCode(email, code, at: today),
+          throwsA(isA<InvalidVerificationCodeException>()),
+        );
+      });
+
+      test('an expired code (after 900 s) is refused', () async {
+        var t = today;
+        auth.now = () => t;
+        await pending();
+        final code = auth.lastCode(email)!;
+        t = today.add(const Duration(seconds: 900));
+        await expectLater(
+          repo.verifySignUpCode(email, code, at: t),
+          throwsA(isA<InvalidVerificationCodeException>()),
+        );
+      });
+
+      test('resend: too soon → typed error; later a new code (masked '
+          'destination), the old one stops working', () async {
+        var t = today;
+        auth.now = () => t;
+        await pending();
+        final first = auth.lastCode(email)!;
+        await expectLater(
+          repo.resendSignUpCode(email, at: t),
+          throwsA(isA<TooManyRequestsException>()),
+        );
+        t = today.add(const Duration(seconds: 61));
+        final ticket = await repo.resendSignUpCode(email, at: t);
+        expect(ticket.destination, 'p•••@example.com');
+        expect(
+          ticket.demoCode,
+          isNull,
+          reason: 'never shown on a real backend',
+        );
+        final second = auth.lastCode(email)!;
+        expect(second, isNot(first));
+        await expectLater(
+          repo.verifySignUpCode(email, first, at: t),
+          throwsA(isA<InvalidVerificationCodeException>()),
+        );
+        await repo.verifySignUpCode(email, second, at: t);
+        expect(auth.current, isNotNull);
+      });
+
+      test('resend for an address with no sign-up waiting: the same neutral '
+          'answer', () async {
+        final ticket = await repo.resendSignUpCode(
+          'nobody@example.com',
+          at: today,
+        );
+        expect(ticket.destination, 'n•••@example.com');
+        expect(auth.lastCode('nobody@example.com'), isNull);
+      });
+
+      test('the email is normalised; a phone number is refused before any '
+          'Auth call', () async {
+        await pending();
+        await repo.verifySignUpCode(
+          '  Player@Example.com ',
+          auth.lastCode(email)!,
+          at: today,
+        );
+        expect(auth.current, isNotNull);
+        auth.calls.clear();
+        await expectLater(
+          repo.resendSignUpCode('03001234567', at: today),
+          throwsA(isA<UnsupportedSignInMethodException>()),
+        );
+        expect(auth.calls, isEmpty);
+      });
+
+      test(
+        'logging in before the code is verified → confirmation required',
+        () async {
+          await pending();
+          await expectLater(
+            repo.signIn(identifier: email, password: password),
+            throwsA(isA<EmailConfirmationRequiredException>()),
+          );
+          expect(auth.current, isNull);
+        },
+      );
+
+      test(
+        'AUTH-02D: the code is accepted but the account read fails → '
+        '"confirmed, please log in"; the half-started session is ended',
+        () async {
+          await pending();
+          db.failNext =
+              const GatewayNetworkException(); // the read after verify
+          await expectLater(
+            repo.verifySignUpCode(email, auth.lastCode(email)!, at: today),
+            throwsA(isA<EmailConfirmedSignInRequiredException>()),
+          );
+          expect(auth.current, isNull);
+          expect(auth.calls, contains('signOut'));
+          expect(
+            auth.isUnconfirmed(email),
+            isFalse,
+            reason: 'the email is confirmed',
+          );
+          // Logging in now works (and reads the account as usual).
+          final a = await repo.signIn(identifier: email, password: password);
+          expect(a!.email, email);
+        },
+      );
+
+      test('offline and rate-limited verify keep their typed errors', () async {
+        await pending();
+        auth.failNext = const GatewayNetworkException();
+        await expectLater(
+          repo.verifySignUpCode(email, auth.lastCode(email)!, at: today),
+          throwsA(isA<BackendUnavailableException>()),
+        );
+        auth.failNext = const GatewayRateLimitedException();
+        await expectLater(
+          repo.verifySignUpCode(email, auth.lastCode(email)!, at: today),
+          throwsA(isA<TooManyRequestsException>()),
+        );
+        expect(auth.current, isNull);
+      });
+    });
+
     test(
       'phone sign-up / sign-in is refused before any Auth call (D1)',
       () async {

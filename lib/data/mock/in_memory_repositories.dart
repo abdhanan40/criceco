@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import 'package:clock/clock.dart';
+
 import '../../core/models/models.dart';
 import '../../core/utils/validators.dart';
 import '../../demo/seed_data.dart';
@@ -16,10 +18,38 @@ class _PendingReset {
   int attempts = 0;
 }
 
+/// An email sign-up waiting for its code (AUTH-02, [InMemoryAccountRepository.requireEmailCode]).
+class _PendingSignUp {
+  _PendingSignUp({required this.account, required this.password, required this.code, required this.sentAt});
+  final UserAccount account;
+  final String password;
+  String code;
+  DateTime sentAt;
+  int attempts = 0;
+}
+
 /// Session-lifetime in-memory "backend" seeded from the prototype.
+///
+/// [requireEmailCode] (the email-codes switch, AUTH-02): an email sign-up
+/// is only created once its 6-digit code is verified — shown on screen
+/// ([EmailConfirmationRequiredException.demoCode]), nothing is sent. Phone
+/// sign-ups are unchanged. [clock] dates the codes.
 class InMemoryAccountRepository implements AccountRepository {
-  InMemoryAccountRepository(SeedData seed) : _accounts = {seed.account.id: seed.account};
+  InMemoryAccountRepository(SeedData seed, {this.requireEmailCode = false, this.clock = const Clock()})
+      : _accounts = {seed.account.id: seed.account};
   final Map<String, UserAccount> _accounts;
+  final bool requireEmailCode;
+  final Clock clock;
+
+  /// A sign-up code is valid for 15 minutes (the approved 900 s), can be
+  /// tried [signUpCodeMaxAttempts] times, works once and is replaced by a
+  /// resend — no sooner than [signUpCodeResendInterval] after the last one.
+  static const signUpCodeLifetime = Duration(seconds: 900);
+  static const signUpCodeMaxAttempts = 5;
+  static const signUpCodeResendInterval = Duration(seconds: 60);
+
+  /// Pending email sign-ups by lower-case email.
+  final Map<String, _PendingSignUp> _pendingSignUps = {};
 
   /// Last password used or set per account (mock credential store).
   final Map<String, String> _passwords = {};
@@ -133,8 +163,51 @@ class InMemoryAccountRepository implements AccountRepository {
       email: method == ContactMethod.email ? identifier : null,
       city: base.city,
     );
+    if (requireEmailCode && method == ContactMethod.email) {
+      final key = identifier.trim().toLowerCase();
+      final pending = _pendingSignUps[key] =
+          _PendingSignUp(account: account, password: password, code: _newCode(), sentAt: clock.now());
+      throw EmailConfirmationRequiredException(demoCode: pending.code);
+    }
     _passwords[account.id] = password;
     return _accounts[account.id] = account;
+  }
+
+  String _newCode() => (100000 + _random.nextInt(900000)).toString();
+
+  @override
+  Future<UserAccount> verifySignUpCode(String email, String code, {required DateTime at}) async {
+    final key = email.trim().toLowerCase();
+    final pending = _pendingSignUps[key];
+    // No sign-up waiting (none, or already verified: a code works once),
+    // expired, or used up by wrong attempts — one answer for all.
+    if (pending == null ||
+        !at.isBefore(pending.sentAt.add(signUpCodeLifetime)) ||
+        pending.attempts >= signUpCodeMaxAttempts) {
+      throw const InvalidVerificationCodeException();
+    }
+    if (code.trim() != pending.code) {
+      pending.attempts++;
+      throw const InvalidVerificationCodeException();
+    }
+    _pendingSignUps.remove(key);
+    _passwords[pending.account.id] = pending.password;
+    return _accounts[pending.account.id] = pending.account;
+  }
+
+  @override
+  Future<SignUpCodeTicket> resendSignUpCode(String email, {required DateTime at}) async {
+    final key = email.trim().toLowerCase();
+    final pending = _pendingSignUps[key];
+    final destination = SignUpCodeTicket.maskEmail(key);
+    // No sign-up waiting: the same answer, and no code (nothing to verify).
+    if (pending == null) return SignUpCodeTicket(destination: destination);
+    if (at.isBefore(pending.sentAt.add(signUpCodeResendInterval))) throw const TooManyRequestsException();
+    pending
+      ..code = _newCode()
+      ..sentAt = at
+      ..attempts = 0;
+    return SignUpCodeTicket(destination: destination, demoCode: pending.code);
   }
 
   @override

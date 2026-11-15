@@ -16,6 +16,7 @@ import '../../data/supabase/supabase_gateways.dart';
 import '../../data/supabase/supabase_location_repository.dart';
 import '../../demo/demo_stats.dart';
 import '../../demo/seed_data.dart';
+import '../config/auth_features.dart';
 import '../config/backend_config.dart';
 
 /// Injectable time source. Tests override with a fixed/fake [Clock].
@@ -53,7 +54,13 @@ final cityAreasProvider = FutureProvider<CityAreas>((ref) async {
 final accountRepositoryProvider = Provider<AccountRepository>((ref) {
   final config = ref.watch(backendConfigProvider);
   return switch (config.mode) {
-    BackendMode.memory => InMemoryAccountRepository(ref.watch(seedDataProvider)),
+    // The email-codes switch (AUTH-02, OFF by default): demo email sign-ups
+    // then wait for their 6-digit code.
+    BackendMode.memory => InMemoryAccountRepository(
+        ref.watch(seedDataProvider),
+        requireEmailCode: ref.watch(emailCodesEnabledProvider),
+        clock: ref.watch(clockProvider),
+      ),
     // The gateway providers throw "not available yet" until Step 4 adds
     // supabase_flutter; tests override them with fakes.
     BackendMode.supabase => SupabaseAccountRepository(
