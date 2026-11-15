@@ -20,6 +20,7 @@ import '../../shared/widgets/ce_inputs.dart';
 import '../../shared/widgets/ce_rows.dart';
 import '../../shared/widgets/ce_surfaces.dart';
 import '../../shared/widgets/ce_top_bar.dart';
+import '../account/personal_details_sheet.dart';
 import '../auth/forgot_password_sheet.dart';
 
 /// Back target when Settings has nothing to pop to: the active role's home.
@@ -37,10 +38,6 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
   /// Open with the Privacy section expanded and scrolled into view.
   final bool privacyExpanded;
-
-  /// "Account" stays inside the active role (prototype `ceGoAccount`):
-  /// Player → My Profile, Club Owner → My Club.
-  static String accountLocation(UserRole role) => role == UserRole.player ? Routes.playerProfile : Routes.myClub;
 
   /// Canonical location with the Privacy section open.
   static const privacyLocation = '${Routes.settings}?section=privacy';
@@ -118,7 +115,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             icon: 'user',
             title: 'Account',
             subtitle: 'Name, phone and personal details',
-            onTap: role == null ? null : () => context.go(SettingsScreen.accountLocation(role)),
+            // Player: My Profile (Edit there). Club Owner: the Personal
+            // Details sheet — My Club holds no personal details.
+            onTap: role == null
+                ? null
+                : role == UserRole.player
+                    ? () => context.go(Routes.playerProfile)
+                    : () => showPersonalDetailsSheet(context),
           ),
           CeSettingsRow(
             icon: 'repeat',

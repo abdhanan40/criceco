@@ -10,19 +10,15 @@ import '../../../app/theme/tokens.dart';
 import '../../../app/theme/typography.dart';
 import '../../../core/constants/city_areas.dart';
 import '../../../core/models/models.dart';
-import '../../../core/utils/formatters.dart';
-import '../../../core/utils/validators.dart';
 import '../../../shared/media/photo_picker.dart';
 import '../../../shared/widgets/ce_availability.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
-import '../../../shared/widgets/ce_inputs.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
-import '../../location/area_field.dart';
-import '../../location/city_picker.dart';
+import '../../account/personal_details_form.dart';
 import '../player_providers.dart';
 
 
@@ -45,16 +41,9 @@ class PlayerProfileScreen extends ConsumerStatefulWidget {
 
 class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _name = TextEditingController();
-  final _phone = TextEditingController();
-  final _area = TextEditingController();
-  // The City as the picker shows it, and as it was when editing began (id 0:
-  // a saved city without a database id). Area shows once the City changes.
-  CityOption? _city;
-  CityOption? _savedCity;
-  String _savedArea = '';
-  // "Other (type it)" picked in the Area picker before anything was typed.
-  bool _areaOther = false;
+  // Full name, City / Area and Phone — shared with the Club Owner's
+  // Personal Details sheet (Settings → Account).
+  final _details = PersonalDetailsEditor();
   bool _editing = false;
   bool _saving = false;
 
@@ -72,9 +61,7 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
 
   @override
   void dispose() {
-    _name.dispose();
-    _phone.dispose();
-    _area.dispose();
+    _details.dispose();
     super.dispose();
   }
 
@@ -82,18 +69,7 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
   bool get _phoneRequired => ref.read(currentAccountProvider)?.contactMethod != ContactMethod.email;
 
   void _startEdit() {
-    final a = ref.read(currentAccountProvider);
-    _name.text = a?.fullName ?? '';
-    _phone.text = a?.phone ?? '';
-    // Any saved city (featured or not); its id belongs to the Current City.
-    final city = a?.city?.trim();
-    _savedCity = city == null || city.isEmpty
-        ? null
-        : CityOption(id: (city == a?.currentCity?.trim() ? a?.currentCityId : null) ?? 0, name: city);
-    _city = _savedCity;
-    _savedArea = a?.currentArea ?? '';
-    _area.text = _savedArea;
-    _areaOther = false;
+    _details.load(ref.read(currentAccountProvider));
     if (mounted) {
       setState(() => _editing = true);
     } else {
@@ -101,38 +77,16 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
     }
   }
 
-  /// The City differs from the saved one (another id, or another name).
-  bool get _cityChanged {
-    final c = _city, s = _savedCity;
-    if (c == null || s == null) return c != s;
-    return c.id != s.id || c.name != s.name;
-  }
-
-  /// City picked (City Picker: a different city only). Back to the saved
-  /// city → the saved Area again (the Area field hides). Another city keeps
-  /// the Area only while it still fits ([CityAreas.keepsArea]), else clears it.
+  /// City picked: see [PersonalDetailsEditor.pickCity].
   void _pickCity(CityOption city) {
-    final previous = _city?.name;
     final areas = ref.read(cityAreasProvider).value ?? CityAreas.empty;
-    setState(() {
-      _city = city;
-      if (!_cityChanged) {
-        _area.text = _savedArea;
-        _areaOther = false;
-      } else if (!areas.keepsArea(previous, city.name, _area.text)) {
-        _area.clear();
-        _areaOther = false;
-      }
-    });
+    setState(() => _details.pickCity(city, areas));
   }
 
   /// Area picked from the list, or "Other (type it)".
   void _pickArea(String area) {
     final areas = ref.read(cityAreasProvider).value ?? CityAreas.empty;
-    setState(() {
-      _areaOther = area == kOtherArea;
-      _area.text = AreaField.textFor(area, listed: areas.areasFor(_city?.name), typed: _area.text);
-    });
+    setState(() => _details.pickArea(area, areas));
   }
 
   /// Leave edit mode without saving: the typed values are dropped, the
@@ -149,32 +103,10 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
-    final phone = _phone.text.trim().isEmpty ? null : formatPkPhone(CeValidators.normalizePkPhone(_phone.text)!);
-    // A changed City goes with its id (none: a city without one) and the
-    // Area shown for it; an unchanged City leaves the address alone.
-    final city = _cityChanged ? _city : null;
-    final cityId = city != null && city.id > 0 ? city.id : null;
-    // A blank phone clears the saved one (allowed for email accounts only:
-    // the form requires it otherwise).
-    final clearPhone = phone == null;
     try {
-      await ref.read(sessionProvider.notifier).updateAccount(
-            (a) => city == null
-                ? a.copyWith(fullName: _name.text.trim(), phone: phone, clearPhone: clearPhone)
-                : a.copyWith(
-                    fullName: _name.text.trim(),
-                    phone: phone,
-                    clearPhone: clearPhone,
-                    city: city.name,
-                    currentCityId: cityId,
-                    clearCurrentCityId: cityId == null,
-                    currentArea: _area.text.trim(),
-                  ),
-          );
-      // A player listed as available is shown to clubs with the new details.
-      if (ref.read(playerAvailabilityProvider).openToOffers) {
-        await ref.read(playerAvailabilityProvider.notifier).setOpenToOffers(true);
-      }
+      // Name, phone (a blank one clears it) and — when the City changed —
+      // the current address; the Date of Birth is left as it is.
+      await savePersonalDetails(ref, _details);
     } catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
@@ -316,15 +248,10 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
               if (_editing)
                 _EditForm(
                   formKey: _formKey,
-                  name: _name,
-                  phone: _phone,
-                  city: _city,
+                  details: _details,
                   phoneRequired: _phoneRequired,
                   onCity: _pickCity,
-                  showArea: _cityChanged,
                   areaData: ref.watch(cityAreasProvider).value ?? CityAreas.empty,
-                  area: _area,
-                  areaOther: _areaOther,
                   onPickArea: _pickArea,
                   onArea: (_) => setState(() {}),
                   onSubmit: _save,
@@ -377,15 +304,10 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
 class _EditForm extends StatelessWidget {
   const _EditForm({
     required this.formKey,
-    required this.name,
-    required this.phone,
-    required this.city,
+    required this.details,
     required this.phoneRequired,
     required this.onCity,
-    required this.showArea,
     required this.areaData,
-    required this.area,
-    required this.areaOther,
     required this.onPickArea,
     required this.onArea,
     required this.onSubmit,
@@ -394,19 +316,14 @@ class _EditForm extends StatelessWidget {
   });
 
   final GlobalKey<FormState> formKey;
-  final TextEditingController name;
-  final TextEditingController phone;
-  final CityOption? city;
+  final PersonalDetailsEditor details;
   final bool phoneRequired;
   final ValueChanged<CityOption> onCity;
 
   /// Area (required) shows once the City changes: kept while it still fits
   /// the new city, else cleared (E1-B). Keys `edit.currentAreaPicker` /
   /// `edit.currentArea`.
-  final bool showArea;
   final CityAreas areaData;
-  final TextEditingController area;
-  final bool areaOther;
   final ValueChanged<String> onPickArea;
   final ValueChanged<String> onArea;
   final VoidCallback onSubmit;
@@ -420,53 +337,17 @@ class _EditForm extends StatelessWidget {
         child: Form(
           key: formKey,
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            const CeFieldLabel('Full name', required: true),
-            CeTextField(
-              fieldKey: const Key('edit.name'),
-              controller: name,
-              hint: 'Muhammad Ali',
-              icon: 'user',
-              maxLength: 40,
-              textCapitalization: TextCapitalization.words,
-              textInputAction: TextInputAction.next,
-              autofillHints: const [AutofillHints.name],
-              validator: CeValidators.personName,
-            ),
-            const CeFieldLabel('City', required: true),
-            // Searchable nationwide city list (featured cities first; province /
-            // district filters in Supabase mode).
-            CityPickerField(
-              fieldKey: const Key('edit.city'),
-              value: city,
-              onChanged: onCity,
-              sheetTitle: 'City',
-              hint: 'Select city',
-              icon: 'map-pin',
-              validator: (c) => c == null ? 'Please select a city' : null,
-            ),
-            if (showArea)
-              AreaField(
-                keyPrefix: 'edit.current',
-                areaData: areaData,
-                city: city?.name,
-                areaValue: area.text,
-                otherPicked: areaOther,
-                onPickArea: onPickArea,
-                controller: area,
-                onArea: onArea,
-              ),
-            CeFieldLabel('Phone', required: phoneRequired),
-            CeTextField(
-              fieldKey: const Key('edit.phone'),
-              controller: phone,
-              hint: '03XX-XXXXXXX',
-              icon: 'phone',
-              keyboardType: TextInputType.phone,
-              inputFormatters: kPhoneInputFormatters,
-              textInputAction: TextInputAction.done,
-              autofillHints: const [AutofillHints.telephoneNumber],
-              validator: (v) => (!phoneRequired && (v == null || v.trim().isEmpty)) ? null : CeValidators.pkPhone(v),
-              onFieldSubmitted: (_) => onSubmit(),
+            // Full name → City → Area (once the City changes) → Phone; no
+            // Date of Birth here.
+            PersonalDetailsFields(
+              keyPrefix: 'edit',
+              editor: details,
+              phoneRequired: phoneRequired,
+              areaData: areaData,
+              onCity: onCity,
+              onPickArea: onPickArea,
+              onArea: onArea,
+              onSubmit: onSubmit,
             ),
             _DetailRow(icon: 'shield', label: 'Club', value: Text(clubCode, style: _DetailRow.valueStyle)),
             _DetailRow(

@@ -7,6 +7,7 @@ import 'package:criceco/app/router/role_destinations.dart';
 import 'package:criceco/app/router/routes.dart';
 import 'package:criceco/app/session/role_controller.dart';
 import 'package:criceco/app/session/session_controller.dart';
+import 'package:criceco/core/constants/city_areas.dart';
 import 'package:criceco/core/models/models.dart';
 import 'package:criceco/demo/seed_data.dart';
 import 'package:criceco/features/club/hunt/player_hunt_controller.dart';
@@ -395,10 +396,18 @@ void main() {
       });
     }
     testWidgets('Settings: role-aware Account, profile switch, Demo Mode, Log out', (tester) async {
-      final c = await _pump(tester, club: true);
+      // The Personal Details sheet reads the Area list: given here, so the
+      // bundled file is not loaded (and cached unfinished) in this test.
+      final c = await _pump(tester, club: true, overrides: [
+        cityAreasProvider.overrideWith((ref) async => CityAreas.empty),
+      ]);
       await _go(tester, c, Routes.settings);
       await _tap(tester, find.text('Account').last);
-      expect(_loc(c), Routes.myClub, reason: 'Club Owner account → My Club');
+      expect(find.byKey(const Key('personalDetails.sheet')), findsOneWidget,
+          reason: 'Club Owner account → the Personal Details sheet');
+      expect(_loc(c), Routes.settings, reason: 'the sheet never changes the route');
+      await tester.tap(find.byKey(const Key('personalDetails.cancel')));
+      await tester.pumpAndSettle();
 
       await _go(tester, c, Routes.settings);
       expect(find.text('Prototype controls'), findsOneWidget);
