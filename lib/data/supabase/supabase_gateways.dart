@@ -57,7 +57,108 @@ abstract interface class AuthGateway {
   /// too many: [GatewayRateLimitedException].
   Future<void> resendSignUpCode({required String email});
 
+  /// Ends the session on this device.
   Future<void> signOut();
+
+  // ---- AUTH-04: password recovery ----
+
+  /// Sends the password-recovery email to [email]: a 6-digit code, and a
+  /// link back to [redirectTo] (the app's auth callback). The backend
+  /// answers the same whether or not the address has an account.
+  Future<void> sendPasswordReset({required String email, String? redirectTo});
+
+  /// Checks the 6-digit recovery code and starts a recovery session for that
+  /// user. Wrong, expired or used: [GatewayInvalidCodeException].
+  Future<AuthUser> verifyRecoveryCode({
+    required String email,
+    required String code,
+  });
+
+  /// Sets a new password for the signed-in user (here: the recovery session).
+  /// The old password: [GatewaySamePasswordException].
+  Future<void> updatePassword(String password);
+
+  /// Ends every session of the signed-in user, on all devices (after a
+  /// password reset).
+  Future<void> signOutEverywhere();
+
+  // ---- AUTH-05: Google ----
+
+  /// Opens Google sign-in (the backend's OAuth flow) in the browser. Returns
+  /// once it is open; the session arrives later through [events] (Android)
+  /// or as [takeStartEvent] after the page comes back (web). `false` when
+  /// the browser couldn't be opened.
+  Future<bool> startGoogleSignIn({String? redirectTo});
+
+  // ---- Sessions that don't come from a call the app is waiting on ----
+
+  /// How the current session was started (from its token), or
+  /// [AuthSessionKind.none] when signed out.
+  AuthSessionKind get sessionKind;
+
+  /// The auth event of the app start (a recovery link, a Google return or a
+  /// failed link handled while the backend started), or `null`. Call once,
+  /// at app start: events after it arrive through [events].
+  Future<AuthGatewayEvent?> takeStartEvent();
+
+  /// Auth events after [takeStartEvent]: recovery links and Google returns
+  /// opened while the app runs (Android), failed links, expired sessions.
+  Stream<AuthGatewayEvent> get events;
+}
+
+/// How a session was started (the token's `amr` claim).
+enum AuthSessionKind {
+  none,
+
+  /// A password-recovery code or link: only good for setting a new password.
+  recovery,
+
+  /// Google (OAuth).
+  oauth,
+
+  /// Password, sign-up code or anything else.
+  other,
+}
+
+/// An auth event the app didn't start a call for (AUTH-04/05).
+sealed class AuthGatewayEvent {
+  const AuthGatewayEvent();
+}
+
+/// A password-recovery link (or code) started a recovery session.
+final class GatewayRecoveryStarted extends AuthGatewayEvent {
+  const GatewayRecoveryStarted();
+}
+
+/// Google sign-in came back with a session for [user].
+final class GatewayOAuthSignedIn extends AuthGatewayEvent {
+  const GatewayOAuthSignedIn(this.user);
+  final AuthUser user;
+}
+
+/// An auth link (recovery or Google) came back with an error.
+final class GatewayLinkFailed extends AuthGatewayEvent {
+  const GatewayLinkFailed(this.reason);
+  final GatewayLinkError reason;
+}
+
+/// The backend ended the session (refresh token expired or revoked).
+final class GatewaySessionExpired extends AuthGatewayEvent {
+  const GatewaySessionExpired();
+}
+
+enum GatewayLinkError {
+  /// Expired or already used (`otp_expired`).
+  expired,
+
+  /// Google sign-in was cancelled or permission refused (`access_denied`).
+  cancelled,
+
+  /// Not usable here: opened on another device or browser, or malformed.
+  invalid,
+
+  /// The provider or backend reported an error.
+  failed,
 }
 
 /// One account's rows: `profiles` plus its (optional) address and player
@@ -194,6 +295,11 @@ class GatewayInvalidCodeException extends GatewayException {
 /// `over_email_send_rate_limit`, `over_request_rate_limit`).
 class GatewayRateLimitedException extends GatewayException {
   const GatewayRateLimitedException();
+}
+
+/// A new password equal to the current one (`same_password`).
+class GatewaySamePasswordException extends GatewayException {
+  const GatewaySamePasswordException();
 }
 
 /// Anything else (bad response, unexpected error). [detail] is a short code,

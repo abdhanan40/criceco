@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/config/auth_features.dart';
 import '../../app/router/routes.dart';
 import '../../app/session/account_error_text.dart';
+import '../../app/session/auth_notice.dart';
 import '../../app/session/session_controller.dart';
 import '../../app/theme/tokens.dart';
 import '../../app/theme/typography.dart';
@@ -41,12 +42,72 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   /// up but hasn't verified its code yet — Login then offers "Verify Email".
   String? _unverifiedEmail;
 
+  bool _googleLoading = false;
+
+  /// AUTH-05: Google continues in the browser; on Android the account comes
+  /// back while this screen is open.
+  bool _awaitingGoogle = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // A notice from before this screen was shown (a failed link at app
+    // start, a reset password, an ended session).
+    WidgetsBinding.instance.addPostFrameCallback((_) => _takeNotice());
+  }
+
   @override
   void dispose() {
     _phone.dispose();
     _email.dispose();
     _password.dispose();
     super.dispose();
+  }
+
+  /// Shows [authNoticeProvider]'s message once: an error as the banner,
+  /// good news as a toast.
+  void _takeNotice() {
+    if (!mounted) return;
+    final notice = ref.read(authNoticeProvider.notifier).take();
+    if (notice == null) return;
+    if (notice.isError) {
+      setState(() {
+        _error = notice.message;
+        _unverifiedEmail = null;
+      });
+    } else {
+      showCeToast(context, notice.message);
+    }
+  }
+
+  /// "Continue with Google": the demo signs in at once (a new account →
+  /// User Profile Setup); a Supabase build opens Google in the browser, and
+  /// the router guard takes the returning account on (AUTH-05).
+  Future<void> _google() async {
+    if (_googleLoading || _submitting) return;
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _googleLoading = true;
+      _error = null;
+      _unverifiedEmail = null;
+    });
+    final bool done;
+    try {
+      done = await ref.read(sessionProvider.notifier).signInWithGoogle();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _googleLoading = false;
+        _error = accountErrorText(e, fallback: "Couldn't sign in with Google — please try again");
+      });
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      _googleLoading = false;
+      _awaitingGoogle = !done;
+    });
+    if (done && ref.read(sessionProvider).status == SessionStatus.onboarding) context.go(Routes.profileSetup);
   }
 
   Future<void> _submit() async {
@@ -136,9 +197,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   /// Reset by phone number or email (bottom sheet), then log in with the new
   /// password: a phone number is prefilled, the old password cleared.
+  /// Email-only builds (AUTH-04): an accepted code continues on Reset
+  /// Password (the sheet resolves to `null`); Login then shows the outcome.
   Future<void> _forgotPassword() async {
     FocusScope.of(context).unfocus();
-    final identifier = await showForgotPasswordSheet(context, initialIdentifier: _phone.text.trim());
+    final byPhone = ref.read(authFeaturesProvider).phoneSignIn;
+    final identifier = await showForgotPasswordSheet(
+      context,
+      initialIdentifier: (byPhone ? _phone.text : _email.text).trim(),
+      emailOnly: !byPhone,
+    );
     if (identifier == null || !mounted) return;
     setState(() {
       _error = null;
@@ -151,6 +219,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final features = ref.watch(authFeaturesProvider);
+    ref.listen(authNoticeProvider, (_, notice) {
+      if (notice != null) WidgetsBinding.instance.addPostFrameCallback((_) => _takeNotice());
+    });
+    // Google came back while Login was open (Android): a new account sets
+    // up its profile; a complete one is moved on by the router guard.
+    ref.listen(sessionProvider, (prev, next) {
+      if (!_awaitingGoogle || prev?.status != SessionStatus.signedOut) return;
+      if (next.status == SessionStatus.onboarding) {
+        _awaitingGoogle = false;
+        context.go(Routes.profileSetup);
+      } else if (next.isAuthenticated) {
+        _awaitingGoogle = false;
+      }
+    });
     return Scaffold(
       backgroundColor: CeColors.bg,
       body: SingleChildScrollView(
@@ -204,7 +286,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     validator: (v) => (v == null || v.isEmpty) ? 'Password is required' : null,
                     onFieldSubmitted: (_) => _submit(),
                   ),
-                  // Password reset isn't configured on the Supabase backend.
+                  // Supabase: with the email-codes switch (the recovery email).
                   if (features.passwordReset)
                     Align(
                       alignment: Alignment.centerRight,
@@ -223,7 +305,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     CeButton.soft(key: const Key('login.verifyEmail'), label: 'Verify Email', onPressed: _verifyEmail),
                     const SizedBox(height: 10),
                   ],
-                  CeButton(label: 'Login', loading: _submitting, onPressed: _submit),
+                  CeButton(label: 'Login', loading: _submitting, onPressed: _googleLoading ? null : _submit),
+                  // AUTH-05 (Supabase: the Google switch).
+                  if (features.googleSignIn) ...[
+                    const AuthDivider(),
+                    GoogleButton(onPressed: _submitting ? null : _google, loading: _googleLoading),
+                  ],
                   CeSwitchLine(
                     prompt: "Don't have an account?",
                     action: 'Sign Up',

@@ -1061,16 +1061,17 @@ void main() {
     expect(prefs.getString(LocalAccountOverlay.keyFor(a.id)), isNotNull);
   });
 
-  test('password flows are not supported yet (D13)', () async {
-    expect(
-      () => repo.changePassword('x', current: 'a', next: 'b'),
-      throwsUnsupportedError,
-    );
-    expect(
-      () => repo.requestPasswordReset(email, at: today),
-      throwsUnsupportedError,
-    );
-  });
+  test(
+    'password change is not supported yet (D13); reset is (AUTH-04)',
+    () async {
+      expect(
+        () => repo.changePassword('x', current: 'a', next: 'b'),
+        throwsUnsupportedError,
+      );
+      final ticket = await repo.requestPasswordReset(email, at: today);
+      expect(ticket!.accountMayNotExist, isTrue);
+    },
+  );
 
   group('session in Supabase mode', () {
     late ProviderContainer c;

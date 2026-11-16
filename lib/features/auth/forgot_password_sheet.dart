@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/session/account_error_text.dart';
 import '../../app/session/session_controller.dart';
 import '../../app/theme/tokens.dart';
 import '../../core/models/models.dart';
@@ -19,25 +20,33 @@ import '../../shared/widgets/demo_widgets.dart';
 /// or `null` when cancelled. Signed in, [lockIdentifier] keeps the reset on the
 /// account's own phone number / email. The new password follows the shared
 /// strong-password rules ([CeValidators.password]).
+///
+/// AUTH-04, a remote backend ([emailOnly]: email only): the email carries
+/// the code and a link, and the backend never says whether the address has
+/// an account. An accepted code opens a recovery session: the sheet closes
+/// (`null`) and the router shows Reset Password for the new password.
 Future<String?> showForgotPasswordSheet(
   BuildContext context, {
   String? initialIdentifier,
   bool lockIdentifier = false,
+  bool emailOnly = false,
 }) =>
     showCeSheet<String>(
       context,
       builder: (_) => _ForgotPasswordSheet(
         initialIdentifier: initialIdentifier,
         lockIdentifier: lockIdentifier && (initialIdentifier?.isNotEmpty ?? false),
+        emailOnly: emailOnly,
       ),
     );
 
 enum _Step { request, code, password }
 
 class _ForgotPasswordSheet extends ConsumerStatefulWidget {
-  const _ForgotPasswordSheet({this.initialIdentifier, this.lockIdentifier = false});
+  const _ForgotPasswordSheet({this.initialIdentifier, this.lockIdentifier = false, this.emailOnly = false});
   final String? initialIdentifier;
   final bool lockIdentifier;
+  final bool emailOnly;
 
   @override
   ConsumerState<_ForgotPasswordSheet> createState() => _ForgotPasswordSheetState();
@@ -67,7 +76,8 @@ class _ForgotPasswordSheetState extends ConsumerState<_ForgotPasswordSheet> {
     super.dispose();
   }
 
-  static String? _validateIdentifier(String? v) {
+  String? _validateIdentifier(String? v) {
+    if (widget.emailOnly) return CeValidators.email(v);
     if (v == null || v.trim().isEmpty) return 'Enter your phone number or email';
     return v.contains('@') ? CeValidators.email(v) : CeValidators.pkPhone(v);
   }
@@ -81,6 +91,7 @@ class _ForgotPasswordSheetState extends ConsumerState<_ForgotPasswordSheet> {
         ResetCodeCheck.expired => 'This code has expired. Send a new one.',
         ResetCodeCheck.tooManyAttempts => 'Too many attempts. Send a new code.',
         ResetCodeCheck.noRequest => 'Send a code first.',
+        ResetCodeCheck.invalid => 'That code is incorrect or has expired — check it or request a new one.',
       };
 
   Future<void> _run(Future<void> Function() action) async {
@@ -91,6 +102,9 @@ class _ForgotPasswordSheetState extends ConsumerState<_ForgotPasswordSheet> {
     });
     try {
       await action();
+    } catch (e) {
+      // Offline, rate limited, …: the app's own message, never the raw error.
+      if (mounted) setState(() => _error = accountErrorText(e, fallback: "Couldn't reach the server — please try again"));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -121,6 +135,12 @@ class _ForgotPasswordSheetState extends ConsumerState<_ForgotPasswordSheet> {
     await _run(() async {
       final check = await _session.verifyResetCode(_identifier.text, _code.text);
       if (!mounted) return;
+      // A remote backend opened the recovery session: Reset Password (the
+      // router guard) takes the new password.
+      if (check == ResetCodeCheck.ok && ref.read(sessionProvider).passwordRecovery) {
+        Navigator.of(context).pop();
+        return;
+      }
       setState(() {
         _note = null;
         if (check == ResetCodeCheck.ok) {
@@ -157,19 +177,31 @@ class _ForgotPasswordSheetState extends ConsumerState<_ForgotPasswordSheet> {
         _note = null;
       });
 
+  /// Neutral when the backend doesn't say whether the account exists.
+  String _codeSubtitle() {
+    final t = _ticket;
+    if (t == null) return '';
+    final expires = 'It expires at ${CeFormat.time(t.expiresAt)}.';
+    return t.accountMayNotExist
+        ? 'If an account uses this email, we sent a 6-digit code to ${t.destination}. $expires '
+            'You can also open the link in that email on this device.'
+        : 'We sent a 6-digit code to ${t.destination}. $expires';
+  }
+
   @override
   Widget build(BuildContext context) {
     final (icon, title, subtitle) = switch (_step) {
       _Step.request => (
           'key',
           'Reset your password',
-          "Enter the phone number or email on your account. We'll send you a 6-digit code.",
+          widget.emailOnly
+              ? "Enter the email on your account. We'll send you a 6-digit code and a reset link."
+              : "Enter the phone number or email on your account. We'll send you a 6-digit code.",
         ),
       _Step.code => (
           'shield',
           'Enter the code',
-          'We sent a 6-digit code to ${_ticket?.destination}. '
-              'It expires at ${_ticket == null ? '' : CeFormat.time(_ticket!.expiresAt)}.',
+          _codeSubtitle(),
         ),
       _Step.password => (
           'lock',
@@ -202,12 +234,14 @@ class _ForgotPasswordSheetState extends ConsumerState<_ForgotPasswordSheet> {
                 CeTextField(
                   fieldKey: const Key('reset.identifier'),
                   controller: _identifier,
-                  hint: 'Phone number or email',
-                  icon: 'user',
+                  hint: widget.emailOnly ? 'you@example.com' : 'Phone number or email',
+                  icon: widget.emailOnly ? 'mail' : 'user',
                   readOnly: widget.lockIdentifier, // signed in: your own account only
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.done,
-                  autofillHints: const [AutofillHints.telephoneNumber, AutofillHints.email],
+                  autofillHints: widget.emailOnly
+                      ? const [AutofillHints.email]
+                      : const [AutofillHints.telephoneNumber, AutofillHints.email],
                   validator: _validateIdentifier,
                   onFieldSubmitted: (_) => _sendCode(),
                 ),
@@ -250,7 +284,10 @@ class _ForgotPasswordSheetState extends ConsumerState<_ForgotPasswordSheet> {
                 // Wraps on narrow phones instead of overflowing.
                 Wrap(alignment: WrapAlignment.spaceBetween, children: [
                   if (!widget.lockIdentifier)
-                    TextButton(onPressed: _busy ? null : _changeIdentifier, child: const Text('Change number or email')),
+                    TextButton(
+                      onPressed: _busy ? null : _changeIdentifier,
+                      child: Text(widget.emailOnly ? 'Change email' : 'Change number or email'),
+                    ),
                   TextButton(
                     onPressed: _busy ? null : () => _sendCode(resend: true),
                     child: const Text('Resend code'),

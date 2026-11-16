@@ -27,6 +27,21 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- AUTH-04/05: password-recovery links and Google sign-in return
+                 here (lib/app/config/auth_redirects.dart). Supabase's deep-link
+                 handler reads them; it must also be on the project's
+                 Redirect URLs list. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="com.criceco.criceco" android:host="login-callback"/>
+            </intent-filter>
+            <!-- The callback is for Supabase only: Flutter must not also push it
+                 as a route (go_router would show Not Found). -->
+            <meta-data
+                android:name="flutter_deeplinking_enabled"
+                android:value="false" />
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

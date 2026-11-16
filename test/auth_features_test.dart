@@ -70,8 +70,10 @@ void main() {
       expect(c.read(authFeaturesProvider).emailCodes, isFalse);
     });
 
-    test('email codes: turned on explicitly, in either mode; the other '
-        'features stay as they are', () {
+    // AUTH-04: Supabase's reset needs the recovery email, so it follows the
+    // email-codes switch; nothing else changes.
+    test('email codes: turned on explicitly, in either mode; Supabase also '
+        'gets password reset, the other features stay as they are', () {
       final memory = AuthFeatures.of(
         const BackendConfig.memory(),
         emailCodes: true,
@@ -87,7 +89,7 @@ void main() {
       expect(flags(remote), (
         phone: false,
         google: false,
-        reset: false,
+        reset: true,
         change: false,
       ));
     });
@@ -101,8 +103,50 @@ void main() {
       );
       addTearDown(c.dispose);
       expect(c.read(authFeaturesProvider).emailCodes, isTrue);
-      expect(flags(c.read(authFeaturesProvider)).reset, isFalse);
+      expect(
+        flags(c.read(authFeaturesProvider)).reset,
+        isTrue,
+        reason: 'AUTH-04',
+      );
     });
+
+    // AUTH-05: the Google switch.
+    test('Google: OFF by default in Supabase builds; the demo keeps it', () {
+      expect(kGoogleSignInBuild, isFalse, reason: 'no --dart-define in tests');
+      expect(AuthFeatures.of(supabase).googleSignIn, isFalse);
+      expect(
+        AuthFeatures.of(const BackendConfig.memory()).googleSignIn,
+        isTrue,
+      );
+      expect(
+        AuthFeatures.of(
+          const BackendConfig.memory(),
+          google: false,
+        ).googleSignIn,
+        isTrue,
+        reason: 'the demo signs in with Google without a provider',
+      );
+    });
+
+    test(
+      'Google: turned on explicitly in Supabase mode; nothing else changes',
+      () {
+        expect(flags(AuthFeatures.of(supabase, google: true)), (
+          phone: false,
+          google: true,
+          reset: false,
+          change: false,
+        ));
+        final c = ProviderContainer(
+          overrides: [
+            backendConfigProvider.overrideWithValue(supabase),
+            googleSignInEnabledProvider.overrideWithValue(true),
+          ],
+        );
+        addTearDown(c.dispose);
+        expect(c.read(authFeaturesProvider).googleSignIn, isTrue);
+      },
+    );
   });
 
   group('accountErrorText', () {

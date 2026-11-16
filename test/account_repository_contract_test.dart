@@ -720,4 +720,20 @@ class _SpyAccounts implements AccountRepository {
     String newPassword, {
     required DateTime at,
   }) => inner.resetPassword(identifier, code, newPassword, at: at);
+  @override
+  bool get passwordRecoveryActive => inner.passwordRecoveryActive;
+  @override
+  Future<void> completePasswordRecovery(
+    String newPassword, {
+    required DateTime at,
+  }) => inner.completePasswordRecovery(newPassword, at: at);
+  @override
+  Future<void> cancelPasswordRecovery() => inner.cancelPasswordRecovery();
+  @override
+  Future<bool> startGoogleSignIn() => inner.startGoogleSignIn();
+  @override
+  Future<AccountAuthEvent?> sessionAtStart({required bool remembered}) =>
+      inner.sessionAtStart(remembered: remembered);
+  @override
+  Stream<AccountAuthEvent> get authEvents => inner.authEvents;
 }

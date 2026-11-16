@@ -71,6 +71,25 @@ class TooManyRequestsException extends AccountException {
     : super('Too many attempts — please wait a moment and try again');
 }
 
+/// Reset password (AUTH-04): the new password is the current one.
+class SamePasswordException extends AccountException {
+  const SamePasswordException()
+    : super('Choose a password you haven’t used for this account');
+}
+
+/// Reset password (AUTH-04): the recovery session is gone (it expired, was
+/// cancelled or already used), so the password can't be set.
+class RecoverySessionMissingException extends AccountException {
+  const RecoverySessionMissingException()
+    : super('This reset has expired — request a new code and try again');
+}
+
+/// Google sign-in (AUTH-05) couldn't be started (no browser to open).
+class GoogleSignInUnavailableException extends AccountException {
+  const GoogleSignInUnavailableException()
+    : super('Couldn’t open Google sign-in — please try again');
+}
+
 /// The backend does not support this way of signing in or up (e.g. phone
 /// numbers while only email is enabled).
 class UnsupportedSignInMethodException extends AccountException {

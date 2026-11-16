@@ -14,6 +14,7 @@ abstract final class SupabaseErrorMapper {
       const EmailConfirmationRequiredException(),
     GatewayInvalidCodeException() => const InvalidVerificationCodeException(),
     GatewayRateLimitedException() => const TooManyRequestsException(),
+    GatewaySamePasswordException() => const SamePasswordException(),
     GatewayConstraintException() => _constraint(e),
   };
 

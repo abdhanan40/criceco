@@ -19,19 +19,27 @@ import 'supabase_gateways.dart';
 /// - The Club Owner profile is the user's own `clubs` row (Stage 3B), read
 ///   with the account. D6: memberships stay in memory. D9: photo and
 ///   settings stay on the device ([LocalAccountOverlay]).
-/// - Password change / reset are not supported yet (D13).
+/// - Password change is not supported yet (D13). Password reset (AUTH-04)
+///   and Google sign-in (AUTH-05) go through the backend's email and OAuth
+///   flows, which come back to [authCallbackUrl].
 class SupabaseAccountRepository implements AccountRepository {
   SupabaseAccountRepository({
     required this.auth,
     required this.db,
     required this.overlay,
     this.clock = const Clock(),
+    this.authCallbackUrl,
   });
 
   final AuthGateway auth;
   final ProfileGateway db;
   final LocalAccountOverlay overlay;
   final Clock clock;
+
+  /// Where recovery links and Google sign-in return to: the web app's own
+  /// address, or the Android app's `com.criceco.criceco://login-callback`.
+  /// It must be on the backend's Redirect URLs allow list.
+  final String? authCallbackUrl;
 
   /// The account as last read from the database (before local parts), per
   /// user id — what `update` compares against.
@@ -371,39 +379,202 @@ class SupabaseAccountRepository implements AccountRepository {
   }
 
   // ---------------------------------------------------------------------------
-  // Not supported yet (D13 — the screens are hidden in Step 5)
+  // Password change: not supported yet (D13 — Settings hides it)
   // ---------------------------------------------------------------------------
-
-  static const _noPasswordFlows =
-      'Password change / reset is not supported in Supabase mode yet';
 
   @override
   Future<bool> changePassword(
     String accountId, {
     required String current,
     required String next,
-  }) => throw UnsupportedError(_noPasswordFlows);
+  }) => throw UnsupportedError(
+    'Password change is not supported in Supabase mode yet',
+  );
 
+  // ---------------------------------------------------------------------------
+  // AUTH-04: password recovery
+  // ---------------------------------------------------------------------------
+  // One email carries a 6-digit code (entered in the Forgot Password sheet,
+  // works from any device) and a link back to the app ([authCallbackUrl];
+  // works on the device that asked for it). Both start a recovery session,
+  // which is only used to set the new password; then every session of the
+  // account is ended and the user logs in again.
+
+  /// How long a recovery code works (the backend's OTP expiry, 900 s).
+  static const recoveryCodeLifetime = Duration(seconds: 900);
+
+  /// The backend answers the same for unknown addresses, so this never
+  /// returns `null` (which would reveal that no account exists).
   @override
   Future<PasswordResetTicket?> requestPasswordReset(
     String identifier, {
     required DateTime at,
-  }) => throw UnsupportedError(_noPasswordFlows);
+  }) async {
+    final email = _email(identifier);
+    await _call(
+      () => auth.sendPasswordReset(email: email, redirectTo: authCallbackUrl),
+    );
+    return PasswordResetTicket(
+      destination: SignUpCodeTicket.maskEmail(email),
+      expiresAt: at.add(recoveryCodeLifetime),
+      accountMayNotExist: true,
+    );
+  }
 
+  /// Unlike the demo, checking the code uses it up: the backend starts the
+  /// recovery session ([passwordRecoveryActive]). Wrong, expired or used:
+  /// [ResetCodeCheck.invalid].
   @override
   Future<ResetCodeCheck> verifyResetCode(
     String identifier,
     String code, {
     required DateTime at,
-  }) => throw UnsupportedError(_noPasswordFlows);
+  }) async {
+    final email = _email(identifier);
+    final digits = code.trim();
+    if (!_sixDigits.hasMatch(digits)) return ResetCodeCheck.invalid;
+    try {
+      await _call(() => auth.verifyRecoveryCode(email: email, code: digits));
+    } on InvalidVerificationCodeException {
+      return ResetCodeCheck.invalid;
+    }
+    _remote.clear();
+    return ResetCodeCheck.ok;
+  }
 
+  /// The code was used by [verifyResetCode]; this needs its recovery session
+  /// for the same address ([ResetCodeCheck.noRequest] otherwise).
   @override
   Future<ResetCodeCheck> resetPassword(
     String identifier,
     String code,
     String newPassword, {
     required DateTime at,
-  }) => throw UnsupportedError(_noPasswordFlows);
+  }) async {
+    final email = _email(identifier);
+    final user = auth.currentUser;
+    if (!passwordRecoveryActive || user?.email?.toLowerCase() != email) {
+      return ResetCodeCheck.noRequest;
+    }
+    await completePasswordRecovery(newPassword, at: at);
+    return ResetCodeCheck.ok;
+  }
+
+  @override
+  bool get passwordRecoveryActive =>
+      auth.sessionKind == AuthSessionKind.recovery;
+
+  @override
+  Future<void> completePasswordRecovery(
+    String newPassword, {
+    required DateTime at,
+  }) async {
+    if (!passwordRecoveryActive) {
+      throw const RecoverySessionMissingException();
+    }
+    try {
+      await _call(() => auth.updatePassword(newPassword));
+    } on NotSignedInException {
+      // The recovery session expired or was ended meanwhile.
+      await _endLocally();
+      throw const RecoverySessionMissingException();
+    }
+    // A reset often means someone else may know the old password: end the
+    // account's sessions everywhere, this one included.
+    try {
+      await _call(auth.signOutEverywhere);
+    } on AccountException {
+      await _endLocally(); // at least here; the others expire on their own
+    }
+    _remote.clear();
+  }
+
+  @override
+  Future<void> cancelPasswordRecovery() async {
+    if (passwordRecoveryActive) await _endLocally();
+    _remote.clear();
+  }
+
+  // ---------------------------------------------------------------------------
+  // AUTH-05: Google
+  // ---------------------------------------------------------------------------
+
+  /// Opens the backend's Google sign-in. The account (new or existing — the
+  /// sign-up trigger creates a new user's `profiles` row, once) arrives as
+  /// [ExternalSignIn]: on the web after the page comes back
+  /// ([sessionAtStart]), on Android while the app runs ([authEvents]).
+  @override
+  Future<bool> startGoogleSignIn() async {
+    final opened = await _call(
+      () => auth.startGoogleSignIn(redirectTo: authCallbackUrl),
+    );
+    if (!opened) throw const GoogleSignInUnavailableException();
+    return true;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Auth events (AUTH-04/05)
+  // ---------------------------------------------------------------------------
+
+  @override
+  Future<AccountAuthEvent?> sessionAtStart({required bool remembered}) async {
+    final event = await _accountEvent(await auth.takeStartEvent());
+    if (event is PasswordRecoveryStarted || event is ExternalSignIn) {
+      return event;
+    }
+    // A session nobody can use: a recovery left open when the app closed,
+    // or one the app never took over (nothing remembered).
+    final kind = auth.sessionKind;
+    if (kind == AuthSessionKind.recovery ||
+        (!remembered && kind != AuthSessionKind.none)) {
+      await _endLocally();
+    }
+    return event;
+  }
+
+  @override
+  Stream<AccountAuthEvent> get authEvents => auth.events
+      .asyncMap(_accountEvent)
+      .where((e) => e != null)
+      .cast<AccountAuthEvent>();
+
+  Future<AccountAuthEvent?> _accountEvent(AuthGatewayEvent? e) async =>
+      switch (e) {
+        null => null,
+        GatewayRecoveryStarted() => PasswordRecoveryStarted(
+          email: auth.currentUser?.email,
+        ),
+        GatewayOAuthSignedIn(:final user) => await _externalSignIn(user),
+        GatewayLinkFailed(:final reason) => AuthLinkFailed(switch (reason) {
+          GatewayLinkError.expired => AuthLinkFailure.expired,
+          GatewayLinkError.cancelled => AuthLinkFailure.cancelled,
+          GatewayLinkError.invalid => AuthLinkFailure.invalid,
+          GatewayLinkError.failed => AuthLinkFailure.failed,
+        }),
+        GatewaySessionExpired() => const SessionExpired(),
+      };
+
+  /// Google came back signed in: read the account as after a sign-in. If it
+  /// can't be read, end the half-started session so nothing stays signed in
+  /// unseen.
+  Future<AccountAuthEvent> _externalSignIn(AuthUser user) async {
+    try {
+      return ExternalSignIn(await _read(user));
+    } on AccountException {
+      await _endLocally();
+      return const AuthLinkFailed(AuthLinkFailure.failed);
+    }
+  }
+
+  /// Ends the session on this device; a failure (offline) is left to expire.
+  Future<void> _endLocally() async {
+    try {
+      await auth.signOut();
+    } on GatewayException {
+      // Already gone, or offline: it expires on its own.
+    }
+    _remote.clear();
+  }
 
   // ---------------------------------------------------------------------------
   // Helpers

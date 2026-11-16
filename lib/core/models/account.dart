@@ -346,12 +346,22 @@ class PrivacySecurityPrefs {
 /// works. A real backend sends the code by SMS / email; only the in-memory
 /// mock fills [demoCode], which the demo build shows (no messages are sent).
 class PasswordResetTicket {
-  const PasswordResetTicket({required this.destination, required this.expiresAt, this.demoCode});
+  const PasswordResetTicket({
+    required this.destination,
+    required this.expiresAt,
+    this.demoCode,
+    this.accountMayNotExist = false,
+  });
 
   /// Masked phone number or email, e.g. "0312 ••••• 00".
   final String destination;
   final DateTime expiresAt;
   final String? demoCode;
+
+  /// AUTH-04: the backend answers the same whether or not the address has
+  /// an account (so it can't be used to find accounts); the sheet words
+  /// it as "if an account exists".
+  final bool accountMayNotExist;
 }
 
 /// A sign-up verification code sent (AUTH-02): where it went, masked, e.g.
@@ -371,4 +381,6 @@ class SignUpCodeTicket {
 }
 
 /// Result of checking a reset code (or using it to set a new password).
-enum ResetCodeCheck { ok, wrong, expired, tooManyAttempts, noRequest }
+/// [invalid]: wrong, expired or used — a remote backend doesn't tell them apart
+/// (AUTH-04).
+enum ResetCodeCheck { ok, wrong, expired, tooManyAttempts, noRequest, invalid }

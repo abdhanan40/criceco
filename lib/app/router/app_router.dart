@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/enums/enums.dart';
 import '../../features/auth/create_account_screen.dart';
 import '../../features/auth/login_screen.dart';
+import '../../features/auth/reset_password_screen.dart';
 import '../../features/auth/role_selection_screen.dart';
 import '../../features/auth/role_setup_screen.dart';
 import '../../features/auth/signup_screen.dart';
@@ -68,6 +69,11 @@ String? resolveRedirect({
 }) {
   final isPublic = Routes.publicRoutes.contains(location);
   final isOnboarding = Routes.onboardingRoutes.contains(location);
+
+  // 0. AUTH-04: a recovery session (code or link) may only set a new
+  //    password; Reset Password is never reachable without one.
+  if (session.passwordRecovery) return location == Routes.resetPassword ? null : Routes.resetPassword;
+  if (location == Routes.resetPassword) return Routes.login;
 
   // 1. Signed out → Auth (Login / Sign Up allowed).
   if (!session.isAuthenticated) return isPublic ? null : Routes.login;
@@ -168,6 +174,8 @@ final List<RouteBase> appRoutes = [
     GoRoute(path: 'account', builder: (_, _) => const CreateAccountScreen()),
   ]),
   GoRoute(path: Routes.profileSetup, builder: (_, _) => const UserProfileSetupScreen()),
+  // AUTH-04: only with a recovery session (the guard's rule 0).
+  GoRoute(path: Routes.resetPassword, builder: (_, _) => const ResetPasswordScreen()),
   GoRoute(
     path: Routes.roleSelection,
     builder: (_, s) => RoleSelectionScreen(expandPlayer: s.uri.queryParameters['expand'] == 'player'),

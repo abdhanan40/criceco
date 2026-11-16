@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/models/models.dart';
 import '../../core/utils/validators.dart';
 import '../../data/repositories/repositories.dart';
 import '../providers/core_providers.dart';
+import 'auth_notice.dart';
 
 /// `onboarding` = authenticated, common user profile not yet complete.
 /// `signedIn` = profile complete (role setup is tracked per role on the
@@ -11,7 +14,13 @@ import '../providers/core_providers.dart';
 enum SessionStatus { signedOut, onboarding, signedIn }
 
 class SessionState {
-  const SessionState({this.status = SessionStatus.signedOut, this.account, this.ownClub});
+  const SessionState({
+    this.status = SessionStatus.signedOut,
+    this.account,
+    this.ownClub,
+    this.passwordRecovery = false,
+    this.recoveryEmail,
+  });
 
   final SessionStatus status;
   final UserAccount? account;
@@ -19,11 +28,23 @@ class SessionState {
   /// The account's own club (only when it has a Club Owner profile).
   final Club? ownClub;
 
+  /// AUTH-04: a recovery code or link opened a recovery session. Nobody is
+  /// signed in; the only screen is Reset Password (the router guard).
+  final bool passwordRecovery;
+
+  /// The address being reset, when known (shown on Reset Password).
+  final String? recoveryEmail;
+
   bool get isAuthenticated => status != SessionStatus.signedOut;
   bool get hasClubOwnerProfile => account?.hasClubOwnerProfile ?? false;
 
-  SessionState copyWith({SessionStatus? status, UserAccount? account, Club? ownClub}) =>
-      SessionState(status: status ?? this.status, account: account ?? this.account, ownClub: ownClub ?? this.ownClub);
+  SessionState copyWith({SessionStatus? status, UserAccount? account, Club? ownClub}) => SessionState(
+        status: status ?? this.status,
+        account: account ?? this.account,
+        ownClub: ownClub ?? this.ownClub,
+        passwordRecovery: passwordRecovery,
+        recoveryEmail: recoveryEmail,
+      );
 }
 
 /// A new password that fails the shared strong-password rules
@@ -84,15 +105,68 @@ class SessionController extends Notifier<SessionState> {
   Future<SignUpCodeTicket> resendSignUpCode(String email) =>
       ref.read(accountRepositoryProvider).resendSignUpCode(email, at: ref.read(clockProvider).now());
 
-  /// "Continue with Google" — a new account that goes straight to User
-  /// Profile Setup (no password step), then Role Selection.
-  Future<void> signInWithGoogle() async {
+  /// "Continue with Google". `true` when signed in here: the demo's new
+  /// account, which goes straight to User Profile Setup (no password step),
+  /// then Role Selection. `false` when it continues in the browser (AUTH-05,
+  /// Supabase): the account arrives later — after the page comes back on
+  /// the web ([restore]), or as an event on Android — and the router guard
+  /// sends a new user to Profile Setup and a returning one to their role.
+  Future<bool> signInWithGoogle() async {
     final repo = ref.read(accountRepositoryProvider);
+    _listenToAuthEvents();
+    if (await repo.startGoogleSignIn()) return false;
     final base = await repo.signIn(identifier: 'google', password: '');
-    if (base == null) return;
+    if (base == null) return true;
     await _setAccount(await repo.update(
       base.copyWith(profileComplete: false, playerProfile: const PlayerProfile()),
     ));
+    return true;
+  }
+
+  // ---- AUTH-04 / AUTH-05: auth events from outside a call ----
+
+  StreamSubscription<AccountAuthEvent>? _authEvents;
+
+  /// Listens (once) for recovery links, Google returns, failed links and
+  /// sessions the backend ended.
+  void _listenToAuthEvents() {
+    if (_authEvents != null) return;
+    final sub = _authEvents = ref
+        .read(accountRepositoryProvider)
+        .authEvents
+        .listen((e) => _onAuthEvent(e), onError: (Object _, StackTrace _) {});
+    ref.onDispose(() {
+      sub.cancel();
+      _authEvents = null;
+    });
+  }
+
+  Future<void> _onAuthEvent(AccountAuthEvent event) async {
+    switch (event) {
+      case PasswordRecoveryStarted(:final email):
+        _startRecovery(email);
+      case ExternalSignIn(:final account):
+        if (state.account?.id == account.id && state.isAuthenticated) return;
+        await _setAccount(account);
+      case AuthLinkFailed(:final reason):
+        ref.read(authNoticeProvider.notifier).show(AuthNotice.forLink(reason));
+      case SessionExpired():
+        if (!state.isAuthenticated && !state.passwordRecovery) return;
+        _forgetLocally();
+        ref.read(authNoticeProvider.notifier).show(AuthNotice.sessionEnded);
+    }
+  }
+
+  /// A recovery session replaces whatever was signed in.
+  void _startRecovery(String? email) {
+    if (state.passwordRecovery) return;
+    state = SessionState(passwordRecovery: true, recoveryEmail: email);
+    ref.read(sharedPreferencesProvider).remove(_kAccount);
+  }
+
+  void _forgetLocally() {
+    state = const SessionState();
+    ref.read(sharedPreferencesProvider).remove(_kAccount);
   }
 
   /// Every path that sets or updates a password (Sign Up, reset, change)
@@ -124,11 +198,40 @@ class SessionController extends Notifier<SessionState> {
   /// unreadable profile — must not stop the app from starting (`main()`
   /// awaits this before `runApp`): the remembered account is forgotten, the
   /// backend session ended, and the user starts at Login. Never throws.
+  ///
+  /// AUTH-04/05 first: what the backend handled while starting — a recovery
+  /// link (→ Reset Password), a Google return (→ that account), or a failed
+  /// link (→ a message on Login). A leftover recovery session is ended there.
   Future<void> restore() async {
     final prefs = ref.read(sharedPreferencesProvider);
     final id = prefs.getString(_kAccount);
-    if (id == null) return;
     final repo = ref.read(accountRepositoryProvider);
+    _listenToAuthEvents();
+    AccountAuthEvent? start;
+    try {
+      start = await repo.sessionAtStart(remembered: id != null);
+    } catch (_) {
+      start = null; // must not stop the app from starting
+    }
+    switch (start) {
+      case PasswordRecoveryStarted(:final email):
+        _startRecovery(email);
+        return;
+      case ExternalSignIn(:final account):
+        try {
+          await _setAccount(account);
+          return;
+        } catch (_) {
+          // Fall back to the remembered account below.
+        }
+      case AuthLinkFailed(:final reason):
+        ref.read(authNoticeProvider.notifier).show(AuthNotice.forLink(reason));
+      case SessionExpired():
+        if (id != null) ref.read(authNoticeProvider.notifier).show(AuthNotice.sessionEnded);
+      case null:
+        break;
+    }
+    if (id == null) return;
     try {
       final account = await repo.byId(id);
       if (account != null) await _setAccount(account);
@@ -221,12 +324,60 @@ class SessionController extends Notifier<SessionState> {
   }
 
   /// Login → "Forgot password?": sends a 6-digit code to the account with
-  /// this phone number or email (`null` = no such account).
-  Future<PasswordResetTicket?> requestPasswordReset(String identifier) =>
-      ref.read(accountRepositoryProvider).requestPasswordReset(identifier, at: ref.read(clockProvider).now());
+  /// this phone number or email (`null` = no such account; a remote backend
+  /// never says, [PasswordResetTicket.accountMayNotExist]). Its email may
+  /// also carry a link that opens Reset Password (AUTH-04).
+  Future<PasswordResetTicket?> requestPasswordReset(String identifier) {
+    _listenToAuthEvents();
+    return ref.read(accountRepositoryProvider).requestPasswordReset(identifier, at: ref.read(clockProvider).now());
+  }
 
-  Future<ResetCodeCheck> verifyResetCode(String identifier, String code) =>
-      ref.read(accountRepositoryProvider).verifyResetCode(identifier, code, at: ref.read(clockProvider).now());
+  /// Checks the code. On a remote backend an accepted code opens the
+  /// recovery session (AUTH-04): the session enters [SessionState.passwordRecovery]
+  /// and the router shows Reset Password.
+  Future<ResetCodeCheck> verifyResetCode(String identifier, String code) async {
+    final repo = ref.read(accountRepositoryProvider);
+    final check = await repo.verifyResetCode(identifier, code, at: ref.read(clockProvider).now());
+    if (check == ResetCodeCheck.ok && repo.passwordRecoveryActive) {
+      _startRecovery(identifier.trim().toLowerCase());
+    }
+    return check;
+  }
+
+  /// Reset Password (AUTH-04): sets [newPassword] with the recovery session;
+  /// every session of the account then ends and the user logs in again
+  /// (Login shows "Password updated"). Throws [WeakPasswordException] before
+  /// any request; [SamePasswordException] and other [AccountException]s leave
+  /// the recovery open to try again — except [RecoverySessionMissingException]
+  /// (expired or used), which ends it.
+  Future<void> completePasswordRecovery(String newPassword) async {
+    _requireStrongPassword(newPassword);
+    try {
+      await ref.read(accountRepositoryProvider).completePasswordRecovery(newPassword, at: ref.read(clockProvider).now());
+    } on RecoverySessionMissingException catch (e) {
+      _forgetLocally();
+      ref.read(authNoticeProvider.notifier).show(AuthNotice(e.message));
+      // Whatever backend session is left belonged to the recovery: end it.
+      try {
+        await ref.read(accountRepositoryProvider).signOut();
+      } catch (_) {
+        // Gone already, or offline: it expires on its own.
+      }
+      rethrow;
+    }
+    _forgetLocally();
+    ref.read(authNoticeProvider.notifier).show(AuthNotice.passwordUpdated);
+  }
+
+  /// Reset Password → Cancel: leaves the recovery without a new password.
+  Future<void> cancelPasswordRecovery() async {
+    _forgetLocally();
+    try {
+      await ref.read(accountRepositoryProvider).cancelPasswordRecovery();
+    } catch (_) {
+      // Signed out locally either way; the recovery session expires.
+    }
+  }
 
   /// Sets the new password; afterwards only it signs in. Signed in (Settings),
   /// the account is reloaded so "Last changed" updates straight away.

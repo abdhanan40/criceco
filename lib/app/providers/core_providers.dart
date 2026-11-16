@@ -17,6 +17,7 @@ import '../../data/supabase/supabase_location_repository.dart';
 import '../../demo/demo_stats.dart';
 import '../../demo/seed_data.dart';
 import '../config/auth_features.dart';
+import '../config/auth_redirects.dart';
 import '../config/backend_config.dart';
 
 /// Injectable time source. Tests override with a fixed/fake [Clock].
@@ -68,6 +69,7 @@ final accountRepositoryProvider = Provider<AccountRepository>((ref) {
         db: ref.watch(profileGatewayProvider),
         overlay: LocalAccountOverlay(ref.watch(sharedPreferencesProvider)),
         clock: ref.watch(clockProvider),
+        authCallbackUrl: ref.watch(authCallbackUrlProvider),
       ),
   };
 });

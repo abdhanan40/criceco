@@ -1,6 +1,8 @@
 import '../../core/models/models.dart';
+import 'auth_events.dart';
 
 export 'account_errors.dart';
+export 'auth_events.dart';
 export 'profile_rules.dart' show ProfileRules, ProfileValidationException;
 
 /// Repository contracts. Every method is async so an HTTP/Firebase backend can
@@ -57,6 +59,34 @@ abstract interface class AccountRepository {
 
   /// Sets [newPassword] when [code] is still valid; the code is then used up.
   Future<ResetCodeCheck> resetPassword(String identifier, String code, String newPassword, {required DateTime at});
+
+  // ---- AUTH-04 / AUTH-05: sessions started outside a call ----
+
+  /// `true` while a recovery session is open (a remote backend: after
+  /// [verifyResetCode] or a recovery link). Only a new password may be set.
+  bool get passwordRecoveryActive;
+
+  /// Sets [newPassword] with the open recovery session, then ends every
+  /// session of the account (all devices): the user logs in again. No
+  /// recovery session: [RecoverySessionMissingException].
+  Future<void> completePasswordRecovery(String newPassword, {required DateTime at});
+
+  /// Leaves a recovery session without changing the password.
+  Future<void> cancelPasswordRecovery();
+
+  /// Google through the backend's browser sign-in: `true` once the browser
+  /// is open (the result arrives as [ExternalSignIn] or [AuthLinkFailed]),
+  /// `false` where there is none (the demo signs in at once).
+  Future<bool> startGoogleSignIn();
+
+  /// At app start, before [byId]: the auth event the backend handled while
+  /// starting (a recovery link, a Google return, a failed link), or `null`.
+  /// A backend session nobody can use — a recovery left open when the app
+  /// closed — is ended here.
+  Future<AccountAuthEvent?> sessionAtStart({required bool remembered});
+
+  /// Auth events after [sessionAtStart].
+  Stream<AccountAuthEvent> get authEvents;
 }
 
 abstract interface class ClubRepository {

@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart' as sb;
 
+import 'auth_url_cleanup.dart';
 import 'supabase_gateways.dart';
 
 /// [AuthGateway] / [ProfileGateway] on `supabase_flutter`. The SDK's types
@@ -33,6 +35,7 @@ class SupabaseAuthGateway implements AuthGateway {
         email: email,
         password: password,
       );
+      _recovering = false;
       return _toUser(r.user);
     } on sb.AuthException catch (e) {
       if (isInvalidCredentials(e)) return null;
@@ -70,6 +73,7 @@ class SupabaseAuthGateway implements AuthGateway {
     if (user == null || r.session == null) {
       throw const GatewayUnexpectedException('verify-no-session');
     }
+    _recovering = false;
     return user;
   });
 
@@ -78,7 +82,232 @@ class SupabaseAuthGateway implements AuthGateway {
       _guardAuth(() => _auth.resend(type: sb.OtpType.signup, email: email));
 
   @override
-  Future<void> signOut() => _guardAuth(() => _auth.signOut());
+  Future<void> signOut() => _guardAuth(() async {
+    _recovering = false;
+    await _auth.signOut();
+  });
+
+  // ---- AUTH-04: password recovery ----
+
+  @override
+  Future<void> sendPasswordReset({required String email, String? redirectTo}) =>
+      _guardAuth(
+        () => _auth.resetPasswordForEmail(email, redirectTo: redirectTo),
+      );
+
+  @override
+  Future<AuthUser> verifyRecoveryCode({
+    required String email,
+    required String code,
+  }) => _guardAuth(() async {
+    final r = await _auth.verifyOTP(
+      type: sb.OtpType.recovery,
+      email: email,
+      token: code,
+    );
+    final user = _toUser(r.user);
+    if (user == null || r.session == null) {
+      throw const GatewayUnexpectedException('recovery-no-session');
+    }
+    _recovering = true;
+    return user;
+  });
+
+  @override
+  Future<void> updatePassword(String password) =>
+      _guardAuth(() => _auth.updateUser(sb.UserAttributes(password: password)));
+
+  @override
+  Future<void> signOutEverywhere() => _guardAuth(() async {
+    await _auth.signOut(scope: sb.SignOutScope.global);
+    _recovering = false;
+  });
+
+  // ---- AUTH-05: Google ----
+
+  @override
+  Future<bool> startGoogleSignIn({String? redirectTo}) => _guardAuth(
+    () =>
+        _auth.signInWithOAuth(sb.OAuthProvider.google, redirectTo: redirectTo),
+  );
+
+  // ---- Auth events ----
+
+  /// A recovery code or link started the current session. The token alone
+  /// can't say: Supabase labels a code-started recovery `otp` (checked on a
+  /// local stack), a link-started one `recovery`. Cleared by any other
+  /// sign-in or sign-out; an app restart forgets it, and a recovery session
+  /// left from before is then ended at start (nothing is remembered for it).
+  bool _recovering = false;
+
+  @override
+  AuthSessionKind get sessionKind {
+    final session = _auth.currentSession;
+    if (session == null) return AuthSessionKind.none;
+    if (_recovering) return AuthSessionKind.recovery;
+    return kindOf(session);
+  }
+
+  StreamSubscription<sb.AuthState>? _subscription;
+  final _events = StreamController<AuthGatewayEvent>.broadcast();
+  var _started = false;
+  AuthGatewayEvent? _startEvent;
+
+  @override
+  Stream<AuthGatewayEvent> get events => _events.stream;
+
+  /// The SDK's auth stream replays its latest event to a new listener: at
+  /// app start that is what `Supabase.initialize` did with the page's URL
+  /// (web) — a recovery link, a Google return, or the error of a failed
+  /// one. Events delivered before this returns are the start event; later
+  /// ones go to [events].
+  @override
+  Future<AuthGatewayEvent?> takeStartEvent() async {
+    _listen();
+    // The replayed event is delivered in a microtask; a zero timer runs
+    // after all of them.
+    await Future<void>.delayed(Duration.zero);
+    _started = true;
+    final e = _startEvent;
+    _startEvent = null;
+    return e;
+  }
+
+  void _listen() => _subscription ??= _auth.onAuthStateChange.listen(
+    (s) {
+      if (s.event == sb.AuthChangeEvent.passwordRecovery) {
+        _recovering = true;
+      } else if (s.event == sb.AuthChangeEvent.signedIn ||
+          s.event == sb.AuthChangeEvent.signedOut) {
+        _recovering = false;
+      }
+      _emit(eventOf(s, kindOf(s.session)));
+    },
+    onError: (Object e, StackTrace _) {
+      final reason = linkError(e);
+      if (reason == null) return;
+      clearAuthResultFromUrl(); // web: a reload must not report it again
+      _emit(GatewayLinkFailed(reason));
+    },
+  );
+
+  void _emit(AuthGatewayEvent? e) {
+    if (e == null) return;
+    if (_started) {
+      _events.add(e);
+    } else {
+      _startEvent = e;
+    }
+  }
+
+  /// SDK auth state → the app's event, or `null` for the app's own calls
+  /// (password sign-in, sign-up codes, its own sign-out, token refreshes).
+  static AuthGatewayEvent? eventOf(sb.AuthState s, AuthSessionKind kind) {
+    switch (s.event) {
+      case sb.AuthChangeEvent.passwordRecovery:
+        return const GatewayRecoveryStarted();
+      case sb.AuthChangeEvent.signedIn:
+        final user = _toUser(s.session?.user);
+        return kind == AuthSessionKind.oauth && user != null
+            ? GatewayOAuthSignedIn(user)
+            : null;
+      case sb.AuthChangeEvent.signedOut:
+        final reason = s.signOutReason;
+        return reason != null && reason != sb.SignOutReason.userInitiated
+            ? const GatewaySessionExpired()
+            : null;
+      default:
+        return null;
+    }
+  }
+
+  /// The error of a failed auth link (`?error=…&error_code=…` on the
+  /// callback, or a code that can't be exchanged), or `null` for errors
+  /// that aren't about a link (offline token refresh, expired refresh
+  /// token — the latter ends the session as [GatewaySessionExpired]).
+  static GatewayLinkError? linkError(Object e) {
+    if (e is! sb.AuthException || e is sb.AuthRetryableFetchException) {
+      return null;
+    }
+    // On a callback URL the SDK puts `error` in code and `error_code` (when
+    // the backend sends one — provider errors often come without it) in
+    // statusCode; on an API error they are the error code and HTTP status.
+    final error = e.code;
+    final errorCode = e.statusCode;
+    bool has(Set<String> codes) =>
+        codes.contains(error) || codes.contains(errorCode);
+    if (has(_sessionErrors)) return null; // ends as GatewaySessionExpired
+    if (has(const {'otp_expired', 'flow_state_expired'})) {
+      return GatewayLinkError.expired;
+    }
+    if (e is sb.AuthPKCEGrantCodeExchangeError ||
+        e.message.contains('Code verifier') ||
+        has(_invalidLinkErrors)) {
+      return GatewayLinkError.invalid;
+    }
+    if (error == 'access_denied') return GatewayLinkError.cancelled;
+    // A plain AuthException (not an API one) is what the SDK raises for a
+    // callback address's own error parameters: `server_error` and any other
+    // provider or backend error — or, with no `error` at all, a malformed
+    // callback.
+    if (e.runtimeType == sb.AuthException) {
+      return error == null ? GatewayLinkError.invalid : GatewayLinkError.failed;
+    }
+    if (errorCode != null && int.tryParse(errorCode) == null) {
+      return GatewayLinkError.failed; // another error_code from a callback
+    }
+    return null;
+  }
+
+  /// Session problems the SDK also reports on the auth stream — not links.
+  static const _sessionErrors = {
+    'session_missing',
+    'session_expired',
+    'session_not_found',
+    'refresh_token_not_found',
+    'refresh_token_already_used',
+  };
+
+  /// A callback that can't be used here: a stale or foreign OAuth state, a
+  /// code without its PKCE verifier (another browser or device), a
+  /// malformed request.
+  static const _invalidLinkErrors = {
+    'flow_state_not_found',
+    'bad_code_verifier',
+    'bad_oauth_state',
+    'bad_oauth_callback',
+    'validation_failed',
+    'invalid_request',
+  };
+
+  /// How [session] was started, from its access token's `amr` claim.
+  static AuthSessionKind kindOf(sb.Session? session) {
+    if (session == null) return AuthSessionKind.none;
+    final methods = amrMethods(session.accessToken);
+    if (methods.contains('recovery')) return AuthSessionKind.recovery;
+    if (methods.contains('oauth')) return AuthSessionKind.oauth;
+    return AuthSessionKind.other;
+  }
+
+  /// The `amr` methods of a JWT (no signature check: only used to tell
+  /// sessions apart, never to grant anything). Unreadable → empty.
+  static Set<String> amrMethods(String jwt) {
+    try {
+      final parts = jwt.split('.');
+      if (parts.length != 3) return const {};
+      final payload = jsonDecode(
+        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+      );
+      final amr = payload is Map ? payload['amr'] : null;
+      return {
+        if (amr is List)
+          for (final m in amr)
+            if (m is Map && m['method'] is String) m['method'] as String,
+      };
+    } catch (_) {
+      return const {};
+    }
+  }
 
   static AuthUser? _toUser(sb.User? u) => u == null
       ? null
@@ -117,6 +346,8 @@ class SupabaseAuthGateway implements AuthGateway {
           return const GatewayInvalidCodeException();
         case 'over_email_send_rate_limit' || 'over_request_rate_limit':
           return const GatewayRateLimitedException();
+        case 'same_password':
+          return const GatewaySamePasswordException();
         case 'user_already_exists' || 'email_exists':
           return const GatewayConstraintException(
             sqlState: '23505',

@@ -6,13 +6,19 @@ import 'backend_config.dart';
 /// turns it on; without it (every normal build) it is OFF.
 const bool kEmailCodesBuild = bool.fromEnvironment('CRICECO_EMAIL_CODES');
 
+/// The Google switch (AUTH-05) as built: `--dart-define=CRICECO_GOOGLE_SIGN_IN=true`
+/// once the Supabase Google provider is configured; OFF otherwise.
+const bool kGoogleSignInBuild = bool.fromEnvironment('CRICECO_GOOGLE_SIGN_IN');
+
 /// Which sign-in and password features this build offers. Screens ask this
 /// instead of the backend mode.
 ///
 /// Memory mode (the demo) keeps everything it has today. Supabase mode signs
-/// in with email and password only: phone sign-in, Google sign-in and the
-/// password reset / change flows are not configured there (D13), so they are
-/// hidden rather than shown and failing.
+/// in with email and password; phone sign-in and password change are not
+/// configured there (D13), so they are hidden rather than shown and failing.
+/// Its password reset (AUTH-04) needs the recovery email, so it follows the
+/// email-codes switch; Google (AUTH-05) has its own switch, for a project
+/// whose Google provider is set up.
 ///
 /// [emailCodes] (AUTH-02, both modes, OFF by default): an email sign-up that
 /// needs its address confirmed is verified with a 6-digit code in the app.
@@ -32,18 +38,21 @@ class AuthFeatures {
       passwordReset = true,
       passwordChange = true;
 
-  /// Supabase mode: email and password only.
-  const AuthFeatures.emailOnly({this.emailCodes = false})
-    : phoneSignIn = false,
-      googleSignIn = false,
-      passwordReset = false,
-      passwordChange = false;
+  /// Supabase mode: email and password; reset with the email-codes switch,
+  /// Google with its own.
+  const AuthFeatures.emailOnly({
+    this.emailCodes = false,
+    this.googleSignIn = false,
+  }) : phoneSignIn = false,
+       passwordReset = emailCodes,
+       passwordChange = false;
 
   factory AuthFeatures.of(
     BackendConfig config, {
     bool emailCodes = kEmailCodesBuild,
+    bool google = kGoogleSignInBuild,
   }) => config.isSupabase
-      ? AuthFeatures.emailOnly(emailCodes: emailCodes)
+      ? AuthFeatures.emailOnly(emailCodes: emailCodes, googleSignIn: google)
       : AuthFeatures.all(emailCodes: emailCodes);
 
   /// Log in / sign up with a phone number. Off: email only.
@@ -52,7 +61,8 @@ class AuthFeatures {
   /// "Continue with Google".
   final bool googleSignIn;
 
-  /// "Forgot password?" (the reset-code sheet).
+  /// "Forgot password?" (the reset-code sheet; Supabase: code or link, then
+  /// Reset Password).
   final bool passwordReset;
 
   /// Settings → Password & security → Update Password.
@@ -67,11 +77,15 @@ class AuthFeatures {
 /// The email-codes switch: [kEmailCodesBuild], overridden in tests.
 final emailCodesEnabledProvider = Provider<bool>((ref) => kEmailCodesBuild);
 
-/// The build's auth features, derived from [backendConfigProvider] and
-/// [emailCodesEnabledProvider].
+/// The Google switch: [kGoogleSignInBuild], overridden in tests.
+final googleSignInEnabledProvider = Provider<bool>((ref) => kGoogleSignInBuild);
+
+/// The build's auth features, derived from [backendConfigProvider],
+/// [emailCodesEnabledProvider] and [googleSignInEnabledProvider].
 final authFeaturesProvider = Provider<AuthFeatures>(
   (ref) => AuthFeatures.of(
     ref.watch(backendConfigProvider),
     emailCodes: ref.watch(emailCodesEnabledProvider),
+    google: ref.watch(googleSignInEnabledProvider),
   ),
 );

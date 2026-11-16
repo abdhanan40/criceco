@@ -10,6 +10,9 @@ abstract final class Routes {
   static const signup = '/signup';
   static const createAccount = '/signup/account';
 
+  /// Reset Password (AUTH-04): a new password with a recovery session.
+  static const resetPassword = '/reset-password';
+
   /// User Profile Setup (name, phone, date of birth, picture).
   static const completeProfile = '/onboarding/profile';
   static const profileSetup = completeProfile;

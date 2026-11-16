@@ -233,6 +233,29 @@ class InMemoryAccountRepository implements AccountRepository {
   /// No backend session in memory mode.
   @override
   Future<void> signOut() async {}
+
+  // ---- AUTH-04 / AUTH-05: no backend sessions in the demo ----
+  // The demo's reset stays in the Forgot Password sheet (code → new
+  // password), and its Google sign-in signs in at once.
+
+  @override
+  bool get passwordRecoveryActive => false;
+
+  @override
+  Future<void> completePasswordRecovery(String newPassword, {required DateTime at}) async =>
+      throw const RecoverySessionMissingException();
+
+  @override
+  Future<void> cancelPasswordRecovery() async {}
+
+  @override
+  Future<bool> startGoogleSignIn() async => false;
+
+  @override
+  Future<AccountAuthEvent?> sessionAtStart({required bool remembered}) async => null;
+
+  @override
+  Stream<AccountAuthEvent> get authEvents => const Stream.empty();
 }
 
 class InMemoryClubRepository implements ClubRepository {

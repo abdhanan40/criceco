@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:criceco/data/supabase/supabase_gateways.dart';
 
 /// In-memory stand-ins for the Supabase gateways (Phase 2 Step 3). They
@@ -42,8 +44,14 @@ class FakeAuth implements AuthGateway {
     return code;
   }
 
+  /// The next [call] (by name) fails with [e], whatever comes before it.
+  void addFailure(String call, GatewayException e) => _failOn[call] = e;
+  final _failOn = <String, GatewayException>{};
+
   void _maybeFail(String call) {
     calls.add(call);
+    final once = _failOn.remove(call);
+    if (once != null) throw once;
     final f = failNext;
     if (f != null) {
       failNext = null;
@@ -137,7 +145,147 @@ class FakeAuth implements AuthGateway {
   Future<void> signOut() async {
     _maybeFail('signOut');
     current = null;
+    kind = AuthSessionKind.none;
   }
+
+  // ---- AUTH-04: recovery, as Supabase: one email with a code and a link;
+  // the code (or the link) starts a recovery session for that user. ----
+
+  final _recoveryCodes = <String, ({String code, DateTime sentAt})>{};
+
+  /// Recovery emails sent, by address (also for unknown addresses — the
+  /// backend answers the same, but sends nothing then).
+  final recoveryEmails = <String>[];
+
+  /// The redirect the last recovery email / Google sign-in was sent with.
+  String? lastRedirect;
+
+  /// The current recovery code for [email] (what the email would contain).
+  String? lastRecoveryCode(String email) => _recoveryCodes[email]?.code;
+
+  /// The password the fake would accept now for [email].
+  String? passwordOf(String email) => _users[email]?.password;
+
+  /// Sessions revoked on every device ([signOutEverywhere]).
+  var globalSignOuts = 0;
+
+  AuthSessionKind kind = AuthSessionKind.none;
+
+  @override
+  Future<void> sendPasswordReset({
+    required String email,
+    String? redirectTo,
+  }) async {
+    _maybeFail('sendPasswordReset');
+    lastRedirect = redirectTo;
+    final sent = _recoveryCodes[email];
+    if (sent != null && now().isBefore(sent.sentAt.add(resendInterval))) {
+      throw const GatewayRateLimitedException();
+    }
+    recoveryEmails.add(email);
+    if (_users.containsKey(email)) {
+      _recoveryCodes[email] = (
+        code: (654321 - 1111 * _codeSeq++).toString(),
+        sentAt: now(),
+      );
+    }
+  }
+
+  @override
+  Future<AuthUser> verifyRecoveryCode({
+    required String email,
+    required String code,
+  }) async {
+    _maybeFail('verifyRecoveryCode');
+    final sent = _recoveryCodes[email];
+    final u = _users[email];
+    if (sent == null ||
+        u == null ||
+        sent.code != code ||
+        !now().isBefore(sent.sentAt.add(codeLifetime))) {
+      throw const GatewayInvalidCodeException();
+    }
+    _recoveryCodes.remove(email); // used: works once
+    startRecoverySession(email);
+    return u.user;
+  }
+
+  /// A recovery session for [email], as after its link was opened.
+  void startRecoverySession(String email) {
+    current = _users[email]!.user;
+    kind = AuthSessionKind.recovery;
+  }
+
+  @override
+  Future<void> updatePassword(String password) async {
+    _maybeFail('updatePassword');
+    final user = current;
+    if (user == null) throw const GatewayPermissionException();
+    final email = user.email!;
+    final u = _users[email]!;
+    if (u.password == password) throw const GatewaySamePasswordException();
+    _users[email] = (password: password, user: u.user);
+  }
+
+  @override
+  Future<void> signOutEverywhere() async {
+    _maybeFail('signOutEverywhere');
+    globalSignOuts++;
+    current = null;
+    kind = AuthSessionKind.none;
+  }
+
+  // ---- AUTH-05: Google ----
+
+  /// `false`: the browser couldn't be opened.
+  bool googleOpens = true;
+
+  @override
+  Future<bool> startGoogleSignIn({String? redirectTo}) async {
+    _maybeFail('startGoogleSignIn');
+    lastRedirect = redirectTo;
+    return googleOpens;
+  }
+
+  /// Google came back for [email]: an existing user keeps their id (Supabase
+  /// links the identity to the same verified email); a new one is created
+  /// with the trigger's profile row, once.
+  AuthUser googleReturns(
+    String email, {
+    Map<String, Object?> metadata = const {'full_name': 'Google User'},
+  }) {
+    final user = _users[email]?.user ?? addUser(email, '', metadata: metadata);
+    current = user;
+    kind = AuthSessionKind.oauth;
+    return user;
+  }
+
+  // ---- Events ----
+
+  @override
+  AuthSessionKind get sessionKind =>
+      current == null ? AuthSessionKind.none : kind;
+
+  /// What [takeStartEvent] returns (the page's URL at app start).
+  AuthGatewayEvent? startEvent;
+  var startTaken = 0;
+
+  @override
+  Future<AuthGatewayEvent?> takeStartEvent() async {
+    startTaken++;
+    final e = startEvent;
+    startEvent = null;
+    return e;
+  }
+
+  final eventsController = StreamController<AuthGatewayEvent>.broadcast();
+
+  @override
+  Stream<AuthGatewayEvent> get events => eventsController.stream;
+
+  /// An event while the app runs (a link opened on Android, an expired
+  /// session).
+  void emit(AuthGatewayEvent e) => eventsController.add(e);
 }
 
 class FakeDb implements ProfileGateway {
