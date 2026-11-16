@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/config/backend_modules.dart';
 import '../../app/providers/core_providers.dart';
 import '../../app/session/role_controller.dart';
 import '../../app/session/session_controller.dart';
@@ -18,7 +19,19 @@ class JoinBlockedException implements Exception {
 class JoinClubController extends Notifier<ClubJoinRequest?> {
   @override
   ClubJoinRequest? build() {
-    ref.watch(sessionProvider.select((s) => s.account?.id)); // reset on logout
+    final accountId = ref.watch(sessionProvider.select((s) => s.account?.id)); // reset on logout
+    // Stored requests: load the database's latest one right away, so the
+    // join screens and their rules (one pending request) reflect it after a
+    // restart too. A failure leaves `null`; the screens refresh again.
+    if (accountId != null && _stored) {
+      Future.microtask(() async {
+        try {
+          await refresh();
+        } catch (_) {
+          // Offline or signed out meanwhile: nothing to show yet.
+        }
+      });
+    }
     return null;
   }
 
@@ -54,7 +67,37 @@ class JoinClubController extends Notifier<ClubJoinRequest?> {
     return request;
   }
 
-  void cancel() => state = null;
+  /// Stored requests (Supabase with the memberships switch, migration 11):
+  /// the database decides and remembers; the demo keeps the run's request.
+  bool get _stored {
+    final modules = ref.read(backendModulesProvider);
+    return !modules.isDemo && modules.has(BackendModule.memberships);
+  }
+
+  /// Withdraws a pending request (stored: in the database first — if that
+  /// fails, the request stays and the error is thrown). A decided request is
+  /// only cleared from the screen.
+  Future<void> cancel() async {
+    final request = state;
+    if (_stored && request != null && request.status == JoinRequestStatus.pending) {
+      await ref.read(clubRepositoryProvider).cancelJoinRequest(request);
+    }
+    state = null;
+  }
+
+  /// Stored requests: re-reads the latest one (pending or decided) from the
+  /// database. Approved → the session's memberships are re-read too. The
+  /// demo answers with what it has (approval is simulated there).
+  Future<ClubJoinRequest?> refresh() async {
+    if (!_stored) return state;
+    final latest = await ref.read(clubRepositoryProvider).myJoinRequest();
+    if (!ref.mounted) return latest; // signed out / disposed meanwhile
+    state = latest;
+    if (latest?.status == JoinRequestStatus.approved) {
+      await ref.read(sessionProvider.notifier).refreshMemberships();
+    }
+    return latest;
+  }
 
   /// Owner approval (arrives from the owner side; simulated in Demo Mode).
   /// Adds a club membership only — never the account-level Club Owner role.

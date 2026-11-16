@@ -7,8 +7,9 @@ class TeamMember {
 }
 
 /// A club team (My Teams). Everything entered at creation is stored
-/// (fix: the prototype discarded `format`). Category / captain / vice-captain
-/// / status are modelled only — no UI yet (approved P4).
+/// (fix: the prototype discarded `format`). Captain and vice-captain are set
+/// on Team Squad (two different squad players, both optional); category is
+/// modelled only (approved P4).
 class Team {
   const Team({
     required this.id,
@@ -51,6 +52,8 @@ class Team {
     String? viceCaptainId,
     TeamStatus? status,
     List<TeamMember>? members,
+    bool clearCaptain = false,
+    bool clearViceCaptain = false,
   }) =>
       Team(
         id: id,
@@ -59,8 +62,8 @@ class Team {
         format: format ?? this.format,
         customOvers: customOvers ?? this.customOvers,
         category: category ?? this.category,
-        captainId: captainId ?? this.captainId,
-        viceCaptainId: viceCaptainId ?? this.viceCaptainId,
+        captainId: clearCaptain ? null : captainId ?? this.captainId,
+        viceCaptainId: clearViceCaptain ? null : viceCaptainId ?? this.viceCaptainId,
         status: status ?? this.status,
         members: members ?? this.members,
         createdAt: createdAt,

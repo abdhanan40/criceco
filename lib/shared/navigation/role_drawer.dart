@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/config/backend_modules.dart';
 import '../../app/router/role_destinations.dart';
 import '../../app/router/routes.dart';
 import '../../app/session/role_controller.dart';
@@ -35,7 +36,11 @@ class RoleDrawer extends ConsumerWidget {
     final name = account?.fullName ?? 'Aman Ali';
     final clubTag = role == UserRole.clubOwner
         ? '${session.ownClub?.name ?? 'Shalimar Cricket Club'} · ${session.ownClub?.code ?? '35HLWZ'}'
-        : 'Club ${account?.memberships.firstOrNull?.clubCode ?? SeedData.demoJoinCode}';
+        : switch (account?.memberships.firstOrNull?.clubCode) {
+            final code? => 'Club $code',
+            // Supabase builds: no demo club for a player without one.
+            null => ref.read(backendModulesProvider).isDemo ? 'Club ${SeedData.demoJoinCode}' : 'No club yet',
+          };
 
     void navigate(String target) {
       Navigator.of(context).pop(); // close drawer first

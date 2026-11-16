@@ -417,7 +417,36 @@ class InMemoryClubRepository implements ClubRepository {
   Future<ClubJoinRequest> requestToJoin(String code) async {
     final upper = code.trim().toUpperCase();
     final name = upper == SeedData.demoJoinCode ? SeedData.demoJoinClubName : 'Club $upper';
-    return ClubJoinRequest(clubCode: upper, clubName: name);
+    return _outgoing = ClubJoinRequest(clubCode: upper, clubName: name);
+  }
+
+  /// The demo's outgoing request (this run only; approval is simulated).
+  ClubJoinRequest? _outgoing;
+
+  @override
+  Future<ClubJoinRequest?> myJoinRequest() async => _outgoing;
+
+  @override
+  Future<ClubJoinRequest> cancelJoinRequest(ClubJoinRequest request) async {
+    _outgoing = null;
+    return request.copyWith(status: JoinRequestStatus.cancelled);
+  }
+
+  /// Demo memberships live on the session's account (this run only).
+  @override
+  Future<List<ClubMembership>> myMemberships() async => const [];
+
+  @override
+  Future<void> removeMember(String clubId, String memberId) async {
+    final list = _members[clubId];
+    if (list == null) return;
+    final i = list.indexWhere((m) => m.id == memberId);
+    if (i == -1) return;
+    if (list[i].role == MemberRole.owner) {
+      throw ArgumentError.value(memberId, 'memberId', 'The club owner can’t be removed');
+    }
+    final removed = list.removeAt(i);
+    if (removed.poolPlayerId case final poolId?) _pool[clubId]?.removeWhere((p) => p.id == poolId);
   }
 }
 
@@ -452,6 +481,29 @@ class InMemoryTeamRepository implements TeamRepository {
     }
     return team;
   }
+
+  @override
+  Future<void> archive(String teamId) async => _teams.removeWhere((t) => t.id == teamId);
+}
+
+/// Supabase builds without the memberships switch: teams have no backend,
+/// so nothing is listed and nothing can be created (no session-only teams
+/// that would vanish on restart).
+class UnavailableTeamRepository implements TeamRepository {
+  const UnavailableTeamRepository();
+
+  @override
+  Future<List<Team>> teams(String clubId) async => const [];
+
+  @override
+  Future<Team> create({required String clubId, required String name, required MatchFormat format, int? customOvers}) async =>
+      throw const ModuleUnavailableException();
+
+  @override
+  Future<Team> save(Team team) async => throw const ModuleUnavailableException();
+
+  @override
+  Future<void> archive(String teamId) async => throw const ModuleUnavailableException();
 }
 
 class InMemoryMatchRepository implements MatchRepository {
@@ -460,6 +512,14 @@ class InMemoryMatchRepository implements MatchRepository {
         _player = [...seed.playerMatches],
         _scorecards = seed.scorecards,
         _performance = seed.performance;
+
+  /// Supabase builds: no backend for matches yet — nothing seeded, nothing
+  /// invented (see docs/PRODUCTION_DEMO_MODE.md).
+  InMemoryMatchRepository.empty()
+      : _club = [],
+        _player = [],
+        _scorecards = const {},
+        _performance = PerformanceSummary.empty;
 
   final List<ClubMatch> _club;
   final List<PlayerMatch> _player;
@@ -499,6 +559,9 @@ class InMemoryMatchRepository implements MatchRepository {
 
 class InMemoryGroundRepository implements GroundRepository {
   InMemoryGroundRepository(SeedData seed) : _grounds = seed.grounds;
+
+  /// Supabase builds: no grounds backend yet — no grounds listed.
+  InMemoryGroundRepository.empty() : _grounds = const [];
   final List<Ground> _grounds;
 
   @override
@@ -518,6 +581,9 @@ class InMemoryGroundRepository implements GroundRepository {
 
 class InMemoryReservationRepository implements ReservationRepository {
   InMemoryReservationRepository(SeedData seed) : _holds = [...seed.holds];
+
+  /// Supabase builds: no reservations backend yet — no holds.
+  InMemoryReservationRepository.empty() : _holds = [];
   final List<ReservationHold> _holds;
 
   @override
@@ -568,7 +634,14 @@ class InMemoryReservationRepository implements ReservationRepository {
 }
 
 class InMemoryWalletRepository implements WalletRepository {
-  int _club = SeedData.walletStartingBalance;
+  /// Demo: the prototype's starting balance.
+  InMemoryWalletRepository() : _club = SeedData.walletStartingBalance;
+
+  /// Supabase builds: no payments backend yet — a zero balance, no ledger
+  /// (never a made-up amount of money).
+  InMemoryWalletRepository.empty() : _club = 0;
+
+  int _club;
   int _escrow = 0;
   final List<LedgerEntry> _ledger = [];
 
@@ -592,6 +665,12 @@ class InMemoryChallengeRepository implements ChallengeRepository {
       : _challenges = [...seed.challenges],
         _clubIds = seed.challengeableClubIds,
         _seekers = seed.matchSeekers;
+
+  /// Supabase builds: no challenges backend yet — nothing listed.
+  InMemoryChallengeRepository.empty()
+      : _challenges = [],
+        _clubIds = const [],
+        _seekers = const [];
 
   final List<Challenge> _challenges;
   final List<String> _clubIds;
@@ -657,6 +736,11 @@ class InMemoryHuntRepository implements HuntRepository {
       : _posts = [...seed.huntPosts],
         _open = [...seed.openPlayers];
 
+  /// Supabase builds: no player-hunt backend yet — nothing listed.
+  InMemoryHuntRepository.empty()
+      : _posts = [],
+        _open = [];
+
   final List<PlayerHuntPost> _posts;
   final List<OpenPlayer> _open;
 
@@ -694,6 +778,9 @@ class InMemoryHuntRepository implements HuntRepository {
 
 class InMemoryTournamentRepository implements TournamentRepository {
   InMemoryTournamentRepository(SeedData seed) : _tournaments = [...seed.tournaments];
+
+  /// Supabase builds: no tournaments backend yet — nothing listed.
+  InMemoryTournamentRepository.empty() : _tournaments = [];
   final List<Tournament> _tournaments;
   final List<TournamentRegistration> _registrations = [];
 
@@ -734,6 +821,9 @@ class InMemoryTournamentRepository implements TournamentRepository {
 
 class InMemoryNotificationRepository implements NotificationRepository {
   InMemoryNotificationRepository(SeedData seed) : _items = [...seed.notifications];
+
+  /// Supabase builds: no notifications backend yet — none listed.
+  InMemoryNotificationRepository.empty() : _items = [];
   final List<NotificationItem> _items;
 
   @override

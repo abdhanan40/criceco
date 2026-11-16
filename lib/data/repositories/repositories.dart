@@ -142,12 +142,32 @@ abstract interface class ClubRepository {
   /// The club behind a join code, or `null` when no club uses it.
   Future<ClubCodePreview?> findClubByCode(String code);
   Future<ClubJoinRequest> requestToJoin(String code);
+
+  /// The signed-in person's latest outgoing join request (pending or
+  /// decided), or `null`. The demo keeps it in the session only.
+  Future<ClubJoinRequest?> myJoinRequest();
+
+  /// Withdraws [request] while it is pending; returns it cancelled.
+  Future<ClubJoinRequest> cancelJoinRequest(ClubJoinRequest request);
+
+  /// The signed-in person's memberships of other clubs (their own club is
+  /// [ownClub]).
+  Future<List<ClubMembership>> myMemberships();
+
+  /// The owner removes [memberId] from [clubId] (never the owner). Their
+  /// team places go with it.
+  Future<void> removeMember(String clubId, String memberId);
 }
 
 abstract interface class TeamRepository {
   Future<List<Team>> teams(String clubId);
   Future<Team> create({required String clubId, required String name, required MatchFormat format, int? customOvers});
+
+  /// Saves the team's details, captain / vice-captain and whole squad.
   Future<Team> save(Team team);
+
+  /// "Delete team": archived — gone from My Teams, its name free again.
+  Future<void> archive(String teamId);
 }
 
 abstract interface class MatchRepository {

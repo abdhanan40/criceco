@@ -85,6 +85,11 @@ abstract final class SupabaseErrorMapper {
     // A join-code collision (≈1 in 10⁹): no automatic retry (D-S3-3).
     'clubs_code_key': "Couldn't create the club — please try again",
     'clubs_owner_id_key': 'You already have a club',
+    // join_requests / teams (migrations 11–12).
+    'join_requests_decline_reason_check': 'Keep the reason to 120 characters',
+    'join_requests_message_check': 'Keep the message to 300 characters',
+    'teams_name_check': 'Enter a team name (up to 40 characters)',
+    'teams_custom_overs_check': 'Enter between 1 and 50 overs',
   };
 
   static Exception _constraint(GatewayConstraintException e) {
@@ -96,6 +101,10 @@ abstract final class SupabaseErrorMapper {
           ? const NotSignedInException()
           : const PermissionDeniedException();
     }
+    // Club memberships (migration 11) and teams (migration 12): their
+    // functions prefix every refusal ("club_join: …", "team: …").
+    if (_membership(e.message) case final mapped?) return mapped;
+    if (_team(e.message) case final mapped?) return mapped;
     // update_profile_details() (migration 9): no profile row for the
     // signed-in user — nothing was written.
     if (e.sqlState == 'P0002' && e.message.contains('profile not found')) {
@@ -119,6 +128,44 @@ abstract final class SupabaseErrorMapper {
     return e.sqlState.startsWith('23')
         ? const ProfileValidationException(generic)
         : const BackendOperationException();
+  }
+
+  /// `club_join: …` refusals (migration 11) → what the person can do next.
+  static Exception? _membership(String message) {
+    if (!message.contains('club_join:')) return null;
+    bool has(String s) => message.contains('club_join: $s');
+    if (has('unknown code')) return const ClubCodeNotFoundException();
+    // The brute-force throttle (10 failed codes in 15 minutes).
+    if (has('too many attempts')) return const TooManyRequestsException();
+    if (has('own club')) return const ClubMembershipException('This is your own club — no request needed.');
+    if (has('already member')) return const ClubMembershipException('You’re already a member of this club.');
+    if (has('already pending')) {
+      return const ClubMembershipException('You already have a pending request to this club.');
+    }
+    if (has('profile incomplete')) {
+      return const ClubMembershipException('Complete your profile before joining a club.');
+    }
+    if (has('not pending')) return const ClubMembershipException('This request has already been decided.');
+    if (has('not found')) return const ClubMembershipException('This request or member no longer exists.');
+    if (has('invalid role')) return const ClubMembershipException('Choose a valid club role.');
+    return const BackendOperationException();
+  }
+
+  /// `team: …` refusals (migration 12).
+  static Exception? _team(String message) {
+    if (!message.contains('team:')) return null;
+    bool has(String s) => message.contains('team: $s');
+    if (has('duplicate name')) return const TeamRuleException('A team with this name already exists');
+    if (has('squad full')) {
+      return const TeamRuleException('A squad can have at most 11 players and 4 substitutes');
+    }
+    if (has('player not in club')) {
+      return const TeamRuleException('Only active club members can be added to a team');
+    }
+    if (has('archived')) return const TeamRuleException('This team has been deleted');
+    if (has('not found')) return const TeamRuleException('This team no longer exists');
+    if (has('invalid')) return const TeamRuleException("Some team details aren't valid — please check and try again");
+    return const BackendOperationException();
   }
 
   /// `… violates check constraint "<name>"` → `<name>`.

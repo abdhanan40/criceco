@@ -402,13 +402,14 @@ void main() {
       expect((await repo.members(c.id)).map((m) => m.name), ['Ali Raza']);
     });
 
-    test('opponent clubs stay the demo data (D-3A-4)', () async {
-      final others = await repo.otherClubs();
-      expect(
-        others.map((c) => c.id),
-        (await local.otherClubs()).map((c) => c.id),
-      );
-      expect(await repo.clubSummary(others.first.id), isNotNull);
+    // Superseded D-3A-4 (production demo cleanup, docs/PRODUCTION_DEMO_MODE.md):
+    // there is no club directory in Supabase yet, so no opponent clubs —
+    // never the demo's.
+    test('opponent clubs are empty, never the demo data', () async {
+      expect(await local.otherClubs(), isNotEmpty); // the demo still has them
+      expect(await repo.otherClubs(), isEmpty);
+      final demoClubId = (await local.otherClubs()).first.id;
+      expect(await repo.clubSummary(demoClubId), isNull);
     });
   });
 

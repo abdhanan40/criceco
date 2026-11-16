@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/router/routes.dart';
+import '../../../app/session/account_error_text.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
@@ -212,10 +213,16 @@ class _CreateTeamSheetState extends ConsumerState<_CreateTeamSheet> {
                 TeamMember(playerId: e.key, selection: e.value),
             ],
           );
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        showCeToast(context, "Couldn't create the team — please try again");
+        // The database's reason (duplicate name, full squad…); a team that was
+        // created without its squad says so.
+        showCeToast(
+            context,
+            e is TeamSquadNotSavedException
+                ? e.message
+                : accountErrorText(e, fallback: "Couldn't create the team — please try again"));
       }
       return;
     }

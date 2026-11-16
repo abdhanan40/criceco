@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/config/backend_config.dart';
 import '../../app/providers/core_providers.dart';
 import '../../app/session/session_controller.dart';
 import '../../core/models/models.dart';
@@ -162,8 +163,16 @@ final addPlayersFilterProvider =
 /// generator for now; a repository call later without screen changes.
 /// Keyed by a value record (name, position, availability) so lookups are
 /// stable across pool reloads.
+/// Supabase mode: no match statistics are stored yet — the player's own
+/// position and availability, nothing else ([PlayerStats.unrecorded]).
 final squadPlayerStatsProvider = Provider.family<PlayerStats, (String, String, PlayerAvailability)>(
-  (ref, key) => DemoStats.forPlayer(key.$1, position: key.$2, availability: key.$3),
+  (ref, key) => ref.watch(backendConfigProvider).isSupabase
+      ? PlayerStats.unrecorded(
+          position: key.$2,
+          category: SquadCategory.fromPosition(key.$2),
+          availability: key.$3,
+        )
+      : DemoStats.forPlayer(key.$1, position: key.$2, availability: key.$3),
 );
 
 PlayerStats readSquadPlayerStats(WidgetRef ref, SquadPlayer p) =>

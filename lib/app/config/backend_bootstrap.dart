@@ -58,5 +58,8 @@ Future<List<Override>> backendOverrides(
     profileGatewayProvider.overrideWithValue(SupabaseProfileGateway(client)),
     clubGatewayProvider.overrideWithValue(SupabaseClubGateway(client)),
     locationGatewayProvider.overrideWithValue(SupabaseLocationGateway(client)),
+    // Used only with the memberships switch (migrations 11–12 live).
+    membershipGatewayProvider.overrideWithValue(SupabaseMembershipGateway(client)),
+    teamGatewayProvider.overrideWithValue(SupabaseTeamGateway(client)),
   ];
 }

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/models.dart';
 import '../../core/utils/validators.dart';
 import '../../data/repositories/repositories.dart';
+import '../config/backend_modules.dart';
 import '../providers/core_providers.dart';
 import 'auth_notice.dart';
 
@@ -179,8 +180,9 @@ class SessionController extends Notifier<SessionState> {
 
   static const _kAccount = 'criceco.session.accountId';
 
-  Future<void> _setAccount(UserAccount account) async {
-    final club = account.hasClubOwnerProfile ? await ref.read(clubRepositoryProvider).ownClub(account.id) : null;
+  Future<void> _setAccount(UserAccount read) async {
+    final club = read.hasClubOwnerProfile ? await ref.read(clubRepositoryProvider).ownClub(read.id) : null;
+    final account = await _withStoredMemberships(read);
     state = SessionState(
       // Saved setup state decides where the user lands — never reset on login.
       status: account.profileComplete ? SessionStatus.signedIn : SessionStatus.onboarding,
@@ -499,6 +501,29 @@ class SessionController extends Notifier<SessionState> {
   }
 
   /// Join approval adds a membership only — never the Club Owner role (fix C).
+  /// Supabase builds with stored memberships (migration 11, the memberships
+  /// switch): the database's list replaces the account's. The demo keeps the
+  /// run's own list. A failure never blocks signing in — the account is kept
+  /// as read.
+  Future<UserAccount> _withStoredMemberships(UserAccount account) async {
+    final modules = ref.read(backendModulesProvider);
+    if (modules.isDemo || !modules.has(BackendModule.memberships)) return account;
+    try {
+      return account.copyWith(memberships: await ref.read(clubRepositoryProvider).myMemberships());
+    } on AccountException {
+      return account; // offline: shown again on the next refresh
+    }
+  }
+
+  /// Re-reads the signed-in account's stored memberships (after a join
+  /// request is approved). No-op in the demo and when signed out.
+  Future<void> refreshMemberships() async {
+    final account = state.account;
+    if (account == null) return;
+    final updated = await _withStoredMemberships(account);
+    if (!identical(updated, account)) state = state.copyWith(account: updated);
+  }
+
   Future<void> addMembership(ClubMembership membership) =>
       updateAccount((a) => a.copyWith(memberships: [...a.memberships.where((m) => m.clubId != membership.clubId), membership]));
 

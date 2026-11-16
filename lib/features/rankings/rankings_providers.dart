@@ -1,9 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/config/backend_modules.dart';
 import '../../app/providers/core_providers.dart';
 import '../../app/session/session_controller.dart';
 import '../../core/domain/player_ranking.dart';
 import '../../core/models/models.dart';
+import '../../data/repositories/repositories.dart';
 import '../../demo/seed_data.dart';
 import '../club/club_providers.dart';
 import '../club/hunt/player_hunt_controller.dart';
@@ -21,9 +23,23 @@ import '../player/player_providers.dart';
 final rankingInputsProvider = FutureProvider<List<RankingInput>>((ref) async {
   final account = ref.watch(currentAccountProvider);
   final ownClub = ref.watch(currentClubProvider);
-  final roster = await ref.read(clubRepositoryProvider).playerPool(SeedData.ownClubId);
-  final rosterClub = ownClub?.id == SeedData.ownClubId
-      ? ownClub!.displayShortName
+  // The demo ranks the demo club's roster. A Supabase build ranks only the
+  // signed-in owner's own club (its stored members) — never the demo's.
+  final demo = ref.read(backendModulesProvider).isDemo;
+  final List<SquadPlayer> roster;
+  if (demo) {
+    roster = await ref.read(clubRepositoryProvider).playerPool(SeedData.ownClubId);
+  } else if (ownClub == null) {
+    roster = const [];
+  } else {
+    try {
+      roster = await ref.read(clubRepositoryProvider).playerPool(ownClub.id);
+    } on AccountException {
+      return const []; // offline: no board rather than a partial one
+    }
+  }
+  final rosterClub = !demo || ownClub?.id == SeedData.ownClubId
+      ? (ownClub?.displayShortName ?? '')
       : ref.read(seedDataProvider).ownClub.displayShortName;
   final open = await ref.watch(openPlayersProvider.future);
 

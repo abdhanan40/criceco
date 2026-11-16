@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/config/backend_modules.dart';
 import '../../app/router/routes.dart';
+import '../../app/session/account_error_text.dart';
 import '../../app/session/role_controller.dart';
 import '../../app/theme/tokens.dart';
 import '../../app/theme/typography.dart';
-import '../../core/enums/enums.dart';
+import '../../core/models/models.dart';
 import '../../shared/widgets/ce_buttons.dart';
 import '../../shared/widgets/ce_feedback.dart';
 import '../../shared/widgets/ce_icons.dart';
@@ -21,24 +23,95 @@ String _exitLocation(WidgetRef ref) {
 }
 
 /// Waiting for Approval (prototype `screens.waitingApproval`, :3190).
-class WaitingApprovalScreen extends ConsumerWidget {
+///
+/// Stored requests (Supabase with the memberships switch): the request is
+/// read from the database when the screen opens and on "Check Status"; an
+/// approval continues to Request Approved, a decline is shown here.
+class WaitingApprovalScreen extends ConsumerStatefulWidget {
   const WaitingApprovalScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<WaitingApprovalScreen> createState() => _WaitingApprovalScreenState();
+}
+
+class _WaitingApprovalScreenState extends ConsumerState<WaitingApprovalScreen> {
+  bool _checking = false;
+  bool _cancelling = false;
+
+  bool get _stored {
+    final modules = ref.read(backendModulesProvider);
+    return !modules.isDemo && modules.has(BackendModule.memberships);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _stored) _check(quiet: true);
+    });
+  }
+
+  /// Re-reads the request; approved → Request Approved.
+  Future<void> _check({bool quiet = false}) async {
+    if (_checking) return;
+    setState(() => _checking = true);
+    try {
+      final latest = await ref.read(joinClubProvider.notifier).refresh();
+      if (!mounted) return;
+      if (latest?.status == JoinRequestStatus.approved) {
+        context.go(Routes.joinApproved);
+      } else if (!quiet && latest?.status == JoinRequestStatus.pending) {
+        showCeToast(context, 'Still waiting for the club owner');
+      }
+    } catch (e) {
+      if (mounted && !quiet) showCeToast(context, accountErrorText(e, fallback: "Couldn't check your request — please try again."));
+    } finally {
+      if (mounted) setState(() => _checking = false);
+    }
+  }
+
+  Future<void> _cancel() async {
+    final ok = await showCeConfirmSheet(
+      context,
+      title: 'Cancel join request?',
+      body: 'The club will no longer see your request. You can send a new one later.',
+      confirmLabel: 'Cancel Request',
+      destructive: true,
+      icon: 'x',
+    );
+    if (!ok || !mounted || _cancelling) return;
+    setState(() => _cancelling = true);
+    try {
+      await ref.read(joinClubProvider.notifier).cancel();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _cancelling = false);
+      showCeToast(context, accountErrorText(e, fallback: "Couldn't cancel the request — please try again."));
+      return;
+    }
+    if (!mounted) return;
+    showCeToast(context, 'Join request cancelled');
+    context.go(Routes.clubSetup);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final request = ref.watch(joinClubProvider);
     if (request == null) {
       return Scaffold(
         appBar: CeTopBar(title: 'Join Request', onBack: () => context.go(Routes.clubSetup)),
-        body: CeEmptyState(
-          icon: 'search',
-          title: 'No join request',
-          body: 'There is no pending join request. Enter a club code to send one.',
-          primaryLabel: 'Enter Club Code',
-          onPrimary: () => context.go(Routes.enterClubCode),
-        ),
+        body: _checking
+            ? const Center(child: CircularProgressIndicator())
+            : CeEmptyState(
+                icon: 'search',
+                title: 'No join request',
+                body: 'There is no pending join request. Enter a club code to send one.',
+                primaryLabel: 'Enter Club Code',
+                onPrimary: () => context.go(Routes.enterClubCode),
+              ),
       );
     }
+    if (request.status == JoinRequestStatus.declined) return _declined(context, request);
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -62,7 +135,10 @@ class WaitingApprovalScreen extends ConsumerWidget {
                   TextSpan(children: [
                     const TextSpan(text: 'Your request to join '),
                     TextSpan(text: request.clubName, style: const TextStyle(fontWeight: FontWeight.w700, color: CeColors.ink)),
-                    const TextSpan(text: " is with the club owner. We'll notify you the moment it's reviewed."),
+                    TextSpan(
+                        text: _stored
+                            ? ' is with the club owner. Check back here to see when it’s reviewed.'
+                            : " is with the club owner. We'll notify you the moment it's reviewed."),
                   ]),
                   textAlign: TextAlign.center,
                   style: const TextStyle(fontSize: 12.5, color: CeColors.muted, height: 1.5),
@@ -80,23 +156,16 @@ class WaitingApprovalScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(CeSpace.form, 20, CeSpace.form, 0),
             child: Column(children: [
-              CeButton.danger(
-                label: 'Cancel Request',
-                onPressed: () async {
-                  final ok = await showCeConfirmSheet(
-                    context,
-                    title: 'Cancel join request?',
-                    body: 'The club will no longer see your request. You can send a new one later.',
-                    confirmLabel: 'Cancel Request',
-                    destructive: true,
-                    icon: 'x',
-                  );
-                  if (!ok || !context.mounted) return;
-                  ref.read(joinClubProvider.notifier).cancel();
-                  showCeToast(context, 'Join request cancelled');
-                  context.go(Routes.clubSetup);
-                },
-              ),
+              if (_stored) ...[
+                CeButton(
+                  key: const Key('join.checkStatus'),
+                  label: 'Check Status',
+                  loading: _checking,
+                  onPressed: _check,
+                ),
+                const SizedBox(height: 10),
+              ],
+              CeButton.danger(label: 'Cancel Request', onPressed: _cancelling ? null : _cancel),
               const SizedBox(height: 10),
               CeButton.soft(label: 'Back to Home', onPressed: () => context.go(_exitLocation(ref))),
             ]),
@@ -115,6 +184,36 @@ class WaitingApprovalScreen extends ConsumerWidget {
       ),
     );
   }
+
+  /// The owner declined: their reason (if any) and a way to try another code.
+  Widget _declined(BuildContext context, ClubJoinRequest request) => Scaffold(
+        appBar: CeTopBar(title: 'Join Request', onBack: () => context.go(_exitLocation(ref))),
+        body: ListView(padding: const EdgeInsets.only(bottom: 24), children: [
+          CeSuccessPanel(
+            key: const Key('join.declined'),
+            title: 'Request declined',
+            icon: 'x',
+            danger: true,
+            body: Text((request.declineReason ?? '').trim().isEmpty
+                ? 'The owner of ${request.clubName} declined your request.'
+                : 'The owner of ${request.clubName} declined your request: “${request.declineReason!.trim()}”'),
+          ),
+          CeSummaryCard(rows: [
+            ('Club', CeSummaryCard.value(context, request.clubName)),
+            ('Status', CeSummaryCard.value(context, 'Declined', color: CeColors.red)),
+          ]),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(CeSpace.form, 20, CeSpace.form, 0),
+            child: CeButton(
+              label: 'Enter Another Code',
+              onPressed: () async {
+                await ref.read(joinClubProvider.notifier).cancel(); // clears it from this screen only
+                if (context.mounted) context.go(Routes.enterClubCode);
+              },
+            ),
+          ),
+        ]),
+      );
 }
 
 class _Checklist extends StatelessWidget {

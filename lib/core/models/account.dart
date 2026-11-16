@@ -235,21 +235,30 @@ class ClubJoinRequest {
   const ClubJoinRequest({
     required this.clubCode,
     required this.clubName,
+    this.id,
     this.status = JoinRequestStatus.pending,
     this.approvedRole,
+    this.declineReason,
   });
 
+  /// The backend's request id (Supabase builds); `null` in the demo.
+  final String? id;
   final String clubCode;
   final String clubName;
   final JoinRequestStatus status;
   final MemberRole? approvedRole;
 
+  /// The owner's short message when they declined (optional).
+  final String? declineReason;
+
   ClubJoinRequest copyWith({JoinRequestStatus? status, MemberRole? approvedRole}) =>
       ClubJoinRequest(
+        id: id,
         clubCode: clubCode,
         clubName: clubName,
         status: status ?? this.status,
         approvedRole: approvedRole ?? this.approvedRole,
+        declineReason: declineReason,
       );
 }
 

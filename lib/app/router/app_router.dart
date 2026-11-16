@@ -49,6 +49,8 @@ import '../../features/tournaments/screens/registration_screens.dart';
 import '../../features/tournaments/screens/tournament_hub_screen.dart';
 import '../../shared/navigation/not_found_screen.dart';
 import '../../shared/navigation/role_shells.dart';
+import '../../shared/widgets/backend_pending.dart';
+import '../config/backend_modules.dart';
 import '../session/role_controller.dart';
 import '../session/session_controller.dart';
 import '../theme/tokens.dart';
@@ -186,7 +188,7 @@ final List<RouteBase> appRoutes = [
 
   // ---- Shared ----
   GoRoute(path: Routes.roleSetup, builder: (_, _) => const RoleSetupScreen()),
-  GoRoute(path: Routes.notifications, builder: (_, _) => const NotificationsScreen()),
+  GoRoute(path: Routes.notifications, builder: (_, _) => _gate(BackendModule.notifications, 'Notifications', Routes.roleSelection, const NotificationsScreen())),
   // Settings with the Privacy section inline (`?section=privacy` expands it).
   GoRoute(
     path: Routes.settings,
@@ -220,7 +222,7 @@ final List<RouteBase> appRoutes = [
           path: Routes.playerHome,
           pageBuilder: (_, s) => _fade(const PlayerDashboardScreen(), s),
           routes: [
-            GoRoute(path: 'open-matches', builder: (_, _) => const OpenMatchesScreen()),
+            GoRoute(path: 'open-matches', builder: (_, _) => _gate(BackendModule.matches, 'Playing Opportunities', Routes.playerHome, const OpenMatchesScreen())),
             // My Profile with inline edit mode (`?edit=1`).
             GoRoute(
               path: 'profile',
@@ -233,15 +235,16 @@ final List<RouteBase> appRoutes = [
       StatefulShellBranch(routes: [
         GoRoute(
           path: Routes.myMatches,
-          builder: (_, s) => MyMatchesScreen(tab: MyMatchesScreen.parseTab(s.uri.queryParameters['tab'])),
+          builder: (_, s) => _gate(BackendModule.matches, 'My Matches', Routes.playerHome,
+              MyMatchesScreen(tab: MyMatchesScreen.parseTab(s.uri.queryParameters['tab']))),
           routes: [
             // Player Match workspace: Details | Scorecard in `?tab=`.
             GoRoute(
               path: ':matchId',
-              builder: (_, s) => PlayerMatchWorkspace(
+              builder: (_, s) => _gate(BackendModule.matches, 'My Matches', Routes.myMatches, PlayerMatchWorkspace(
                 matchId: s.pathParameters['matchId']!,
                 tab: PlayerMatchView.parse(s.uri.queryParameters['tab']),
-              ),
+              )),
               routes: [
                 _legacy('scorecard', (s) => PlayerMatchView.scorecard.location(s.pathParameters['matchId']!)),
               ],
@@ -256,7 +259,8 @@ final List<RouteBase> appRoutes = [
         // Performance workspace: Overview | History in `?tab=`.
         GoRoute(
           path: Routes.myPerformance,
-          builder: (_, s) => PerformanceWorkspace(tab: PerformanceView.parse(s.uri.queryParameters['tab'])),
+          builder: (_, s) => _gate(BackendModule.playerStats, 'My Performance', Routes.playerHome,
+              PerformanceWorkspace(tab: PerformanceView.parse(s.uri.queryParameters['tab']))),
           routes: [_legacy('history', (_) => PerformanceView.history.location)],
         ),
       ]),
@@ -281,25 +285,29 @@ final List<RouteBase> appRoutes = [
       ]),
       StatefulShellBranch(routes: [_matchManagementRoute]),
       StatefulShellBranch(routes: [
-        GoRoute(path: Routes.teams, builder: (_, _) => const TeamsScreen(), routes: [
+        GoRoute(path: Routes.teams, builder: (_, _) => _gate(BackendModule.teams, 'Teams', Routes.clubHome, const TeamsScreen()), routes: [
           GoRoute(path: 'new', redirect: (_, _) => Routes.teams), // legacy createTeam (P17)
           GoRoute(
             path: ':teamId',
-            builder: (_, s) => TeamSquadScreen(teamId: s.pathParameters['teamId']!),
+            builder: (_, s) => _gate(BackendModule.teams, 'Teams', Routes.teams, TeamSquadScreen(teamId: s.pathParameters['teamId']!)),
             routes: [
               GoRoute(
                 path: 'add-players',
                 parentNavigatorKey: rootNavigatorKey,
-                builder: (_, s) => AddTeamPlayersScreen(teamId: s.pathParameters['teamId']!),
+                builder: (_, s) =>
+                    _gate(BackendModule.teams, 'Teams', Routes.teams, AddTeamPlayersScreen(teamId: s.pathParameters['teamId']!)),
               ),
             ],
           ),
         ]),
       ]),
       StatefulShellBranch(routes: [
-        GoRoute(path: Routes.members, builder: (_, _) => const MembersScreen(), routes: [
+        GoRoute(path: Routes.members, builder: (_, _) => _gate(BackendModule.memberships, 'Members', Routes.clubHome, const MembersScreen()), routes: [
           // Member Profile: inside the Members tab, so Back returns to Members.
-          GoRoute(path: ':memberId', builder: (_, s) => MemberProfileScreen(memberId: s.pathParameters['memberId']!)),
+          GoRoute(
+              path: ':memberId',
+              builder: (_, s) => _gate(BackendModule.memberships, 'Members', Routes.members,
+                  MemberProfileScreen(memberId: s.pathParameters['memberId']!))),
         ]),
       ]),
     ],
@@ -312,44 +320,58 @@ final List<RouteBase> _clubFullRoutes = [
   GoRoute(
     path: 'requests',
     parentNavigatorKey: rootNavigatorKey,
-    builder: (_, s) => JoinRequestsScreen(tab: JoinRequestsScreen.parseTab(s.uri.queryParameters['tab'])),
+    builder: (_, s) => _gate(BackendModule.memberships, 'Join Requests', Routes.clubHome,
+        JoinRequestsScreen(tab: JoinRequestsScreen.parseTab(s.uri.queryParameters['tab']))),
     routes: [
       GoRoute(
         path: ':requestId',
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, s) => JoinRequestProfileScreen(requestId: s.pathParameters['requestId']!),
+        builder: (_, s) => _gate(BackendModule.memberships, 'Join Requests', Routes.joinRequests,
+            JoinRequestProfileScreen(requestId: s.pathParameters['requestId']!)),
       ),
     ],
   ),
   GoRoute(
     path: 'player-hunt',
     parentNavigatorKey: rootNavigatorKey,
-    builder: (_, s) => PlayerHuntScreen(tab: HuntTab.parse(s.uri.queryParameters['tab'])),
+    builder: (_, s) =>
+        _gate(BackendModule.playerHunt, 'Find Player', Routes.clubHome, PlayerHuntScreen(tab: HuntTab.parse(s.uri.queryParameters['tab']))),
   ),
   // Challenges workspace: Challenges | My Challenges | Find Opponent in `?tab=`.
   GoRoute(
     path: 'challenges',
     parentNavigatorKey: rootNavigatorKey,
-    builder: (_, s) => ChallengesWorkspace(tab: ChallengesSection.parse(s.uri.queryParameters['tab'])),
+    builder: (_, s) => _gate(BackendModule.challenges, 'Challenges', Routes.clubHome,
+        ChallengesWorkspace(tab: ChallengesSection.parse(s.uri.queryParameters['tab']))),
     routes: [
       // Former My Challenges / Find Opponent screens, kept for compatibility.
       _legacy('mine', (_) => Routes.myChallenges),
       _legacy('find', (_) => Routes.findMatch),
-      GoRoute(path: 'slots/new', parentNavigatorKey: rootNavigatorKey, builder: (_, _) => const CreateSlotScreen()),
+      GoRoute(
+        path: 'slots/new',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, _) => _gate(BackendModule.challenges, 'Challenges', Routes.challenges, const CreateSlotScreen()),
+      ),
       GoRoute(
         path: ':challengeId/accepted',
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, s) => ChallengeStatusScreen(challengeId: s.pathParameters['challengeId']!),
+        builder: (_, s) => _gate(BackendModule.challenges, 'Challenges', Routes.challenges,
+            ChallengeStatusScreen(challengeId: s.pathParameters['challengeId']!)),
       ),
     ],
   ),
   GoRoute(
     path: 'clubs/:clubId',
     parentNavigatorKey: rootNavigatorKey,
-    builder: (_, s) => ClubProfileScreen(
-      clubId: s.pathParameters['clubId']!,
-      challengeId: s.uri.queryParameters['challenge'],
-      fromFind: s.uri.queryParameters['from'] == 'find',
+    builder: (_, s) => _gate(
+      BackendModule.challenges,
+      'Club Profile',
+      Routes.clubHome,
+      ClubProfileScreen(
+        clubId: s.pathParameters['clubId']!,
+        challengeId: s.uri.queryParameters['challenge'],
+        fromFind: s.uri.queryParameters['from'] == 'find',
+      ),
     ),
   ),
   ..._tournamentRoutes,
@@ -359,12 +381,14 @@ final List<RouteBase> _clubFullRoutes = [
 /// booking / payment / line-up steps still open full-screen above the shell.
 final GoRoute _matchManagementRoute = GoRoute(
   path: Routes.matchManagementPath,
-  builder: (_, s) => MatchManagementScreen(tab: MatchManagementScreen.parseTab(s.uri.queryParameters['tab'])),
+  builder: (_, s) => _gate(BackendModule.matches, 'Upcoming Matches', Routes.clubHome,
+      MatchManagementScreen(tab: MatchManagementScreen.parseTab(s.uri.queryParameters['tab']))),
   routes: [
     GoRoute(
       path: ':matchId/setup',
       parentNavigatorKey: rootNavigatorKey,
-      builder: (_, s) => MatchSetupScreen(matchId: s.pathParameters['matchId']!),
+      builder: (_, s) =>
+          _gate(BackendModule.matches, 'Upcoming Matches', Routes.matchManagementPath, MatchSetupScreen(matchId: s.pathParameters['matchId']!)),
       routes: [
         GoRoute(
           path: 'ground',
@@ -447,10 +471,16 @@ final GoRoute _matchManagementRoute = GoRoute(
 String _tid(GoRouterState s) => s.pathParameters['tournamentId']!;
 String _rid(GoRouterState s) => s.pathParameters['registrationId']!;
 
+/// A screen of [module]: itself where the module has a backend in this
+/// build, otherwise "not available yet" (docs/PRODUCTION_DEMO_MODE.md).
+Widget _gate(BackendModule module, String title, String fallback, Widget screen) =>
+    BackendModuleScreen(module: module, title: title, fallbackLocation: fallback, child: screen);
+
 GoRoute _full(String path, Widget Function(GoRouterState s) build, {List<RouteBase> routes = const []}) => GoRoute(
       path: path,
       parentNavigatorKey: rootNavigatorKey,
-      builder: (_, s) => build(s),
+      // Tournaments have no backend in Supabase builds yet.
+      builder: (_, s) => _gate(BackendModule.tournaments, 'Tournament', Routes.clubHome, build(s)),
       routes: routes,
     );
 

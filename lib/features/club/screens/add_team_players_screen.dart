@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/router/routes.dart';
+import '../../../app/session/account_error_text.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
@@ -77,10 +78,10 @@ class _AddTeamPlayersScreenState extends ConsumerState<AddTeamPlayersScreen> {
     setState(() => _saving = true);
     try {
       await ref.read(squadEditorProvider(widget.teamId).notifier).save();
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        showCeToast(context, "Couldn't save the squad — please try again");
+        showCeToast(context, accountErrorText(e, fallback: "Couldn't save the squad — please try again"));
       }
       return;
     }

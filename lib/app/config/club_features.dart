@@ -1,25 +1,26 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'backend_config.dart';
+import 'backend_modules.dart';
 
 /// Which club features this build offers. Screens ask this instead of the
 /// backend mode (as with `AuthFeatures`).
 ///
 /// Memory mode (the demo) keeps joining a club by its code. Supabase mode
-/// doesn't offer it yet (Phase 3E needs its own migration): the Join a Club
-/// screens show [joinComingSoon] instead of a simulated lookup.
+/// offers it with the memberships switch (`CRICECO_MEMBERSHIPS`, migration
+/// 11); without it the Join a Club screens show [joinComingSoon] instead of
+/// a simulated lookup.
 class ClubFeatures {
   const ClubFeatures({required this.joinByCode});
 
   /// Memory mode: join a club by its code (the demo flow).
   const ClubFeatures.all() : joinByCode = true;
 
-  /// Supabase mode, until Phase 3E.
+  /// Supabase mode without the memberships switch.
   const ClubFeatures.noJoinByCode() : joinByCode = false;
 
-  factory ClubFeatures.of(BackendConfig config) => config.isSupabase
-      ? const ClubFeatures.noJoinByCode()
-      : const ClubFeatures.all();
+  factory ClubFeatures.of(BackendConfig config, {bool memberships = kMembershipsBuild}) =>
+      config.isSupabase && !memberships ? const ClubFeatures.noJoinByCode() : const ClubFeatures.all();
 
   /// Join a Club: enter a club code, preview the club, send a request.
   final bool joinByCode;
@@ -28,7 +29,11 @@ class ClubFeatures {
   static const joinComingSoon = 'Joining a club by code is coming soon';
 }
 
-/// The build's club features, derived from [backendConfigProvider].
+/// The build's club features, derived from [backendConfigProvider] and
+/// [membershipsEnabledProvider].
 final clubFeaturesProvider = Provider<ClubFeatures>(
-  (ref) => ClubFeatures.of(ref.watch(backendConfigProvider)),
+  (ref) => ClubFeatures.of(
+    ref.watch(backendConfigProvider),
+    memberships: ref.watch(membershipsEnabledProvider),
+  ),
 );

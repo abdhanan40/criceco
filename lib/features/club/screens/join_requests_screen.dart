@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/router/routes.dart';
+import '../../../app/session/account_error_text.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
@@ -157,8 +158,10 @@ class _JoinRequestsScreenState extends ConsumerState<JoinRequestsScreen> {
     JoinRequest? decided;
     try {
       decided = approve ? await ctrl.approve(r.id) : await ctrl.decline(r.id, reason: reason);
-    } catch (_) {
-      if (mounted) showCeToast(context, "Couldn't update the request — please try again");
+    } catch (e) {
+      // The database's reason when it refused (not the owner, already
+      // decided…); otherwise the generic message.
+      if (mounted) showCeToast(context, accountErrorText(e, fallback: "Couldn't update the request — please try again"));
     }
     if (!mounted) return;
     setState(() => _busy.remove(r.id));
@@ -208,6 +211,9 @@ class _JoinRequestsScreenState extends ConsumerState<JoinRequestsScreen> {
         ),
         if (async.isLoading)
           const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator()))
+        else if (async.hasError && !async.hasValue)
+          // A failed load is never shown as "no requests".
+          CeErrorState(title: 'Couldn\'t load requests', onRetry: () => ref.invalidate(joinRequestsProvider))
         else if (list.isEmpty)
           switch (tab) {
             JoinRequestReview.pending => const CeEmptyState(
@@ -273,8 +279,10 @@ class _JoinRequestsSheetState extends ConsumerState<_JoinRequestsSheet> {
     JoinRequest? decided;
     try {
       decided = approve ? await ctrl.approve(r.id) : await ctrl.decline(r.id, reason: reason);
-    } catch (_) {
-      if (mounted) showCeToast(context, "Couldn't update the request — please try again");
+    } catch (e) {
+      // The database's reason when it refused (not the owner, already
+      // decided…); otherwise the generic message.
+      if (mounted) showCeToast(context, accountErrorText(e, fallback: "Couldn't update the request — please try again"));
     }
     if (!mounted) return;
     setState(() => _busy.remove(r.id));

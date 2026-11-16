@@ -131,7 +131,7 @@ class PlayerScoutingDetails extends StatelessWidget {
               style: const TextStyle(fontFamily: CeType.display, fontSize: 16, fontWeight: FontWeight.w700, color: CeColors.ink),
             ),
             const SizedBox(height: 2),
-            Text('${player.position} · ${s.skill.label} level',
+            Text(s.skill == null ? player.position : '${player.position} · ${s.skill!.label} level',
                 style: const TextStyle(fontSize: 12, color: CeColors.muted)),
           ]),
         ),

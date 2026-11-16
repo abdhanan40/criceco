@@ -231,6 +231,61 @@ abstract interface class ClubGateway {
   );
 }
 
+/// Club memberships (migration 11). Every call is a database function that
+/// identifies the caller by `auth.uid()` — never by an id the app sends —
+/// and returns JSON maps (one row) or lists of them.
+abstract interface class MembershipGateway {
+  /// `rpc('lookup_club_by_code')` — `null` for an unknown code.
+  Future<Map<String, dynamic>?> lookupClubByCode(String code);
+
+  /// `rpc('request_to_join_club')` — the new `join_requests` row, or `null`
+  /// for an unknown code (counted by the database's brute-force throttle).
+  Future<Map<String, dynamic>?> requestToJoin(String code);
+
+  /// `rpc('cancel_join_request')` — the cancelled row.
+  Future<Map<String, dynamic>> cancelJoinRequest(String requestId);
+
+  /// `rpc('my_join_requests')` — the caller's requests, newest first.
+  Future<List<Map<String, dynamic>>> myJoinRequests();
+
+  /// `rpc('my_club_memberships')` — the caller's active memberships.
+  Future<List<Map<String, dynamic>>> myMemberships();
+
+  /// `rpc('club_join_requests')` — the owner's view of [clubId]'s requests.
+  Future<List<Map<String, dynamic>>> clubJoinRequests(String clubId);
+
+  /// `rpc('decide_join_request')` — the decided (or unchanged) request.
+  Future<Map<String, dynamic>> decideJoinRequest({
+    required String requestId,
+    required bool approve,
+    required String role,
+    String? reason,
+  });
+
+  /// `rpc('club_member_list')` — the owner's view of [clubId]'s members.
+  Future<List<Map<String, dynamic>>> clubMembers(String clubId);
+
+  /// `rpc('remove_club_member')` — the member row, now removed.
+  Future<Map<String, dynamic>> removeMember(String memberId);
+}
+
+/// Teams and squads (migration 12). Reads go through RLS (the club owner
+/// only); writes are database functions.
+abstract interface class TeamGateway {
+  /// `select *, team_players(*) from teams where club_id = … and status =
+  /// 'active' order by created_at`.
+  Future<List<Map<String, dynamic>>> fetchTeams(String clubId);
+
+  /// `rpc('create_team', params)` — the new team row.
+  Future<Map<String, dynamic>> createTeam(Map<String, Object?> params);
+
+  /// `rpc('save_team', params)` — details and whole squad, one transaction.
+  Future<Map<String, dynamic>> saveTeam(Map<String, Object?> params);
+
+  /// `rpc('archive_team')` — the archived team row.
+  Future<Map<String, dynamic>> archiveTeam(String teamId);
+}
+
 /// The location lookup (migration 6), read-only. Rows are the JSON maps the
 /// REST API returns; RLS lets any signed-in user read them.
 abstract interface class LocationGateway {
@@ -325,5 +380,11 @@ final clubGatewayProvider = Provider<ClubGateway>(
   (ref) => throw StateError(_notInitialized),
 );
 final locationGatewayProvider = Provider<LocationGateway>(
+  (ref) => throw StateError(_notInitialized),
+);
+final membershipGatewayProvider = Provider<MembershipGateway>(
+  (ref) => throw StateError(_notInitialized),
+);
+final teamGatewayProvider = Provider<TeamGateway>(
   (ref) => throw StateError(_notInitialized),
 );

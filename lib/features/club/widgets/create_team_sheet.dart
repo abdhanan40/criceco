@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app/session/account_error_text.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/validators.dart';
@@ -112,10 +113,16 @@ class _CreateTeamFlowSheetState extends ConsumerState<_CreateTeamFlowSheet> {
             customOvers: _format == MatchFormat.custom ? _customOvers : null,
             members: [for (final e in _picks.entries) TeamMember(playerId: e.key, selection: e.value)],
           );
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        showCeToast(context, "Couldn't create the team — please try again");
+        // The database's reason (duplicate name, full squad…); a team that was
+        // created without its squad says so.
+        showCeToast(
+            context,
+            e is TeamSquadNotSavedException
+                ? e.message
+                : accountErrorText(e, fallback: "Couldn't create the team — please try again"));
       }
       return;
     }

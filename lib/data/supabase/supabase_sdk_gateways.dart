@@ -557,6 +557,122 @@ class SupabaseClubGateway implements ClubGateway {
       _guarded(run, timeout, SupabaseProfileGateway.translate);
 }
 
+/// Club memberships (migration 11): database functions only.
+class SupabaseMembershipGateway implements MembershipGateway {
+  SupabaseMembershipGateway(this._client, {this.timeout = kGatewayTimeout});
+  final sb.SupabaseClient _client;
+  final Duration timeout;
+
+  @override
+  Future<Map<String, dynamic>?> lookupClubByCode(String code) => _guard(
+    () async => SupabaseClubGateway._row(
+      await _client.rpc<dynamic>('lookup_club_by_code', params: {'p_code': code}),
+    ),
+  );
+
+  /// `null` for an unknown code: the function returns NULL (PostgREST: `null`,
+  /// or a row whose fields are all `null`).
+  @override
+  Future<Map<String, dynamic>?> requestToJoin(String code) => _guard(() async {
+    final row = SupabaseClubGateway._row(
+      await _client.rpc<dynamic>('request_to_join_club', params: {'p_code': code}),
+    );
+    return row == null || row['id'] == null ? null : row;
+  });
+
+  @override
+  Future<Map<String, dynamic>> cancelJoinRequest(String requestId) =>
+      _one('cancel_join_request', {'p_request_id': requestId});
+
+  @override
+  Future<List<Map<String, dynamic>>> myJoinRequests() => _list('my_join_requests', const {});
+
+  @override
+  Future<List<Map<String, dynamic>>> myMemberships() => _list('my_club_memberships', const {});
+
+  @override
+  Future<List<Map<String, dynamic>>> clubJoinRequests(String clubId) =>
+      _list('club_join_requests', {'p_club_id': clubId});
+
+  @override
+  Future<Map<String, dynamic>> decideJoinRequest({
+    required String requestId,
+    required bool approve,
+    required String role,
+    String? reason,
+  }) => _one('decide_join_request', {
+    'p_request_id': requestId,
+    'p_approve': approve,
+    'p_role': role,
+    'p_reason': reason,
+  });
+
+  @override
+  Future<List<Map<String, dynamic>>> clubMembers(String clubId) =>
+      _list('club_member_list', {'p_club_id': clubId});
+
+  @override
+  Future<Map<String, dynamic>> removeMember(String memberId) =>
+      _one('remove_club_member', {'p_member_id': memberId});
+
+  Future<Map<String, dynamic>> _one(String fn, Map<String, Object?> params) => _guard(() async {
+    final row = SupabaseClubGateway._row(await _client.rpc<dynamic>(fn, params: params));
+    if (row == null) throw GatewayUnexpectedException('$fn-no-row');
+    return row;
+  });
+
+  Future<List<Map<String, dynamic>>> _list(String fn, Map<String, Object?> params) =>
+      _guard(() async => _rowsOf(await _client.rpc<dynamic>(fn, params: params)));
+
+  Future<T> _guard<T>(Future<T> Function() run) =>
+      _guarded(run, timeout, SupabaseProfileGateway.translate);
+}
+
+/// Teams and squads (migration 12): reads through RLS, writes through
+/// database functions.
+class SupabaseTeamGateway implements TeamGateway {
+  SupabaseTeamGateway(this._client, {this.timeout = kGatewayTimeout});
+  final sb.SupabaseClient _client;
+  final Duration timeout;
+
+  @override
+  Future<List<Map<String, dynamic>>> fetchTeams(String clubId) => _guard(
+    () async => _rowsOf(
+      await _client
+          .from('teams')
+          .select('*, team_players(*)')
+          .eq('club_id', clubId)
+          .eq('status', 'active')
+          .order('created_at'),
+    ),
+  );
+
+  @override
+  Future<Map<String, dynamic>> createTeam(Map<String, Object?> params) => _one('create_team', params);
+
+  @override
+  Future<Map<String, dynamic>> saveTeam(Map<String, Object?> params) => _one('save_team', params);
+
+  @override
+  Future<Map<String, dynamic>> archiveTeam(String teamId) => _one('archive_team', {'p_team_id': teamId});
+
+  Future<Map<String, dynamic>> _one(String fn, Map<String, Object?> params) => _guard(() async {
+    final row = SupabaseClubGateway._row(await _client.rpc<dynamic>(fn, params: params));
+    if (row == null) throw GatewayUnexpectedException('$fn-no-row');
+    return row;
+  });
+
+  Future<T> _guard<T>(Future<T> Function() run) =>
+      _guarded(run, timeout, SupabaseProfileGateway.translate);
+}
+
+/// A list of JSON objects from a REST / function response (tolerates `null`).
+List<Map<String, dynamic>> _rowsOf(Object? v) => [
+  if (v is List)
+    for (final e in v)
+      if (e is Map) Map<String, dynamic>.from(e),
+];
+
 class SupabaseLocationGateway implements LocationGateway {
   SupabaseLocationGateway(this._client, {this.timeout = kGatewayTimeout});
   final sb.SupabaseClient _client;

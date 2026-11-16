@@ -90,6 +90,32 @@ class GoogleSignInUnavailableException extends AccountException {
     : super('Couldn’t open Google sign-in — please try again');
 }
 
+/// Join a Club (migration 11): no club uses this code.
+class ClubCodeNotFoundException extends AccountException {
+  const ClubCodeNotFoundException()
+    : super('No club found with that code. Check the code and try again.');
+}
+
+/// Join a Club / membership: the database refused the step for a reason the
+/// person can act on ([message]: own club, already a member, a request
+/// already pending, profile incomplete, already decided).
+class ClubMembershipException extends AccountException {
+  const ClubMembershipException(super.message);
+}
+
+/// A team change the database refused (migration 12): duplicate name, full
+/// squad, a player who isn't an active member, a deleted team.
+class TeamRuleException extends AccountException {
+  const TeamRuleException(super.message);
+}
+
+/// This part of the app has no backend in this build (Supabase mode,
+/// docs/PRODUCTION_DEMO_MODE.md): nothing is saved, so nothing is pretended.
+class ModuleUnavailableException extends AccountException {
+  const ModuleUnavailableException()
+    : super('This isn’t available yet — it isn’t connected to the server.');
+}
+
 /// The backend does not support this way of signing in or up (e.g. phone
 /// numbers while only email is enabled).
 class UnsupportedSignInMethodException extends AccountException {

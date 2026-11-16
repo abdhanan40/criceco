@@ -288,7 +288,9 @@ enum RegistrationStatus {
   final String label;
 }
 
-enum JoinRequestStatus { pending, approved, cancelled }
+/// An OUTGOING join request's state. [declined]: the club owner rejected it
+/// (Supabase builds, migration 11); [cancelled]: the applicant withdrew it.
+enum JoinRequestStatus { pending, approved, declined, cancelled }
 
 /// Review state of an INCOMING request to join the owner's club (Requests tabs).
 enum JoinRequestReview {

@@ -14,11 +14,13 @@ import '../../data/supabase/supabase_account_repository.dart';
 import '../../data/supabase/supabase_club_repository.dart';
 import '../../data/supabase/supabase_gateways.dart';
 import '../../data/supabase/supabase_location_repository.dart';
+import '../../data/supabase/supabase_team_repository.dart';
 import '../../demo/demo_stats.dart';
 import '../../demo/seed_data.dart';
 import '../config/auth_features.dart';
 import '../config/auth_redirects.dart';
 import '../config/backend_config.dart';
+import '../config/backend_modules.dart';
 
 /// Injectable time source. Tests override with a fixed/fake [Clock].
 final clockProvider = Provider<Clock>((ref) => const Clock());
@@ -85,24 +87,44 @@ final clubRepositoryProvider = Provider<ClubRepository>((ref) {
         db: ref.watch(clubGatewayProvider),
         overlay: LocalClubOverlay(ref.watch(sharedPreferencesProvider)),
         local: InMemoryClubRepository(ref.watch(seedDataProvider)),
+        // Migration 11's functions, only with the memberships switch.
+        membership: ref.watch(membershipsEnabledProvider) ? ref.watch(membershipGatewayProvider) : null,
+        clock: ref.watch(clockProvider),
       ),
   };
 });
-final teamRepositoryProvider = Provider<TeamRepository>((ref) => InMemoryTeamRepository(ref.watch(seedDataProvider)));
-final matchRepositoryProvider =
-    Provider<MatchRepository>((ref) => InMemoryMatchRepository(ref.watch(seedDataProvider)));
-final groundRepositoryProvider =
-    Provider<GroundRepository>((ref) => InMemoryGroundRepository(ref.watch(seedDataProvider)));
-final reservationRepositoryProvider =
-    Provider<ReservationRepository>((ref) => InMemoryReservationRepository(ref.watch(seedDataProvider)));
-final walletRepositoryProvider = Provider<WalletRepository>((ref) => InMemoryWalletRepository());
-final challengeRepositoryProvider =
-    Provider<ChallengeRepository>((ref) => InMemoryChallengeRepository(ref.watch(seedDataProvider)));
-final huntRepositoryProvider = Provider<HuntRepository>((ref) => InMemoryHuntRepository(ref.watch(seedDataProvider)));
-final tournamentRepositoryProvider =
-    Provider<TournamentRepository>((ref) => InMemoryTournamentRepository(ref.watch(seedDataProvider)));
-final notificationRepositoryProvider =
-    Provider<NotificationRepository>((ref) => InMemoryNotificationRepository(ref.watch(seedDataProvider)));
+
+// ---- Modules without a backend yet ----
+// Memory mode: the demo's seeded data. Supabase mode: the same in-memory
+// repositories but EMPTY — never seeded, never invented — and their screens
+// say the module isn't available yet ([backendModulesProvider],
+// docs/PRODUCTION_DEMO_MODE.md).
+bool _demo(Ref ref) => !ref.watch(backendConfigProvider).isSupabase;
+
+/// Supabase mode: migration 12 with the memberships switch; without it,
+/// no teams at all (nothing session-only that would vanish on restart).
+final teamRepositoryProvider = Provider<TeamRepository>((ref) {
+  if (_demo(ref)) return InMemoryTeamRepository(ref.watch(seedDataProvider));
+  return ref.watch(membershipsEnabledProvider)
+      ? SupabaseTeamRepository(db: ref.watch(teamGatewayProvider))
+      : const UnavailableTeamRepository();
+});
+final matchRepositoryProvider = Provider<MatchRepository>(
+    (ref) => _demo(ref) ? InMemoryMatchRepository(ref.watch(seedDataProvider)) : InMemoryMatchRepository.empty());
+final groundRepositoryProvider = Provider<GroundRepository>(
+    (ref) => _demo(ref) ? InMemoryGroundRepository(ref.watch(seedDataProvider)) : InMemoryGroundRepository.empty());
+final reservationRepositoryProvider = Provider<ReservationRepository>((ref) =>
+    _demo(ref) ? InMemoryReservationRepository(ref.watch(seedDataProvider)) : InMemoryReservationRepository.empty());
+final walletRepositoryProvider =
+    Provider<WalletRepository>((ref) => _demo(ref) ? InMemoryWalletRepository() : InMemoryWalletRepository.empty());
+final challengeRepositoryProvider = Provider<ChallengeRepository>((ref) =>
+    _demo(ref) ? InMemoryChallengeRepository(ref.watch(seedDataProvider)) : InMemoryChallengeRepository.empty());
+final huntRepositoryProvider = Provider<HuntRepository>(
+    (ref) => _demo(ref) ? InMemoryHuntRepository(ref.watch(seedDataProvider)) : InMemoryHuntRepository.empty());
+final tournamentRepositoryProvider = Provider<TournamentRepository>((ref) =>
+    _demo(ref) ? InMemoryTournamentRepository(ref.watch(seedDataProvider)) : InMemoryTournamentRepository.empty());
+final notificationRepositoryProvider = Provider<NotificationRepository>((ref) =>
+    _demo(ref) ? InMemoryNotificationRepository(ref.watch(seedDataProvider)) : InMemoryNotificationRepository.empty());
 final announcementRepositoryProvider =
     Provider<AnnouncementRepository>((ref) => InMemoryAnnouncementRepository());
 
@@ -117,6 +139,10 @@ final locationRepositoryProvider = Provider<LocationRepository>((ref) {
   };
 });
 
-/// Scouting stats per player name. Backed by the demo generator for now;
-/// swap for a repository call when a backend exists (screens don't change).
-final playerStatsProvider = Provider.family<PlayerStats, String>((ref, name) => DemoStats.forPlayer(name));
+/// Scouting stats per player name. Memory mode: the demo generator.
+/// Supabase mode: no match statistics are stored yet, so nothing recorded
+/// ([PlayerStats.unrecorded]) — never generated numbers.
+final playerStatsProvider = Provider.family<PlayerStats, String>((ref, name) {
+  if (_demo(ref)) return DemoStats.forPlayer(name);
+  return PlayerStats.unrecorded(position: '—', category: SquadCategory.batsman);
+});

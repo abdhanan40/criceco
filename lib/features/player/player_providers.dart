@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/config/backend_modules.dart';
 import '../../app/providers/core_providers.dart';
 import '../../app/session/session_controller.dart';
 import '../../core/models/models.dart';
@@ -165,6 +166,10 @@ class PlayerClubInfo {
 /// a club, in which case the membership's code is shown.
 final playerClubProvider = Provider<PlayerClubInfo>((ref) {
   final m = ref.watch(currentAccountProvider)?.memberships.firstOrNull;
+  // Supabase builds: the player's real club, or none — never the demo club.
+  if (!ref.watch(backendModulesProvider).isDemo) {
+    return PlayerClubInfo(code: m?.clubCode ?? 'No club yet', name: m?.clubName, city: '', established: 0);
+  }
   return PlayerClubInfo(
     code: m?.clubCode ?? SeedData.demoJoinCode,
     name: m?.clubName,

@@ -211,7 +211,7 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
                           overflow: TextOverflow.ellipsis,
                           style: CeType.pageTitle.copyWith(color: Colors.white, height: 1.15)),
                       const SizedBox(height: 4),
-                      Text('$position · ${s.skill.label} level',
+                      Text(s.skill == null ? position : '$position · ${s.skill!.label} level',
                           style: CeType.bodySmall.copyWith(fontWeight: FontWeight.w600, color: const Color(0xFFCFE3D2))),
                       if (s.verified) ...[
                         const SizedBox(height: 7),

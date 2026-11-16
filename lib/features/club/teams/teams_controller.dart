@@ -2,11 +2,14 @@ import 'dart:collection';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app/config/backend_modules.dart';
 import '../../../app/providers/core_providers.dart';
 import '../../../app/session/session_controller.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/ranked_search.dart';
 import '../../../core/utils/validators.dart';
+import '../../../data/repositories/repositories.dart';
+import '../club_providers.dart';
 
 /// Validation failures for the inline Create Team form (prototype toasts).
 enum CreateTeamError {
@@ -19,6 +22,16 @@ enum CreateTeamError {
 
   const CreateTeamError(this.message);
   final String message;
+}
+
+/// The team was created but its suggested squad couldn't be saved ([reason]);
+/// the team is listed, empty, so the owner can add players from Team Squad.
+class TeamSquadNotSavedException implements Exception {
+  const TeamSquadNotSavedException(this.reason);
+  final String reason;
+  String get message => 'The team was created, but its squad wasn’t saved: $reason';
+  @override
+  String toString() => message;
 }
 
 /// My Teams, keyed by id. Every value entered at creation is kept on the
@@ -56,18 +69,96 @@ class TeamsController extends AsyncNotifier<List<Team>> {
     if (existing.any((t) => key(t.name) == key(trimmed))) return CreateTeamError.duplicateName;
     final clubId = ref.read(currentClubProvider)!.id;
     final repo = ref.read(teamRepositoryProvider);
-    var team = await repo.create(clubId: clubId, name: trimmed, format: format, customOvers: customOvers);
-    if (members.isNotEmpty) team = await repo.save(team.copyWith(members: members));
+    final team = await repo.create(clubId: clubId, name: trimmed, format: format, customOvers: customOvers);
+    // The team exists from here on: list it now, so a failed squad save
+    // below never leaves a stored team the app doesn't know (a retry would
+    // then hit "name already exists").
     state = AsyncData([...existing, team]);
+    if (members.isNotEmpty) {
+      try {
+        _replace(await repo.save(team.copyWith(members: members)));
+      } on AccountException catch (e) {
+        throw TeamSquadNotSavedException(e.message);
+      }
+    }
     return null;
   }
 
   Future<void> saveMembers(String teamId, List<TeamMember> members) async {
     final team = byId(teamId);
     if (team == null) return;
-    final saved = await ref.read(teamRepositoryProvider).save(team.copyWith(members: members));
-    state = AsyncData([for (final t in state.value ?? const <Team>[]) t.id == saved.id ? saved : t]);
+    // A captain or vice-captain who left the squad loses that role (the
+    // database requires both to be squad players).
+    final ids = {for (final m in members) m.playerId};
+    final saved = await ref.read(teamRepositoryProvider).save(team.copyWith(
+          members: members,
+          clearCaptain: team.captainId != null && !ids.contains(team.captainId),
+          clearViceCaptain: team.viceCaptainId != null && !ids.contains(team.viceCaptainId),
+        ));
+    _replace(saved);
   }
+
+  /// Captain / vice-captain (Team Squad). Both optional, both squad players,
+  /// never the same person: making the vice-captain captain (or the other way
+  /// round) moves them, leaving the other role empty. `null` clears the role.
+  Future<void> setLeaders(String teamId, {required String? captainId, required String? viceCaptainId}) async {
+    final team = byId(teamId);
+    if (team == null) return;
+    final ids = {for (final m in team.members) m.playerId};
+    if ((captainId != null && !ids.contains(captainId)) || (viceCaptainId != null && !ids.contains(viceCaptainId))) {
+      throw const TeamRuleException('Captain and vice-captain must be in this team’s squad');
+    }
+    if (captainId != null && captainId == viceCaptainId) {
+      throw const TeamRuleException('The captain and vice-captain must be different players');
+    }
+    final saved = await ref.read(teamRepositoryProvider).save(team.copyWith(
+          captainId: captainId,
+          viceCaptainId: viceCaptainId,
+          clearCaptain: captainId == null,
+          clearViceCaptain: viceCaptainId == null,
+        ));
+    _replace(saved);
+  }
+
+  /// "Delete team": archived (its name is free again). Gone from My Teams.
+  Future<void> archive(String teamId) async {
+    await ref.read(teamRepositoryProvider).archive(teamId);
+    state = AsyncData([for (final t in state.value ?? const <Team>[]) if (t.id != teamId) t]);
+  }
+
+  /// A player who left the club leaves every team too. Supabase: the database
+  /// already did it (migration 12) — the teams are re-read. The demo removes
+  /// them here, the same way.
+  Future<void> dropPlayer(String playerId) async {
+    if (!ref.read(backendModulesProvider).isDemo) {
+      ref.invalidateSelf();
+      return;
+    }
+    for (final team in [...?state.value]) {
+      if (!team.members.any((m) => m.playerId == playerId)) continue;
+      final saved = await ref.read(teamRepositoryProvider).save(team.copyWith(
+            members: [for (final m in team.members) if (m.playerId != playerId) m],
+            clearCaptain: team.captainId == playerId,
+            clearViceCaptain: team.viceCaptainId == playerId,
+          ));
+      _replace(saved);
+    }
+  }
+
+  void _replace(Team saved) =>
+      state = AsyncData([for (final t in state.value ?? const <Team>[]) t.id == saved.id ? saved : t]);
+}
+
+/// Owner → Member Profile → Remove from Club. The member's team places go
+/// with it; Members, the player pool and teams are re-read.
+Future<void> removeClubMember(WidgetRef ref, ClubMember member) async {
+  final club = ref.read(currentClubProvider);
+  if (club == null) return;
+  if (member.role == MemberRole.owner) throw const PermissionDeniedException();
+  await ref.read(clubRepositoryProvider).removeMember(club.id, member.id);
+  await ref.read(teamsProvider.notifier).dropPlayer(member.poolPlayerId ?? member.id);
+  ref.invalidate(clubPlayerPoolProvider);
+  ref.invalidate(clubMembersProvider);
 }
 
 final teamsProvider = AsyncNotifierProvider<TeamsController, List<Team>>(TeamsController.new);

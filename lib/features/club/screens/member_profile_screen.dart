@@ -4,11 +4,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/providers/core_providers.dart';
 import '../../../app/router/routes.dart';
+import '../../../app/session/account_error_text.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/fitness_meter.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
@@ -53,9 +55,63 @@ class MemberProfileScreen extends ConsumerWidget {
     }
     return Scaffold(
       appBar: bar,
-      body: ListView(padding: const EdgeInsets.only(bottom: 24), children: memberProfileChildren(context, ref, m)),
+      body: ListView(padding: const EdgeInsets.only(bottom: 24), children: [
+        ...memberProfileChildren(context, ref, m),
+        if (m.role != MemberRole.owner) _RemoveMemberButton(member: m),
+      ]),
     );
   }
+}
+
+/// Owner only (this screen is the owner's): removes the member after a
+/// confirmation that says what happens to their team places.
+class _RemoveMemberButton extends ConsumerStatefulWidget {
+  const _RemoveMemberButton({required this.member});
+  final ClubMember member;
+
+  @override
+  ConsumerState<_RemoveMemberButton> createState() => _RemoveMemberButtonState();
+}
+
+class _RemoveMemberButtonState extends ConsumerState<_RemoveMemberButton> {
+  bool _busy = false;
+
+  Future<void> _remove() async {
+    if (_busy) return;
+    final m = widget.member;
+    final ok = await showCeConfirmSheet(
+      context,
+      title: 'Remove ${m.name}?',
+      body: '${m.name} will no longer be a member of your club and will be taken out of every team. '
+          'They can ask to join again with your club code.',
+      confirmLabel: 'Remove from Club',
+      destructive: true,
+      icon: 'x',
+    );
+    if (!ok || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await removeClubMember(ref, m);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      showCeToast(context, accountErrorText(e, fallback: "Couldn't remove the member — please try again"));
+      return;
+    }
+    if (!mounted) return;
+    showCeToast(context, '${m.name} was removed from the club');
+    context.go(Routes.members);
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(CeSpace.gutter, CeSpace.section, CeSpace.gutter, 0),
+        child: CeButton.danger(
+          key: const Key('member.remove'),
+          label: _busy ? 'Removing…' : 'Remove from Club',
+          onPressed: _busy ? null : _remove,
+        ),
+      );
 }
 
 /// Member Profile content (screen and sheet): identity, details and, for

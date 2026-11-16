@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/router/routes.dart';
+import '../../../app/session/account_error_text.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
 import '../../../shared/widgets/ce_availability.dart';
@@ -59,7 +60,18 @@ class TeamSquadScreen extends ConsumerWidget {
     final unavailable = squad.where((e) => e.player.locked).length;
 
     return Scaffold(
-      appBar: CeTopBar(title: team.name, fallbackLocation: Routes.teams),
+      appBar: CeTopBar(
+        title: team.name,
+        fallbackLocation: Routes.teams,
+        actions: [
+          IconButton(
+            key: const Key('team.delete'),
+            tooltip: 'Delete team',
+            icon: Icon(CeIcons.of('x-circle'), size: 20, color: CeColors.red),
+            onPressed: () => _deleteTeam(context, ref, team),
+          ),
+        ],
+      ),
       body: ListView(padding: const EdgeInsets.only(bottom: 24), children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
@@ -77,6 +89,7 @@ class TeamSquadScreen extends ConsumerWidget {
             Expanded(child: SquadCounter(value: '$subs/${SquadRules.maxSubs}', label: 'Substitutes')),
           ]),
         ),
+        if (squad.isNotEmpty) _LeadersCard(team: team, squad: [for (final e in squad) e.player]),
         if (unavailable > 0)
           CeInfoNote(
             icon: 'info',
@@ -125,6 +138,11 @@ class TeamSquadScreen extends ConsumerWidget {
             _SquadMemberRow(
               player: e.player,
               role: e.role,
+              leader: e.player.id == team.captainId
+                  ? 'Captain'
+                  : e.player.id == team.viceCaptainId
+                      ? 'Vice-captain'
+                      : null,
               onTap: () => showPlayerStatsSheet(
                 context,
                 player: e.player,
@@ -136,13 +154,118 @@ class TeamSquadScreen extends ConsumerWidget {
   }
 }
 
+/// "Delete team" → confirmation → archived (docs/TEAM_SQUAD_IMPLEMENTATION.md).
+Future<void> _deleteTeam(BuildContext context, WidgetRef ref, Team team) async {
+  final ok = await showCeConfirmSheet(
+    context,
+    title: 'Delete ${team.name}?',
+    body: 'The team and its squad are removed from My Teams. The players stay in your club, '
+        'and you can use this name again.',
+    confirmLabel: 'Delete Team',
+    destructive: true,
+    icon: 'x-circle',
+  );
+  if (!ok || !context.mounted) return;
+  try {
+    await ref.read(teamsProvider.notifier).archive(team.id);
+  } catch (e) {
+    if (context.mounted) showCeToast(context, accountErrorText(e, fallback: "Couldn't delete the team — please try again"));
+    return;
+  }
+  if (!context.mounted) return;
+  showCeToast(context, '${team.name} was deleted');
+  context.go(Routes.teams);
+}
+
+/// Captain and vice-captain: two squad players (both optional, never the
+/// same person). Each row opens a picker of the squad.
+class _LeadersCard extends ConsumerStatefulWidget {
+  const _LeadersCard({required this.team, required this.squad});
+  final Team team;
+  final List<SquadPlayer> squad;
+
+  @override
+  ConsumerState<_LeadersCard> createState() => _LeadersCardState();
+}
+
+class _LeadersCardState extends ConsumerState<_LeadersCard> {
+  bool _saving = false;
+
+  String _name(String? id) =>
+      widget.squad.where((p) => p.id == id).firstOrNull?.name ?? 'Not set';
+
+  Future<void> _pick({required bool captain}) async {
+    if (_saving) return;
+    final team = widget.team;
+    final choice = await showCeActionSheet(
+      context,
+      title: captain ? 'Choose captain' : 'Choose vice-captain',
+      actions: [
+        for (final p in widget.squad) CeSheetAction(icon: 'user', label: p.name, id: p.id),
+        const CeSheetAction(icon: 'x', label: 'No one', id: ''),
+      ],
+    );
+    if (choice == null || !mounted) return;
+    final picked = choice.isEmpty ? null : choice;
+    // Picking the other leader moves them: they can't hold both roles.
+    final captainId = captain ? picked : (team.captainId == picked ? null : team.captainId);
+    final viceId = captain ? (team.viceCaptainId == picked ? null : team.viceCaptainId) : picked;
+    setState(() => _saving = true);
+    try {
+      await ref.read(teamsProvider.notifier).setLeaders(team.id, captainId: captainId, viceCaptainId: viceId);
+    } catch (e) {
+      if (mounted) showCeToast(context, accountErrorText(e, fallback: "Couldn't save — please try again"));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Widget row(String label, String? id, {required bool captain}) => InkWell(
+          key: Key(captain ? 'team.captain' : 'team.viceCaptain'),
+          onTap: _saving ? null : () => _pick(captain: captain),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Row(children: [
+              Expanded(child: Text(label, style: const TextStyle(fontSize: 12.5, color: CeColors.muted))),
+              Text(_name(id),
+                  style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: id == null ? CeColors.muted2 : CeColors.ink)),
+              const SizedBox(width: 6),
+              Icon(CeIcons.of('chevron-right'), size: 16, color: CeColors.muted2),
+            ]),
+          ),
+        );
+    return Container(
+      margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(CeRadius.row),
+        border: Border.all(color: CeColors.line),
+      ),
+      child: Column(children: [
+        row('Captain', widget.team.captainId, captain: true),
+        const Divider(height: 1, color: CeColors.line),
+        row('Vice-captain', widget.team.viceCaptainId, captain: false),
+      ]),
+    );
+  }
+}
+
 /// A saved squad member. Tapping opens the player's stats sheet; injured or
 /// unavailable players say so under their position (not by colour alone).
 class _SquadMemberRow extends StatelessWidget {
-  const _SquadMemberRow({required this.player, required this.role, required this.onTap});
+  const _SquadMemberRow({required this.player, required this.role, required this.onTap, this.leader});
   final SquadPlayer player;
   final SelectionRole role;
   final VoidCallback onTap;
+
+  /// "Captain" / "Vice-captain", or `null`.
+  final String? leader;
 
   @override
   Widget build(BuildContext context) {
@@ -150,7 +273,8 @@ class _SquadMemberRow extends StatelessWidget {
     final roleLabel = role == SelectionRole.playing ? 'Playing XI' : 'Substitute';
     return Semantics(
       button: true,
-      label: '${p.name}, ${p.position}, $roleLabel${p.locked ? ', ${p.availability.label}' : ''}. View stats',
+      label: '${p.name}, ${p.position}${leader == null ? '' : ', $leader'}, $roleLabel'
+          '${p.locked ? ', ${p.availability.label}' : ''}. View stats',
       excludeSemantics: true,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 0),
@@ -176,7 +300,8 @@ class _SquadMemberRow extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: CeColors.ink)),
                     const SizedBox(height: 1),
-                    Text(p.position, style: const TextStyle(fontSize: 12, color: CeColors.muted)),
+                    Text(leader == null ? p.position : '${p.position} · $leader',
+                        style: const TextStyle(fontSize: 12, color: CeColors.muted)),
                     if (p.locked) ...[
                       const SizedBox(height: 3),
                       Row(children: [

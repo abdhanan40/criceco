@@ -77,12 +77,41 @@ class PlayerStats {
   final SquadCategory category;
   final String position;
   final PlayerAvailability availability;
-  final SkillLevel skill;
+
+  /// `null` when no level has been recorded (Supabase builds, until match
+  /// statistics exist): the level is then not shown — never guessed.
+  final SkillLevel? skill;
   final bool verified;
   final LastMatchLine lastMatch;
 
   int get wins => form.where((f) => f == MatchResult.won).length;
   int get losses => form.length - wins;
+
+  /// No recorded statistics yet ([unrecorded]).
+  bool get hasRecord => matches > 0;
+
+  /// What a Supabase build shows until match statistics are stored: no
+  /// matches, no form, no rating ("—"), not verified, no level. Only the
+  /// position, category and availability come from the player's own data.
+  /// Nothing here is invented.
+  factory PlayerStats.unrecorded({
+    required String position,
+    required SquadCategory category,
+    PlayerAvailability availability = PlayerAvailability.available,
+  }) =>
+      PlayerStats(
+        matches: 0,
+        batting: const BattingStats(runs: 0, average: '—', strikeRate: '—', best: '—', fifties: 0),
+        bowling: const BowlingStats(wickets: 0, economy: '—', average: '—', best: '—'),
+        form: const [],
+        rating: '—',
+        category: category,
+        position: position,
+        availability: availability,
+        skill: null,
+        verified: false,
+        lastMatch: const LastMatchLine(opponent: '—', line: 'No matches recorded yet'),
+      );
 }
 
 /// A match from the Player's point of view (My Matches / Match Details).
@@ -263,6 +292,20 @@ class PerformanceSummary {
   final List<StatTile> fielding;
   final List<FormEntry> recentForm;
   final List<MatchLogEntry> matchLog;
+
+  /// No matches recorded (Supabase builds until match statistics exist).
+  static const empty = PerformanceSummary(
+    matches: 0,
+    runs: 0,
+    wickets: 0,
+    rating: '—',
+    snapshot: [],
+    batting: [],
+    bowling: [],
+    fielding: [],
+    recentForm: [],
+    matchLog: [],
+  );
 
   /// Batting average as shown in the snapshot ("32.00"); `—` if absent.
   String get battingAverage =>
