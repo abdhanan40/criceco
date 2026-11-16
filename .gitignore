@@ -52,3 +52,13 @@ app.*.map.json
 
 # Local Supabase build values (project URL, publishable key) — never commit
 supabase.local.json
+
+# Android release signing: keystores and their passwords are kept outside the
+# repository (%USERPROFILE%/CricEco-Backups/android-signing). Never commit them.
+# android/.gitignore already covers key.properties, *.jks and *.keystore there;
+# these rules extend that to the whole repository and to PKCS12 (.p12 / .pfx).
+key.properties
+*.jks
+*.keystore
+*.p12
+*.pfx
