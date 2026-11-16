@@ -1,7 +1,8 @@
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:supabase_flutter/supabase_flutter.dart'
-    show Supabase, SupabaseClient;
+    show AuthFlowType, FlutterAuthClientOptions, Supabase, SupabaseClient;
 
+import '../../data/supabase/auth_url_params.dart';
 import '../../data/supabase/supabase_gateways.dart';
 import '../../data/supabase/supabase_sdk_gateways.dart';
 import 'backend_config.dart';
@@ -12,14 +13,25 @@ typedef SupabaseStarter = Future<SupabaseClient> Function({
   required String publishableKey,
 });
 
+/// Auth options for `Supabase.initialize`. PKCE for every redirect flow
+/// (Google, recovery links), and — security S1 — only PKCE `code` and
+/// `error` callbacks are read from the page address / incoming links: a
+/// link carrying ready-made tokens is ignored instead of becoming the
+/// session ([isAcceptedAuthCallback]).
+const kAuthClientOptions = FlutterAuthClientOptions(
+  authFlowType: AuthFlowType.pkce,
+  detectSessionInUriPredicate: isAcceptedAuthCallback,
+);
+
 /// The real starter: `Supabase.initialize` with the publishable key only
-/// (it also persists and restores the Auth session).
+/// (it also persists and restores the Auth session) and [kAuthClientOptions].
 Future<SupabaseClient> startSupabase({
   required String url,
   required String publishableKey,
 }) async => (await Supabase.initialize(
   url: url,
   publishableKey: publishableKey,
+  authOptions: kAuthClientOptions,
 )).client;
 
 /// Provider overrides for the build's backend, called once from `main()`.
