@@ -24,6 +24,27 @@ enum CreateTeamError {
   final String message;
 }
 
+/// A team name as stored: trimmed, single spaces (the database does the same).
+String normalizeTeamName(String name) => name.trim().replaceAll(RegExp(r'\s+'), ' ');
+
+/// The checks Create Team and Edit Team share — [name] (already
+/// [normalizeTeamName]d), format and Custom overs. Duplicate names are
+/// checked separately, against the club's loaded teams.
+CreateTeamError? validateTeamDetails({required String name, MatchFormat? format, int? customOvers}) {
+  if (name.isEmpty) return CreateTeamError.nameRequired;
+  if (name.length > CeValidators.nameMaxLength) return CreateTeamError.nameTooLong;
+  if (format == null) return CreateTeamError.formatRequired;
+  if (format == MatchFormat.custom) {
+    if (customOvers == null) return CreateTeamError.oversRequired;
+    if (CeValidators.customOvers(customOvers) != null) return CreateTeamError.oversOutOfRange;
+  }
+  return null;
+}
+
+/// Two team names clash when they match ignoring case and repeated spaces
+/// (the database's `team_name_key`).
+bool _sameTeamName(String a, String b) => normalizeQuery(a) == normalizeQuery(b);
+
 /// The team was created but its suggested squad couldn't be saved ([reason]);
 /// the team is listed, empty, so the owner can add players from Team Squad.
 class TeamSquadNotSavedException implements Exception {
@@ -54,22 +75,17 @@ class TeamsController extends AsyncNotifier<List<Team>> {
     int? customOvers,
     List<TeamMember> members = const [],
   }) async {
-    final trimmed = name.trim().replaceAll(RegExp(r'\s+'), ' ');
-    if (trimmed.isEmpty) return CreateTeamError.nameRequired;
-    if (trimmed.length > CeValidators.nameMaxLength) return CreateTeamError.nameTooLong;
-    if (format == null) return CreateTeamError.formatRequired;
-    if (format == MatchFormat.custom) {
-      if (customOvers == null) return CreateTeamError.oversRequired;
-      if (CeValidators.customOvers(customOvers) != null) return CreateTeamError.oversOutOfRange;
-    }
+    final trimmed = normalizeTeamName(name);
+    final invalid = validateTeamDetails(name: trimmed, format: format, customOvers: customOvers);
+    if (invalid != null) return invalid;
     // Duplicates are checked against the loaded teams (never an empty list
     // while they are still loading), ignoring case and repeated spaces.
     final existing = await future;
-    String key(String s) => normalizeQuery(s);
-    if (existing.any((t) => key(t.name) == key(trimmed))) return CreateTeamError.duplicateName;
+    if (existing.any((t) => _sameTeamName(t.name, trimmed))) return CreateTeamError.duplicateName;
     final clubId = ref.read(currentClubProvider)!.id;
     final repo = ref.read(teamRepositoryProvider);
-    final team = await repo.create(clubId: clubId, name: trimmed, format: format, customOvers: customOvers);
+    // format: non-null, checked by validateTeamDetails.
+    final team = await repo.create(clubId: clubId, name: trimmed, format: format!, customOvers: customOvers);
     // The team exists from here on: list it now, so a failed squad save
     // below never leaves a stored team the app doesn't know (a retry would
     // then hit "name already exists").
@@ -81,6 +97,48 @@ class TeamsController extends AsyncNotifier<List<Team>> {
         throw TeamSquadNotSavedException(e.message);
       }
     }
+    return null;
+  }
+
+  /// Edit Team (Team Squad → pencil): the name, format and Custom overs.
+  /// Returns an error to show, or `null` on success — also when nothing
+  /// changed, and then nothing is saved. [format] defaults to the team's;
+  /// [customOvers] to its current overs while the format stays Custom.
+  ///
+  /// `save_team` stores the whole team, squad included, so the club's teams
+  /// are re-read first and the change is applied to the LATEST copy: a squad
+  /// or captaincy changed elsewhere (another device) is kept, not overwritten.
+  /// The squad, captain and vice-captain are never changed here. Refusals
+  /// from the database (a name another device just took, not the owner, an
+  /// archived team) are thrown as [AccountException]s.
+  Future<CreateTeamError?> updateDetails(String teamId, String name, {MatchFormat? format, int? customOvers}) async {
+    final current = byId(teamId) ?? (await future).where((t) => t.id == teamId).firstOrNull;
+    if (current == null) throw const TeamRuleException('This team is no longer available');
+    final trimmed = normalizeTeamName(name);
+    final newFormat = format ?? current.format;
+    final overs = newFormat != MatchFormat.custom
+        ? null
+        : customOvers ?? (current.format == MatchFormat.custom ? current.customOvers : null);
+    final invalid = validateTeamDetails(name: trimmed, format: newFormat, customOvers: overs);
+    if (invalid != null) return invalid;
+    final currentOvers = current.format == MatchFormat.custom ? current.customOvers : null;
+    if (trimmed == current.name && newFormat == current.format && overs == currentOvers) return null;
+
+    // Re-read, then check the name against the latest teams (this one excluded).
+    final clubId = ref.read(currentClubProvider)?.id ?? current.clubId;
+    final repo = ref.read(teamRepositoryProvider);
+    final fresh = await repo.teams(clubId);
+    state = AsyncData(fresh);
+    final latest = fresh.where((t) => t.id == teamId).firstOrNull;
+    if (latest == null) throw const TeamRuleException('This team is no longer available');
+    if (fresh.any((t) => t.id != teamId && _sameTeamName(t.name, trimmed))) return CreateTeamError.duplicateName;
+
+    _replace(await repo.save(latest.copyWith(
+      name: trimmed,
+      format: newFormat,
+      customOvers: overs,
+      clearCustomOvers: overs == null,
+    )));
     return null;
   }
 

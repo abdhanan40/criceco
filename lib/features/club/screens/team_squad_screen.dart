@@ -15,6 +15,7 @@ import '../../../shared/widgets/ce_surfaces.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
 import '../club_providers.dart';
 import '../teams/teams_controller.dart';
+import '../widgets/edit_team_sheet.dart';
 import '../widgets/squad_widgets.dart';
 
 /// Team Squad (prototype `screens.teamSquad`, :5549). Reads the SAVED
@@ -64,6 +65,13 @@ class TeamSquadScreen extends ConsumerWidget {
         title: team.name,
         fallbackLocation: Routes.teams,
         actions: [
+          // Edit Team: name, format, Custom overs (the squad is kept).
+          IconButton(
+            key: const Key('team.edit'),
+            tooltip: 'Edit team',
+            icon: Icon(CeIcons.of('edit-3'), size: 20, color: CeColors.ink),
+            onPressed: () => showEditTeamSheet(context, team),
+          ),
           IconButton(
             key: const Key('team.delete'),
             tooltip: 'Delete team',

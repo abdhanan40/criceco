@@ -54,13 +54,14 @@ class Team {
     List<TeamMember>? members,
     bool clearCaptain = false,
     bool clearViceCaptain = false,
+    bool clearCustomOvers = false,
   }) =>
       Team(
         id: id,
         clubId: clubId,
         name: name ?? this.name,
         format: format ?? this.format,
-        customOvers: customOvers ?? this.customOvers,
+        customOvers: clearCustomOvers ? null : customOvers ?? this.customOvers,
         category: category ?? this.category,
         captainId: clearCaptain ? null : captainId ?? this.captainId,
         viceCaptainId: clearViceCaptain ? null : viceCaptainId ?? this.viceCaptainId,

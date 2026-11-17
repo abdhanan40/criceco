@@ -730,6 +730,98 @@ void main() {
     });
   });
 
+  group('Edit Team', () {
+    Finder field(String key, String text) => find.descendant(of: find.byKey(Key(key)), matching: find.text(text));
+    bool saveEnabled(WidgetTester tester) =>
+        tester.widget<CeButton>(find.byKey(const Key('editTeam.save'))).onPressed != null;
+
+    /// BS CS XI with a three-player squad, a captain and a vice-captain; Team Squad open.
+    Future<(ProviderContainer, List<String>)> openSquad(WidgetTester tester) async {
+      final c = await _pumpOwner(tester);
+      final pool = await c.read(clubPlayerPoolProvider.future);
+      final ids = [for (final p in pool.where((p) => !p.locked).take(3)) p.id];
+      final teams = c.read(teamsProvider.notifier);
+      await teams.saveMembers('team_cs', [
+        for (final (i, id) in ids.indexed) TeamMember(playerId: id, selection: i < 2 ? SelectionRole.playing : SelectionRole.sub),
+      ]);
+      await teams.setLeaders('team_cs', captainId: ids[0], viceCaptainId: ids[1]);
+      await _go(tester, c, Routes.teamSquad('team_cs'));
+      return (c, ids);
+    }
+
+    testWidgets('pencil left of Delete opens the sheet, prefilled; Save waits for a change; Cancel keeps the team',
+        (tester) async {
+      final (c, _) = await openSquad(tester);
+      final edit = find.byKey(const Key('team.edit'));
+      final delete = find.byKey(const Key('team.delete'));
+      expect(find.byTooltip('Edit team'), findsOneWidget);
+      expect(tester.getCenter(edit).dx, lessThan(tester.getCenter(delete).dx), reason: 'Edit sits left of Delete');
+
+      await _tap(tester, edit);
+      expect(find.byKey(const Key('editTeam.sheet')), findsOneWidget);
+      expect(find.text('Edit Team'), findsOneWidget);
+      expect(field('editTeam.name', 'BS CS XI'), findsOneWidget);
+      expect(find.byKey(const Key('editTeam.overs')), findsNothing, reason: 'T20: no overs');
+      expect(saveEnabled(tester), isFalse, reason: 'nothing changed yet');
+
+      await tester.enterText(find.byKey(const Key('editTeam.name')), 'Changed my mind');
+      await tester.pump();
+      expect(saveEnabled(tester), isTrue);
+      await _tap(tester, find.byKey(const Key('editTeam.cancel')));
+      expect(find.byKey(const Key('editTeam.sheet')), findsNothing);
+      expect(c.read(teamProvider('team_cs'))!.name, 'BS CS XI');
+    });
+
+    testWidgets('validates empty and duplicate names and Custom overs; saves; the title updates; squad and leaders kept',
+        (tester) async {
+      final (c, ids) = await openSquad(tester);
+      await _tap(tester, find.byKey(const Key('team.edit')));
+
+      await tester.enterText(find.byKey(const Key('editTeam.name')), '   ');
+      await _tap(tester, find.byKey(const Key('editTeam.save')));
+      expect(find.text('Please enter a team name'), findsOneWidget);
+
+      await tester.enterText(find.byKey(const Key('editTeam.name')), 'bs  it xi');
+      await _tap(tester, find.byKey(const Key('editTeam.save')));
+      expect(find.text('A team with this name already exists'), findsOneWidget);
+      await tester.enterText(find.byKey(const Key('editTeam.name')), 'Shalimar First XI');
+      await tester.pump();
+      expect(find.text('A team with this name already exists'), findsNothing, reason: 'cleared on typing');
+
+      await _tap(tester, find.byKey(const Key('editTeam.format.custom')));
+      expect(find.byKey(const Key('editTeam.overs')), findsOneWidget);
+      await _tap(tester, find.byKey(const Key('editTeam.save')));
+      expect(find.text('Please enter the number of overs'), findsOneWidget);
+      await tester.enterText(find.byKey(const Key('editTeam.overs')), '60');
+      await _tap(tester, find.byKey(const Key('editTeam.save')));
+      expect(find.text('Enter between 1 and 50 overs'), findsOneWidget);
+      await tester.enterText(find.byKey(const Key('editTeam.overs')), '20');
+      await _tap(tester, find.byKey(const Key('editTeam.save')));
+
+      expect(find.text('Team updated'), findsOneWidget);
+      expect(find.byKey(const Key('editTeam.sheet')), findsNothing, reason: 'closes on success');
+      expect(_loc(c), Routes.teamSquad('team_cs'));
+      expect(find.text('Shalimar First XI'), findsOneWidget, reason: 'the top bar shows the new name');
+      final team = c.read(teamProvider('team_cs'))!;
+      expect(team.name, 'Shalimar First XI');
+      expect(team.format, MatchFormat.custom);
+      expect(team.customOvers, 20);
+      expect(team.members.map((m) => m.playerId), ids);
+      expect(team.captainId, ids[0]);
+      expect(team.viceCaptainId, ids[1]);
+      expect(find.text('3 players in squad'), findsOneWidget);
+
+      // Back to T20: the overs field goes, and so do the stored overs.
+      await _tap(tester, find.byKey(const Key('team.edit')));
+      expect(field('editTeam.overs', '20'), findsOneWidget, reason: 'prefilled');
+      await _tap(tester, find.byKey(const Key('editTeam.format.t20')));
+      expect(find.byKey(const Key('editTeam.overs')), findsNothing);
+      await _tap(tester, find.byKey(const Key('editTeam.save')));
+      expect(c.read(teamProvider('team_cs'))!.format, MatchFormat.t20);
+      expect(c.read(teamProvider('team_cs'))!.customOvers, isNull);
+    });
+  });
+
   group('Members and My Club', () {
     testWidgets('Members: owner row is the account; search is live and ranked', (tester) async {
       final c = await _pumpOwner(tester);
