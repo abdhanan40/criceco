@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -265,6 +266,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     const CeFieldLabel('Email address'),
                     CeTextField(
                       fieldKey: const Key('login.email'),
+                      inputFormatters: [LengthLimitingTextInputFormatter(CeValidators.emailMaxLength)],
                       controller: _email,
                       hint: 'you@example.com',
                       icon: 'mail',
@@ -277,6 +279,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const CeFieldLabel('Password'),
                   CeTextField(
                     fieldKey: const Key('login.password'),
+                    inputFormatters: [LengthLimitingTextInputFormatter(CeValidators.passwordMaxLength)],
                     controller: _password,
                     hint: 'Enter your password',
                     icon: 'lock',

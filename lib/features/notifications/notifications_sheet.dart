@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/config/backend_modules.dart';
 import '../../app/providers/core_providers.dart';
 import '../../app/theme/tokens.dart';
 import '../../app/theme/typography.dart';
 import '../../core/models/models.dart';
 import '../../core/utils/formatters.dart';
+import '../../shared/widgets/backend_pending.dart';
 import '../../shared/widgets/ce_feedback.dart';
 import '../../shared/widgets/ce_icons.dart';
 import '../club/announcements/announcements.dart';
@@ -44,6 +46,9 @@ Future<void> openNotification(
 /// current screen (no route change, so the dashboard keeps its state).
 /// Same panel for Player and Club Owner; content from [roleNotificationsProvider].
 Future<void> showNotificationsSheet(BuildContext context, UserRole role) {
+  if (!backendModuleAvailable(context, BackendModule.notifications)) {
+    return showBackendPendingSheet(context, BackendModule.notifications, title: 'Notifications');
+  }
   final height = MediaQuery.sizeOf(context).height;
   return showModalBottomSheet<void>(
     context: context,

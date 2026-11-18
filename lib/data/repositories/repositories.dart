@@ -1,4 +1,5 @@
 import '../../core/models/models.dart';
+import 'account_errors.dart';
 import 'auth_events.dart';
 
 export 'account_errors.dart';
@@ -49,6 +50,13 @@ abstract interface class AccountRepository {
 
   /// `false` when [current] doesn't match the account's password.
   Future<bool> changePassword(String accountId, {required String current, required String next});
+
+  /// Settings → Delete Account: deletes the signed-in account and its
+  /// personal data (docs/ACCOUNT_PRIVACY_AND_DELETION.md) after checking
+  /// [password] again. Throws [WrongPasswordException] for a wrong password
+  /// and [AccountDeletionUnavailableException] where this build can't delete
+  /// accounts. Nothing is deleted on any failure before the server starts.
+  Future<void> deleteAccount(String accountId, {required String password});
 
   /// Forgot password: sends a 6-digit code to the account with this phone
   /// number or email. `null` when no account matches.
@@ -301,4 +309,47 @@ abstract interface class LocationRepository {
 
   /// One active city, `null` when unknown or inactive.
   Future<CityOption?> cityById(int id);
+}
+
+/// Club ownership transfer (migration 16): the owner offers the club to a
+/// member; nothing changes until that member accepts. Supabase with the
+/// account-privacy switch only — elsewhere [UnavailableOwnershipTransferRepository].
+abstract interface class OwnershipTransferRepository {
+  Future<OwnershipTransfer> offer({
+    required String clubId,
+    required String memberId,
+    required MemberRole previousOwnerRole,
+  });
+  Future<OwnershipTransfer> cancel(String transferId);
+  Future<OwnershipTransfer> reject(String transferId);
+  Future<OwnershipTransfer> accept(String transferId);
+
+  /// The club's offers, newest first (its ownership history).
+  Future<List<OwnershipTransfer>> clubTransfers(String clubId);
+
+  /// Open offers to the signed-in user.
+  Future<List<OwnershipTransfer>> myOffers();
+}
+
+/// Builds without the server side (the demo, or Supabase before migration 16):
+/// nothing is listed, and every change says it isn't available.
+class UnavailableOwnershipTransferRepository implements OwnershipTransferRepository {
+  const UnavailableOwnershipTransferRepository();
+
+  @override
+  Future<OwnershipTransfer> offer({
+    required String clubId,
+    required String memberId,
+    required MemberRole previousOwnerRole,
+  }) async => throw const ModuleUnavailableException();
+  @override
+  Future<OwnershipTransfer> cancel(String transferId) async => throw const ModuleUnavailableException();
+  @override
+  Future<OwnershipTransfer> reject(String transferId) async => throw const ModuleUnavailableException();
+  @override
+  Future<OwnershipTransfer> accept(String transferId) async => throw const ModuleUnavailableException();
+  @override
+  Future<List<OwnershipTransfer>> clubTransfers(String clubId) async => const [];
+  @override
+  Future<List<OwnershipTransfer>> myOffers() async => const [];
 }

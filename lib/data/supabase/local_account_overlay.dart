@@ -43,6 +43,9 @@ class LocalAccountOverlay {
     );
   }
 
+  /// Forgets this device's photo and settings for [userId] (account deleted).
+  Future<void> clear(String userId) => _prefs.remove(keyFor(userId));
+
   /// Saves [account]'s photo and settings for its user id.
   Future<void> save(UserAccount account) => _prefs.setString(
     keyFor(account.id),

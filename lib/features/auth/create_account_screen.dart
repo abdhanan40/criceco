@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -246,6 +247,7 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
                       CeTextField(
                         key: const ValueKey('email-field'),
                         fieldKey: const Key('signup.email'),
+                        inputFormatters: [LengthLimitingTextInputFormatter(CeValidators.emailMaxLength)],
                         controller: _email,
                         hint: 'you@example.com',
                         icon: 'mail',
@@ -258,6 +260,7 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
                     const CeFieldLabel('Password'),
                     CeTextField(
                       fieldKey: const Key('signup.password'),
+                      inputFormatters: [LengthLimitingTextInputFormatter(CeValidators.passwordMaxLength)],
                       controller: _password,
                       hint: 'e.g. Cricket@123',
                       icon: 'lock',
@@ -271,6 +274,7 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
                     const CeFieldLabel('Confirm Password'),
                     CeTextField(
                       fieldKey: const Key('signup.confirm'),
+                      inputFormatters: [LengthLimitingTextInputFormatter(CeValidators.passwordMaxLength)],
                       controller: _confirm,
                       hint: 'Re-enter password',
                       icon: 'lock',

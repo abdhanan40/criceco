@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app/config/backend_modules.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
+import '../../../shared/widgets/backend_pending.dart';
 import '../../../shared/widgets/ce_availability.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
@@ -15,8 +17,12 @@ import '../player_providers.dart';
 /// Current Status → Change Status (expands in place, every existing status)
 /// → optional notes → Save. Writes the same record as the Availability tab
 /// ([playerAvailabilityProvider]); the full screen keeps dates and reasons.
-Future<void> showMatchAvailabilitySheet(BuildContext context) =>
-    showCeSheet<void>(context, builder: (_) => const _MatchAvailabilitySheet());
+Future<void> showMatchAvailabilitySheet(BuildContext context) => showModuleSheet(
+      context,
+      BackendModule.availability,
+      title: 'Match Availability',
+      open: () => showCeSheet<void>(context, builder: (_) => const _MatchAvailabilitySheet()),
+    );
 
 class _MatchAvailabilitySheet extends ConsumerStatefulWidget {
   const _MatchAvailabilitySheet();

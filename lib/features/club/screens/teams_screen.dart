@@ -374,10 +374,10 @@ class _SuggestedTeam extends ConsumerWidget {
           ),
           TextButton(onPressed: onRemove, child: const Text('Remove')),
         ]),
-        const Text(
-          'Best available players by rating, recent form and Fitness Meter. Tap a player to change: '
-          'Playing XI → Substitute → Not selected.',
-          style: TextStyle(fontSize: 11.5, color: CeColors.muted, height: 1.4),
+        Text(
+          'Best available players by ${suggestTeamBasis(recorded: ref.watch(fitnessRecordedProvider))}. '
+          'Tap a player to change: Playing XI → Substitute → Not selected.',
+          style: const TextStyle(fontSize: 11.5, color: CeColors.muted, height: 1.4),
         ),
         const SizedBox(height: 10),
         Row(children: [

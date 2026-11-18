@@ -91,7 +91,7 @@ class _WaitingApprovalScreenState extends ConsumerState<WaitingApprovalScreen> {
     }
     if (!mounted) return;
     showCeToast(context, 'Join request cancelled');
-    context.go(Routes.clubSetup);
+    context.go(_exitLocation(ref));
   }
 
   @override
@@ -99,7 +99,7 @@ class _WaitingApprovalScreenState extends ConsumerState<WaitingApprovalScreen> {
     final request = ref.watch(joinClubProvider);
     if (request == null) {
       return Scaffold(
-        appBar: CeTopBar(title: 'Join Request', onBack: () => context.go(Routes.clubSetup)),
+        appBar: CeTopBar(title: 'Join Request', onBack: () => context.go(_exitLocation(ref))),
         body: _checking
             ? const Center(child: CircularProgressIndicator())
             : CeEmptyState(
@@ -330,13 +330,13 @@ class JoinApprovedScreen extends ConsumerWidget {
     final role = request?.approvedRole;
     if (request == null || role == null) {
       return Scaffold(
-        appBar: CeTopBar(title: 'Join Request', onBack: () => context.go(Routes.clubSetup)),
+        appBar: CeTopBar(title: 'Join Request', onBack: () => context.go(_exitLocation(ref))),
         body: CeEmptyState(
           icon: 'search',
           title: 'Request not found',
           body: 'This join request is no longer available.',
           primaryLabel: 'Go back',
-          onPrimary: () => context.go(Routes.clubSetup),
+          onPrimary: () => context.go(_exitLocation(ref)),
         ),
       );
     }

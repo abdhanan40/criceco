@@ -515,6 +515,16 @@ class SessionController extends Notifier<SessionState> {
     }
   }
 
+  /// Re-reads the signed-in account and its own club from the backend — after
+  /// a club ownership transfer, so the former owner loses the Club Owner
+  /// profile and the new owner gains it. No-op when signed out.
+  Future<void> reloadAccount() async {
+    final account = state.account;
+    if (account == null) return;
+    final read = await ref.read(accountRepositoryProvider).byId(account.id);
+    if (read != null) await _setAccount(read);
+  }
+
   /// Re-reads the signed-in account's stored memberships (after a join
   /// request is approved). No-op in the demo and when signed out.
   Future<void> refreshMemberships() async {
@@ -531,6 +541,19 @@ class SessionController extends Notifier<SessionState> {
   /// and the router guard sends the user to Login with an empty stack.
   /// The backend session is ended too ([AccountRepository.signOut]; a no-op
   /// in memory mode). The app signs out locally even if that call fails.
+  /// Settings → Delete Account: the account and its personal data are deleted
+  /// on the backend (after [password] is checked again), then this device
+  /// forgets the session. The caller clears the saved role and leaves for
+  /// Login. Errors (wrong password, offline, not available) leave everything
+  /// as it was.
+  Future<void> deleteAccount(String password) async {
+    final account = state.account;
+    if (account == null) throw const NotSignedInException();
+    await ref.read(accountRepositoryProvider).deleteAccount(account.id, password: password);
+    state = const SessionState();
+    await ref.read(sharedPreferencesProvider).remove(_kAccount);
+  }
+
   void logout() {
     state = const SessionState();
     ref.read(sharedPreferencesProvider).remove(_kAccount);

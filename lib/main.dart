@@ -5,16 +5,25 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app/app.dart';
 import 'app/config/backend_bootstrap.dart';
 import 'app/config/backend_config.dart';
+import 'app/config_error_app.dart';
 import 'app/providers/core_providers.dart';
 import 'app/session/session_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final prefs = await SharedPreferences.getInstance();
-  // CRICECO_BACKEND (default memory). An invalid configuration stops the app
-  // here with a clear BackendConfigException; Supabase starts only in
+  // CRICECO_BACKEND: memory or supabase; a release build must name it. An
+  // invalid configuration shows a clear error screen instead of the app —
+  // never a silent fall-back to the demo data. Supabase starts only in
   // supabase mode.
-  final backend = await backendOverrides(BackendConfig.fromEnvironment());
+  final BackendConfig config;
+  try {
+    config = BackendConfig.fromEnvironment();
+  } on BackendConfigException catch (e) {
+    runApp(ConfigurationErrorApp(message: e.message));
+    return;
+  }
+  final prefs = await SharedPreferences.getInstance();
+  final backend = await backendOverrides(config);
   final container = ProviderContainer(
     overrides: [sharedPreferencesProvider.overrideWithValue(prefs), ...backend],
   );

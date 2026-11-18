@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/config/backend_modules.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
+import '../../../shared/widgets/backend_pending.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
@@ -18,8 +20,12 @@ import '../screens/performance_workspace.dart';
 /// Player Dashboard → Performance: a compact summary of the player's real
 /// numbers ([performanceProvider]) in a sheet. "View Full Performance" opens
 /// the existing Performance screen.
-Future<void> showPerformanceSheet(BuildContext context) =>
-    showCeSheet<void>(context, builder: (_) => _PerformanceSheet(router: GoRouter.of(context)));
+Future<void> showPerformanceSheet(BuildContext context) => showModuleSheet(
+      context,
+      BackendModule.playerStats,
+      title: 'Performance',
+      open: () => showCeSheet<void>(context, builder: (_) => _PerformanceSheet(router: GoRouter.of(context))),
+    );
 
 class _PerformanceSheet extends ConsumerWidget {
   const _PerformanceSheet({required this.router});

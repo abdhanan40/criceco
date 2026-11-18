@@ -35,6 +35,7 @@ abstract final class Routes {
   /// Legacy (consolidation Phase A) → Settings with Privacy expanded.
   static const privacySettings = '/settings/privacy';
   static const securitySettings = '/settings/security';
+  static const deleteAccount = '/settings/delete-account';
 
   // Club Owner setup + club membership (join by code)
   /// Club Setup Details (one screen: name, logo, owner, address, city, type,
@@ -55,6 +56,7 @@ abstract final class Routes {
 
   // Player
   static const playerHome = '/player';
+  static const ownershipOffers = '/player/ownership-offers';
   static const availability = '/player/availability';
   static const openMatches = '/player/open-matches';
   static const myMatches = '/player/matches';
@@ -77,6 +79,7 @@ abstract final class Routes {
   static const members = '/club/members';
   static String memberProfile(String memberId) => '/club/members/$memberId';
   static const myClub = '/club/my-club';
+  static const transferOwnership = '/club/my-club/transfer';
   static const joinRequests = '/club/requests';
   static String joinRequestProfile(String requestId) => '/club/requests/$requestId';
   static const playerHunt = '/club/player-hunt';

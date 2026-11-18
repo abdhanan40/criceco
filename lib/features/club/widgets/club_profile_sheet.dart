@@ -15,7 +15,7 @@ import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_inputs.dart';
 import '../../../shared/widgets/ce_list_sheet.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
-import '../../club_setup/club_setup_controller.dart' show kClubCities;
+import '../../location/city_picker.dart';
 import '../club_providers.dart';
 import '../teams/teams_controller.dart';
 
@@ -44,6 +44,7 @@ class _ClubProfileSheetState extends ConsumerState<_ClubProfileSheet> {
   final _email = TextEditingController();
   final _year = TextEditingController();
   String? _city;
+  int? _cityId; // the city picked in this edit, if any
   ClubType? _type;
   late bool _editing = widget.startEditing;
   bool _saving = false;
@@ -250,17 +251,17 @@ class _ClubProfileSheetState extends ConsumerState<_ClubProfileSheet> {
               validator: (v) => CeValidators.personName(v, 'Owner name'),
             ),
             const CeFieldLabel('City', required: true),
-            CeSelectField<String>(
-              sheetTitle: 'City',
-              itemIcon: 'building-2',
+            CityPickerField(
               fieldKey: const Key('clubProfile.city'),
-              items: kClubCities,
-              value: _city,
-              labelOf: (c) => c,
+              value: _city == null ? null : CityOption(id: _cityId ?? -1, name: _city!),
+              sheetTitle: 'Select City',
               hint: 'Select city',
               icon: 'building-2',
               validator: (v) => v == null ? 'Please select a city' : null,
-              onChanged: (v) => setState(() => _city = v),
+              onChanged: (c) => setState(() {
+                _city = c.name;
+                _cityId = c.id;
+              }),
             ),
             const CeFieldLabel('Club Type', required: true),
             CeSelectField<ClubType>(
@@ -286,6 +287,8 @@ class _ClubProfileSheetState extends ConsumerState<_ClubProfileSheet> {
               textInputAction: TextInputAction.next,
               validator: _validateYear,
             ),
+            // Optional (clubs may have none), but a saved address can't be
+            // cleared: Club Setup requires one.
             const CeFieldLabel('Address'),
             CeTextField(
               fieldKey: const Key('clubProfile.address'),
@@ -295,6 +298,10 @@ class _ClubProfileSheetState extends ConsumerState<_ClubProfileSheet> {
               textCapitalization: TextCapitalization.words,
               keyboardType: TextInputType.streetAddress,
               textInputAction: TextInputAction.next,
+              maxLength: CeValidators.addressMaxLength,
+              validator: (v) => (ref.read(currentClubProvider)?.address ?? '').trim().isNotEmpty && (v ?? '').trim().isEmpty
+                  ? 'Address is required'
+                  : null,
             ),
             const CeFieldLabel('Email'),
             CeTextField(

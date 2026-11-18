@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app/config/backend_modules.dart';
 import '../../../app/providers/core_providers.dart';
 import '../../../app/session/session_controller.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../shared/widgets/backend_pending.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_form_widgets.dart';
@@ -73,8 +75,12 @@ String announcementPreview(ClubAnnouncement a, {int max = 64}) {
 }
 
 /// Create Announcement sheet (Club Owner Dashboard quick action).
-Future<void> showCreateAnnouncementSheet(BuildContext context) =>
-    showCeSheet<void>(context, builder: (_) => const _CreateAnnouncementSheet());
+Future<void> showCreateAnnouncementSheet(BuildContext context) => showModuleSheet(
+      context,
+      BackendModule.announcements,
+      title: 'Announcement',
+      open: () => showCeSheet<void>(context, builder: (_) => const _CreateAnnouncementSheet()),
+    );
 
 class _CreateAnnouncementSheet extends ConsumerStatefulWidget {
   const _CreateAnnouncementSheet();

@@ -774,12 +774,12 @@ void main() {
       expect(toggle('Login alerts'), findsOneWidget);
     });
 
-    testWidgets('supabase: no password controls; sign-in toggles kept', (
+    testWidgets('supabase: no password controls; no pretend sign-in switches', (
       tester,
     ) async {
       final c = await _profiled(tester);
       await _go(tester, c, Routes.settings);
-      expect(find.text('Sign-in alerts'), findsOneWidget);
+      expect(find.text('Sign-in security'), findsOneWidget);
       expect(find.text('Change password, sign-in alerts'), findsNothing);
       await _go(tester, c, Routes.securitySettings);
       expect(_loc(c), Routes.securitySettings);
@@ -787,14 +787,11 @@ void main() {
       expect(find.byKey(const Key('security.new')), findsNothing);
       expect(find.byKey(const Key('security.forgot')), findsNothing);
       expect(_button('Update Password'), findsNothing);
-      expect(toggle('Two-step verification'), findsOneWidget);
-      expect(toggle('Login alerts'), findsOneWidget);
-
-      // The toggles still save (this device's settings, D9).
-      final before = c.read(currentAccountProvider)!.settings.loginAlerts;
-      tester.widget<CeToggleRow>(toggle('Login alerts')).onChanged(!before);
-      await tester.pumpAndSettle();
-      expect(c.read(currentAccountProvider)!.settings.loginAlerts, !before);
+      // Two-step verification and login alerts have no server support: no
+      // switches that would protect nothing, a plain note instead.
+      expect(toggle('Two-step verification'), findsNothing);
+      expect(toggle('Login alerts'), findsNothing);
+      expect(find.byKey(const Key('security.signInPending')), findsOneWidget);
     });
   });
 
@@ -860,7 +857,9 @@ void main() {
       expect(_loc(c), Routes.profileSetup);
     });
 
-    /// Club Setup Details with valid answers (Home Ground: No).
+    /// Club Setup Details with valid answers. Home ground: "No" where the
+    /// question is shown (the demo); Supabase builds have no grounds backend,
+    /// so no question.
     Future<void> fillClub(WidgetTester tester) async {
       await _enter(tester, 'club.name', 'Karachi Kites');
       await _enter(tester, 'club.owner', 'Hamza Sheikh');
@@ -868,7 +867,9 @@ void main() {
       await _tap(tester, find.byKey(const Key('club.city')));
       await _tap(tester, find.text('Karachi').last);
       await _tap(tester, find.text('Professional'));
-      await _tap(tester, find.text('No'));
+      if (find.byKey(const Key('club.homeGround')).evaluate().isNotEmpty) {
+        await _tap(tester, find.text('No'));
+      }
     }
 
     testWidgets('Club Setup failure: typed or fallback text, retry works', (

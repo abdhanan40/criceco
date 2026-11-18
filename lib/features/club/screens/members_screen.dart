@@ -106,6 +106,8 @@ List<Widget> memberListChildren(BuildContext context, WidgetRef ref, {required V
   final query = ref.watch(membersQueryProvider).trim();
   final filter = ref.watch(memberFilterProvider);
   FitnessReport? fitnessOf(ClubMember m) => ref.watch(memberFitnessProvider(m.id));
+  // Fitness isn't recorded in builds without match data: no fitness sort.
+  final fitnessOn = ref.watch(fitnessRecordedProvider);
 
   final players = [
     for (final m in searched)
@@ -114,7 +116,7 @@ List<Widget> memberListChildren(BuildContext context, WidgetRef ref, {required V
   // Searching keeps the ranked order; otherwise the chosen sort applies.
   if (query.isEmpty) {
     int score(ClubMember m) => fitnessOf(m)?.score ?? 0;
-    players.sort(switch (filter.sort) {
+    players.sort(switch (fitnessOn ? filter.sort : MemberSort.name) {
       MemberSort.name => (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
       MemberSort.fitnessHigh => (a, b) => score(b).compareTo(score(a)),
       MemberSort.fitnessLow => (a, b) => score(a).compareTo(score(b)),
@@ -321,6 +323,7 @@ class _MemberFilterPanelState extends ConsumerState<_MemberFilterPanel> {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
+    final fitnessOn = ref.watch(fitnessRecordedProvider);
     final panel = Column(
       key: widget.inSheet ? const Key('members.filters') : null,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -340,23 +343,29 @@ class _MemberFilterPanelState extends ConsumerState<_MemberFilterPanel> {
           Flexible(
             fit: widget.inSheet ? FlexFit.loose : FlexFit.tight, // Expanded beside the drawer
             child: ListView(shrinkWrap: widget.inSheet, padding: const EdgeInsets.fromLTRB(18, 0, 18, 12), children: [
-              _label('Fitness level'),
-              Wrap(spacing: 7, runSpacing: 7, children: [
-                for (final l in FitnessLevel.values)
-                  CeChip(
-                    label: l.label,
-                    selected: _f.levels.contains(l),
-                    onTap: () => setState(() => _f = _f.copyWith(levels: _toggle(_f.levels, l))),
-                  ),
-              ]),
+              if (fitnessOn) ...[
+                _label('Fitness level'),
+                Wrap(spacing: 7, runSpacing: 7, children: [
+                  for (final l in FitnessLevel.values)
+                    CeChip(
+                      label: l.label,
+                      selected: _f.levels.contains(l),
+                      onTap: () => setState(() => _f = _f.copyWith(levels: _toggle(_f.levels, l))),
+                    ),
+                ]),
+              ],
               _label('Sort by'),
               Wrap(spacing: 7, runSpacing: 7, children: [
                 for (final s in MemberSort.values)
+                  if (fitnessOn || s == MemberSort.name)
                   CeChip(label: s.label, selected: _f.sort == s, onTap: () => setState(() => _f = _f.copyWith(sort: s))),
               ]),
               const SizedBox(height: 14),
-              const Text('Fitness filters apply to players; club staff show when no role or fitness filter is set.',
-                  style: TextStyle(fontSize: 11, color: CeColors.muted, height: 1.4)),
+              Text(
+                  fitnessOn
+                      ? 'Fitness filters apply to players; club staff show when no role or fitness filter is set.'
+                      : 'Fitness isn’t recorded yet, so there are no fitness filters.',
+                  style: const TextStyle(fontSize: 11, color: CeColors.muted, height: 1.4)),
             ]),
           ),
           Container(

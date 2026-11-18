@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/config/backend_modules.dart';
 import '../../app/providers/core_providers.dart';
 import '../../app/session/session_controller.dart';
 import '../../core/models/models.dart';
@@ -51,9 +52,15 @@ class PlayerWorkoutsController extends Notifier<List<WorkoutEntry>> {
 final playerWorkoutsProvider =
     NotifierProvider<PlayerWorkoutsController, List<WorkoutEntry>>(PlayerWorkoutsController.new);
 
+/// Whether this build records the matches the Fitness Meter is worked out
+/// from (the match statistics module). Without them there is no fitness to
+/// show: "not recorded", never a perfect 10 from an empty log.
+final fitnessRecordedProvider = Provider<bool>((ref) => ref.watch(backendModulesProvider).has(BackendModule.playerStats));
+
 /// The signed-in player's Fitness Meter: their own match log, logged
 /// workouts and availability. `null` while performance loads.
 final playerFitnessProvider = Provider<FitnessReport?>((ref) {
+  if (!ref.watch(fitnessRecordedProvider)) return null;
   final log = ref.watch(performanceProvider).value?.matchLog;
   if (log == null) return null;
   return FitnessMeter.evaluate(
@@ -78,8 +85,10 @@ final memberRecentMatchesProvider = Provider.family<List<MatchLogEntry>, String>
   return ref.watch(memberActivityProvider).value?[memberId] ?? const [];
 });
 
-/// Fitness for a club member who plays; `null` for non-playing staff.
+/// Fitness for a club member who plays; `null` for non-playing staff, and
+/// when fitness isn't recorded in this build.
 final memberFitnessProvider = Provider.family<FitnessReport?, String>((ref, memberId) {
+  if (!ref.watch(fitnessRecordedProvider)) return null;
   final member = ref.watch(clubMemberProvider(memberId));
   if (member == null || !member.plays) return null;
   if (member.role == MemberRole.owner) return ref.watch(playerFitnessProvider);
@@ -94,8 +103,10 @@ final memberFitnessProvider = Provider.family<FitnessReport?, String>((ref, memb
 });
 
 /// Fitness by club-pool player id (Suggest Team ranking). Pool players with
-/// no linked member have no recorded recent matches.
+/// no linked member have no recorded recent matches. Empty when fitness isn't
+/// recorded in this build.
 final poolFitnessProvider = Provider<Map<String, FitnessReport>>((ref) {
+  if (!ref.watch(fitnessRecordedProvider)) return const {};
   final pool = ref.watch(clubPlayerPoolProvider).value ?? const <SquadPlayer>[];
   final members = ref.watch(clubMembersProvider).value ?? const <ClubMember>[];
   final activity = ref.watch(memberActivityProvider).value ?? const {};

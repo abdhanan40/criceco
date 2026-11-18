@@ -32,6 +32,12 @@ abstract final class CeValidators {
   /// so existing accounts can still sign in.
   static const passwordMinLength = 8;
 
+  /// Longest password accepted (the backend's bcrypt limit is 72 bytes).
+  static const passwordMaxLength = 72;
+
+  /// Longest email address (RFC 5321 path limit).
+  static const emailMaxLength = 254;
+
   /// The rules in display order — the live checklist and [password] share them.
   static final List<(String label, String message, bool Function(String))> passwordRules = [
     ('8+ characters', 'Password must be at least $passwordMinLength characters', (v) => v.length >= passwordMinLength),

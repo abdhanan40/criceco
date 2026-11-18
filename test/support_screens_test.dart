@@ -440,20 +440,20 @@ void main() {
     testWidgets('Privacy toggles and Password & security are real state', (tester) async {
       final c = await _pump(tester);
       await _go(tester, c, Routes.settings);
-      expect(find.text('Show phone number'), findsNothing, reason: 'Privacy starts collapsed');
+      expect(find.text('Share my phone number'), findsNothing, reason: 'Privacy starts collapsed');
       await _tap(tester, find.text('Privacy'));
       expect(_loc(c), Routes.settings, reason: 'expands in place, no new route');
-      await _tap(tester, find.text('Show phone number'));
+      await _tap(tester, find.text('Share my phone number'));
       expect(c.read(currentAccountProvider)!.settings.showPhone, isTrue);
       await _tap(tester, find.text('Privacy'));
-      expect(find.text('Show phone number'), findsNothing, reason: 'collapses again');
+      expect(find.text('Share my phone number'), findsNothing, reason: 'collapses again');
 
       // The legacy Privacy route opens Settings with the section expanded,
       // showing the saved state.
       await _go(tester, c, Routes.privacySettings);
       expect(_loc(c), SettingsScreen.privacyLocation);
       expect(find.text('Settings'), findsOneWidget);
-      final phone = find.ancestor(of: find.text('Show phone number'), matching: find.byType(CeToggleRow));
+      final phone = find.ancestor(of: find.text('Share my phone number'), matching: find.byType(CeToggleRow));
       expect(tester.widget<CeToggleRow>(phone).value, isTrue);
 
       await _go(tester, c, Routes.settings);

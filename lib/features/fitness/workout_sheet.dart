@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/config/backend_modules.dart';
 import '../../app/providers/core_providers.dart';
 import '../../app/theme/tokens.dart';
 import '../../core/models/models.dart';
 import '../../core/utils/formatters.dart';
+import '../../shared/widgets/backend_pending.dart';
 import '../../shared/widgets/ce_buttons.dart';
 import '../../shared/widgets/ce_calendar.dart';
 import '../../shared/widgets/ce_feedback.dart';
@@ -15,8 +17,12 @@ import 'fitness_providers.dart';
 
 /// Add Workout (Fitness Meter header on the Player Dashboard): log a training
 /// session so the Fitness Meter counts it as training load.
-Future<void> showAddWorkoutSheet(BuildContext context) =>
-    showCeSheet<void>(context, builder: (_) => const _AddWorkoutSheet());
+Future<void> showAddWorkoutSheet(BuildContext context) => showModuleSheet(
+      context,
+      BackendModule.playerStats,
+      title: 'Add Workout',
+      open: () => showCeSheet<void>(context, builder: (_) => const _AddWorkoutSheet()),
+    );
 
 class _AddWorkoutSheet extends ConsumerStatefulWidget {
   const _AddWorkoutSheet();

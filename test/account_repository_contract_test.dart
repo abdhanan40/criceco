@@ -703,6 +703,9 @@ class _SpyAccounts implements AccountRepository {
     required String next,
   }) => inner.changePassword(accountId, current: current, next: next);
   @override
+  Future<void> deleteAccount(String accountId, {required String password}) =>
+      inner.deleteAccount(accountId, password: password);
+  @override
   Future<PasswordResetTicket?> requestPasswordReset(
     String identifier, {
     required DateTime at,

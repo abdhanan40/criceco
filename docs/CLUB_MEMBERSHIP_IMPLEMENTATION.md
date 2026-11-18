@@ -1,6 +1,6 @@
 # Club memberships (migration 11)
 
-**Status:** the code is done, tested against fakes, and **validated on a disposable PostgreSQL 17.11** (see below). **The migration isn't applied to production or the local stack.** The app uses it only when built with `CRICECO_MEMBERSHIPS=true`, after the migration is live.
+**Status:** the code is done, tested against fakes, and **validated on a disposable PostgreSQL 17.11** (see below). **Applied to production on 2026-11-17** (SQL Editor, read-only checks `03b` / `03c`); the local stack doesn't have it. Migration 13 (2026-11-18, not applied) adds the phone-sharing consent to `club_member_list` / `club_join_requests`: docs/ACCOUNT_PRIVACY_AND_DELETION.md. The app uses it only when built with `CRICECO_MEMBERSHIPS=true`, after the migration is live.
 
 ## Database
 `supabase/migrations/20261116090000_create_club_memberships.sql`. Rollback: `supabase/rollback/20261116_rollback_club_memberships.sql` (run it after the teams rollback).

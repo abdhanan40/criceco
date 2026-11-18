@@ -129,7 +129,8 @@ List<Widget> memberProfileChildren(BuildContext context, WidgetRef ref, ClubMemb
       if (m.plays) ('Wicket Keeper', CeSummaryCard.value(context, m.isWicketkeeper ? 'Yes' : 'No')),
       if (m.battingStyle != null) ('Batting', CeSummaryCard.value(context, m.battingStyle!.label)),
       if (m.bowlingStyle != null) ('Bowling', CeSummaryCard.value(context, m.bowlingStyle!.label)),
-      if (m.phone.isNotEmpty) ('Phone', CeSummaryCard.value(context, m.phone)),
+      // Empty: the member hasn't agreed to share it (or it isn't set).
+      ('Phone', CeSummaryCard.value(context, m.phone.isEmpty ? 'Not shared' : m.phone)),
     ]),
     if (fitness != null) ...[
       FitnessMeterView(

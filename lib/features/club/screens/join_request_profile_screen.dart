@@ -115,7 +115,8 @@ class _JoinRequestProfileScreenState extends ConsumerState<JoinRequestProfileScr
           ('Batting Style', CeSummaryCard.value(context, r.battingStyle.label)),
           ('Bowling Style', CeSummaryCard.value(context, r.bowlingStyle.label)),
           ('Playing Role', CeSummaryCard.value(context, r.role.label)),
-          ('Phone Number', CeSummaryCard.value(context, r.phone)),
+          // Empty: the player hasn't agreed to share it with clubs.
+          ('Phone Number', CeSummaryCard.value(context, r.phone.isEmpty ? 'Not shared' : r.phone)),
         ]),
 
         // ---- Performance ----

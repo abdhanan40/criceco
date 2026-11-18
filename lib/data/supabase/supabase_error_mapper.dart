@@ -15,6 +15,9 @@ abstract final class SupabaseErrorMapper {
     GatewayInvalidCodeException() => const InvalidVerificationCodeException(),
     GatewayRateLimitedException() => const TooManyRequestsException(),
     GatewaySamePasswordException() => const SamePasswordException(),
+    GatewayWrongPasswordException() => const WrongPasswordException(),
+    GatewayOwnershipTransferRequiredException() => const ClubOwnershipTransferRequiredException(),
+    GatewayDeletionIncompleteException() => const AccountDeletionIncompleteException(),
     GatewayConstraintException() => _constraint(e),
   };
 
@@ -105,6 +108,7 @@ abstract final class SupabaseErrorMapper {
     // functions prefix every refusal ("club_join: …", "team: …").
     if (_membership(e.message) case final mapped?) return mapped;
     if (_team(e.message) case final mapped?) return mapped;
+    if (_ownership(e.message) case final mapped?) return mapped;
     // update_profile_details() (migration 9): no profile row for the
     // signed-in user — nothing was written.
     if (e.sqlState == 'P0002' && e.message.contains('profile not found')) {
@@ -152,6 +156,34 @@ abstract final class SupabaseErrorMapper {
   }
 
   /// `team: …` refusals (migration 12).
+  /// `ownership: …` refusals (migration 16) → what the person can do next.
+  /// ("not allowed" / "not authenticated" are 42501: handled above.)
+  static Exception? _ownership(String message) {
+    if (!message.contains('ownership:')) return null;
+    bool has(String s) => message.contains('ownership: $s');
+    String text;
+    if (has('already pending')) {
+      text = 'This club already has an open ownership offer. Cancel it first to offer the club to someone else.';
+    } else if (has('self transfer')) {
+      text = 'You already own this club.';
+    } else if (has('recipient owns a club')) {
+      text = 'This member already owns a club — a person can own only one.';
+    } else if (has('recipient profile incomplete')) {
+      text = 'This member hasn’t completed their profile yet, so they can’t own a club.';
+    } else if (has('not a member')) {
+      text = 'This person isn’t an active member of the club any more.';
+    } else if (has('not pending')) {
+      text = 'This offer has already been answered or cancelled.';
+    } else if (has('no longer valid')) {
+      text = 'This offer is no longer valid.';
+    } else if (has('invalid')) {
+      text = 'Choose Player, Coach or Manager as your new role.';
+    } else {
+      text = 'This offer no longer exists.';
+    }
+    return OwnershipTransferException(text);
+  }
+
   static Exception? _team(String message) {
     if (!message.contains('team:')) return null;
     bool has(String s) => message.contains('team: $s');

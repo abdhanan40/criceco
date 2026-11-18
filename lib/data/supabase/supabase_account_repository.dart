@@ -29,6 +29,7 @@ class SupabaseAccountRepository implements AccountRepository {
     required this.overlay,
     this.clock = const Clock(),
     this.authCallbackUrl,
+    this.privacy,
   });
 
   final AuthGateway auth;
@@ -40,6 +41,14 @@ class SupabaseAccountRepository implements AccountRepository {
   /// address, or the Android app's `com.criceco.criceco://login-callback`.
   /// It must be on the backend's Redirect URLs allow list.
   final String? authCallbackUrl;
+
+  /// Phone-sharing consent and account deletion on the server (the
+  /// `CRICECO_ACCOUNT_PRIVACY` switch). `null`: the "Show phone number"
+  /// setting stays on this device and accounts can't be deleted.
+  final AccountPrivacyGateway? privacy;
+
+  /// The stored phone-sharing consent per user id (with [privacy]).
+  final Map<String, bool> _phoneSharing = {};
 
   /// The account as last read from the database (before local parts), per
   /// user id — what `update` compares against.
@@ -172,13 +181,18 @@ class SupabaseAccountRepository implements AccountRepository {
       remote = remote.copyWith(fullName: user.fullName);
     }
     _remote[user.id] = remote;
+    final gateway = privacy;
+    if (gateway != null) _phoneSharing[user.id] = await _call(gateway.fetchPhoneSharing);
     return _withLocal(remote);
   }
 
   /// The club flags always come from the database ([remote]); only the
   /// memberships are this run's (D6).
   UserAccount _withLocal(UserAccount remote) {
-    final local = overlay.applyTo(remote);
+    var local = overlay.applyTo(remote);
+    // The server's consent wins over this device's copy of the setting.
+    final sharing = _phoneSharing[remote.id];
+    if (sharing != null) local = local.copyWith(settings: local.settings.copyWith(showPhone: sharing));
     final run = _inMemory[remote.id];
     return run == null ? local : local.copyWith(memberships: run.memberships);
   }
@@ -318,6 +332,14 @@ class SupabaseAccountRepository implements AccountRepository {
       );
       await _call(() => db.updateProfileDetails(params));
     }
+    // "Show phone number" is the user's consent on the server (with
+    // [privacy]): sent only when it changed.
+    final gateway = privacy;
+    final share = account.settings.showPhone;
+    if (gateway != null && share != (_phoneSharing[user.id] ?? false)) {
+      await _call(() => gateway.setPhoneSharing(share));
+      _phoneSharing[user.id] = share;
+    }
     await _keepLocal(account);
 
     // A club was just created (or is gone): read the flags back from the
@@ -381,6 +403,37 @@ class SupabaseAccountRepository implements AccountRepository {
   // ---------------------------------------------------------------------------
   // Password change: not supported yet (D13 — Settings hides it)
   // ---------------------------------------------------------------------------
+
+  // ---------------------------------------------------------------------------
+  // Account deletion (the `delete-account` Edge Function, with [privacy])
+  // ---------------------------------------------------------------------------
+
+  /// The server refuses club owners, re-checks [password], deletes the
+  /// user's data (migrations 14–15), then the Auth user. Afterwards this device forgets the account:
+  /// its session (already invalid) and its local photo / settings.
+  @override
+  Future<void> deleteAccount(String accountId, {required String password}) async {
+    final gateway = privacy;
+    if (gateway == null) throw const AccountDeletionUnavailableException();
+    final user = _signedIn(accountId);
+    // Approved policy: a club owner transfers the club first. The server
+    // refuses owners too (the Edge Function and migration 15) — this only
+    // answers before any password is sent.
+    if ((_remote[user.id] ?? await _read(user)).hasClubOwnerProfile) {
+      throw const ClubOwnershipTransferRequiredException();
+    }
+    if (password.isEmpty) throw const WrongPasswordException();
+    await _call(() => gateway.deleteAccount(password: password));
+    try {
+      await auth.signOut();
+    } on GatewayException {
+      // The user no longer exists: the server may refuse to end the session.
+    }
+    await overlay.clear(user.id);
+    _remote.remove(user.id);
+    _inMemory.remove(user.id);
+    _phoneSharing.remove(user.id);
+  }
 
   @override
   Future<bool> changePassword(

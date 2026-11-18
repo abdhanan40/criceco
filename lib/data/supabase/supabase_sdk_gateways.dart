@@ -730,6 +730,105 @@ class SupabaseLocationGateway implements LocationGateway {
 
 /// Runs one gateway call with [timeout]; any failure, a timeout included,
 /// becomes a [GatewayException] through [translate].
+/// [AccountPrivacyGateway] on `supabase_flutter`: two RPCs (migration 13) and
+/// the `delete-account` Edge Function. The function runs with the service
+/// role on the server; the app only sends the user's own session and the
+/// password typed to confirm.
+class SupabaseAccountPrivacyGateway implements AccountPrivacyGateway {
+  SupabaseAccountPrivacyGateway(this._client, {this.timeout = kGatewayTimeout});
+  final sb.SupabaseClient _client;
+  final Duration timeout;
+
+  @override
+  Future<bool> fetchPhoneSharing() => _guarded(
+        () async => await _client.rpc('my_privacy_settings') == true,
+        timeout,
+        SupabaseProfileGateway.translate,
+      );
+
+  @override
+  Future<void> setPhoneSharing(bool share) => _guarded(
+        () => _client.rpc('set_phone_sharing', params: {'p_share': share}),
+        timeout,
+        SupabaseProfileGateway.translate,
+      );
+
+  @override
+  Future<void> deleteAccount({required String password}) => _guarded(
+        () async {
+          try {
+            final res = await _client.functions.invoke(
+              'delete-account',
+              body: {'password': password, 'confirm': 'DELETE'},
+            );
+            final data = res.data;
+            if (data is Map && data['deleted'] == true) return;
+            throw const GatewayUnexpectedException('delete-account:response');
+          } on sb.FunctionException catch (e) {
+            throw functionError(e.status, e.details);
+          }
+        },
+        timeout,
+        SupabaseProfileGateway.translate,
+      );
+
+  /// The Edge Function's error answers → [GatewayException].
+  static GatewayException functionError(int status, Object? details) {
+    final code = details is Map ? details['error'] : null;
+    if (status == 403 && code == 'invalid_password') return const GatewayWrongPasswordException();
+    if (status == 409 && code == 'CLUB_OWNERSHIP_TRANSFER_REQUIRED') {
+      return const GatewayOwnershipTransferRequiredException();
+    }
+    if (status == 500 && code == 'auth_delete_failed') return const GatewayDeletionIncompleteException();
+    if (status == 401) return const GatewayPermissionException();
+    if (status == 429) return const GatewayRateLimitedException();
+    if (status >= 500 && status != 501) return const GatewayNetworkException();
+    return GatewayUnexpectedException('delete-account:$status');
+  }
+}
+
+/// [OwnershipGateway] on `supabase_flutter` (migration 16): database
+/// functions only — the caller is always the session's user.
+class SupabaseOwnershipGateway implements OwnershipGateway {
+  SupabaseOwnershipGateway(this._client, {this.timeout = kGatewayTimeout});
+  final sb.SupabaseClient _client;
+  final Duration timeout;
+
+  @override
+  Future<Map<String, dynamic>> offer(Map<String, Object?> params) => _one('offer_club_ownership', params);
+
+  @override
+  Future<Map<String, dynamic>> cancel(String transferId) =>
+      _one('cancel_ownership_transfer', {'p_transfer_id': transferId});
+
+  @override
+  Future<Map<String, dynamic>> reject(String transferId) =>
+      _one('reject_ownership_transfer', {'p_transfer_id': transferId});
+
+  @override
+  Future<Map<String, dynamic>> accept(String transferId) =>
+      _one('accept_ownership_transfer', {'p_transfer_id': transferId});
+
+  @override
+  Future<List<Map<String, dynamic>>> clubTransfers(String clubId) =>
+      _list('club_ownership_transfers', {'p_club_id': clubId});
+
+  @override
+  Future<List<Map<String, dynamic>>> myOffers() => _list('my_ownership_offers', const {});
+
+  Future<Map<String, dynamic>> _one(String fn, Map<String, Object?> params) => _guarded(() async {
+        final row = SupabaseClubGateway._row(await _client.rpc<dynamic>(fn, params: params));
+        if (row == null) throw GatewayUnexpectedException('$fn-no-row');
+        return row;
+      }, timeout, SupabaseProfileGateway.translate);
+
+  Future<List<Map<String, dynamic>>> _list(String fn, Map<String, Object?> params) => _guarded(
+        () async => _rowsOf(await _client.rpc<dynamic>(fn, params: params)),
+        timeout,
+        SupabaseProfileGateway.translate,
+      );
+}
+
 Future<T> _guarded<T>(
   Future<T> Function() run,
   Duration timeout,

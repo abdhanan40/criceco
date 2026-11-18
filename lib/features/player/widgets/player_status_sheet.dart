@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app/config/backend_modules.dart';
 import '../../../app/providers/core_providers.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../shared/widgets/backend_pending.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
@@ -21,8 +23,12 @@ import '../screens/availability_screen.dart' show resolveUntil;
 ///    for Playing Opportunities" on Availability) — clubs see you in
 ///    Available Players while it is on.
 /// Each switch saves at once and confirms inline.
-Future<void> showPlayerStatusSheet(BuildContext context) =>
-    showCeSheet<void>(context, builder: (_) => const _PlayerStatusSheet());
+Future<void> showPlayerStatusSheet(BuildContext context) => showModuleSheet(
+      context,
+      BackendModule.availability,
+      title: 'Your Status',
+      open: () => showCeSheet<void>(context, builder: (_) => const _PlayerStatusSheet()),
+    );
 
 class _PlayerStatusSheet extends ConsumerStatefulWidget {
   const _PlayerStatusSheet();

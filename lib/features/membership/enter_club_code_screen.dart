@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/config/club_features.dart';
 import '../../app/router/routes.dart';
 import '../../app/session/account_error_text.dart';
+import '../../app/session/role_controller.dart';
 import '../../app/theme/tokens.dart';
 import '../../core/utils/validators.dart';
 import '../../demo/seed_data.dart';
@@ -66,12 +67,16 @@ class _EnterClubCodeScreenState extends ConsumerState<EnterClubCodeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Back (nothing to pop): the active role's home — a player is never sent
+    // into the Club Owner's setup screen.
+    final role = ref.watch(activeRoleProvider);
+    final exit = role == null ? Routes.roleSelection : Routes.home(role);
     // Supabase mode, until Phase 3E: no code entry at all (D-3B-1).
     if (!ref.watch(clubFeaturesProvider).joinByCode) {
-      return const Scaffold(
+      return Scaffold(
         backgroundColor: CeColors.bg,
-        appBar: CeTopBar(title: 'Join a Club', fallbackLocation: Routes.clubSetup),
-        body: Padding(
+        appBar: CeTopBar(title: 'Join a Club', fallbackLocation: exit),
+        body: const Padding(
           key: Key('join.comingSoon'),
           padding: EdgeInsets.fromLTRB(CeSpace.form, 20, CeSpace.form, CeSpace.form),
           child: CeEmptyState(icon: 'clock', title: 'Coming soon', body: ClubFeatures.joinComingSoon),
@@ -80,7 +85,7 @@ class _EnterClubCodeScreenState extends ConsumerState<EnterClubCodeScreen> {
     }
     return Scaffold(
       backgroundColor: CeColors.bg,
-      appBar: const CeTopBar(title: 'Join a Club', fallbackLocation: Routes.clubSetup),
+      appBar: CeTopBar(title: 'Join a Club', fallbackLocation: exit),
       body: SingleChildScrollView(
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: const EdgeInsets.fromLTRB(CeSpace.form, 20, CeSpace.form, CeSpace.form),
@@ -96,7 +101,7 @@ class _EnterClubCodeScreenState extends ConsumerState<EnterClubCodeScreen> {
             CeTextField(
               fieldKey: const Key('join.code'),
               controller: _code,
-              hint: 'e.g. ${SeedData.demoJoinCode}',
+              hint: 'The code from your club owner',
               icon: 'key',
               textCapitalization: TextCapitalization.characters,
               textInputAction: TextInputAction.send,

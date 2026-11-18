@@ -69,8 +69,12 @@ class PlayerAvailabilityController extends Notifier<PlayerAvailabilityRecord> {
   @override
   PlayerAvailabilityRecord build() {
     ref.watch(currentAccountProvider.select((a) => a?.id));
-    // Prototype seed: Available since 12 Apr 2025.
-    return PlayerAvailabilityRecord(status: PlayerAvailability.available, since: DateTime(2025, 4, 12));
+    // The demo's prototype seed (available since 12 Apr 2025). Elsewhere
+    // nothing is stored yet, so no invented date: "since" is now.
+    if (ref.read(backendModulesProvider).isDemo) {
+      return PlayerAvailabilityRecord(status: PlayerAvailability.available, since: DateTime(2025, 4, 12));
+    }
+    return PlayerAvailabilityRecord(status: PlayerAvailability.available, since: ref.read(clockProvider).now());
   }
 
   DateTime get _now => ref.read(clockProvider).now();

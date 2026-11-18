@@ -14,9 +14,11 @@ import '../../data/supabase/supabase_account_repository.dart';
 import '../../data/supabase/supabase_club_repository.dart';
 import '../../data/supabase/supabase_gateways.dart';
 import '../../data/supabase/supabase_location_repository.dart';
+import '../../data/supabase/supabase_ownership_repository.dart';
 import '../../data/supabase/supabase_team_repository.dart';
 import '../../demo/demo_stats.dart';
 import '../../demo/seed_data.dart';
+import '../config/account_privacy.dart';
 import '../config/auth_features.dart';
 import '../config/auth_redirects.dart';
 import '../config/backend_config.dart';
@@ -72,6 +74,9 @@ final accountRepositoryProvider = Provider<AccountRepository>((ref) {
         overlay: LocalAccountOverlay(ref.watch(sharedPreferencesProvider)),
         clock: ref.watch(clockProvider),
         authCallbackUrl: ref.watch(authCallbackUrlProvider),
+        // Phone consent and account deletion on the server: only with the
+        // account-privacy switch (migrations 13–14 and the Edge Function live).
+        privacy: ref.watch(accountPrivacyEnabledProvider) ? ref.watch(accountPrivacyGatewayProvider) : null,
       ),
   };
 });
@@ -109,6 +114,12 @@ final teamRepositoryProvider = Provider<TeamRepository>((ref) {
       ? SupabaseTeamRepository(db: ref.watch(teamGatewayProvider))
       : const UnavailableTeamRepository();
 });
+/// Club ownership transfer: Supabase with migration 16 (the account-privacy
+/// switch and memberships); elsewhere nothing is listed or changed.
+final ownershipTransferRepositoryProvider = Provider<OwnershipTransferRepository>((ref) =>
+    ref.watch(ownershipTransferAvailableProvider)
+        ? SupabaseOwnershipTransferRepository(db: ref.watch(ownershipGatewayProvider))
+        : const UnavailableOwnershipTransferRepository());
 final matchRepositoryProvider = Provider<MatchRepository>(
     (ref) => _demo(ref) ? InMemoryMatchRepository(ref.watch(seedDataProvider)) : InMemoryMatchRepository.empty());
 final groundRepositoryProvider = Provider<GroundRepository>(

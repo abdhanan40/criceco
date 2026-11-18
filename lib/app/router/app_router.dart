@@ -18,6 +18,8 @@ import '../../features/challenges/screens/challenges_hub_screen.dart';
 import '../../features/challenges/screens/club_profile_screen.dart';
 import '../../features/challenges/screens/create_slot_screen.dart';
 import '../../features/challenges/widgets/challenge_widgets.dart';
+import '../../features/club/ownership/ownership_offers_screen.dart';
+import '../../features/club/ownership/transfer_ownership_screen.dart';
 import '../../features/club/screens/add_team_players_screen.dart';
 import '../../features/club/screens/club_dashboard_screen.dart';
 import '../../features/club/screens/join_request_profile_screen.dart';
@@ -41,6 +43,7 @@ import '../../features/player/screens/performance_workspace.dart';
 import '../../features/player/screens/player_dashboard_screen.dart';
 import '../../features/player/screens/player_match_workspace.dart';
 import '../../features/player/screens/player_profile_screen.dart';
+import '../../features/settings/delete_account_screen.dart';
 import '../../features/settings/settings_screens.dart';
 import '../../features/tournaments/screens/browse_screens.dart';
 import '../../features/tournaments/screens/create_tournament_screen.dart';
@@ -188,7 +191,7 @@ final List<RouteBase> appRoutes = [
 
   // ---- Shared ----
   GoRoute(path: Routes.roleSetup, builder: (_, _) => const RoleSetupScreen()),
-  GoRoute(path: Routes.notifications, builder: (_, _) => _gate(BackendModule.notifications, 'Notifications', Routes.roleSelection, const NotificationsScreen())),
+  GoRoute(path: Routes.notifications, builder: (_, _) => _gate(BackendModule.notifications, 'Notifications', null, const NotificationsScreen())),
   // Settings with the Privacy section inline (`?section=privacy` expands it).
   GoRoute(
     path: Routes.settings,
@@ -196,6 +199,7 @@ final List<RouteBase> appRoutes = [
     routes: [
       _legacy('privacy', (_) => SettingsScreen.privacyLocation),
       GoRoute(path: 'security', builder: (_, _) => const SecuritySettingsScreen()),
+      GoRoute(path: 'delete-account', builder: (_, _) => const DeleteAccountScreen()),
     ],
   ),
 
@@ -222,6 +226,12 @@ final List<RouteBase> appRoutes = [
           path: Routes.playerHome,
           pageBuilder: (_, s) => _fade(const PlayerDashboardScreen(), s),
           routes: [
+            // Club ownership offers to this member (migration 16).
+            GoRoute(
+              path: 'ownership-offers',
+              parentNavigatorKey: rootNavigatorKey,
+              builder: (_, _) => const OwnershipOffersScreen(),
+            ),
             GoRoute(path: 'open-matches', builder: (_, _) => _gate(BackendModule.matches, 'Playing Opportunities', Routes.playerHome, const OpenMatchesScreen())),
             // My Profile with inline edit mode (`?edit=1`).
             GoRoute(
@@ -253,7 +263,10 @@ final List<RouteBase> appRoutes = [
         ),
       ]),
       StatefulShellBranch(routes: [
-        GoRoute(path: Routes.availability, builder: (_, _) => const AvailabilityScreen()),
+        GoRoute(
+          path: Routes.availability,
+          builder: (_, _) => _gate(BackendModule.availability, 'Availability', Routes.playerHome, const AvailabilityScreen()),
+        ),
       ]),
       StatefulShellBranch(routes: [
         // Performance workspace: Overview | History in `?tab=`.
@@ -278,7 +291,14 @@ final List<RouteBase> appRoutes = [
           path: Routes.clubHome,
           pageBuilder: (_, s) => _fade(const ClubDashboardScreen(), s),
           routes: [
-            GoRoute(path: 'my-club', builder: (_, _) => const MyClubScreen()),
+            GoRoute(path: 'my-club', builder: (_, _) => const MyClubScreen(), routes: [
+              // Club ownership transfer (migration 16; the screen says when unavailable).
+              GoRoute(
+                path: 'transfer',
+                parentNavigatorKey: rootNavigatorKey,
+                builder: (_, _) => const TransferOwnershipScreen(),
+              ),
+            ]),
             ..._clubFullRoutes,
           ],
         ),
@@ -393,25 +413,26 @@ final GoRoute _matchManagementRoute = GoRoute(
         GoRoute(
           path: 'ground',
           parentNavigatorKey: rootNavigatorKey,
-          builder: (_, s) => BookGroundScreen(matchId: s.pathParameters['matchId']!),
+          builder: (_, s) => _gate(BackendModule.grounds, 'Book Ground', Routes.matchManagementPath,
+              BookGroundScreen(matchId: s.pathParameters['matchId']!)),
           routes: [
             GoRoute(
               path: ':groundId',
               parentNavigatorKey: rootNavigatorKey,
-              builder: (_, s) =>
-                  GroundDetailsScreen(matchId: s.pathParameters['matchId']!, groundId: s.pathParameters['groundId']!),
+              builder: (_, s) => _gate(BackendModule.grounds, 'Ground Details', Routes.matchManagementPath,
+                  GroundDetailsScreen(matchId: s.pathParameters['matchId']!, groundId: s.pathParameters['groundId']!)),
               routes: [
                 GoRoute(
                   path: 'schedule',
                   parentNavigatorKey: rootNavigatorKey,
-                  builder: (_, s) =>
-                      SelectDateScreen(matchId: s.pathParameters['matchId']!, groundId: s.pathParameters['groundId']!),
+                  builder: (_, s) => _gate(BackendModule.grounds, 'Select Date', Routes.matchManagementPath,
+                      SelectDateScreen(matchId: s.pathParameters['matchId']!, groundId: s.pathParameters['groundId']!)),
                   routes: [
                     GoRoute(
                       path: 'summary',
                       parentNavigatorKey: rootNavigatorKey,
-                      builder: (_, s) => BookingSummaryScreen(
-                          matchId: s.pathParameters['matchId']!, groundId: s.pathParameters['groundId']!),
+                      builder: (_, s) => _gate(BackendModule.grounds, 'Booking Summary', Routes.matchManagementPath,
+                          BookingSummaryScreen(matchId: s.pathParameters['matchId']!, groundId: s.pathParameters['groundId']!)),
                     ),
                   ],
                 ),
@@ -424,42 +445,50 @@ final GoRoute _matchManagementRoute = GoRoute(
     GoRoute(
       path: ':matchId/payment',
       parentNavigatorKey: rootNavigatorKey,
-      builder: (_, s) => PaymentScreen(matchId: s.pathParameters['matchId']!),
+      builder: (_, s) => _gate(BackendModule.payments, 'Payment', Routes.matchManagementPath,
+          PaymentScreen(matchId: s.pathParameters['matchId']!)),
     ),
     GoRoute(
       path: ':matchId/waiting',
       parentNavigatorKey: rootNavigatorKey,
-      builder: (_, s) => WaitingForOpponentScreen(matchId: s.pathParameters['matchId']!),
+      builder: (_, s) => _gate(BackendModule.payments, 'Waiting for Opponent', Routes.matchManagementPath,
+          WaitingForOpponentScreen(matchId: s.pathParameters['matchId']!)),
     ),
     GoRoute(
       path: ':matchId/opponent-payment',
       parentNavigatorKey: rootNavigatorKey,
-      builder: (_, s) => OpponentPaymentScreen(matchId: s.pathParameters['matchId']!),
+      builder: (_, s) => _gate(BackendModule.payments, 'Opponent Payment', Routes.matchManagementPath,
+          OpponentPaymentScreen(matchId: s.pathParameters['matchId']!)),
     ),
     GoRoute(
       path: ':matchId/confirmed',
       parentNavigatorKey: rootNavigatorKey,
-      builder: (_, s) => BookingConfirmedScreen(matchId: s.pathParameters['matchId']!),
+      builder: (_, s) => _gate(BackendModule.payments, 'Booking Confirmed', Routes.matchManagementPath,
+          BookingConfirmedScreen(matchId: s.pathParameters['matchId']!)),
     ),
     GoRoute(
       path: ':matchId/expired',
       parentNavigatorKey: rootNavigatorKey,
-      builder: (_, s) => ReservationExpiredScreen(matchId: s.pathParameters['matchId']!),
+      builder: (_, s) => _gate(BackendModule.payments, 'Reservation Expired', Routes.matchManagementPath,
+          ReservationExpiredScreen(matchId: s.pathParameters['matchId']!)),
     ),
     GoRoute(
       path: ':matchId/lineup',
       parentNavigatorKey: rootNavigatorKey,
-      builder: (_, s) => SelectTeamScreen(matchId: s.pathParameters['matchId']!),
+      builder: (_, s) => _gate(BackendModule.matches, 'Select Team', Routes.matchManagementPath,
+          SelectTeamScreen(matchId: s.pathParameters['matchId']!)),
       routes: [
         GoRoute(
           path: 'build',
           parentNavigatorKey: rootNavigatorKey,
-          builder: (_, s) => TeamBuilderScreen(matchId: s.pathParameters['matchId']!),
+          builder: (_, s) => _gate(BackendModule.matches, 'Team Builder', Routes.matchManagementPath,
+              TeamBuilderScreen(matchId: s.pathParameters['matchId']!)),
         ),
         GoRoute(
           path: 'pick',
           parentNavigatorKey: rootNavigatorKey,
-          builder: (_, s) => TeamPickerScreen(matchId: s.pathParameters['matchId']!),
+          builder: (_, s) => _gate(BackendModule.matches, 'Team Picker', Routes.matchManagementPath,
+              TeamPickerScreen(matchId: s.pathParameters['matchId']!)),
         ),
       ],
     ),
@@ -473,7 +502,8 @@ String _rid(GoRouterState s) => s.pathParameters['registrationId']!;
 
 /// A screen of [module]: itself where the module has a backend in this
 /// build, otherwise "not available yet" (docs/PRODUCTION_DEMO_MODE.md).
-Widget _gate(BackendModule module, String title, String fallback, Widget screen) =>
+/// [fallback] `null`: Back goes to the active role's home.
+Widget _gate(BackendModule module, String title, String? fallback, Widget screen) =>
     BackendModuleScreen(module: module, title: title, fallbackLocation: fallback, child: screen);
 
 GoRoute _full(String path, Widget Function(GoRouterState s) build, {List<RouteBase> routes = const []}) => GoRoute(

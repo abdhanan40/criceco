@@ -24,7 +24,8 @@ enum BackendModule {
   playerHunt('Player Hunt'),
   tournaments('Tournaments'),
   notifications('Notifications'),
-  announcements('Club announcements');
+  announcements('Club announcements'),
+  availability('Player availability');
 
   const BackendModule(this.label);
   final String label;
@@ -58,7 +59,7 @@ class BackendModules {
   /// Title and body of the "not available yet" panel.
   static const pendingTitle = 'Not available yet';
   static String pendingBody(BackendModule module) =>
-      '${module.label} aren’t connected to the CricEco server yet. Nothing is shown here until they are — '
+      '${module.label}: not connected to the CricEco server yet. Nothing is shown or saved here until it is — '
       'no sample data.';
 }
 

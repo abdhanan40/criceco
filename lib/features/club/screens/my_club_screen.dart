@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/config/account_privacy.dart';
+import '../../../app/config/backend_modules.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/session/session_controller.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../shared/media/photo_picker.dart';
+import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
@@ -39,7 +42,10 @@ class MyClubScreen extends ConsumerWidget {
     final membersAsync = ref.watch(clubMembersProvider);
     final members = membersAsync.value ?? const <ClubMember>[];
     final teams = ref.watch(teamsProvider).value?.length;
-    final upcoming = ref.watch(upcomingClubMatchesProvider).length;
+    // "–" without a match backend (production builds), never a misleading 0.
+    final upcoming = ref.watch(backendModulesProvider).has(BackendModule.matches)
+        ? '${ref.watch(upcomingClubMatchesProvider).length}'
+        : '–';
     final white = Colors.white.withValues(alpha: 0.85);
 
     return Scaffold(
@@ -102,7 +108,7 @@ class MyClubScreen extends ConsumerWidget {
             ),
             CeStatCell(
               label: 'Upcoming',
-              value: '$upcoming',
+              value: upcoming,
               onTap: () => context.go(Routes.matchManagement(MatchTab.scheduled)),
             ),
           ],
@@ -125,6 +131,17 @@ class MyClubScreen extends ConsumerWidget {
           )
         else
           for (final m in members.take(_previewCount)) MemberRow(member: m, compact: true),
+        // Club ownership transfer (migration 16): offer the club to a member.
+        if (ref.watch(ownershipTransferAvailableProvider))
+          Padding(
+            padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 22, CeSpace.gutter, 0),
+            child: CeButton.soft(
+              key: const Key('myClub.transferOwnership'),
+              label: 'Transfer Ownership',
+              icon: CeIcons.of('shield'),
+              onPressed: () => context.push(Routes.transferOwnership),
+            ),
+          ),
       ]),
     );
   }

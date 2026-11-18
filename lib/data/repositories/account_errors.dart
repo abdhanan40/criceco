@@ -103,6 +103,12 @@ class ClubMembershipException extends AccountException {
   const ClubMembershipException(super.message);
 }
 
+/// A club ownership offer the database refused (migration 16): already an
+/// open offer, an ineligible member, an answered offer… [message] says what.
+class OwnershipTransferException extends AccountException {
+  const OwnershipTransferException(super.message);
+}
+
 /// A team change the database refused (migration 12): duplicate name, full
 /// squad, a player who isn't an active member, a deleted team.
 class TeamRuleException extends AccountException {
@@ -111,6 +117,32 @@ class TeamRuleException extends AccountException {
 
 /// This part of the app has no backend in this build (Supabase mode,
 /// docs/PRODUCTION_DEMO_MODE.md): nothing is saved, so nothing is pretended.
+/// Delete Account: the password typed to confirm it is wrong.
+class WrongPasswordException extends AccountException {
+  const WrongPasswordException() : super('That password is incorrect');
+}
+
+/// Delete Account refused: the user owns a club. The approved policy is to
+/// transfer the club's ownership to another member first.
+class ClubOwnershipTransferRequiredException extends AccountException {
+  const ClubOwnershipTransferRequiredException()
+    : super('You own a club. Transfer its ownership to another member before deleting your account.');
+}
+
+/// Delete Account: the data is gone but the sign-in account wasn't deleted
+/// yet. Trying again completes it safely.
+class AccountDeletionIncompleteException extends AccountException {
+  const AccountDeletionIncompleteException()
+    : super('Your data was deleted, but closing your sign-in account didn’t finish. Please tap Delete again.');
+}
+
+/// Delete Account isn't available in this build (the server side isn't
+/// deployed yet).
+class AccountDeletionUnavailableException extends AccountException {
+  const AccountDeletionUnavailableException()
+    : super('Deleting your account isn’t available yet in this version of the app.');
+}
+
 class ModuleUnavailableException extends AccountException {
   const ModuleUnavailableException()
     : super('This isn’t available yet — it isn’t connected to the server.');

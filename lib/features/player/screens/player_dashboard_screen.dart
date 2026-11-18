@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/config/backend_modules.dart';
 import '../../../app/providers/core_providers.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/session/session_controller.dart';
@@ -11,12 +12,14 @@ import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../shared/media/photo_picker.dart';
+import '../../../shared/widgets/backend_pending.dart';
 import '../../../shared/widgets/ce_dashboard_hero.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_match_widgets.dart';
 import '../../../shared/widgets/ce_quick_actions.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
+import '../../club/ownership/ownership_offers_screen.dart';
 import '../../fitness/fitness_providers.dart';
 import '../../fitness/fitness_widgets.dart';
 import '../../fitness/workout_sheet.dart';
@@ -42,6 +45,11 @@ class PlayerDashboardScreen extends ConsumerWidget {
     final profile = account?.playerProfile;
     final name = account?.fullName ?? 'Player';
     final available = availability.status == PlayerAvailability.available;
+    // Production builds: modules with no backend show no invented values.
+    final modules = ref.watch(backendModulesProvider);
+    final statsOn = modules.has(BackendModule.playerStats);
+    final availabilityOn = modules.has(BackendModule.availability);
+    final matchesOn = modules.has(BackendModule.matches);
 
     // Structure: hero (greeting, glass player card with key stats) → quick
     // actions → next match → Fitness Meter. Recent form and the full season
@@ -60,7 +68,7 @@ class PlayerDashboardScreen extends ConsumerWidget {
               keyPrefix: 'player',
               semanticLabel: 'Open my profile, $name',
               onTap: () => context.go(Routes.playerProfile),
-              leading: _HeroAvatar(initial: account?.initial ?? 'A', photoPath: account?.photoPath, available: available),
+              leading: _HeroAvatar(initial: account?.initial ?? 'A', photoPath: account?.photoPath, available: availabilityOn ? available : null),
               title: name,
               subtitle: [
                 if (profile?.role != null) profile!.role!.label,
@@ -68,6 +76,7 @@ class PlayerDashboardScreen extends ConsumerWidget {
                 if (profile?.bowlingStyle != null) profile!.bowlingStyle!.label,
               ].join(' · '),
               chips: [
+                if (availabilityOn)
                 Semantics(
                   container: true,
                   button: true,
@@ -88,15 +97,19 @@ class PlayerDashboardScreen extends ConsumerWidget {
                 if (profile?.isWicketkeeper ?? false) const CeHeroPill(icon: 'shield', label: 'Wicket Keeper'),
                 if (account?.memberships.firstOrNull?.clubName case final club?) CeHeroPill(icon: 'users', label: club),
               ],
-              // "–" while loading, never a misleading 0.
+              // "–" while loading, and where match statistics aren't recorded
+              // (no backend yet) — never a misleading 0.
               stats: [
-                (perf == null ? '–' : '${perf.matches}', 'Matches'),
-                (perf == null ? '–' : '${perf.runs}', 'Runs'),
-                (perf == null ? '–' : '${perf.wickets}', 'Wickets'),
-                (perf?.battingAverage ?? '–', 'Bat Avg'),
+                (!statsOn || perf == null ? '–' : '${perf.matches}', 'Matches'),
+                (!statsOn || perf == null ? '–' : '${perf.runs}', 'Runs'),
+                (!statsOn || perf == null ? '–' : '${perf.wickets}', 'Wickets'),
+                (statsOn ? perf?.battingAverage ?? '–' : '–', 'Bat Avg'),
               ],
             ),
           ),
+
+          // A club owner offered this player their club (migration 16).
+          const OwnershipOffersBanner(),
 
           // ---- Quick actions: secondary actions only (no bottom-nav tabs) ----
           const CeSectionHeader('Quick Actions'),
@@ -119,7 +132,10 @@ class PlayerDashboardScreen extends ConsumerWidget {
                 const CeIconWell('calendar', size: 38, iconSize: 17),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text('No upcoming matches yet. Confirmed matches will show up here.',
+                  child: Text(
+                      matchesOn
+                          ? 'No upcoming matches yet. Confirmed matches will show up here.'
+                          : 'Matches aren’t available yet. Your matches will show up here once they are.',
                       style: Theme.of(context).textTheme.bodySmall),
                 ),
               ]),
@@ -128,7 +144,12 @@ class PlayerDashboardScreen extends ConsumerWidget {
             _NextMatchCard(match: next),
 
           // ---- Fitness Meter (after the next match, before performance) ----
-          if (fitness != null)
+          // It is worked out from recorded matches: with none recorded (no
+          // match statistics in this build) it says so instead of a score.
+          if (!statsOn) ...[
+            const CeSectionHeader('Fitness Meter'),
+            const BackendPendingNotice(key: Key('player.fitnessPending'), module: BackendModule.playerStats, icon: 'activity'),
+          ] else if (fitness != null)
             FitnessMeterView(
               report: fitness,
               log: perf?.matchLog ?? const [],
@@ -152,7 +173,9 @@ class _HeroAvatar extends StatelessWidget {
   const _HeroAvatar({required this.initial, required this.available, this.photoPath});
   final String initial;
   final String? photoPath;
-  final bool available;
+
+  /// The availability dot; `null` (availability not saved in this build): none.
+  final bool? available;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -175,6 +198,7 @@ class _HeroAvatar extends StatelessWidget {
               child: Text(initial, style: CeType.heroName.copyWith(fontSize: 21, color: Colors.white)),
             ),
           ),
+          if (available case final on?)
           Positioned(
             right: 0,
             bottom: 0,
@@ -183,7 +207,7 @@ class _HeroAvatar extends StatelessWidget {
               height: 14,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: available ? CeColors.fresh : CeColors.red,
+                color: on ? CeColors.fresh : CeColors.red,
                 border: Border.all(color: CeColors.primaryDark, width: 2),
               ),
             ),

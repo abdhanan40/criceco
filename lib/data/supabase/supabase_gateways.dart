@@ -357,6 +357,23 @@ class GatewaySamePasswordException extends GatewayException {
   const GatewaySamePasswordException();
 }
 
+/// Account deletion: the password given to confirm it is wrong.
+class GatewayWrongPasswordException extends GatewayException {
+  const GatewayWrongPasswordException();
+}
+
+/// Account deletion refused: the user still owns a club (migration 15,
+/// `CLUB_OWNERSHIP_TRANSFER_REQUIRED`).
+class GatewayOwnershipTransferRequiredException extends GatewayException {
+  const GatewayOwnershipTransferRequiredException();
+}
+
+/// Account deletion: the data was deleted but the sign-in account wasn't
+/// (`auth_delete_failed`). Repeating the same request completes it.
+class GatewayDeletionIncompleteException extends GatewayException {
+  const GatewayDeletionIncompleteException();
+}
+
 /// Anything else (bad response, unexpected error). [detail] is a short code,
 /// never user data.
 class GatewayUnexpectedException extends GatewayException {
@@ -388,3 +405,51 @@ final membershipGatewayProvider = Provider<MembershipGateway>(
 final teamGatewayProvider = Provider<TeamGateway>(
   (ref) => throw StateError(_notInitialized),
 );
+final accountPrivacyGatewayProvider = Provider<AccountPrivacyGateway>(
+  (ref) => throw StateError(_notInitialized),
+);
+final ownershipGatewayProvider = Provider<OwnershipGateway>(
+  (ref) => throw StateError(_notInitialized),
+);
+
+/// Phone-number consent and account deletion (migrations 13–14 and the
+/// `delete-account` Edge Function, with the `CRICECO_ACCOUNT_PRIVACY`
+/// switch). Every call is for the signed-in user only: the functions read
+/// the user from the session, never from a parameter.
+abstract interface class AccountPrivacyGateway {
+  /// `rpc('my_privacy_settings')` — whether the signed-in user shares their
+  /// phone number with the owners of clubs they join or apply to.
+  Future<bool> fetchPhoneSharing();
+
+  /// `rpc('set_phone_sharing', {p_share})`.
+  Future<void> setPhoneSharing(bool share);
+
+  /// `functions.invoke('delete-account')`: re-checks [password] on the
+  /// server, deletes the user's data, then the Auth user. Throws
+  /// [GatewayWrongPasswordException] for a wrong password.
+  Future<void> deleteAccount({required String password});
+}
+
+/// Club ownership transfer (migration 16, with the `CRICECO_ACCOUNT_PRIVACY`
+/// switch): offers and the history through database functions. The user is
+/// always the session's (auth.uid()), never a parameter.
+abstract interface class OwnershipGateway {
+  /// `rpc('offer_club_ownership', {p_club_id, p_member_id, p_previous_owner_role})`.
+  Future<Map<String, dynamic>> offer(Map<String, Object?> params);
+
+  /// `rpc('cancel_ownership_transfer', {p_transfer_id})` — by the owner.
+  Future<Map<String, dynamic>> cancel(String transferId);
+
+  /// `rpc('reject_ownership_transfer', {p_transfer_id})` — by the recipient.
+  Future<Map<String, dynamic>> reject(String transferId);
+
+  /// `rpc('accept_ownership_transfer', {p_transfer_id})` — by the recipient;
+  /// the only call that moves the club.
+  Future<Map<String, dynamic>> accept(String transferId);
+
+  /// `rpc('club_ownership_transfers', {p_club_id})` — the club's history.
+  Future<List<Map<String, dynamic>>> clubTransfers(String clubId);
+
+  /// `rpc('my_ownership_offers')` — open offers to the signed-in user.
+  Future<List<Map<String, dynamic>>> myOffers();
+}

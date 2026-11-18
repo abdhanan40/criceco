@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/config/backend_modules.dart';
 import '../../app/providers/core_providers.dart';
 import '../../app/router/routes.dart';
 import '../../app/session/account_error_text.dart';
@@ -18,6 +19,7 @@ import '../../shared/widgets/ce_icons.dart';
 import '../../shared/widgets/ce_inputs.dart';
 import '../../shared/widgets/ce_top_bar.dart';
 import '../auth/widgets/auth_widgets.dart';
+import '../location/city_picker.dart';
 import 'club_setup_controller.dart';
 
 final _groundsProvider = FutureProvider<List<Ground>>((ref) => ref.read(groundRepositoryProvider).grounds());
@@ -42,6 +44,10 @@ class _ClubSetupScreenState extends ConsumerState<ClubSetupScreen> {
   late final TextEditingController _address;
   bool _creating = false;
   String? _error;
+
+  /// The city picked in this visit (its label and id); the draft keeps the
+  /// name the club stores.
+  CityOption? _city;
 
   @override
   void initState() {
@@ -113,7 +119,10 @@ class _ClubSetupScreenState extends ConsumerState<ClubSetupScreen> {
   Widget build(BuildContext context) {
     final draft = ref.watch(clubSetupProvider);
     final setup = ref.read(clubSetupProvider.notifier);
-    final grounds = ref.watch(_groundsProvider).value ?? const <Ground>[];
+    // Grounds have no backend in production builds: no home-ground question
+    // there (it could never be answered "Yes").
+    final groundsOn = ref.watch(backendModulesProvider).has(BackendModule.grounds);
+    final grounds = groundsOn ? ref.watch(_groundsProvider).value ?? const <Ground>[] : const <Ground>[];
     final ground = grounds.where((g) => g.id == draft.homeGroundId).firstOrNull;
 
     return PopScope(
@@ -190,21 +199,26 @@ class _ClubSetupScreenState extends ConsumerState<ClubSetupScreen> {
                 textCapitalization: TextCapitalization.words,
                 textInputAction: TextInputAction.done,
                 keyboardType: TextInputType.streetAddress,
+                maxLength: CeValidators.addressMaxLength,
                 validator: (v) => CeValidators.required(v, 'Address'),
                 onChanged: (v) => setup.update((d) => d.copyWith(address: v)),
               ),
               const CeFieldLabel('City', required: true),
-              CeSelectField<String>(
-                sheetTitle: 'City',
-                itemIcon: 'building-2',
+              // The nationwide city list (the locations tables in Supabase mode),
+              // as in Profile Setup — not a fixed list of ten cities.
+              CityPickerField(
                 fieldKey: const Key('club.city'),
-                items: kClubCities,
-                value: draft.city,
-                labelOf: (c) => c,
+                value: draft.city == null
+                    ? null
+                    : (_city?.name == draft.city ? _city : CityOption(id: -1, name: draft.city!)),
+                sheetTitle: 'Select City',
                 hint: 'Select city',
                 icon: 'building-2',
                 validator: (v) => v == null ? 'Please select a city' : null,
-                onChanged: (v) => setup.update((d) => d.copyWith(city: v)),
+                onChanged: (c) {
+                  setState(() => _city = c);
+                  setup.update((d) => d.copyWith(city: c.name));
+                },
               ),
               const CeFieldLabel('Club Type', required: true),
               // Reference club-type grid: one tap, no picker sheet.
@@ -226,6 +240,7 @@ class _ClubSetupScreenState extends ConsumerState<ClubSetupScreen> {
                 ]),
               ),
               const SizedBox(height: 18),
+              if (groundsOn)
               // FormField so the Yes / No answer (and the ground for Yes)
               // validates inline with the rest of the form.
               FormField<bool>(

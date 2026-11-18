@@ -33,9 +33,12 @@ class RoleDrawer extends ConsumerWidget {
     final location = router.routerDelegate.currentConfiguration.uri.path;
     final other = role == UserRole.player ? UserRole.clubOwner : UserRole.player;
     final needsSetup = other == UserRole.clubOwner && !session.hasClubOwnerProfile;
-    final name = account?.fullName ?? 'Aman Ali';
+    // Only the account's own details — never sample names while it loads.
+    final fullName = account?.fullName.trim() ?? '';
+    final name = fullName.isEmpty ? 'Your account' : fullName;
+    final ownClub = session.ownClub;
     final clubTag = role == UserRole.clubOwner
-        ? '${session.ownClub?.name ?? 'Shalimar Cricket Club'} · ${session.ownClub?.code ?? '35HLWZ'}'
+        ? (ownClub == null ? 'Club not set up yet' : '${ownClub.name} · ${ownClub.code}')
         : switch (account?.memberships.firstOrNull?.clubCode) {
             final code? => 'Club $code',
             // Supabase builds: no demo club for a player without one.

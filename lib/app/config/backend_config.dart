@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Which backend the app talks to. Chosen at build time:
@@ -7,7 +8,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// in-memory demo data).
 enum BackendMode { memory, supabase }
 
-/// Build-time backend configuration. Supabase mode also needs
+/// Build-time backend configuration. A RELEASE build must choose its backend
+/// explicitly ([BackendConfig.parse] `requireBackend`): a missing define never
+/// falls back to the demo data. Supabase mode also needs
 /// `--dart-define=SUPABASE_URL=…` and `--dart-define=SUPABASE_PUBLISHABLE_KEY=…`
 /// (the publishable / anon key — a service-role or secret key is refused).
 class BackendConfig {
@@ -25,13 +28,17 @@ class BackendConfig {
 
   bool get isSupabase => mode == BackendMode.supabase;
 
-  /// The values passed with `--dart-define` when the app was built.
-  factory BackendConfig.fromEnvironment() => BackendConfig.parse(
+  /// The values passed with `--dart-define` when the app was built. Release
+  /// builds ([release]) must name the backend, and a Supabase release refuses
+  /// the demo's simulation controls (`CRICECO_DEMO=true`).
+  factory BackendConfig.fromEnvironment({bool release = kReleaseMode}) => BackendConfig.parse(
     backend: const String.fromEnvironment('CRICECO_BACKEND'),
     supabaseUrl: const String.fromEnvironment('SUPABASE_URL'),
     supabasePublishableKey: const String.fromEnvironment(
       'SUPABASE_PUBLISHABLE_KEY',
     ),
+    requireBackend: release,
+    demoControlsRequested: const bool.fromEnvironment('CRICECO_DEMO'),
   );
 
   /// Validates raw values. Throws [BackendConfigException] — whose message
@@ -39,10 +46,17 @@ class BackendConfig {
   /// A secret or service-role key is refused in every mode: anything passed
   /// with `--dart-define` is compiled into the app, even when unused. Other
   /// Supabase values are ignored in memory mode.
+  ///
+  /// [requireBackend] (release builds): an empty `CRICECO_BACKEND` is an error
+  /// instead of the in-memory demo. [demoControlsRequested] (`CRICECO_DEMO=true`)
+  /// is refused for a Supabase release build: real users would see
+  /// simulators.
   factory BackendConfig.parse({
     String? backend,
     String? supabaseUrl,
     String? supabasePublishableKey,
+    bool requireBackend = false,
+    bool demoControlsRequested = false,
   }) {
     final key = (supabasePublishableKey ?? '').trim();
     if (_isSecretKey(key)) {
@@ -53,6 +67,13 @@ class BackendConfig {
     }
 
     final name = (backend ?? '').trim().toLowerCase();
+    if (name.isEmpty && requireBackend) {
+      throw const BackendConfigException(
+        'CRICECO_BACKEND is not set. A release build must choose its backend: '
+        'CRICECO_BACKEND=supabase (with SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY), '
+        'or CRICECO_BACKEND=memory for an explicit demo build',
+      );
+    }
     if (name.isEmpty || name == 'memory') return const BackendConfig.memory();
     if (name != 'supabase') {
       throw BackendConfigException(
@@ -76,6 +97,11 @@ class BackendConfig {
     if (key.isEmpty) {
       throw const BackendConfigException(
         'SUPABASE_PUBLISHABLE_KEY is required in supabase mode',
+      );
+    }
+    if (requireBackend && demoControlsRequested) {
+      throw const BackendConfigException(
+        'CRICECO_DEMO=true is not allowed in a release build with CRICECO_BACKEND=supabase',
       );
     }
     return BackendConfig._supabase(url, key);

@@ -51,6 +51,9 @@ class _RejectingAccounts implements AccountRepository {
   Future<bool> changePassword(String accountId, {required String current, required String next}) =>
       inner.changePassword(accountId, current: current, next: next);
   @override
+  Future<void> deleteAccount(String accountId, {required String password}) =>
+      inner.deleteAccount(accountId, password: password);
+  @override
   Future<PasswordResetTicket?> requestPasswordReset(String identifier, {required DateTime at}) =>
       inner.requestPasswordReset(identifier, at: at);
   @override
@@ -936,7 +939,7 @@ void main() {
       expect(find.textContaining('You already have a pending request'), findsOneWidget);
     });
 
-    testWidgets('Cancel Request returns to Club Setup', (tester) async {
+    testWidgets('Cancel Request returns to the player home, never Club Setup', (tester) async {
       final c = await _pump(tester);
       await _login(tester);
       c.read(routerProvider).go(Routes.enterClubCode);
@@ -946,7 +949,9 @@ void main() {
       await _tap(tester, _button('Cancel Request'));
       expect(find.text('Cancel join request?'), findsOneWidget, reason: 'asks first');
       await _tap(tester, _button('Cancel Request').last);
-      expect(_loc(c), Routes.clubSetup);
+      final role = c.read(activeRoleProvider);
+      expect(_loc(c), role == null ? Routes.roleSelection : Routes.home(role));
+      expect(_loc(c), isNot(Routes.clubSetup));
     });
   });
 

@@ -45,7 +45,8 @@ class TeamSuggestion {
     double score(SquadPlayer p) {
       final s = stats[p.id];
       final rating = double.tryParse(s?.rating ?? '') ?? 0;
-      return rating * 10 + (s?.wins ?? 0) * 2 + (fitness[p.id]?.score ?? FitnessReport.max) * 3;
+      // Fitness that isn't recorded counts nothing — never a perfect score.
+      return rating * 10 + (s?.wins ?? 0) * 2 + (fitness[p.id]?.score ?? 0) * 3;
     }
 
     eligible.sort((a, b) => score(b).compareTo(score(a)));
@@ -76,3 +77,10 @@ class TeamSuggestion {
     );
   }
 }
+
+/// What Suggest Team ranks by, for its description: ratings, form and the
+/// Fitness Meter where match data is recorded ([recorded]); otherwise only
+/// the playing roles (balance and a wicket-keeper) — said plainly.
+String suggestTeamBasis({required bool recorded}) => recorded
+    ? 'rating, recent form and Fitness Meter'
+    : 'playing roles only — ratings, form and fitness aren’t recorded yet';

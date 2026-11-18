@@ -77,6 +77,22 @@ class InMemoryAccountRepository implements AccountRepository {
     return true;
   }
 
+  /// The demo: the account is gone for this app run (sign-in then fails until
+  /// the app restarts with its seed data). The password must be the one used
+  /// to sign in, as on the server.
+  @override
+  Future<void> deleteAccount(String accountId, {required String password}) async {
+    final account = _accounts[accountId];
+    if (account == null) throw const NotSignedInException();
+    // Approved policy: a club owner transfers the club first.
+    if (account.hasClubOwnerProfile) throw const ClubOwnershipTransferRequiredException();
+    final known = _passwords[accountId];
+    if (password.isEmpty || (known != null && known != password)) throw const WrongPasswordException();
+    _accounts.remove(accountId);
+    _passwords.remove(accountId);
+    _changed.remove(accountId);
+  }
+
   // ---- Forgot password ----
 
   static const resetCodeLifetime = Duration(minutes: 10);

@@ -271,7 +271,8 @@ class _CreateTeamFlowSheetState extends ConsumerState<_CreateTeamFlowSheet> {
           padding: const EdgeInsets.symmetric(horizontal: CeSpace.gutter),
           child: Text(
             _picks.isEmpty
-                ? 'Pick Playing XI and substitutes, or use Suggest Team (rating, recent form and Fitness Meter). '
+                ? 'Pick Playing XI and substitutes, or use Suggest Team '
+                    '(${suggestTeamBasis(recorded: ref.watch(fitnessRecordedProvider))}). '
                     "Injured or unavailable players can't be selected."
                 : 'Review the selection — change any player below.',
             style: const TextStyle(fontSize: 11.5, color: CeColors.muted, height: 1.4),

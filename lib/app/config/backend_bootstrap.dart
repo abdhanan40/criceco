@@ -61,5 +61,10 @@ Future<List<Override>> backendOverrides(
     // Used only with the memberships switch (migrations 11–12 live).
     membershipGatewayProvider.overrideWithValue(SupabaseMembershipGateway(client)),
     teamGatewayProvider.overrideWithValue(SupabaseTeamGateway(client)),
+    // Used only with the account-privacy switch (migrations 13–14 and the
+    // delete-account Edge Function live).
+    accountPrivacyGatewayProvider.overrideWithValue(SupabaseAccountPrivacyGateway(client)),
+    // Used only with the account-privacy switch (migration 16 live).
+    ownershipGatewayProvider.overrideWithValue(SupabaseOwnershipGateway(client)),
   ];
 }

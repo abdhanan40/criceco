@@ -28,14 +28,28 @@ Before this change, a Supabase (production) build still filled every module with
 
 | Module | Screens |
 |---|---|
-| matches | Upcoming Matches, Match Setup, My Matches, Match workspace, Playing Opportunities |
-| playerStats | My Performance |
+| matches | Upcoming Matches, Match Setup, My Matches, Match workspace, Playing Opportunities, Select Team / Team Builder / Team Picker (match line-up) |
+| grounds | Book Ground, Ground Details, Select Date, Booking Summary; the Club Setup home-ground question is hidden |
+| payments | Payment, Waiting for Opponent, Opponent Payment, Booking Confirmed, Reservation Expired |
+| availability | Availability; the dashboard availability pill and dot; the Match Availability and Status sheets |
+| announcements | the Announcement quick action (a "not available" sheet, nothing saved) |
+| playerStats | My Performance; the Performance sheet; the Fitness Meter (worked out from recorded matches: "not recorded", never 10/10), Add Workout, fitness filters and sorts; hero and club match records show "–" |
 | challenges | Challenges, Create Slot, Challenge Status, Club Profile |
 | playerHunt | Find Player |
 | tournaments | every tournament route |
-| notifications | Notifications |
+| notifications | Notifications (Back: the role home) and the notifications sheet |
 | memberships | Members, Member Profile, Join Requests, Request Profile |
 | teams | Teams, Team Squad, Add Players |
+
+## Production safety & UX hardening (2026-11-18)
+- **Every route gated:** the 12 booking, payment and line-up routes now go through `_gate` too, so deep links never open a booking or a "Match not found".
+- **Sheets and actions:** launchers use `showModuleSheet` / `showBackendPendingSheet` (`backend_pending.dart`). A "not available yet" sheet replaces any sheet that would save nothing or pretend success (announcement, availability, status, performance, notifications, add workout).
+- **Fitness without match data:** `fitnessRecordedProvider` is false without `playerStats`. The fitness providers then give `null` / `{}`, and Suggest Team counts missing fitness as 0 (not 10) and says what it ranks by.
+- **Settings:** "Public profile" and "Show my stats" appear only where their modules exist. Two-step verification and login alerts appear only in the demo; production shows a note. Phone sharing: docs/ACCOUNT_PRIVACY_AND_DELETION.md.
+- **Safe defaults:**
+  - A release build without `CRICECO_BACKEND` stops with a configuration error screen (`ConfigurationErrorApp`) instead of the demo.
+  - Without `CRICECO_DEMO`, simulators are on only for the memory backend.
+  - A release Supabase build refuses `CRICECO_DEMO=true`.
 
 ## Fixed in the security review (2026-11-16)
 - **Rankings** used the demo club's roster (`playerPool(SeedData.ownClubId)`). Now: the demo keeps it; Supabase ranks only the signed-in owner's own club, and nothing when there is no club.

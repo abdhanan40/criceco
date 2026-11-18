@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/config/backend_modules.dart';
 import '../../../app/providers/core_providers.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/session/session_controller.dart';
@@ -48,9 +49,12 @@ class ClubDashboardScreen extends ConsumerWidget {
     final teams = ref.watch(teamsProvider).value?.length;
     final requests = ref.watch(pendingJoinRequestCountProvider);
     final next = ref.watch(nextClubMatchProvider);
-    final results = matchListOrNull(ref);
+    // No match backend (production builds): no record and no results chart,
+    // never a "Played 0 / Won 0" that looks real.
+    final matchesOn = ref.watch(backendModulesProvider).has(BackendModule.matches);
+    final results = matchesOn ? matchListOrNull(ref) : null;
     final memberList = ref.watch(clubMembersProvider).value;
-    final matchList = ref.watch(clubMatchesProvider).value;
+    final matchList = matchesOn ? ref.watch(clubMatchesProvider).value : null;
     final winRate = results == null || results.total == 0 ? '–' : '${(100 * results.won / results.total).round()}%';
     final notifCount = ref.watch(unreadNotificationCountProvider(UserRole.clubOwner));
     final ownerName = ref.watch(currentAccountProvider)?.fullName.trim() ?? '';

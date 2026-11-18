@@ -11,7 +11,6 @@ import '../../../app/theme/tokens.dart';
 import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/validators.dart';
-import '../../../demo/seed_data.dart';
 import '../../../shared/media/photo_picker.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
@@ -273,7 +272,7 @@ class _JoinClubSheetState extends ConsumerState<_JoinClubSheet> {
       CeTextField(
         fieldKey: const Key('joinClub.code'),
         controller: _code,
-        hint: 'e.g. ${SeedData.demoJoinCode}',
+        hint: 'The code from your club owner',
         icon: 'key',
         textCapitalization: TextCapitalization.characters,
         inputFormatters: [

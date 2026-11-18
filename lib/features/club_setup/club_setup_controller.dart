@@ -58,12 +58,6 @@ class ClubSetupDraft {
       );
 }
 
-/// Prototype `cities` (club city list).
-const kClubCities = [
-  'Karachi', 'Lahore', 'Islamabad', 'Rawalpindi', 'Faisalabad', 'Multan',
-  'Peshawar', 'Quetta', 'Sialkot', 'Hyderabad', 'Other',
-];
-
 class ClubSetupController extends Notifier<ClubSetupDraft> {
   @override
   ClubSetupDraft build() {

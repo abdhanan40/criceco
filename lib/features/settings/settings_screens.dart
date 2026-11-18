@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/config/account_privacy.dart';
 import '../../app/config/auth_features.dart';
+import '../../app/config/backend_modules.dart';
 import '../../app/config/demo_mode.dart';
 import '../../app/router/routes.dart';
 import '../../app/session/account_error_text.dart';
@@ -127,8 +129,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             icon: 'repeat',
             title: 'Active profile',
             subtitle: role?.label ?? 'Not chosen',
-            showDivider: false,
             onTap: role == null ? () => context.go(Routes.roleSelection) : () => _chooseProfile(role),
+          ),
+          CeSettingsRow(
+            key: const Key('settings.deleteAccount'),
+            icon: 'trash-2',
+            title: 'Delete account',
+            subtitle: ref.watch(accountControlsProvider).canDeleteAccount
+                ? 'Permanently delete your account and data'
+                : 'Not available yet',
+            showDivider: false,
+            onTap: () => context.push(Routes.deleteAccount),
           ),
         ]),
         const CeSectionHeader('Preferences'),
@@ -150,7 +161,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           CeSettingsRow(
             icon: 'key',
             title: 'Password & security',
-            subtitle: canChangePassword ? 'Change password, sign-in alerts' : 'Sign-in alerts',
+            subtitle: canChangePassword
+                ? 'Change password, sign-in alerts'
+                : ref.watch(backendModulesProvider).isDemo
+                    ? 'Sign-in alerts'
+                    : 'Sign-in security',
             showDivider: false,
             onTap: () => context.go(Routes.securitySettings),
           ),
@@ -213,18 +228,22 @@ class _PrivacySection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(currentAccountProvider.select((a) => a?.settings)) ?? const AccountSettings();
     final session = ref.read(sessionProvider.notifier);
+    final modules = ref.watch(backendModulesProvider);
+    final huntOn = modules.has(BackendModule.playerHunt);
+    final statsOn = modules.has(BackendModule.playerStats);
+    final phone = ref.watch(accountControlsProvider).phoneSharing;
     return Semantics(
       container: true,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Semantics(
           button: true,
           expanded: open,
-          label: 'Privacy, who can see your profile and stats',
+          label: huntOn ? 'Privacy, who can see your profile and stats' : 'Privacy, who can see your phone number',
           excludeSemantics: true,
           child: CeSettingsRow(
             icon: 'lock',
             title: 'Privacy',
-            subtitle: 'Who can see your profile and stats',
+            subtitle: huntOn ? 'Who can see your profile and stats' : 'Who can see your phone number',
             showDivider: false,
             onTap: onToggle,
             trailing: AnimatedRotation(
@@ -248,35 +267,58 @@ class _PrivacySection extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(CeRadius.md),
                   ),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                    CeToggleRow(
-                      icon: 'eye',
-                      title: 'Public profile',
-                      subtitle: 'Clubs can find you in Find Player',
-                      value: s.publicProfile,
-                      onChanged: (v) => session.updateSettings((x) => x.copyWith(publicProfile: v)),
-                    ),
-                    CeToggleRow(
-                      icon: 'bar-chart',
-                      title: 'Show my stats',
-                      subtitle: 'Owners can view your performance',
-                      value: s.showStats,
-                      onChanged: (v) => session.updateSettings((x) => x.copyWith(showStats: v)),
-                    ),
-                    CeToggleRow(
-                      icon: 'phone',
-                      title: 'Show phone number',
-                      subtitle: 'Visible to your club members only',
-                      value: s.showPhone,
-                      showDivider: false,
-                      onChanged: (v) => session.updateSettings((x) => x.copyWith(showPhone: v)),
-                    ),
-                    CeInfoNote(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      icon: s.publicProfile ? 'eye' : 'eye-off',
-                      text: s.publicProfile
-                          ? 'When you list yourself as available, clubs see you under Find Player → Available Players.'
-                          : 'Hidden: clubs won\'t see you under Find Player → Available Players, even when you\'re available.',
-                    ),
+                    // Find Player and statistics have no backend in production
+                    // builds: their switches would change nothing there.
+                    if (huntOn)
+                      CeToggleRow(
+                        icon: 'eye',
+                        title: 'Public profile',
+                        subtitle: 'Clubs can find you in Find Player',
+                        value: s.publicProfile,
+                        onChanged: (v) => session.updateSettings((x) => x.copyWith(publicProfile: v)),
+                      ),
+                    if (statsOn)
+                      CeToggleRow(
+                        icon: 'bar-chart',
+                        title: 'Show my stats',
+                        subtitle: 'Owners can view your performance',
+                        value: s.showStats,
+                        onChanged: (v) => session.updateSettings((x) => x.copyWith(showStats: v)),
+                      ),
+                    if (phone == PhoneSharingMode.ownersSee)
+                      const CeInfoNote(
+                        key: Key('privacy.phoneVisibleToOwners'),
+                        margin: EdgeInsets.symmetric(vertical: 10),
+                        icon: 'phone',
+                        text: 'The owners of clubs you join or ask to join can see the phone number on your '
+                            'profile. A setting to keep it private is coming in a later version.',
+                      )
+                    else
+                      CeToggleRow(
+                        key: const Key('privacy.sharePhone'),
+                        icon: 'phone',
+                        title: 'Share my phone number',
+                        subtitle: 'With the owners of clubs you join or ask to join',
+                        value: s.showPhone,
+                        showDivider: !huntOn,
+                        onChanged: (v) async {
+                          try {
+                            await session.updateSettings((x) => x.copyWith(showPhone: v));
+                          } catch (e) {
+                            if (context.mounted) {
+                              showCeToast(context, accountErrorText(e, fallback: "Couldn't save — please try again"));
+                            }
+                          }
+                        },
+                      ),
+                    if (huntOn)
+                      CeInfoNote(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        icon: s.publicProfile ? 'eye' : 'eye-off',
+                        text: s.publicProfile
+                            ? 'When you list yourself as available, clubs see you under Find Player → Available Players.'
+                            : 'Hidden: clubs won\'t see you under Find Player → Available Players, even when you\'re available.',
+                      ),
                   ]),
                 ),
         ),
@@ -445,7 +487,11 @@ class _SecuritySettingsScreenState extends ConsumerState<SecuritySettingsScreen>
             ),
           ],
           const CeSectionHeader('Sign-in'),
-          CeGroupCard(children: [
+          // Two-step verification and login alerts need server support that
+          // doesn't exist yet: production builds say so instead of offering
+          // switches that would protect nothing.
+          if (ref.watch(backendModulesProvider).isDemo)
+            CeGroupCard(children: [
             CeToggleRow(
               icon: 'shield',
               title: 'Two-step verification',
@@ -461,7 +507,15 @@ class _SecuritySettingsScreenState extends ConsumerState<SecuritySettingsScreen>
               showDivider: false,
               onChanged: (v) => session.updateSettings((x) => x.copyWith(loginAlerts: v)),
             ),
-          ]),
+            ])
+          else
+            const CeInfoNote(
+              key: Key('security.signInPending'),
+              margin: EdgeInsets.fromLTRB(CeSpace.gutter, 4, CeSpace.gutter, 0),
+              icon: 'shield',
+              text: 'Two-step verification and new sign-in alerts aren’t available yet. '
+                  'Keep your password private and use one you don’t use anywhere else.',
+            ),
         ],
       ),
     );

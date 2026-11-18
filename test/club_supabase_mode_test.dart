@@ -67,6 +67,8 @@ Future<ProviderContainer> _start(
         authGatewayProvider.overrideWithValue(auth),
         profileGatewayProvider.overrideWithValue(db),
         clubGatewayProvider.overrideWithValue(clubDb),
+        // Club Setup picks the club city from the locations (Supabase: the tables).
+        locationGatewayProvider.overrideWithValue(FakeLocationGateway()),
       ],
       ...extra,
     ],
@@ -154,7 +156,8 @@ Future<void> _fillClub(WidgetTester tester) async {
   await _tap(tester, find.byKey(const Key('club.city')));
   await _tap(tester, find.text('Karachi').last);
   await _tap(tester, find.text('Professional'));
-  await _tap(tester, find.text('No'));
+  // No home-ground question: grounds have no backend in Supabase builds.
+  expect(find.byKey(const Key('club.homeGround')), findsNothing);
 }
 
 Finder get _clubCard => find.bySemanticsLabel(RegExp(r'^Club Owner\. '));
