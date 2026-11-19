@@ -1,18 +1,57 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/providers/core_providers.dart';
 import '../../app/session/account_error_text.dart';
 import '../../app/session/session_controller.dart';
 import '../../app/theme/tokens.dart';
 import '../../core/models/models.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/utils/validators.dart';
+import '../../data/repositories/repositories.dart';
 import '../../shared/widgets/ce_buttons.dart';
 import '../../shared/widgets/ce_feedback.dart';
 import '../../shared/widgets/ce_icons.dart';
 import '../../shared/widgets/ce_inputs.dart';
 import '../../shared/widgets/demo_widgets.dart';
+import 'verify_email_sheet.dart' show kSignUpCodeResendCooldown;
+
+/// How long "Resend code" waits after a reset code was sent — the same as
+/// the sign-up code (the backend's minimum interval between two emails).
+const kResetCodeResendCooldown = kSignUpCodeResendCooldown;
+
+/// The last reset-code request to an address: when, and its ticket — `null`
+/// when the backend refused it as too soon (rate limited: no code is known,
+/// so Send Code waits instead of showing the code step).
+typedef PasswordResetSend = ({DateTime sentAt, PasswordResetTicket? ticket});
+
+/// Reset codes sent while the app runs, by phone number / email (trimmed,
+/// case-insensitive), so a reopened Forgot Password sheet continues the
+/// [kResetCodeResendCooldown] instead of sending again (which the backend
+/// would refuse).
+class PasswordResetCooldowns extends Notifier<Map<String, PasswordResetSend>> {
+  @override
+  Map<String, PasswordResetSend> build() => const {};
+
+  static String keyOf(String identifier) => identifier.trim().toLowerCase();
+
+  void sent(String identifier, PasswordResetSend send) => state = {...state, keyOf(identifier): send};
+
+  void clear(String identifier) => state = {...state}..remove(keyOf(identifier));
+
+  /// The send to [identifier] still inside the cooldown at [now], if any.
+  PasswordResetSend? recent(String identifier, DateTime now) {
+    final send = state[keyOf(identifier)];
+    if (send == null || now.difference(send.sentAt) >= kResetCodeResendCooldown) return null;
+    return send;
+  }
+}
+
+final passwordResetCooldownsProvider =
+    NotifierProvider<PasswordResetCooldowns, Map<String, PasswordResetSend>>(PasswordResetCooldowns.new);
 
 /// "Forgot password?" (Login, and Settings → Password & security): one sheet,
 /// three steps — phone number or email → 6-digit code → new password.
@@ -65,10 +104,27 @@ class _ForgotPasswordSheetState extends ConsumerState<_ForgotPasswordSheet> {
   String? _note; // "A new code was sent."
   bool _busy = false;
 
+  /// Seconds until a code can be requested again (0: now): "Resend code" on
+  /// the code step; "Send Code" on the first step after the backend refused
+  /// a request to this address as too soon.
+  int _secondsLeft = 0;
+  Timer? _countdown;
+
   SessionController get _session => ref.read(sessionProvider.notifier);
+  PasswordResetCooldowns get _cooldowns => ref.read(passwordResetCooldownsProvider.notifier);
+  DateTime get _now => ref.read(clockProvider).now();
+
+  @override
+  void initState() {
+    super.initState();
+    _syncSendCooldown(rebuild: false); // a prefilled address may still be waiting
+    _identifier.addListener(_syncSendCooldown);
+  }
 
   @override
   void dispose() {
+    _countdown?.cancel();
+    _identifier.removeListener(_syncSendCooldown);
     _identifier.dispose();
     _code.dispose();
     _password.dispose();
@@ -110,11 +166,99 @@ class _ForgotPasswordSheetState extends ConsumerState<_ForgotPasswordSheet> {
     }
   }
 
-  /// Step 1 (and "Resend code"): send a fresh code.
+  void _startCountdown([Duration left = kResetCodeResendCooldown]) {
+    _countdown?.cancel();
+    _secondsLeft = left.isNegative ? 0 : (left.inMilliseconds / 1000).ceil();
+    if (_secondsLeft <= 0) return;
+    _countdown = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) return t.cancel();
+      setState(() => _secondsLeft--);
+      if (_secondsLeft <= 0) t.cancel();
+    });
+  }
+
+  String _countdownLabel(String label) {
+    if (_secondsLeft <= 0) return label;
+    final s = _secondsLeft;
+    return '$label in ${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
+  }
+
+  /// First step: "Send Code" waits while the address typed was refused as
+  /// too soon ([PasswordResetSend.ticket] `null`) — per address, so another
+  /// address can be sent to at once. Runs as the address is typed.
+  void _syncSendCooldown({bool rebuild = true}) {
+    if (_step != _Step.request) return;
+    void apply(VoidCallback change) => rebuild ? setState(change) : change();
+    final send = _cooldowns.recent(_identifier.text, _now);
+    if (send == null || send.ticket != null) {
+      if (_secondsLeft > 0) {
+        apply(() {
+          _countdown?.cancel();
+          _secondsLeft = 0;
+        });
+      }
+      return;
+    }
+    if (_secondsLeft > 0 && _countdown?.isActive == true && _waitingFor == PasswordResetCooldowns.keyOf(_identifier.text)) {
+      return; // already counting down for this address
+    }
+    apply(() {
+      _waitingFor = PasswordResetCooldowns.keyOf(_identifier.text);
+      _startCountdown(kResetCodeResendCooldown - _now.difference(send.sentAt));
+    });
+  }
+
+  /// The address the first step's countdown is for.
+  String? _waitingFor;
+
+  /// Step 1 (and "Resend code", after [kResetCodeResendCooldown]): send a
+  /// fresh code. A code sent to this address moments ago (the sheet was
+  /// closed and reopened) is not sent again: the sheet continues with it.
+  /// Every answer is remembered for the address, even when the sheet was
+  /// closed while the request was on its way.
   Future<void> _sendCode({bool resend = false}) async {
+    if (_busy || _secondsLeft > 0) return;
     if (!resend && !(_formKey.currentState?.validate() ?? false)) return;
+    final identifier = _identifier.text;
+    final cooldowns = _cooldowns;
+    final clock = ref.read(clockProvider);
+    final recent = resend ? null : cooldowns.recent(identifier, clock.now());
+    if (recent != null) {
+      final ticket = recent.ticket;
+      if (ticket == null) {
+        _syncSendCooldown(); // still refused: wait
+        return;
+      }
+      _code.clear();
+      setState(() {
+        _error = null;
+        _ticket = ticket;
+        _step = _Step.code;
+        _note = 'A code was sent recently — check your email.';
+        _startCountdown(kResetCodeResendCooldown - clock.now().difference(recent.sentAt));
+      });
+      return;
+    }
+    final previous = _ticket;
     await _run(() async {
-      final ticket = await _session.requestPasswordReset(_identifier.text);
+      final PasswordResetTicket? response;
+      try {
+        response = await _session.requestPasswordReset(identifier);
+      } on TooManyRequestsException catch (e) {
+        // The backend refused another email so soon: wait out a full
+        // cooldown (on Resend, the code already sent still works).
+        cooldowns.sent(identifier, (sentAt: clock.now(), ticket: resend ? previous : null));
+        if (!mounted) return;
+        setState(() {
+          _note = null;
+          _error = e.message;
+          _waitingFor = resend ? null : PasswordResetCooldowns.keyOf(identifier);
+          _startCountdown();
+        });
+        return;
+      }
+      final ticket = response;
+      if (ticket != null) cooldowns.sent(identifier, (sentAt: clock.now(), ticket: ticket));
       if (!mounted) return;
       if (ticket == null) {
         setState(() => _error = 'No account found with this phone number or email.');
@@ -125,6 +269,7 @@ class _ForgotPasswordSheetState extends ConsumerState<_ForgotPasswordSheet> {
         _ticket = ticket;
         _step = _Step.code;
         _note = resend ? 'A new code was sent to ${ticket.destination}.' : null;
+        _startCountdown();
       });
     });
   }
@@ -132,8 +277,12 @@ class _ForgotPasswordSheetState extends ConsumerState<_ForgotPasswordSheet> {
   /// Step 2: check the code before asking for the new password.
   Future<void> _verify() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
+    final identifier = _identifier.text;
+    final cooldowns = _cooldowns; // not through ref once the sheet may be closed
     await _run(() async {
-      final check = await _session.verifyResetCode(_identifier.text, _code.text);
+      final check = await _session.verifyResetCode(identifier, _code.text);
+      // An accepted code is used up: a later reset starts with a new one.
+      if (check == ResetCodeCheck.ok) cooldowns.clear(identifier);
       if (!mounted) return;
       // A remote backend opened the recovery session: Reset Password (the
       // router guard) takes the new password.
@@ -170,12 +319,20 @@ class _ForgotPasswordSheetState extends ConsumerState<_ForgotPasswordSheet> {
     });
   }
 
-  void _changeIdentifier() => setState(() {
-        _step = _Step.request;
-        _ticket = null;
-        _error = null;
-        _note = null;
-      });
+  /// Back to the first step: the code step's countdown stops; each address
+  /// keeps its own cooldown (going back to it continues where it was).
+  void _changeIdentifier() {
+    setState(() {
+      _countdown?.cancel();
+      _secondsLeft = 0;
+      _waitingFor = null;
+      _step = _Step.request;
+      _ticket = null;
+      _error = null;
+      _note = null;
+    });
+    _syncSendCooldown();
+  }
 
   /// Neutral when the backend doesn't say whether the account exists.
   String _codeSubtitle() {
@@ -247,7 +404,12 @@ class _ForgotPasswordSheetState extends ConsumerState<_ForgotPasswordSheet> {
                 ),
                 CeInlineError(_error),
                 const SizedBox(height: 8),
-                CeButton(label: 'Send Code', loading: _busy, onPressed: _busy ? null : _sendCode),
+                CeButton(
+                  key: const Key('reset.send'),
+                  label: _countdownLabel('Send Code'),
+                  loading: _busy,
+                  onPressed: _busy || _secondsLeft > 0 ? null : _sendCode,
+                ),
                 const SizedBox(height: 10),
                 CeButton.soft(label: 'Cancel', onPressed: () => Navigator.of(context).pop()),
               ],
@@ -289,8 +451,9 @@ class _ForgotPasswordSheetState extends ConsumerState<_ForgotPasswordSheet> {
                       child: Text(widget.emailOnly ? 'Change email' : 'Change number or email'),
                     ),
                   TextButton(
-                    onPressed: _busy ? null : () => _sendCode(resend: true),
-                    child: const Text('Resend code'),
+                    key: const Key('reset.resend'),
+                    onPressed: _busy || _secondsLeft > 0 ? null : () => _sendCode(resend: true),
+                    child: Text(_countdownLabel('Resend code')),
                   ),
                 ]),
               ],

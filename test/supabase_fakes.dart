@@ -171,12 +171,18 @@ class FakeAuth implements AuthGateway {
 
   AuthSessionKind kind = AuthSessionKind.none;
 
+  /// When set, [sendPasswordReset] waits for it before answering (a request
+  /// still on its way, e.g. while the sheet is closed).
+  Future<void>? resetGate;
+
   @override
   Future<void> sendPasswordReset({
     required String email,
     String? redirectTo,
   }) async {
     _maybeFail('sendPasswordReset');
+    final gate = resetGate;
+    if (gate != null) await gate;
     lastRedirect = redirectTo;
     final sent = _recoveryCodes[email];
     if (sent != null && now().isBefore(sent.sentAt.add(resendInterval))) {

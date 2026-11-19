@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:clock/clock.dart';
 import 'package:criceco/app/app.dart';
 import 'package:criceco/app/config/auth_features.dart';
@@ -563,6 +565,18 @@ void main() {
 
     Finder button(String label) => find.widgetWithText(CeButton, label);
 
+    TextButton resendButton(WidgetTester tester) =>
+        tester.widget<TextButton>(find.byKey(const Key('reset.resend')));
+    String resendLabel(WidgetTester tester) =>
+        (resendButton(tester).child! as Text).data!;
+    bool resendEnabled(WidgetTester tester) =>
+        resendButton(tester).onPressed != null;
+    CeButton sendButton(WidgetTester tester) =>
+        tester.widget<CeButton>(find.byKey(const Key('reset.send')));
+    String sendLabel(WidgetTester tester) => sendButton(tester).label;
+    bool sendEnabled(WidgetTester tester) =>
+        sendButton(tester).onPressed != null;
+
     setUp(freshBackend);
 
     testWidgets(
@@ -696,11 +710,272 @@ void main() {
         );
         await tap(tester, button('Send Code'));
         expect(find.byKey(const Key('reset.step.code')), findsOneWidget);
-        await tap(tester, find.text('Resend code'));
+        // The countdown is over but the backend still refuses (its clock has
+        // not moved): its 429 is the app's own message, and a full cooldown
+        // starts again.
+        await tester.pump(const Duration(seconds: 60));
+        expect(resendEnabled(tester), isTrue);
+        await tap(tester, find.byKey(const Key('reset.resend')));
         expect(
           find.text('Too many attempts — please wait a moment and try again'),
           findsOneWidget,
         );
+        expect(auth.recoveryEmails, [email]);
+        expect(resendLabel(tester), 'Resend code in 1:00');
+        expect(resendEnabled(tester), isFalse);
+      },
+    );
+
+    testWidgets(
+      'Resend: off for 60 s after a code (counting down), then sends a new one',
+      (tester) async {
+        await pump(tester);
+        await tap(tester, find.byKey(const Key('login.forgot')));
+        await enter(tester, 'reset.identifier', email);
+        await tap(tester, button('Send Code'));
+        expect(auth.recoveryEmails, [email]);
+        expect(resendLabel(tester), 'Resend code in 1:00');
+        expect(resendEnabled(tester), isFalse);
+
+        // Tapping during the countdown sends nothing.
+        await tester.tap(
+          find.byKey(const Key('reset.resend')),
+          warnIfMissed: false,
+        );
+        await tester.pumpAndSettle();
+        expect(auth.recoveryEmails, [email]);
+
+        await tester.pump(const Duration(seconds: 30));
+        expect(resendLabel(tester), 'Resend code in 0:30');
+        expect(resendEnabled(tester), isFalse);
+        await tester.pump(const Duration(seconds: 29));
+        expect(resendLabel(tester), 'Resend code in 0:01');
+        await tester.pump(const Duration(seconds: 1));
+        expect(resendLabel(tester), 'Resend code');
+        expect(resendEnabled(tester), isTrue);
+
+        t = t.add(const Duration(seconds: 60));
+        final first = auth.lastRecoveryCode(email);
+        await tap(tester, find.byKey(const Key('reset.resend')));
+        expect(auth.recoveryEmails, [email, email]);
+        expect(auth.lastRecoveryCode(email), isNot(first));
+        expect(
+          find.text('A new code was sent to p•••@example.com.'),
+          findsOneWidget,
+        );
+        expect(resendLabel(tester), 'Resend code in 1:00');
+        expect(resendEnabled(tester), isFalse);
+      },
+    );
+
+    testWidgets('repeated taps send one request (Send Code and Resend)', (
+      tester,
+    ) async {
+      await pump(tester);
+      await tap(tester, find.byKey(const Key('login.forgot')));
+      await enter(tester, 'reset.identifier', email);
+      // Two taps before the first request finishes.
+      await tester.tap(button('Send Code'));
+      await tester.tap(button('Send Code'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(auth.calls.where((c) => c == 'sendPasswordReset'), hasLength(1));
+      expect(auth.recoveryEmails, [email]);
+
+      await tester.pump(const Duration(seconds: 60));
+      t = t.add(const Duration(seconds: 60));
+      final resend = find.byKey(const Key('reset.resend'));
+      await tester.ensureVisible(resend);
+      await tester.pumpAndSettle();
+      await tester.tap(resend);
+      await tester.tap(resend, warnIfMissed: false);
+      await tester.tap(resend, warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(auth.calls.where((c) => c == 'sendPasswordReset'), hasLength(2));
+      expect(auth.recoveryEmails, [email, email]);
+    });
+
+    testWidgets(
+      'reopened within 60 s: continues the countdown without sending again; later it sends',
+      (tester) async {
+        await pump(tester);
+        Future<void> openAndSend() async {
+          await tap(tester, find.byKey(const Key('login.forgot')));
+          await enter(tester, 'reset.identifier', email);
+          await tap(tester, button('Send Code'));
+        }
+
+        Future<void> close() async {
+          Navigator.of(tester.element(find.byKey(const Key('reset.step.code'))))
+              .pop();
+          await tester.pumpAndSettle();
+          expect(find.byKey(const Key('reset.step.code')), findsNothing);
+        }
+
+        await openAndSend();
+        expect(auth.recoveryEmails, [email]);
+        await close();
+
+        // 20 s later: the same code is still the newest — nothing is sent.
+        t = t.add(const Duration(seconds: 20));
+        await openAndSend();
+        expect(find.byKey(const Key('reset.step.code')), findsOneWidget);
+        expect(auth.recoveryEmails, [email]);
+        expect(
+          find.text('A code was sent recently — check your email.'),
+          findsOneWidget,
+        );
+        expect(resendLabel(tester), 'Resend code in 0:40');
+        expect(resendEnabled(tester), isFalse);
+        await close();
+
+        // After the cooldown: Send Code sends a new code at once.
+        t = t.add(const Duration(seconds: 40));
+        await openAndSend();
+        expect(auth.recoveryEmails, [email, email]);
+        expect(
+          find.text('A code was sent recently — check your email.'),
+          findsNothing,
+        );
+        expect(resendLabel(tester), 'Resend code in 1:00');
+      },
+    );
+
+    testWidgets(
+      'first Send Code refused as too soon: that address waits 60 s (also after reopening), others do not',
+      (tester) async {
+        await pump(tester);
+        await tap(tester, find.byKey(const Key('login.forgot')));
+        await enter(tester, 'reset.identifier', email);
+        auth.failNext = const GatewayRateLimitedException();
+        await tap(tester, button('Send Code'));
+        expect(
+          find.text('Too many attempts — please wait a moment and try again'),
+          findsOneWidget,
+        );
+        expect(find.byKey(const Key('reset.step.request')), findsOneWidget);
+        expect(sendLabel(tester), 'Send Code in 1:00');
+        expect(sendEnabled(tester), isFalse);
+        int requests() =>
+            auth.calls.where((c) => c == 'sendPasswordReset').length;
+        expect(requests(), 1);
+
+        // Tapping or submitting while it waits sends nothing.
+        await tester.tap(
+          find.byKey(const Key('reset.send')),
+          warnIfMissed: false,
+        );
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pumpAndSettle();
+        expect(requests(), 1);
+
+        // Another address can be sent to at once; the same one (any case,
+        // spaces around it) still waits.
+        await enter(tester, 'reset.identifier', 'other@example.com');
+        expect(sendLabel(tester), 'Send Code');
+        expect(sendEnabled(tester), isTrue);
+        await enter(tester, 'reset.identifier', '  PLAYER@Example.COM ');
+        expect(sendEnabled(tester), isFalse);
+
+        // Closed and reopened 15 s later: still waiting, 0:45 left.
+        await tap(tester, button('Cancel'));
+        t = t.add(const Duration(seconds: 15));
+        await tester.pump(const Duration(seconds: 15));
+        await tap(tester, find.byKey(const Key('login.forgot')));
+        await enter(tester, 'reset.identifier', email);
+        expect(sendLabel(tester), 'Send Code in 0:45');
+        expect(sendEnabled(tester), isFalse);
+
+        // After the cooldown it sends.
+        t = t.add(const Duration(seconds: 45));
+        await tester.pump(const Duration(seconds: 45));
+        expect(sendLabel(tester), 'Send Code');
+        await tap(tester, button('Send Code'));
+        expect(find.byKey(const Key('reset.step.code')), findsOneWidget);
+        expect(auth.recoveryEmails, [email]);
+        expect(requests(), 2);
+        expect(resendLabel(tester), 'Resend code in 1:00');
+      },
+    );
+
+    testWidgets(
+      'sheet closed while the request is on its way: reopening does not send again',
+      (tester) async {
+        await pump(tester);
+        final gate = Completer<void>();
+        auth.resetGate = gate.future;
+        await tap(tester, find.byKey(const Key('login.forgot')));
+        await enter(tester, 'reset.identifier', email);
+        await tester.tap(button('Send Code'));
+        await tester.pump();
+        Navigator.of(
+          tester.element(find.byKey(const Key('reset.step.request'))),
+        ).pop();
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('reset.step.request')), findsNothing);
+
+        // The answer arrives after the sheet is gone.
+        auth.resetGate = null;
+        gate.complete();
+        await tester.pumpAndSettle();
+        expect(auth.recoveryEmails, [email]);
+
+        t = t.add(const Duration(seconds: 10));
+        await tap(tester, find.byKey(const Key('login.forgot')));
+        await enter(tester, 'reset.identifier', email);
+        await tap(tester, button('Send Code'));
+        expect(find.byKey(const Key('reset.step.code')), findsOneWidget);
+        expect(auth.recoveryEmails, [email]);
+        expect(auth.calls.where((c) => c == 'sendPasswordReset'), hasLength(1));
+        expect(
+          find.text('A code was sent recently — check your email.'),
+          findsOneWidget,
+        );
+        expect(resendLabel(tester), 'Resend code in 0:50');
+      },
+    );
+
+    testWidgets(
+      'Change email: each address has its own cooldown (trimmed, case-insensitive)',
+      (tester) async {
+        const other = 'other@example.com';
+        await pump(tester);
+        await tap(tester, find.byKey(const Key('login.forgot')));
+        await enter(tester, 'reset.identifier', email);
+        await tap(tester, button('Send Code'));
+        expect(resendLabel(tester), 'Resend code in 1:00');
+
+        // 20 s later another address: its own, full cooldown.
+        t = t.add(const Duration(seconds: 20));
+        await tester.pump(const Duration(seconds: 20));
+        await tap(tester, find.text('Change email'));
+        expect(find.byKey(const Key('reset.step.request')), findsOneWidget);
+        expect(sendEnabled(tester), isTrue);
+        await enter(tester, 'reset.identifier', other);
+        await tap(tester, button('Send Code'));
+        expect(auth.recoveryEmails, [email, other]);
+        expect(resendLabel(tester), 'Resend code in 1:00');
+
+        // 10 s later back to the first one, typed differently: nothing is
+        // sent, its own countdown continues (30 s left).
+        t = t.add(const Duration(seconds: 10));
+        await tester.pump(const Duration(seconds: 10));
+        await tap(tester, find.text('Change email'));
+        await enter(tester, 'reset.identifier', '  PLAYER@Example.com  ');
+        await tap(tester, button('Send Code'));
+        expect(find.byKey(const Key('reset.step.code')), findsOneWidget);
+        expect(auth.recoveryEmails, [email, other]);
+        expect(
+          find.text('A code was sent recently — check your email.'),
+          findsOneWidget,
+        );
+        expect(resendLabel(tester), 'Resend code in 0:30');
+
+        // And the second one again: 50 s left.
+        await tap(tester, find.text('Change email'));
+        await enter(tester, 'reset.identifier', 'Other@Example.com');
+        await tap(tester, button('Send Code'));
+        expect(auth.recoveryEmails, [email, other]);
+        expect(resendLabel(tester), 'Resend code in 0:50');
       },
     );
 

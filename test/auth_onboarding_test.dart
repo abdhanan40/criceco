@@ -341,6 +341,7 @@ void main() {
         await _enter(tester, 'reset.identifier', '0312-9020000');
         await _tap(tester, _button('Send Code'));
         await _tap(tester, _button('Verify Code'));
+        await tester.pump(const Duration(seconds: 60)); // the resend cooldown
         await _tap(tester, find.text('Resend code'));
         expect(find.byKey(const Key('reset.note')), findsOneWidget);
         expect(tester.takeException(), isNull, reason: 'code @ $width');
