@@ -1,6 +1,10 @@
-# Matches backend — migration 17 (M1, P1)
+# Matches backend — migrations 17–19 (M1, P1–P2)
 
-**Status (2026-11-20):** implemented and validated on a disposable PostgreSQL 17.11. **Not applied to production.** No app code uses it yet. The Flutter data layer (P3) and UI (P4–P6) come later, behind a new `CRICECO_MATCHES` switch (off by default).
+**Status (2026-11-20):** implemented and validated on a disposable PostgreSQL 17.11.
+- **Migration 17** (challenges and matches, P1): committed in `930640c`.
+- **Migrations 18 and 19** (lineups and player availability, P2): written and validated; see [P2](#p2--lineups-migration-18-and-player-availability-migration-19).
+
+**None of them is applied to production.** No app code uses them yet. The Flutter data layer (P3) and UI (P4–P6) come later, behind a new `CRICECO_MATCHES` switch (off by default).
 
 ## Purpose and scope
 Migration 17 adds the server side of the challenge → match flow:
@@ -62,7 +66,7 @@ clubs ──< matches (club_a_id = challenger, club_b_id)
 
 **Indexes:** `(club_a_id, status, starts_at)` and `(club_b_id, status, starts_at)`.
 
-**Teams:** P1 references no teams. P2 line-ups will reference `teams` with `ON DELETE RESTRICT`. Teams are only ever archived, never deleted.
+**Teams:** migration 17 references no teams. Lineups (migration 18) reference `teams` with `ON DELETE RESTRICT`. Teams are only ever archived, never deleted.
 
 ## Lifecycle
 
@@ -168,16 +172,14 @@ Both test scripts refuse to run on a real Supabase project, and they delete thei
 
 ## Production (not done; separate approval for each step)
 1. Fresh backup.
-2. Run the post-check before applying: expect FAIL/ABSENT.
-3. Apply migration 17 in one transaction.
-4. Run the post-check again: 13/13 PASS.
+2. Run the post-checks before applying: expect FAIL/ABSENT.
+3. Apply migrations 17, 18 and 19 in that order, each in its own transaction.
+4. Run the post-checks again: 17 (13/13), 18 (12/12) and 19 (10/10) PASS.
 5. Later: the app build with `CRICECO_MATCHES=true`, then end-to-end tests with two approved test club-owner accounts.
 
-## Deferred (not in migration 17)
+## Deferred (not in migrations 17–19)
 | Item | Where |
 |---|---|
-| Match line-ups (11 + 4, own club only) | P2, migration 18 |
-| Player availability | P2, migration 19 |
 | Per-match availability replies | Later (decision 6) |
 | Shared availability slots / Find Opponent listings | M1.x (decision 7) |
 | Results, scorecards, `completed` | M2 |
@@ -191,3 +193,194 @@ Both test scripts refuse to run on a real Supabase project, and they delete thei
 - **Lazy expiry:** expired challenges are marked when the pair or the sender next sends, or when someone answers. Reads show the effective status.
 - **No pagination:** `club_challenges` and `club_matches` return all rows (fine at the current scale). The directory returns at most 50 rows.
 - **Club deletion:** deleting a club (admin only; owners can't delete their account while they own one) removes its challenges and matches, including from the opponent's history.
+
+---
+
+## P2 — lineups (migration 18) and player availability (migration 19)
+
+**Order:** 17 → 18 → 19 to apply, and 19 → 18 → 17 to roll back. Every script refuses the wrong order.
+
+Migration 19 depends on 18: the rule "no injured or unavailable player in a lineup" needs the availability table, so 19 adds that check to `match_lineup_players` as a trigger. Until 19 is applied, lineups don't check availability. Deploy them together.
+
+### Tables
+```
+matches ──< match_lineups (match_id, club_id)  ──< match_lineup_players (match_id, club_id, member_id)
+clubs ──< match_lineups        teams ──< match_lineups.source_team_id (RESTRICT)
+club_members ──< match_lineup_players.member_id, match_lineups.captain/vice_captain_member_id
+profiles ──1:1── player_availability (user_id)
+```
+
+**`match_lineups`**
+| Column | Rules |
+|---|---|
+| Key | Primary key `(match_id, club_id)`: one lineup per club per match |
+| `match_id`, `club_id` | FK `matches` and FK `clubs`, both `ON DELETE CASCADE`. Trigger `match_lineups_validate`: the club must be one of the match's two clubs |
+| `name` | 1–40 characters, spaces normalised |
+| `source_team_id` | Optional. FK `teams`, `ON DELETE RESTRICT`: a team used by a lineup can't be hard-deleted. Deleting a whole club still works and removes its lineups too (tested) |
+| `captain_member_id`, `vice_captain_member_id` | Optional, must differ. FK `club_members`, `ON DELETE SET NULL` |
+| `saved_at`, `saved_by` | `saved_by` is an FK to `profiles`, `ON DELETE SET NULL` |
+
+**`match_lineup_players`**
+| Column | Rules |
+|---|---|
+| Key | Primary key `(match_id, club_id, member_id)` |
+| Position | Unique per lineup, 1–15, in pick order |
+| `selection` | `playing` or `sub` |
+| `member_id` | FK `club_members`, `ON DELETE CASCADE` |
+| `(match_id, club_id)` | FK `match_lineups`, `ON DELETE CASCADE` |
+| Trigger `match_lineup_players_validate` | Only an ACTIVE member of that same club |
+
+**`player_availability`**
+| Column | Rules |
+|---|---|
+| `user_id` | Primary key; FK `profiles`, `ON DELETE CASCADE` |
+| `status` | `available`, `limited`, `unavailable`, `injured` or `other` |
+| `reason` | Optional: `injury`, `personal`, `work`, `travel`, `family_emergency`, `rest_day` or `other` (the app's `AvailabilityReason`) |
+| `until_date` | Optional |
+| `notes` | Optional, 1–200 characters |
+| `updated_at` | Set on each save |
+| Constraint `player_availability_available_is_plain` | `available` never has a reason or a date |
+| No record | Means available |
+
+### Lineup lifecycle and validation
+`save_match_lineup(p_match_id, p_name, p_source_team_id, p_players, p_captain_member_id, p_vice_member_id)` returns the saved `match_lineups` row.
+
+`p_players` is a JSON array in pick order: `[{"member_id": "…", "selection": "playing" | "sub"}, …]`. Positions come from the array order, so the function can't produce duplicate positions; the unique key also refuses them on direct writes.
+
+| Rule | Error |
+|---|---|
+| Caller signed in | `lineup: not authenticated` (42501) |
+| Caller is the **owner** of one of the match's clubs; the lineup saved is that club's | `lineup: not allowed` (42501) |
+| Match exists | `lineup: not found` (P0002) |
+| Match is **confirmed** (pending, cancelled and completed are refused) | `lineup: match not confirmed` (P0001) |
+| Match has not started | `lineup: match started` (P0001) |
+| Name 1–40 characters | `lineup: invalid name` (22023) |
+| Well-formed array; no player twice | `lineup: invalid` (22023) |
+| **Exactly 11 playing + 4 sub** | `lineup: invalid squad` (23514) |
+| Captain: in the Playing XI; not the vice-captain | `lineup: invalid captain` (22023) |
+| Vice-captain: in the Playing XI | `lineup: invalid vice-captain` (22023) |
+| Source team belongs to this club | `lineup: invalid team` (22023) |
+| Source team is active | `lineup: team archived` (P0001) |
+| Every player is an **active member of this club** (never another club's) | `lineup: player not in club` (23514) |
+| No player is **injured or unavailable** on the match day (migration 19) | `lineup: player unavailable` (P0001) |
+
+- **Availability on the match day:** a player is blocked when there is no until date, or the until date is on or after the match's date (Asia/Karachi). "Unavailable until Friday" can play on Saturday. `limited` and `other` never block.
+- **A later change** to a player's status doesn't alter lineups already saved.
+- **Atomic:** every check runs before anything is written. A failure at any point, including inside a trigger, rolls back the whole call, and the previous lineup stays exactly as it was (tested with an injected failure).
+- **Saving again replaces** the club's whole lineup: name, team, players, captain and vice-captain.
+
+### Lineup privacy
+`match_lineup(p_match_id)` returns the caller's **own club's** lineup only: as its owner, or as an active member. It returns one row per player in pick order, with the player's name and role; no rows if nothing is saved. It works in any match status.
+
+The opponent club, outsiders and removed members get `lineup: not allowed` from the function and no rows from the tables (RLS).
+
+Someone who is an active member of **both** clubs is a member of each, so they see each club's lineup.
+
+### Member removal and history
+- **Removal from the club** (`remove_club_member`): trigger `club_members_leave_match_lineups` takes the member out of that club's lineups for every match that is **not completed**, and clears them as captain or vice-captain there. The lineup is then short and must be saved again.
+- **Completed matches** keep their lineups and captains.
+- **Existing behaviour:** `club_members_leave_teams` (team squads) is unchanged and still runs.
+- **Account deletion** deletes the person's memberships and, with them, their lineup rows everywhere, completed matches included: personal data goes, as migration 14 requires. M2 results will keep their own snapshot.
+
+### Availability functions and privacy
+| Function | Who | Returns |
+|---|---|---|
+| `set_my_availability(p_status, p_reason, p_until_date, p_notes)` | Any signed-in person, for **themself only** (`auth.uid()`; no user id parameter) | The saved row |
+| `my_availability()` | The caller | Their own record (no rows means available) |
+| `club_player_availability(p_club_id)` | That club's **owner** | The club's **active** members: member id, user id, name, role, status (`available` if no record), reason, until date, notes, `updated_at`, and `locks_selection` (injured or unavailable covering today) |
+
+`set_my_availability` normalises its input: status and reason are trimmed and lower-cased; blank notes become `NULL`; `available` clears the reason and date.
+
+Its errors:
+
+| Error | Raised when |
+|---|---|
+| `availability: invalid status` (22023) | The status is not one of the five values |
+| `availability: invalid reason` (22023) | The reason is not one of the seven values |
+| `availability: invalid date` (22023) | The until date is before today or more than a year ahead (Asia/Karachi) |
+| `availability: invalid notes` (22023) | The notes are over 200 characters |
+| `availability: not authenticated` / `not allowed` (42501) | No session, or the caller is not that club's owner (`club_player_availability`) |
+
+**Who can read a record** (RLS):
+- the person themself;
+- the owner of a club where the person is an **active** member.
+
+That excludes other members, the opponent club, a club the person was removed from, and anonymous users.
+
+Helpers:
+- `is_owner_of_active_member(uuid)`: the policy helper, executable by `authenticated`;
+- `availability_locks_on(status, until, day)`: internal.
+
+### RLS and permissions (P2)
+- All three tables have RLS on, a **SELECT-only** policy, and no INSERT, UPDATE or DELETE grant for `authenticated`. `anon` and `PUBLIC` get nothing.
+- All writes go through `save_match_lineup` and `set_my_availability`.
+- The API functions are `SECURITY DEFINER` with `search_path = ''` and are executable by `authenticated` only.
+- The trigger functions and `availability_locks_on` can't be called by app roles.
+
+### Concurrency (lineups)
+`save_match_lineup` locks in a fixed order before writing anything: the match row (`FOR SHARE`), then the selected players' memberships (`FOR SHARE`, in id order), then the lineup row.
+
+| Race | Result |
+|---|---|
+| A cancellation or reschedule during a save | Waits for the save |
+| A member removed during a save | The removal waits, then takes the member out of the saved lineup |
+| A save during a removal | The save waits, then refuses the removed player |
+| Two saves of one lineup at once | They run one after the other; the second one's lineup remains, never a mix |
+| Both clubs saving at the same time | Allowed |
+
+### Files (P2)
+| Area | Files |
+|---|---|
+| Migrations | `supabase/migrations/20261120090100_create_match_lineups.sql`, `…090200_create_player_availability.sql` |
+| Rollbacks | `supabase/rollback/20261120_rollback_match_lineups.sql`, `…_rollback_player_availability.sql` |
+| Read-only checks | `supabase/tests/18_match_lineups_postcheck.sql` (12 rows), `19_player_availability_postcheck.sql` (10 rows) |
+| Local tests | `supabase/tests/local/15_match_lineups_local_check.sql` (75 checks), `15b_match_lineups_concurrency.sh` (4), `16_player_availability_local_check.sql` (48) |
+
+### Local tests (P2)
+Prepare the database as for migration 17 (see above), then apply 17, then 18, each in one transaction.
+
+1. `tests/18_match_lineups_postcheck.sql`
+2. `psql -X -v ON_ERROR_STOP=1 -f tests/local/15_match_lineups_local_check.sql`
+3. `PSQL='docker exec -i <container> psql -U postgres -d <db>' bash tests/local/15b_match_lineups_concurrency.sh`
+4. Apply 19.
+5. `tests/19_player_availability_postcheck.sql` and `tests/local/16_player_availability_local_check.sql`.
+
+Steps 2 and 3 also pass with 19 applied. The scripts refuse a real Supabase project and delete their synthetic accounts (`e8…`, `e81…`, `e9…`).
+
+### Validation (2026-11-20, PostgreSQL 17.11)
+- **Applying:**
+  - 18 and 19 apply with no errors;
+  - a second application is refused;
+  - 19 is refused without 18;
+  - post-checks: 18 gives 12/12 PASS (1 of 12 before), and 19 gives 10/10 PASS (0 before).
+- **Local tests:**
+  - `local/15`: 75/75, with 18 only and again with 19;
+  - `local/15b`: 4/4, both times;
+  - `local/16`: 48/48;
+  - every expected error was checked to be the intended one.
+- **Regression, with 17–19 applied:**
+  - local checks: `local/14` 146/146, `local/14b` 4/4, `local/10` 109/109, `local/12` 31/31, `local/13` 53/53;
+  - post-checks: 12 (11/11 OK), 13, 15, 16 (10/10 each), 17 (13/13).
+- **Rollback, on fresh databases:**
+  - 18 restores the 1–17 catalogue exactly (836 objects, md5 `03744d4f…`);
+  - 19 restores the 1–18 catalogue exactly (910 objects, md5 `dbd7dc3c…`);
+  - re-applying after a rollback works;
+  - each rollback is refused when its migration isn't applied;
+  - rollback 18 is refused while 19 is applied, and rollback 17 is refused while 18 is applied.
+- **Full chain on the database that ran every test:** rolling back 19 → 18 → 17 returns to the 1–16 catalogue (703 objects, md5 `cbae8676…`). Clubs, members, teams and profiles are unchanged.
+
+### Rollback (P2) — destroys P2 data
+Run each rollback only with approval, after a backup and a data dump, inside `begin; set local lock_timeout = '5s'; … commit;`.
+
+| Rollback | Deletes | Then | Order |
+|---|---|---|---|
+| `20261120_rollback_player_availability.sql` | Every availability record | Lineups stop refusing injured or unavailable players | Run first |
+| `20261120_rollback_match_lineups.sql` | Every lineup | Matches, teams and members stay | Refuses while 19 is applied |
+
+Ship an app build without `CRICECO_MATCHES` first.
+
+### Known limits (P2)
+- **No "since" timestamp:** availability stores `updated_at` (the last save) rather than when the status began.
+- **No re-check after saving:** a lineup isn't checked again when a player later becomes injured, or when the match is rescheduled.
+- **Short lineups:** a lineup left with fewer than 11 + 4 by a member removal isn't flagged by the database. The app should count the players.
+- **Dual membership:** a person who belongs to both clubs can read both clubs' lineups.
