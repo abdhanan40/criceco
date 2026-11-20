@@ -200,8 +200,10 @@ enum TournamentType {
   final String label;
 }
 
-/// Club-side match lifecycle (Match Management).
-enum MatchStatus { pending, reserved, confirmed, completed }
+/// Club-side match lifecycle (Match Management). `reserved` exists only in
+/// the demo's booking flow; `cancelled` only on the server (migration 17,
+/// either owner cancelled) — it belongs to no [MatchTab] yet (P5).
+enum MatchStatus { pending, reserved, confirmed, completed, cancelled }
 
 enum MatchTab {
   waiting('Waiting'),

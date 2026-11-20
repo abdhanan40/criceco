@@ -18,7 +18,20 @@ class Challenge {
     this.matchId,
     this.expiresAt,
     this.respondedAt,
+    this.customOvers,
+    this.message,
+    this.opponentName,
   });
+
+  /// Overs for a custom-format challenge (server challenges, migration 17).
+  final int? customOvers;
+
+  /// The sender's optional note (≤ 280 characters).
+  final String? message;
+
+  /// The opponent's public name from the server (the demo uses the club
+  /// directory by [opponentClubId]).
+  final String? opponentName;
 
   /// How long a sent challenge waits for a reply before it expires (no
   /// response window exists in the prototype; 7 days is the default here).
@@ -64,6 +77,9 @@ class Challenge {
         matchId: matchId ?? this.matchId,
         expiresAt: expiresAt,
         respondedAt: respondedAt ?? this.respondedAt,
+        customOvers: customOvers,
+        message: message,
+        opponentName: opponentName,
       );
 }
 

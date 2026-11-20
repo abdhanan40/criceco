@@ -829,6 +829,77 @@ class SupabaseOwnershipGateway implements OwnershipGateway {
       );
 }
 
+/// Migrations 17–19 (the `CRICECO_MATCHES` switch): database functions only.
+class SupabaseMatchGateway implements MatchGateway {
+  SupabaseMatchGateway(this._client, {this.timeout = kGatewayTimeout});
+  final sb.SupabaseClient _client;
+  final Duration timeout;
+
+  @override
+  Future<List<Map<String, dynamic>>> clubDirectory({String? search, String? city}) =>
+      _list('match_club_directory', {'p_search': search, 'p_city': city});
+
+  @override
+  Future<Map<String, dynamic>> sendChallenge(Map<String, Object?> params) => _one('send_challenge', params);
+
+  @override
+  Future<Map<String, dynamic>> respondToChallenge(String challengeId, {required bool accept}) =>
+      _one('respond_to_challenge', {'p_challenge_id': challengeId, 'p_accept': accept});
+
+  @override
+  Future<List<Map<String, dynamic>>> clubChallenges(String clubId) => _list('club_challenges', {'p_club_id': clubId});
+
+  @override
+  Future<List<Map<String, dynamic>>> clubMatches(String clubId) => _list('club_matches', {'p_club_id': clubId});
+
+  @override
+  Future<Map<String, dynamic>> proposeSchedule(Map<String, Object?> params) => _one('propose_match_schedule', params);
+
+  @override
+  Future<Map<String, dynamic>> respondToSchedule(String matchId, {required int proposalVersion, required bool accept}) =>
+      _one('respond_to_match_schedule', {
+        'p_match_id': matchId,
+        'p_proposal_version': proposalVersion,
+        'p_accept': accept,
+      });
+
+  @override
+  Future<Map<String, dynamic>> cancelMatch(String matchId, String reason) =>
+      _one('cancel_match', {'p_match_id': matchId, 'p_reason': reason});
+
+  @override
+  Future<Map<String, dynamic>> saveLineup(Map<String, Object?> params) => _one('save_match_lineup', params);
+
+  @override
+  Future<List<Map<String, dynamic>>> matchLineup(String matchId) => _list('match_lineup', {'p_match_id': matchId});
+
+  @override
+  Future<Map<String, dynamic>> setMyAvailability(Map<String, Object?> params) => _one('set_my_availability', params);
+
+  @override
+  Future<Map<String, dynamic>?> myAvailability() => _guarded(
+        () async => SupabaseClubGateway._row(await _client.rpc<dynamic>('my_availability')),
+        timeout,
+        SupabaseProfileGateway.translate,
+      );
+
+  @override
+  Future<List<Map<String, dynamic>>> clubAvailability(String clubId) =>
+      _list('club_player_availability', {'p_club_id': clubId});
+
+  Future<Map<String, dynamic>> _one(String fn, Map<String, Object?> params) => _guarded(() async {
+        final row = SupabaseClubGateway._row(await _client.rpc<dynamic>(fn, params: params));
+        if (row == null) throw GatewayUnexpectedException('$fn-no-row');
+        return row;
+      }, timeout, SupabaseProfileGateway.translate);
+
+  Future<List<Map<String, dynamic>>> _list(String fn, Map<String, Object?> params) => _guarded(
+        () async => _rowsOf(await _client.rpc<dynamic>(fn, params: params)),
+        timeout,
+        SupabaseProfileGateway.translate,
+      );
+}
+
 Future<T> _guarded<T>(
   Future<T> Function() run,
   Duration timeout,

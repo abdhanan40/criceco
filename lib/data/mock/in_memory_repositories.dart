@@ -464,6 +464,19 @@ class InMemoryClubRepository implements ClubRepository {
     final removed = list.removeAt(i);
     if (removed.poolPlayerId case final poolId?) _pool[clubId]?.removeWhere((p) => p.id == poolId);
   }
+
+  /// The demo's other clubs as directory entries (public fields only).
+  @override
+  Future<List<ClubDirectoryEntry>> searchOpponents({String? search, String? city}) async {
+    final q = search?.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase() ?? '';
+    final c = city?.trim().toLowerCase() ?? '';
+    return [
+      for (final s in _clubs.values)
+        if ((q.isEmpty || s.name.toLowerCase().contains(q) || s.abbr.toLowerCase().contains(q)) &&
+            (c.isEmpty || s.city.trim().toLowerCase() == c))
+          ClubDirectoryEntry(id: s.id, name: s.name, shortName: s.abbr, city: s.city),
+    ].take(50).toList();
+  }
 }
 
 class InMemoryTeamRepository implements TeamRepository {
@@ -571,6 +584,125 @@ class InMemoryMatchRepository implements MatchRepository {
 
   @override
   Future<PerformanceSummary> performance() async => _performance;
+
+  // ---- Schedule, cancellation, lineups: the server's rules, in memory.
+  // The demo itself still schedules through its booking flow; these exist so
+  // both backends offer the same operations. ----
+
+  final Map<String, MatchLineup> _lineups = {};
+
+  ClubMatch _match(String matchId) =>
+      _club.where((m) => m.id == matchId).firstOrNull ??
+      (throw const MatchRuleException('This match no longer exists.'));
+
+  ClubMatch _put(ClubMatch m) {
+    _club[_club.indexWhere((x) => x.id == m.id)] = m;
+    return m;
+  }
+
+  static ClubMatch _rebuild(
+    ClubMatch m, {
+    required MatchStatus status,
+    DateTime? startsAt,
+    String? venueName,
+    String? city,
+    MatchProposal? proposal,
+    MatchCancellation? cancellation,
+  }) =>
+      ClubMatch(
+        id: m.id,
+        opponentClubId: m.opponentClubId,
+        status: status,
+        format: m.format,
+        customOvers: m.customOvers,
+        city: city ?? m.city,
+        groundId: m.groundId,
+        startsAt: startsAt ?? m.startsAt,
+        lineup: m.lineup,
+        resultText: m.resultText,
+        challengeId: m.challengeId,
+        challengedByMe: m.challengedByMe,
+        opponentName: m.opponentName,
+        venueName: venueName ?? m.venueName,
+        proposal: proposal,
+        cancellation: cancellation ?? m.cancellation,
+      );
+
+  static bool _open(ClubMatch m) => m.status == MatchStatus.pending || m.status == MatchStatus.confirmed;
+
+  @override
+  Future<ClubMatch> proposeSchedule(String matchId, {required DateTime startsAt, required String venueName, String? city}) async {
+    final m = _match(matchId);
+    final now = DateTime.now();
+    if (!_open(m)) throw const MatchRuleException('This match is closed.');
+    if (m.status == MatchStatus.confirmed && m.startsAt != null && !m.startsAt!.isAfter(now)) {
+      throw const MatchRuleException('This match has already started.');
+    }
+    final venue = venueName.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (!startsAt.isAfter(now)) throw const MatchRuleException('Choose a start time in the future.');
+    if (venue.isEmpty || venue.length > 100) throw const MatchRuleException('Enter a venue (up to 100 characters).');
+    final version = (m.proposal?.version ?? 0) + 1;
+    return _put(_rebuild(m,
+        status: m.status,
+        proposal: MatchProposal(startsAt: startsAt, venueName: venue, city: city?.trim(), byMe: true, version: version)));
+  }
+
+  @override
+  Future<ClubMatch> respondToSchedule(String matchId, {required int proposalVersion, required bool accept}) async {
+    final m = _match(matchId);
+    final p = m.proposal;
+    if (!_open(m)) throw const MatchRuleException('This match is closed.');
+    if (p == null) throw const MatchRuleException('There is no proposal to answer.');
+    if (p.version != proposalVersion) {
+      throw const MatchRuleException('The other club changed the proposal — check the new time.');
+    }
+    if (!accept) return _put(_rebuild(m, status: m.status));
+    return _put(_rebuild(m, status: MatchStatus.confirmed, startsAt: p.startsAt, venueName: p.venueName, city: p.city));
+  }
+
+  @override
+  Future<ClubMatch> cancelMatch(String matchId, {required String reason}) async {
+    final m = _match(matchId);
+    final text = reason.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (!_open(m)) throw const MatchRuleException('This match is closed.');
+    if (text.isEmpty || text.length > 200) throw const MatchRuleException('Give a reason (up to 200 characters).');
+    return _put(_rebuild(m,
+        status: MatchStatus.cancelled,
+        cancellation: MatchCancellation(at: DateTime.now(), byMe: true, reason: text)));
+  }
+
+  @override
+  Future<MatchLineup> saveLineup(
+    String matchId,
+    Lineup lineup, {
+    String? captainMemberId,
+    String? viceCaptainMemberId,
+  }) async {
+    final m = _match(matchId);
+    if (m.status != MatchStatus.confirmed) throw const MatchRuleException('Lineups open once the match is confirmed.');
+    final playing = lineup.members.where((x) => x.selection == SelectionRole.playing).length;
+    if (playing != 11 || lineup.members.length != 15) {
+      throw const MatchRuleException('A lineup needs exactly 11 players and 4 substitutes.');
+    }
+    final saved = MatchLineup(
+      matchId: matchId,
+      clubId: SeedData.ownClubId,
+      name: lineup.name,
+      sourceTeamId: lineup.sourceTeamId,
+      captainMemberId: captainMemberId,
+      viceCaptainMemberId: viceCaptainMemberId,
+      savedAt: DateTime.now(),
+      players: [
+        for (final (i, x) in lineup.members.indexed)
+          MatchLineupPlayer(memberId: x.playerId, selection: x.selection, position: i + 1),
+      ],
+    );
+    _put(m.copyWith(lineup: lineup));
+    return _lineups[matchId] = saved;
+  }
+
+  @override
+  Future<MatchLineup?> lineup(String matchId) async => _lineups[matchId];
 }
 
 class InMemoryGroundRepository implements GroundRepository {
@@ -677,7 +809,7 @@ class InMemoryWalletRepository implements WalletRepository {
 }
 
 class InMemoryChallengeRepository implements ChallengeRepository {
-  InMemoryChallengeRepository(SeedData seed)
+  InMemoryChallengeRepository(SeedData seed, {this.createMatch})
       : _challenges = [...seed.challenges],
         _clubIds = seed.challengeableClubIds,
         _seekers = seed.matchSeekers;
@@ -686,7 +818,13 @@ class InMemoryChallengeRepository implements ChallengeRepository {
   InMemoryChallengeRepository.empty()
       : _challenges = [],
         _clubIds = const [],
-        _seekers = const [];
+        _seekers = const [],
+        createMatch = null;
+
+  /// Creates the match an [accept] produces (the in-memory match
+  /// repository), like the server does in the same step. `null`: [accept]
+  /// records the decision only.
+  final Future<ClubMatch> Function(Challenge challenge)? createMatch;
 
   final List<Challenge> _challenges;
   final List<String> _clubIds;
@@ -707,7 +845,10 @@ class InMemoryChallengeRepository implements ChallengeRepository {
     String? groundName,
     DateTime? proposedAt,
     required DateTime at,
+    int? customOvers,
+    String? message,
   }) async {
+    final note = message?.trim();
     final c = Challenge(
       id: _id('ch'),
       opponentClubId: opponentClubId,
@@ -718,9 +859,35 @@ class InMemoryChallengeRepository implements ChallengeRepository {
       groundName: groundName,
       proposedAt: proposedAt,
       expiresAt: at.add(Challenge.responseWindow),
+      customOvers: format == MatchFormat.custom ? customOvers : null,
+      message: note == null || note.isEmpty ? null : note,
     );
     _challenges.add(c);
     return c;
+  }
+
+  Challenge _pending(String challengeId) {
+    final c = _challenges.where((x) => x.id == challengeId).firstOrNull;
+    if (c == null) throw const MatchRuleException('This challenge no longer exists.');
+    if (c.direction != ChallengeDirection.received) throw const PermissionDeniedException();
+    if (!c.isPending) throw const MatchRuleException('This challenge has already been answered.');
+    return c;
+  }
+
+  @override
+  Future<Challenge> accept(String challengeId, {required DateTime at}) async {
+    final c = _pending(challengeId);
+    if (c.statusAt(at) == ChallengeStatus.expired) {
+      return save(c.copyWith(status: ChallengeStatus.expired, respondedAt: at));
+    }
+    final match = await createMatch?.call(c);
+    return save(c.copyWith(status: ChallengeStatus.accepted, matchId: match?.id, isNew: false, respondedAt: at));
+  }
+
+  @override
+  Future<Challenge> decline(String challengeId, {required DateTime at}) async {
+    final c = _pending(challengeId);
+    return save(c.copyWith(status: ChallengeStatus.declined, isNew: false, respondedAt: at));
   }
 
   @override
@@ -745,6 +912,36 @@ class InMemoryChallengeRepository implements ChallengeRepository {
 
   @override
   Future<void> removeAvailabilitySlot(String slotId) async => _slots.removeWhere((s) => s.id == slotId);
+}
+
+/// The demo's availability store: the signed-in person's own record only.
+/// (The demo's squads keep their sample availability on the squad pool.)
+class InMemoryPlayerAvailabilityRepository implements PlayerAvailabilityRepository {
+  PlayerAvailabilityRecord? _mine;
+
+  @override
+  Future<PlayerAvailabilityRecord?> mine() async => _mine;
+
+  @override
+  Future<PlayerAvailabilityRecord> setMine(PlayerAvailabilityRecord record) async {
+    final available = record.status == PlayerAvailability.available;
+    final notes = record.notes.trim();
+    if (notes.length > PlayerAvailabilityRecord.notesMaxLength) {
+      throw const MatchRuleException('Keep the notes to 200 characters.');
+    }
+    return _mine = PlayerAvailabilityRecord(
+      status: record.status,
+      since: record.since,
+      reason: available ? null : record.reason,
+      until: record.until,
+      untilDate: available ? null : record.untilDate,
+      notes: notes,
+      openToOffers: record.openToOffers,
+    );
+  }
+
+  @override
+  Future<List<ClubMemberAvailability>> clubAvailability(String clubId) async => const [];
 }
 
 class InMemoryHuntRepository implements HuntRepository {

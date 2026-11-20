@@ -165,6 +165,12 @@ abstract interface class ClubRepository {
   /// The owner removes [memberId] from [clubId] (never the owner). Their
   /// team places go with it.
   Future<void> removeMember(String clubId, String memberId);
+
+  /// Find Opponent / the challenge sheet: other clubs' public fields (the
+  /// caller's own club never included), at most 50, by name or short name
+  /// ([search], case-insensitive) and exact [city]. Supabase: migration 17's
+  /// directory with the matches switch, otherwise none.
+  Future<List<ClubDirectoryEntry>> searchOpponents({String? search, String? city});
 }
 
 abstract interface class TeamRepository {
@@ -180,11 +186,50 @@ abstract interface class TeamRepository {
 
 abstract interface class MatchRepository {
   Future<List<ClubMatch>> clubMatches();
+
+  /// The demo's booking flow only (it stores whole matches). The server
+  /// changes a match only through the operations below: Supabase throws
+  /// [ModuleUnavailableException].
   Future<ClubMatch> saveClubMatch(ClubMatch match);
+
+  /// The demo's challenge flow only. On the server, accepting a challenge
+  /// creates its one match ([ChallengeRepository.accept]): Supabase throws
+  /// [ModuleUnavailableException] and never creates a second match.
   Future<ClubMatch> createPendingMatch({required String opponentClubId, MatchFormat? format, String? city});
   Future<List<PlayerMatch>> playerMatches();
   Future<Scorecard?> scorecard(String scorecardId);
   Future<PerformanceSummary> performance();
+
+  // ---- Schedule, cancellation, lineups (migrations 17–18) ----
+
+  /// Proposes (or re-proposes) when and where [matchId] is played; replaces
+  /// any open proposal. Either club's owner; the match is pending, or
+  /// confirmed and not started.
+  Future<ClubMatch> proposeSchedule(String matchId, {required DateTime startsAt, required String venueName, String? city});
+
+  /// The OTHER club's owner answers proposal [proposalVersion]: accept →
+  /// confirmed at that time; decline → the proposal is cleared. A replaced
+  /// proposal: [MatchRuleException].
+  Future<ClubMatch> respondToSchedule(String matchId, {required int proposalVersion, required bool accept});
+
+  /// Either owner cancels a pending match, or a confirmed one before it
+  /// starts, with a [reason] (1–200 characters).
+  Future<ClubMatch> cancelMatch(String matchId, {required String reason});
+
+  /// The owner saves their club's whole lineup for a confirmed, not-started
+  /// match: exactly 11 playing + 4 substitutes (member ids as
+  /// [TeamMember.playerId]), optional captain / vice-captain from the
+  /// Playing XI. All or nothing.
+  Future<MatchLineup> saveLineup(
+    String matchId,
+    Lineup lineup, {
+    String? captainMemberId,
+    String? viceCaptainMemberId,
+  });
+
+  /// The caller's own club's lineup for [matchId] (never the opponent's);
+  /// `null` when none is saved yet.
+  Future<MatchLineup?> lineup(String matchId);
 }
 
 abstract interface class GroundRepository {
@@ -233,14 +278,32 @@ abstract interface class ChallengeRepository {
   Future<List<MatchSeekerListing>> matchSeekers();
   /// Always creates a PENDING sent challenge (expires after
   /// [Challenge.responseWindow]). Demo Mode may then accept it instantly.
+  ///
+  /// Supabase (migration 17): [format], [groundName] (the venue) and
+  /// [proposedAt] (a date from tomorrow, Asia/Karachi) are required;
+  /// [customOvers] for a custom format; an optional [message].
   Future<Challenge> send({
     required String opponentClubId,
     MatchFormat? format,
     String? groundName,
     DateTime? proposedAt,
     required DateTime at,
+    int? customOvers,
+    String? message,
   });
+
+  /// The demo's way to record a decision. Supabase throws
+  /// [ModuleUnavailableException]: use [accept] / [decline].
   Future<Challenge> save(Challenge challenge);
+
+  /// The receiving club's owner accepts a pending challenge. The result's
+  /// [Challenge.matchId] is the ONE match created with it (on the server,
+  /// in the same transaction) — callers must not create another. An expired
+  /// challenge comes back `expired` (nothing created).
+  Future<Challenge> accept(String challengeId, {required DateTime at});
+
+  /// The receiving club's owner declines a pending challenge (no match).
+  Future<Challenge> decline(String challengeId, {required DateTime at});
   Future<List<AvailabilitySlot>> availabilitySlots();
   Future<AvailabilitySlot> postAvailabilitySlot(AvailabilitySlot slot);
   Future<void> removeAvailabilitySlot(String slotId);
@@ -329,6 +392,36 @@ abstract interface class OwnershipTransferRepository {
 
   /// Open offers to the signed-in user.
   Future<List<OwnershipTransfer>> myOffers();
+}
+
+/// A player's availability for selection (migration 19). Every write is for
+/// the signed-in person only — there is no way to name another user.
+abstract interface class PlayerAvailabilityRepository {
+  /// The signed-in person's record; `null` when they set none (available).
+  Future<PlayerAvailabilityRecord?> mine();
+
+  /// Saves the signed-in person's own record (status, reason, until date,
+  /// notes ≤ 200). "Available" clears the reason and date. Returns it as
+  /// stored.
+  Future<PlayerAvailabilityRecord> setMine(PlayerAvailabilityRecord record);
+
+  /// [clubId]'s ACTIVE members with their availability — for that club's
+  /// owner only.
+  Future<List<ClubMemberAvailability>> clubAvailability(String clubId);
+}
+
+/// Supabase without the matches switch (migration 19 not live): nothing is
+/// recorded, and saving says it isn't available.
+class UnavailablePlayerAvailabilityRepository implements PlayerAvailabilityRepository {
+  const UnavailablePlayerAvailabilityRepository();
+
+  @override
+  Future<PlayerAvailabilityRecord?> mine() async => null;
+  @override
+  Future<PlayerAvailabilityRecord> setMine(PlayerAvailabilityRecord record) async =>
+      throw const ModuleUnavailableException();
+  @override
+  Future<List<ClubMemberAvailability>> clubAvailability(String clubId) async => const [];
 }
 
 /// Builds without the server side (the demo, or Supabase before migration 16):

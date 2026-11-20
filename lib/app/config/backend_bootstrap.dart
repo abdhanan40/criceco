@@ -66,5 +66,7 @@ Future<List<Override>> backendOverrides(
     accountPrivacyGatewayProvider.overrideWithValue(SupabaseAccountPrivacyGateway(client)),
     // Used only with the account-privacy switch (migration 16 live).
     ownershipGatewayProvider.overrideWithValue(SupabaseOwnershipGateway(client)),
+    // Used only with the matches switch (migrations 17–19 live).
+    matchGatewayProvider.overrideWithValue(SupabaseMatchGateway(client)),
   ];
 }

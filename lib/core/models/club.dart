@@ -2,6 +2,27 @@ import 'dart:ui' show Color;
 
 import '../enums/enums.dart';
 
+/// Another club as the opponent directory lists it (migration 17,
+/// `match_club_directory`): public fields only — never the owner, phone,
+/// email, address or join code, and no statistics (none are stored yet).
+class ClubDirectoryEntry {
+  const ClubDirectoryEntry({
+    required this.id,
+    required this.name,
+    required this.city,
+    this.shortName,
+    this.type,
+  });
+
+  final String id;
+  final String name;
+  final String? shortName;
+  final String city;
+
+  /// `null` for a type this app version doesn't know.
+  final ClubType? type;
+}
+
 /// The account owner's own club.
 class Club {
   const Club({

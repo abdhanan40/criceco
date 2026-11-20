@@ -273,6 +273,30 @@ class ClubCodePreview {
   final int? memberCount;
 }
 
+/// An active club member's availability as the club's owner sees it
+/// (migration 19, `club_player_availability`). [record] is `null` when the
+/// member has set none — available. [locksSelection]: injured or
+/// unavailable today (Asia/Karachi), as the server decides.
+class ClubMemberAvailability {
+  const ClubMemberAvailability({
+    required this.memberId,
+    required this.userId,
+    required this.name,
+    required this.role,
+    required this.locksSelection,
+    this.record,
+  });
+
+  final String memberId;
+  final String userId;
+  final String name;
+  final MemberRole role;
+  final PlayerAvailabilityRecord? record;
+  final bool locksSelection;
+
+  PlayerAvailability get status => record?.status ?? PlayerAvailability.available;
+}
+
 /// The single source of truth for a player's availability (fixes the
 /// prototype divergence between the dashboard pill and the status screen).
 class PlayerAvailabilityRecord {

@@ -384,3 +384,33 @@ Ship an app build without `CRICECO_MATCHES` first.
 - **No re-check after saving:** a lineup isn't checked again when a player later becomes injured, or when the match is rescheduled.
 - **Short lineups:** a lineup left with fewer than 11 + 4 by a member removal isn't flagged by the database. The app should count the players.
 - **Dual membership:** a person who belongs to both clubs can read both clubs' lineups.
+
+---
+
+## P3 — Flutter data layer
+
+**Status (2026-11-21):** implemented and tested with fakes. The switch is **off**, and no screen or controller uses the new operations yet; that is P4–P6.
+
+**Switch:** `--dart-define=CRICECO_MATCHES=true` (`kMatchesBuild`, `matchesEnabledProvider`; default **false**). The server repositories are used only when Supabase mode, `CRICECO_MEMBERSHIPS` and `CRICECO_MATCHES` are all on (`matchesBackendLiveProvider`); `BackendModules` then also lists matches, challenges and availability. In every other case the earlier repositories stay in use (the demo's seeded ones, or empty / "not available yet"), and the match gateway is never called. **Don't turn the switch on before the P4–P6 screens:** today's controllers still use the demo's `createPendingMatch` / `save`, which the server repositories refuse.
+
+| Layer | Code |
+|---|---|
+| Gateway | `MatchGateway` (`supabase_gateways.dart`) and `SupabaseMatchGateway` (`supabase_sdk_gateways.dart`): one method per function of migrations 17–19, with the same parameter names |
+| Repositories | `SupabaseMatchRepository`, `SupabaseChallengeRepository`, `SupabaseAvailabilityRepository`. The opponent directory is `ClubRepository.searchOpponents()` (`SupabaseClubRepository` with the match gateway). `OwnClubLookup` reads the owner's club id from `clubs` on every call |
+| Mapping | `MatchRowMapper` (`match_row_mapper.dart`). A required field that is missing, or an unknown status or format, raises `MatchRowFormatException`, which surfaces as "something went wrong"; no value is guessed |
+| Errors | `SupabaseErrorMapper` maps the `challenge:`, `match:`, `lineup:` and `availability:` prefixes to `MatchRuleException` with user-facing text. An unknown reason gets generic text, never the database's message. 42501 means signed out or no permission |
+| Models | `MatchStatus.cancelled` (no tab yet); `ClubMatch` gains `challengeId`, `challengedByMe`, `opponentName`, `venueName`, `proposal` (`MatchProposal`) and `cancellation` (`MatchCancellation`); `Challenge` gains `customOvers`, `message` and `opponentName`. New types: `MatchLineup` / `MatchLineupPlayer`, `ClubDirectoryEntry`, `ClubMemberAvailability`. All additions are optional, so the demo is unchanged |
+| Contracts | `MatchRepository` gains `proposeSchedule`, `respondToSchedule`, `cancelMatch`, `saveLineup` and `lineup`. `ChallengeRepository` gains `accept` and `decline`, which return the server-created match id; `send` gains `customOvers` and `message`. New `PlayerAvailabilityRepository`. The in-memory versions follow the same rules |
+
+**Dates and times:**
+- Timestamps are sent as UTC ISO-8601 and read as instants.
+- Challenge and availability dates are Pakistan calendar dates, sent as `YYYY-MM-DD` with no shift. `MatchRowMapper.karachiDate()` gives the server's "today".
+
+**Not covered yet:**
+- **Player's own matches:** no server function for them yet (`playerMatches()` is empty in Supabase mode).
+- **No server side yet:** scorecards and statistics (M2); availability slots and match seekers (decision 7).
+- **Club profiles:** `otherClubs()` / `clubSummary()` stay empty; no statistics are invented.
+
+**Tests:**
+- `test/match_supabase_test.dart` (47): mappers, error mapping, the repositories on `FakeMatchDb` (`test/match_fakes.dart`), provider selection and the demo repositories.
+- `test/supabase_match_gateway_test.dart` (7): RPC names, parameters and errors on the real `supabase_flutter` client with faked HTTP.

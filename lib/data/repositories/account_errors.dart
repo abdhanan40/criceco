@@ -115,6 +115,13 @@ class TeamRuleException extends AccountException {
   const TeamRuleException(super.message);
 }
 
+/// A challenge, match, lineup or availability change the server refused
+/// (migrations 17–19): a duplicate challenge, a replaced proposal, a clash,
+/// an incomplete lineup, an invalid date… [message] says what to do next.
+class MatchRuleException extends AccountException {
+  const MatchRuleException(super.message);
+}
+
 /// This part of the app has no backend in this build (Supabase mode,
 /// docs/PRODUCTION_DEMO_MODE.md): nothing is saved, so nothing is pretended.
 /// Delete Account: the password typed to confirm it is wrong.

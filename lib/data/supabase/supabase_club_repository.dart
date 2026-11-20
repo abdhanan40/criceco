@@ -4,6 +4,7 @@ import '../../core/models/models.dart';
 import '../repositories/repositories.dart';
 import 'club_row_mapper.dart';
 import 'local_club_overlay.dart';
+import 'match_row_mapper.dart';
 import 'membership_row_mapper.dart';
 import 'supabase_error_mapper.dart';
 import 'supabase_gateways.dart';
@@ -23,8 +24,11 @@ import 'supabase_gateways.dart';
 ///   caller by `auth.uid()`. Without it they come from [local], keyed by the
 ///   real club id, so they stay empty (D-S2-1), and joining by code isn't
 ///   offered — never a simulated lookup or request.
-/// - Other clubs ([otherClubs], [clubSummary]) have no directory in Supabase
-///   yet: empty — never the demo's clubs (docs/PRODUCTION_DEMO_MODE.md).
+/// - Other clubs ([otherClubs], [clubSummary]) have no profile data in
+///   Supabase yet: empty — never the demo's clubs (docs/PRODUCTION_DEMO_MODE.md).
+///   The opponent directory ([searchOpponents]) is migration 17's
+///   public-field lookup, with [matches] (the matches switch); without it,
+///   none.
 class SupabaseClubRepository implements ClubRepository {
   SupabaseClubRepository({
     required this.auth,
@@ -32,6 +36,7 @@ class SupabaseClubRepository implements ClubRepository {
     required this.overlay,
     required this.local,
     this.membership,
+    this.matches,
     this.clock = const Clock(),
   });
 
@@ -42,6 +47,9 @@ class SupabaseClubRepository implements ClubRepository {
 
   /// Migration 11's functions; `null` without the memberships switch.
   final MembershipGateway? membership;
+
+  /// Migration 17's functions; `null` without the matches switch.
+  final MatchGateway? matches;
   final Clock clock;
 
   /// The club as last read from the database (without the picture), per
@@ -232,6 +240,25 @@ class SupabaseClubRepository implements ClubRepository {
     final gateway = membership;
     if (gateway == null) throw const ClubJoinUnavailableException();
     await _call(() => gateway.removeMember(memberId));
+  }
+
+  /// `match_club_directory()`: other clubs' id, name, short name, city and
+  /// type only (owners only; the caller's own club never listed).
+  @override
+  Future<List<ClubDirectoryEntry>> searchOpponents({String? search, String? city}) async {
+    final gateway = matches;
+    if (gateway == null) return const [];
+    final q = search?.trim();
+    final c = city?.trim();
+    final rows = await _call(() => gateway.clubDirectory(
+          search: q == null || q.isEmpty ? null : q,
+          city: c == null || c.isEmpty ? null : c,
+        ));
+    try {
+      return [for (final r in rows) MatchRowMapper.directoryEntry(r)];
+    } on MatchRowFormatException {
+      throw const BackendOperationException();
+    }
   }
 
   // ---------------------------------------------------------------------------

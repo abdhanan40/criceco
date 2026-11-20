@@ -411,6 +411,77 @@ final accountPrivacyGatewayProvider = Provider<AccountPrivacyGateway>(
 final ownershipGatewayProvider = Provider<OwnershipGateway>(
   (ref) => throw StateError(_notInitialized),
 );
+final matchGatewayProvider = Provider<MatchGateway>(
+  (ref) => throw StateError(_notInitialized),
+);
+
+/// Challenges, matches, lineups and player availability (migrations 17–19,
+/// with the `CRICECO_MATCHES` switch). Every call is a database function
+/// that identifies the caller by `auth.uid()` and checks club ownership or
+/// membership itself; the app never sends a user id. Write functions return
+/// the changed table row; read functions return their own row shapes
+/// (docs/MATCHES_BACKEND.md).
+abstract interface class MatchGateway {
+  /// `rpc('match_club_directory', {p_search, p_city})` — other clubs'
+  /// public fields, at most 50.
+  Future<List<Map<String, dynamic>>> clubDirectory({
+    String? search,
+    String? city,
+  });
+
+  /// `rpc('send_challenge', {p_from_club_id, p_to_club_id, p_format,
+  /// p_custom_overs, p_proposed_date, p_venue_name, p_message})` — the new
+  /// `match_challenges` row.
+  Future<Map<String, dynamic>> sendChallenge(Map<String, Object?> params);
+
+  /// `rpc('respond_to_challenge', {p_challenge_id, p_accept})` — the
+  /// challenge row: accepted (with `match_id`), declined or expired.
+  Future<Map<String, dynamic>> respondToChallenge(
+    String challengeId, {
+    required bool accept,
+  });
+
+  /// `rpc('club_challenges', {p_club_id})` — sent and received, newest first.
+  Future<List<Map<String, dynamic>>> clubChallenges(String clubId);
+
+  /// `rpc('club_matches', {p_club_id})` — one-sided match rows.
+  Future<List<Map<String, dynamic>>> clubMatches(String clubId);
+
+  /// `rpc('propose_match_schedule', {p_match_id, p_starts_at, p_venue_name,
+  /// p_city})` — the `matches` row.
+  Future<Map<String, dynamic>> proposeSchedule(Map<String, Object?> params);
+
+  /// `rpc('respond_to_match_schedule', {p_match_id, p_proposal_version,
+  /// p_accept})` — the `matches` row.
+  Future<Map<String, dynamic>> respondToSchedule(
+    String matchId, {
+    required int proposalVersion,
+    required bool accept,
+  });
+
+  /// `rpc('cancel_match', {p_match_id, p_reason})` — the `matches` row.
+  Future<Map<String, dynamic>> cancelMatch(String matchId, String reason);
+
+  /// `rpc('save_match_lineup', {p_match_id, p_name, p_source_team_id,
+  /// p_players, p_captain_member_id, p_vice_member_id})` — the
+  /// `match_lineups` row (the players are stored in the order sent).
+  Future<Map<String, dynamic>> saveLineup(Map<String, Object?> params);
+
+  /// `rpc('match_lineup', {p_match_id})` — one row per player of the
+  /// caller's own club(s) lineup; none when nothing is saved.
+  Future<List<Map<String, dynamic>>> matchLineup(String matchId);
+
+  /// `rpc('set_my_availability', {p_status, p_reason, p_until_date,
+  /// p_notes})` — the caller's `player_availability` row.
+  Future<Map<String, dynamic>> setMyAvailability(Map<String, Object?> params);
+
+  /// `rpc('my_availability')` — the caller's row, or `null` (available).
+  Future<Map<String, dynamic>?> myAvailability();
+
+  /// `rpc('club_player_availability', {p_club_id})` — the owner's view of
+  /// the club's active members.
+  Future<List<Map<String, dynamic>>> clubAvailability(String clubId);
+}
 
 /// Phone-number consent and account deletion (migrations 13–14 and the
 /// `delete-account` Edge Function, with the `CRICECO_ACCOUNT_PRIVACY`

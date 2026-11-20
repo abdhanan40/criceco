@@ -11,9 +11,12 @@ import '../../data/repositories/repositories.dart';
 import '../../data/supabase/local_account_overlay.dart';
 import '../../data/supabase/local_club_overlay.dart';
 import '../../data/supabase/supabase_account_repository.dart';
+import '../../data/supabase/supabase_availability_repository.dart';
+import '../../data/supabase/supabase_challenge_repository.dart';
 import '../../data/supabase/supabase_club_repository.dart';
 import '../../data/supabase/supabase_gateways.dart';
 import '../../data/supabase/supabase_location_repository.dart';
+import '../../data/supabase/supabase_match_repository.dart';
 import '../../data/supabase/supabase_ownership_repository.dart';
 import '../../data/supabase/supabase_team_repository.dart';
 import '../../demo/demo_stats.dart';
@@ -94,6 +97,8 @@ final clubRepositoryProvider = Provider<ClubRepository>((ref) {
         local: InMemoryClubRepository(ref.watch(seedDataProvider)),
         // Migration 11's functions, only with the memberships switch.
         membership: ref.watch(membershipsEnabledProvider) ? ref.watch(membershipGatewayProvider) : null,
+        // Migration 17's opponent directory, only with the matches switch.
+        matches: ref.watch(matchesBackendLiveProvider) ? ref.watch(matchGatewayProvider) : null,
         clock: ref.watch(clockProvider),
       ),
   };
@@ -120,16 +125,47 @@ final ownershipTransferRepositoryProvider = Provider<OwnershipTransferRepository
     ref.watch(ownershipTransferAvailableProvider)
         ? SupabaseOwnershipTransferRepository(db: ref.watch(ownershipGatewayProvider))
         : const UnavailableOwnershipTransferRepository());
-final matchRepositoryProvider = Provider<MatchRepository>(
-    (ref) => _demo(ref) ? InMemoryMatchRepository(ref.watch(seedDataProvider)) : InMemoryMatchRepository.empty());
+/// The signed-in owner's club id for the match functions (Supabase only).
+final ownClubLookupProvider = Provider<OwnClubLookup>(
+  (ref) => OwnClubLookup(auth: ref.watch(authGatewayProvider), clubs: ref.watch(clubGatewayProvider)),
+);
+
+/// Matches, challenges and player availability: the demo's seeded data in
+/// memory mode; migrations 17–19 in Supabase mode with the memberships AND
+/// matches switches ([matchesBackendLiveProvider]); otherwise empty / "not
+/// available yet" — no network call is made for them then.
+final matchRepositoryProvider = Provider<MatchRepository>((ref) {
+  if (_demo(ref)) return InMemoryMatchRepository(ref.watch(seedDataProvider));
+  return ref.watch(matchesBackendLiveProvider)
+      ? SupabaseMatchRepository(db: ref.watch(matchGatewayProvider), ownClub: ref.watch(ownClubLookupProvider))
+      : InMemoryMatchRepository.empty();
+});
 final groundRepositoryProvider = Provider<GroundRepository>(
     (ref) => _demo(ref) ? InMemoryGroundRepository(ref.watch(seedDataProvider)) : InMemoryGroundRepository.empty());
 final reservationRepositoryProvider = Provider<ReservationRepository>((ref) =>
     _demo(ref) ? InMemoryReservationRepository(ref.watch(seedDataProvider)) : InMemoryReservationRepository.empty());
 final walletRepositoryProvider =
     Provider<WalletRepository>((ref) => _demo(ref) ? InMemoryWalletRepository() : InMemoryWalletRepository.empty());
-final challengeRepositoryProvider = Provider<ChallengeRepository>((ref) =>
-    _demo(ref) ? InMemoryChallengeRepository(ref.watch(seedDataProvider)) : InMemoryChallengeRepository.empty());
+final challengeRepositoryProvider = Provider<ChallengeRepository>((ref) {
+  if (_demo(ref)) {
+    return InMemoryChallengeRepository(
+      ref.watch(seedDataProvider),
+      // accept() creates the match the way the server does (one per challenge).
+      createMatch: (c) => ref.read(matchRepositoryProvider).createPendingMatch(opponentClubId: c.opponentClubId, format: c.format),
+    );
+  }
+  return ref.watch(matchesBackendLiveProvider)
+      ? SupabaseChallengeRepository(db: ref.watch(matchGatewayProvider), ownClub: ref.watch(ownClubLookupProvider))
+      : InMemoryChallengeRepository.empty();
+});
+
+/// The signed-in person's availability and the owner's view of the club's.
+final playerAvailabilityRepositoryProvider = Provider<PlayerAvailabilityRepository>((ref) {
+  if (_demo(ref)) return InMemoryPlayerAvailabilityRepository();
+  return ref.watch(matchesBackendLiveProvider)
+      ? SupabaseAvailabilityRepository(db: ref.watch(matchGatewayProvider))
+      : const UnavailablePlayerAvailabilityRepository();
+});
 final huntRepositoryProvider = Provider<HuntRepository>(
     (ref) => _demo(ref) ? InMemoryHuntRepository(ref.watch(seedDataProvider)) : InMemoryHuntRepository.empty());
 final tournamentRepositoryProvider = Provider<TournamentRepository>((ref) =>

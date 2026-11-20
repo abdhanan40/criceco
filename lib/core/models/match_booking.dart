@@ -15,6 +15,12 @@ class ClubMatch {
     this.startsAt,
     this.lineup,
     this.resultText,
+    this.challengeId,
+    this.challengedByMe,
+    this.opponentName,
+    this.venueName,
+    this.proposal,
+    this.cancellation,
   });
 
   final String id;
@@ -27,6 +33,28 @@ class ClubMatch {
   final DateTime? startsAt;
   final Lineup? lineup;
   final String? resultText;
+
+  // ---- Server matches (migration 17); `null` in the demo ----
+
+  /// The challenge this match came from.
+  final String? challengeId;
+
+  /// `true` when this club sent the challenge (club A), `false` when it
+  /// received it; `null` when unknown (the demo).
+  final bool? challengedByMe;
+
+  /// The opponent's public name, from the server (the demo reads it from
+  /// the club directory by [opponentClubId]).
+  final String? opponentName;
+
+  /// The agreed venue (free text) once confirmed.
+  final String? venueName;
+
+  /// The open schedule proposal, if any.
+  final MatchProposal? proposal;
+
+  /// Set when [status] is [MatchStatus.cancelled].
+  final MatchCancellation? cancellation;
 
   ClubMatch copyWith({
     MatchStatus? status,
@@ -50,7 +78,94 @@ class ClubMatch {
         startsAt: clearSchedule ? null : (startsAt ?? this.startsAt),
         lineup: lineup ?? this.lineup,
         resultText: resultText ?? this.resultText,
+        challengeId: challengeId,
+        challengedByMe: challengedByMe,
+        opponentName: opponentName,
+        venueName: venueName,
+        proposal: proposal,
+        cancellation: cancellation,
       );
+}
+
+/// An open schedule proposal on a server match (migration 17): one club
+/// proposes a start time and venue; only the OTHER club can accept it. The
+/// answer names [version] so a replaced proposal can't be confirmed.
+class MatchProposal {
+  const MatchProposal({
+    required this.startsAt,
+    required this.venueName,
+    required this.byMe,
+    required this.version,
+    this.city,
+  });
+
+  final DateTime startsAt;
+  final String venueName;
+  final String? city;
+
+  /// `true` when this club made the proposal (so only the opponent answers).
+  final bool byMe;
+  final int version;
+}
+
+/// Why and by whom a server match was cancelled.
+class MatchCancellation {
+  const MatchCancellation({required this.at, required this.byMe, required this.reason});
+  final DateTime at;
+  final bool byMe;
+  final String reason;
+}
+
+/// A club's saved lineup for one server match (migration 18): exactly 11
+/// playing + 4 substitutes when saved, in pick order. Readable only by that
+/// club's owner and active members — never the opponent.
+class MatchLineup {
+  const MatchLineup({
+    required this.matchId,
+    required this.clubId,
+    required this.name,
+    required this.savedAt,
+    required this.players,
+    this.sourceTeamId,
+    this.captainMemberId,
+    this.viceCaptainMemberId,
+  });
+
+  final String matchId;
+  final String clubId;
+  final String name;
+  final String? sourceTeamId;
+  final String? captainMemberId;
+  final String? viceCaptainMemberId;
+  final DateTime savedAt;
+
+  /// Pick order (position 1 first). May be short of 11 + 4 after a member
+  /// left the club: the owner must save it again.
+  final List<MatchLineupPlayer> players;
+
+  /// The lineup as the app's [Lineup] (member ids as player ids).
+  Lineup get asLineup => Lineup(
+        name: name,
+        sourceTeamId: sourceTeamId,
+        members: [for (final p in players) TeamMember(playerId: p.memberId, selection: p.selection)],
+      );
+}
+
+class MatchLineupPlayer {
+  const MatchLineupPlayer({
+    required this.memberId,
+    required this.selection,
+    required this.position,
+    this.name,
+    this.role,
+  });
+
+  /// The club membership id (`club_members.id`).
+  final String memberId;
+  final SelectionRole selection;
+  final int position;
+  final String? name;
+  final MemberRole? role;
 }
 
 class GroundSpecs {

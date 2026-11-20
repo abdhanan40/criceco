@@ -12,6 +12,17 @@ const bool kMembershipsBuild = bool.fromEnvironment('CRICECO_MEMBERSHIPS');
 /// The memberships switch: [kMembershipsBuild], overridden in tests.
 final membershipsEnabledProvider = Provider<bool>((ref) => kMembershipsBuild);
 
+/// The matches switch as built: `--dart-define=CRICECO_MATCHES=true` once
+/// migrations 17–19 (challenges and matches, lineups, player availability)
+/// are live on the Supabase project. OFF by default — and it needs the
+/// memberships switch too: before those migrations the functions don't
+/// exist, so the match, challenge and availability screens stay "not
+/// available yet". Turn it on only with the P4–P6 screens (docs/MATCHES_BACKEND.md).
+const bool kMatchesBuild = bool.fromEnvironment('CRICECO_MATCHES');
+
+/// The matches switch: [kMatchesBuild], overridden in tests.
+final matchesEnabledProvider = Provider<bool>((ref) => kMatchesBuild);
+
 /// App areas whose data needs a backend.
 enum BackendModule {
   memberships('Club memberships'),
@@ -35,19 +46,36 @@ enum BackendModule {
 ///
 /// * Memory mode (the demo): every module, on the demo's seeded data.
 /// * Supabase mode: only what the database holds. Club memberships and teams
-///   come with the memberships switch; every other module has no backend yet
-///   and starts EMPTY (its repository is never seeded) — its screens say
-///   it isn't available yet rather than showing invented data
-///   (docs/PRODUCTION_DEMO_MODE.md).
+///   come with the memberships switch; matches, challenges and player
+///   availability with the matches switch on top of it; every other module
+///   has no backend yet and starts EMPTY (its repository is never seeded) —
+///   its screens say it isn't available yet rather than showing invented
+///   data (docs/PRODUCTION_DEMO_MODE.md).
 class BackendModules {
   const BackendModules._(this._available, {required this.isDemo});
 
-  factory BackendModules.of(BackendConfig config, {bool memberships = kMembershipsBuild}) => config.isSupabase
-      ? BackendModules._(
-          {if (memberships) ...{BackendModule.memberships, BackendModule.teams}},
-          isDemo: false,
-        )
-      : BackendModules._(BackendModule.values.toSet(), isDemo: true);
+  factory BackendModules.of(
+    BackendConfig config, {
+    bool memberships = kMembershipsBuild,
+    bool matches = kMatchesBuild,
+  }) =>
+      config.isSupabase
+          ? BackendModules._(
+              {
+                if (memberships) ...{BackendModule.memberships, BackendModule.teams},
+                if (memberships && matches) ...{
+                  BackendModule.matches,
+                  BackendModule.challenges,
+                  BackendModule.availability,
+                },
+              },
+              isDemo: false,
+            )
+          : BackendModules._(BackendModule.values.toSet(), isDemo: true);
+
+  /// Supabase with both switches: migrations 17–19 are used.
+  static bool matchesLive(BackendConfig config, {required bool memberships, required bool matches}) =>
+      config.isSupabase && memberships && matches;
 
   final Set<BackendModule> _available;
 
@@ -63,11 +91,22 @@ class BackendModules {
       'no sample data.';
 }
 
-/// The build's backend modules, from [backendConfigProvider] and
-/// [membershipsEnabledProvider].
+/// The build's backend modules, from [backendConfigProvider],
+/// [membershipsEnabledProvider] and [matchesEnabledProvider].
 final backendModulesProvider = Provider<BackendModules>(
   (ref) => BackendModules.of(
     ref.watch(backendConfigProvider),
     memberships: ref.watch(membershipsEnabledProvider),
+    matches: ref.watch(matchesEnabledProvider),
+  ),
+);
+
+/// `true` when the match, challenge and availability repositories use the
+/// server (Supabase + memberships + matches switches).
+final matchesBackendLiveProvider = Provider<bool>(
+  (ref) => BackendModules.matchesLive(
+    ref.watch(backendConfigProvider),
+    memberships: ref.watch(membershipsEnabledProvider),
+    matches: ref.watch(matchesEnabledProvider),
   ),
 );

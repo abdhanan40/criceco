@@ -36,6 +36,8 @@ class MatchManagementScreen extends ConsumerWidget {
     switch (m.status) {
       case MatchStatus.confirmed || MatchStatus.completed:
         showCeToast(context, 'This match is already scheduled');
+      case MatchStatus.cancelled:
+        showCeToast(context, 'This match was cancelled');
       case MatchStatus.reserved:
         if (booking?.status == BookingStatus.expired && booking!.myShareSettled) {
           context.go(Routes.reservationExpired(m.id));

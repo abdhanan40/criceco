@@ -109,6 +109,8 @@ abstract final class SupabaseErrorMapper {
     if (_membership(e.message) case final mapped?) return mapped;
     if (_team(e.message) case final mapped?) return mapped;
     if (_ownership(e.message) case final mapped?) return mapped;
+    // Challenges, matches, lineups, availability (migrations 17–19).
+    if (_matches(e.message) case final mapped?) return mapped;
     // update_profile_details() (migration 9): no profile row for the
     // signed-in user — nothing was written.
     if (e.sqlState == 'P0002' && e.message.contains('profile not found')) {
@@ -198,6 +200,74 @@ abstract final class SupabaseErrorMapper {
     if (has('not found')) return const TeamRuleException('This team no longer exists');
     if (has('invalid')) return const TeamRuleException("Some team details aren't valid — please check and try again");
     return const BackendOperationException();
+  }
+
+  /// The refusal reason after a `challenge:` / `match:` / `lineup:` /
+  /// `availability:` prefix (migrations 17–19), e.g. "already pending".
+  static String? _reason(String message, String prefix) =>
+      RegExp('(?:^|[^a-z_])$prefix: ([a-z -]+)').firstMatch(message)?.group(1)?.trim();
+
+  /// Text per refusal, checked most specific first.
+  static const _challengeTexts = {
+    'own club': 'You can’t challenge your own club.',
+    'club not found': 'This club no longer exists.',
+    'invalid date': 'Choose a match date from tomorrow, up to a year ahead.',
+    'invalid venue': 'Enter a venue (up to 100 characters).',
+    'invalid message': 'Keep the message to 280 characters.',
+    'already pending': 'There’s already an open challenge between your clubs.',
+    'too many pending': 'You have 20 open challenges — wait for replies before sending more.',
+    'not pending': 'This challenge has already been answered.',
+    'not found': 'This challenge no longer exists.',
+    'invalid': 'Check the match format (Custom needs 1–50 overs).',
+  };
+  static const _matchTexts = {
+    'not open': 'This match is closed — it was cancelled or played.',
+    'already started': 'This match has already started.',
+    'no proposal': 'There’s no open proposal to answer.',
+    'proposal changed': 'The other club changed the proposal — check the new time and try again.',
+    'schedule clash': 'One of the clubs already has a confirmed match at that time.',
+    'invalid time': 'Choose a start time in the future, up to a year ahead.',
+    'invalid venue': 'Enter a venue (up to 100 characters).',
+    'invalid city': 'Keep the city to 60 characters.',
+    'invalid reason': 'Give a reason (up to 200 characters).',
+    'not found': 'This match no longer exists.',
+  };
+  static const _lineupTexts = {
+    'match not confirmed': 'Lineups can be saved only for confirmed matches.',
+    'match started': 'This match has already started — the lineup is locked.',
+    'invalid squad': 'A lineup needs exactly 11 players and 4 substitutes.',
+    'invalid captain': 'Pick the captain from the Playing XI (not the vice-captain).',
+    'invalid vice-captain': 'Pick the vice-captain from the Playing XI.',
+    'invalid team': 'Choose one of your club’s teams.',
+    'invalid name': 'Enter a lineup name (up to 40 characters).',
+    'team archived': 'This team has been deleted.',
+    'player not in club': 'Only active members of your club can be in the lineup.',
+    'player unavailable': 'A selected player is injured or unavailable on the match day.',
+    'not found': 'This match no longer exists.',
+  };
+  static const _availabilityTexts = {
+    'invalid status': 'Choose a valid availability status.',
+    'invalid reason': 'Choose a valid reason.',
+    'invalid date': 'Choose an end date from today, up to a year ahead.',
+    'invalid notes': 'Keep the notes to 200 characters.',
+    'not found': 'Complete your profile first.',
+  };
+
+  /// Refusals of migrations 17–19 → [MatchRuleException] with what to do
+  /// next ("not authenticated" / "not allowed" are 42501: handled above).
+  /// An unknown reason gets a generic text — never the raw database message.
+  static Exception? _matches(String message) {
+    for (final (prefix, texts, fallback) in [
+      ('challenge', _challengeTexts, "Some challenge details aren't valid — please check and try again"),
+      ('match', _matchTexts, "Some match details aren't valid — please check and try again"),
+      ('lineup', _lineupTexts, "Some lineup details aren't valid — please check and try again"),
+      ('availability', _availabilityTexts, "Some availability details aren't valid — please check and try again"),
+    ]) {
+      final reason = _reason(message, prefix);
+      if (reason == null) continue;
+      return MatchRuleException(texts[reason] ?? fallback);
+    }
+    return null;
   }
 
   /// `… violates check constraint "<name>"` → `<name>`.
