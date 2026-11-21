@@ -414,3 +414,26 @@ Ship an app build without `CRICECO_MATCHES` first.
 **Tests:**
 - `test/match_supabase_test.dart` (47): mappers, error mapping, the repositories on `FakeMatchDb` (`test/match_fakes.dart`), provider selection and the demo repositories.
 - `test/supabase_match_gateway_test.dart` (7): RPC names, parameters and errors on the real `supabase_flutter` client with faked HTTP.
+
+---
+
+## P4 — Challenges screens
+
+**Status (2026-11-21):** the Challenges workspace works on the server when `CRICECO_MATCHES` is on, and is tested with fakes. The switch stays **off**; nothing is in production.
+
+`challengesLiveProvider` (any non-demo build) chooses the server path. The demo keeps its own flow and data unchanged.
+
+| Screen | Server mode |
+|---|---|
+| **Challenges** tab | The opponent directory (`OpponentDirectoryView`): other clubs' name, short name, city and type only. No record, rating or statistics |
+| **Find Opponent** tab | The same directory with a name search and a city filter (250 ms debounce, one request per settled query), with loading, empty, and error-with-Retry states. Availability slots and "Teams Looking for Opponents" are hidden: there is no server side yet (decision 7) |
+| **Challenge setup** | Format (Custom with 1–50 overs), **venue** (free text, up to 100 characters), date (Pakistan rule: from tomorrow, up to a year ahead), optional message (up to 280). Review stays disabled until everything is valid. One send at a time. Server refusals are shown as text, e.g. "already an open challenge". No match is created |
+| **My Challenges** | Incoming, sent and resolved challenges from `club_challenges()`, showing the opponent's name, city, format and overs, date, venue, message and expiry. Pull down to reload |
+| **Accept / Decline** | Server calls (`respond_to_challenge`). Accepting returns the ONE match the server created; the app creates none. Repeated taps are ignored while a call runs. Expired and already-answered challenges show the server's answer and the real status. After accepting, the app stays on My Challenges, because the match screens come in P5 |
+
+**Code:**
+- `challenges_controller.dart`: `ChallengeRules`, `ChallengeOpponent`, `opponentDirectoryProvider`, `respondingChallengesProvider`, and the live/demo split in `ChallengesController`.
+- Screens and widgets: `challenge_widgets.dart` (setup sheet, `respondToChallenge`), `challenges_hub_screen.dart`, `my_challenges_screen.dart`, `challenge_sheet.dart`.
+- `Challenge` gains `opponentShortName` and `opponentCity`, from `club_challenges()`.
+
+**Tests:** `test/challenges_supabase_test.dart` (21): directory, sending, lists, accept/decline, and widget flows on `FakeMatchDb`. The demo tests (`challenges_test.dart` and others) are unchanged and pass.

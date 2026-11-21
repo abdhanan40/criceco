@@ -42,7 +42,10 @@ class _ChallengeSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = ref.watch(challengeProvider(challengeId));
-    final club = c == null ? null : ref.watch(clubDirectoryProvider).value?[c.opponentClubId];
+    final summary = c == null ? null : ref.watch(clubDirectoryProvider).value?[c.opponentClubId];
+    final club = c == null ? null : ChallengeOpponent.forChallenge(c, summary);
+    final live = ref.watch(challengesLiveProvider);
+    final busy = ref.watch(respondingChallengesProvider).contains(challengeId);
     if (c == null || club == null) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 24),
@@ -61,12 +64,12 @@ class _ChallengeSheet extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Row(children: [
-          CeTeamBadge(club.abbr, color: club.color, size: 44),
+          CeTeamBadge(club.abbr, color: opponentColor(club), size: 44),
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(club.name, style: Theme.of(context).textTheme.titleLarge),
-              Text('${club.city} · W${club.wins}, L${club.losses}',
+              Text(club.meta,
                   style: const TextStyle(fontSize: 12, color: CeColors.muted)),
             ]),
           ),
@@ -84,13 +87,14 @@ class _ChallengeSheet extends ConsumerWidget {
         CeSummaryCard(
           margin: EdgeInsets.zero,
           rows: [
-            ('Format', CeSummaryCard.value(context, c.format?.display() ?? 'Not set')),
+            ('Format', CeSummaryCard.value(context, c.format?.display(c.customOvers) ?? 'Not set')),
             // A date-only proposal (midnight) shows no time.
             if (c.proposedAt case final at?)
               at.hour == 0 && at.minute == 0
                   ? ('Date', CeSummaryCard.value(context, CeFormat.dayDate(at)))
                   : ('Date & time', CeSummaryCard.value(context, '${CeFormat.dayDate(at)} · ${CeFormat.time(at)}')),
-            if (c.groundName != null) ('Ground', CeSummaryCard.value(context, c.groundName!)),
+            if (c.groundName != null) (live ? 'Venue' : 'Ground', CeSummaryCard.value(context, c.groundName!)),
+            if (c.message != null) ('Message', CeSummaryCard.value(context, c.message!)),
             (received ? 'Received' : 'Sent', CeSummaryCard.value(context, CeFormat.dayMonth(c.createdAt))),
             if (status == ChallengeStatus.pending && c.expiresAt != null)
               ('Expires', CeSummaryCard.value(context, CeFormat.dayMonth(c.expiresAt!))),
@@ -101,23 +105,28 @@ class _ChallengeSheet extends ConsumerWidget {
           Row(children: [
             Expanded(
               child: CeButton.danger(
+                key: const Key('challenge.decline'),
                 label: 'Decline',
                 icon: CeIcons.of('x'),
-                onPressed: () => close(_ChallengeAction.decline),
+                onPressed: busy ? null : () => close(_ChallengeAction.decline),
               ),
             ),
             const SizedBox(width: 8),
             Expanded(
               child: CeButton(
+                key: const Key('challenge.accept'),
                 label: 'Accept',
                 icon: CeIcons.of('check'),
-                onPressed: () => close(_ChallengeAction.accept),
+                loading: busy,
+                onPressed: busy ? null : () => close(_ChallengeAction.accept),
               ),
             ),
           ]),
           const SizedBox(height: 8),
         ],
-        CeButton.soft(label: 'View Club Profile', onPressed: () => close(_ChallengeAction.viewClub)),
+        // Club profiles exist only for the demo's clubs (no server profiles yet).
+        if (club.summary != null)
+          CeButton.soft(label: 'View Club Profile', onPressed: () => close(_ChallengeAction.viewClub)),
       ],
     );
   }

@@ -182,6 +182,8 @@ abstract final class MatchRowMapper {
       id: text(row, 'challenge_id'),
       opponentClubId: text(row, 'opponent_club_id'),
       opponentName: optText(row, 'opponent_name'),
+      opponentShortName: optText(row, 'opponent_short_name'),
+      opponentCity: optText(row, 'opponent_city'),
       direction: direction(row['direction']),
       status: challengeStatus(row['status']),
       createdAt: time(row, 'created_at'),

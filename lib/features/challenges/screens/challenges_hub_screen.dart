@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +11,7 @@ import '../../../core/utils/formatters.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
+import '../../../shared/widgets/ce_inputs.dart';
 import '../../../shared/widgets/ce_surfaces.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
 import '../../club/club_providers.dart';
@@ -22,7 +25,7 @@ import 'my_challenges_screen.dart';
 /// is reviewed and confirmed.
 class _SendButton extends ConsumerStatefulWidget {
   const _SendButton({required this.club, required this.label, this.listing, this.expand = true});
-  final ClubSummary club;
+  final ChallengeOpponent club;
   final String label;
 
   /// Find Opponent listing: a match request, prefilled with its format/date.
@@ -108,6 +111,8 @@ class ChallengeClubsView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Server challenges: the opponent directory (public fields only).
+    if (ref.watch(challengesLiveProvider)) return const OpponentDirectoryView(searchable: false);
     final clubsAsync = ref.watch(challengeableClubsProvider);
     return ListView(padding: const EdgeInsets.only(bottom: 24), children: [
         if (clubsAsync.isLoading)
@@ -124,7 +129,7 @@ class ChallengeClubsView extends ConsumerWidget {
                 Text('L${c.losses}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: CeColors.red)),
               ]),
               details: [InlineInfo(icon: 'map-pin', text: c.homeGround)],
-              actions: _SendButton(club: c, label: 'Challenge', expand: false),
+              actions: _SendButton(club: ChallengeOpponent.fromSummary(c), label: 'Challenge', expand: false),
               inlineActions: true,
               onTap: () => context.push(Routes.clubProfile(c.id)),
             ),
@@ -139,6 +144,9 @@ class FindOpponentView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Server challenges: search the opponent directory. Availability slots
+    // and "Teams Looking for Opponents" have no server side yet (decision 7).
+    if (ref.watch(challengesLiveProvider)) return const OpponentDirectoryView(searchable: true);
     final seekersAsync = ref.watch(matchSeekersProvider);
     final dir = ref.watch(clubDirectoryProvider).value ?? const <String, ClubSummary>{};
     final seekers = [
@@ -180,7 +188,7 @@ class FindOpponentView extends ConsumerWidget {
                     text: '${CeFormat.date(e.listing.startsAt)} · ${CeFormat.time(e.listing.startsAt)}'),
                 InlineInfo(icon: 'map-pin', text: e.listing.venue),
               ],
-              actions: _SendButton(club: e.club, label: 'Send Match Request', listing: e.listing),
+              actions: _SendButton(club: ChallengeOpponent.fromSummary(e.club), label: 'Send Match Request', listing: e.listing),
               onTap: () => context.push(Routes.clubProfile(e.club.id, fromFind: true)),
             ),
     ]);
@@ -197,4 +205,114 @@ class _FormatTag extends StatelessWidget {
         decoration: BoxDecoration(color: CeColors.mint, borderRadius: BorderRadius.circular(CeRadius.xs)),
         child: Text(label, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: CeColors.primaryDark)),
       );
+}
+
+/// How long the opponent search waits after the last keystroke.
+const kOpponentSearchDebounce = Duration(milliseconds: 250);
+
+/// Server challenges: other clubs from the opponent directory (migration
+/// 17) — name, short name, city and type only; no records, ratings or
+/// statistics (none are stored). [searchable]: a name search and a city
+/// filter (Find Opponent); otherwise the first clubs listed (Challenges).
+class OpponentDirectoryView extends ConsumerStatefulWidget {
+  const OpponentDirectoryView({super.key, required this.searchable});
+  final bool searchable;
+
+  @override
+  ConsumerState<OpponentDirectoryView> createState() => _OpponentDirectoryViewState();
+}
+
+class _OpponentDirectoryViewState extends ConsumerState<OpponentDirectoryView> {
+  final _search = TextEditingController();
+  final _city = TextEditingController();
+  Timer? _debounce;
+  OpponentQuery _query = (search: '', city: '');
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _search.dispose();
+    _city.dispose();
+    super.dispose();
+  }
+
+  /// A keystroke: search once typing pauses (one request per settled query).
+  void _changed(String _) {
+    _debounce?.cancel();
+    _debounce = Timer(kOpponentSearchDebounce, () {
+      final next = (search: _search.text.trim(), city: _city.text.trim());
+      if (mounted && next != _query) setState(() => _query = next);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final async = ref.watch(opponentDirectoryProvider(_query));
+    final filtered = _query.search.isNotEmpty || _query.city.isNotEmpty;
+    return ListView(padding: const EdgeInsets.only(bottom: 24), children: [
+      if (widget.searchable)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
+          child: Column(children: [
+            CeTextField(
+              fieldKey: const Key('opponents.search'),
+              controller: _search,
+              hint: 'Search clubs by name',
+              icon: 'search',
+              textInputAction: TextInputAction.search,
+              onChanged: _changed,
+            ),
+            const SizedBox(height: 8),
+            CeTextField(
+              fieldKey: const Key('opponents.city'),
+              controller: _city,
+              hint: 'City (optional)',
+              icon: 'map-pin',
+              textCapitalization: TextCapitalization.words,
+              onChanged: _changed,
+            ),
+          ]),
+        ),
+      CeSectionHeader(
+        widget.searchable ? 'Clubs' : 'Clubs to Challenge',
+        padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 16, CeSpace.gutter, 0),
+      ),
+      ...async.when(
+        skipLoadingOnReload: false,
+        loading: () => const [
+          Padding(padding: EdgeInsets.all(30), child: Center(child: CircularProgressIndicator())),
+        ],
+        error: (_, _) => [
+          CeErrorState(
+            key: const Key('opponents.error'),
+            title: 'Couldn\'t load clubs',
+            onRetry: () => ref.invalidate(opponentDirectoryProvider(_query)),
+          ),
+        ],
+        data: (clubs) => clubs.isEmpty
+            ? [
+                CeEmptyState(
+                  key: const Key('opponents.empty'),
+                  icon: 'search',
+                  title: filtered ? 'No clubs found' : 'No other clubs yet',
+                  body: filtered
+                      ? 'Try another name, or clear the city.'
+                      : 'Clubs appear here once other owners create them on CricEco.',
+                ),
+              ]
+            : [
+                for (final c in clubs)
+                  ChallengeCard(
+                    key: Key('opponent.${c.id}'),
+                    abbr: c.abbr,
+                    color: opponentColor(c),
+                    name: c.name,
+                    meta: Text(c.meta),
+                    actions: _SendButton(club: c, label: 'Challenge', expand: false),
+                    inlineActions: true,
+                  ),
+              ],
+      ),
+    ]);
+  }
 }

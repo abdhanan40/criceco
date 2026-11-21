@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -8,6 +9,7 @@ import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/validators.dart';
+import '../../../data/repositories/repositories.dart' show AccountException;
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_calendar.dart';
 import '../../../shared/widgets/ce_feedback.dart';
@@ -56,14 +58,30 @@ class ChallengesTabs extends ConsumerWidget {
   }
 }
 
-/// What a challenge / match request proposes. All three are required before
-/// anything is sent.
+/// What a challenge / match request proposes. Format, place and date are
+/// required before anything is sent: the demo picks a listed [ground]; a
+/// server challenge names its venue ([venueName]) and may add [customOvers]
+/// (Custom format) and a [message].
 class ChallengeRequest {
-  const ChallengeRequest({required this.format, required this.ground, required this.date});
+  const ChallengeRequest({
+    required this.format,
+    required this.date,
+    required this.venueName,
+    this.ground,
+    this.customOvers,
+    this.message,
+  });
   final MatchFormat format;
-  final Ground ground;
   final DateTime date;
+  final String venueName;
+  final Ground? ground;
+  final int? customOvers;
+  final String? message;
 }
+
+/// The badge colour of an opponent: the demo club's own, or the brand colour
+/// for a server club (which has no colour of its own).
+Color opponentColor(ChallengeOpponent o) => o.summary?.color ?? CeColors.primary;
 
 /// Sends a challenge and routes by the resulting state: Demo Mode accepts it
 /// instantly → Challenge Accepted; otherwise it stays pending → My Challenges
@@ -77,7 +95,7 @@ class ChallengeRequest {
 Future<void> sendChallenge(
   BuildContext context,
   WidgetRef ref,
-  ClubSummary club, {
+  ChallengeOpponent club, {
   bool matchRequest = false,
   MatchFormat? format,
   DateTime? date,
@@ -101,10 +119,16 @@ Future<void> sendChallenge(
     c = await ref.read(challengesProvider.notifier).send(
           club.id,
           format: request.format,
-          groundName: request.ground.name,
+          groundName: request.venueName,
           proposedAt: request.date,
+          customOvers: request.customOvers,
+          message: request.message,
         );
   } on ChallengeBlockedException catch (e) {
+    if (context.mounted) showCeToast(context, e.message);
+    return;
+  } on AccountException catch (e) {
+    // The server refused it (duplicate, pending limit, date, permission…).
     if (context.mounted) showCeToast(context, e.message);
     return;
   }
@@ -118,13 +142,22 @@ Future<void> sendChallenge(
   }
 }
 
-/// Formats a challenge can propose (Custom needs an overs count, which a
-/// challenge doesn't carry; it is set later in Match Setup).
+/// Formats a challenge can propose in the demo (Custom needs an overs count,
+/// which a demo challenge doesn't carry; it is set later in Match Setup).
 const challengeFormats = [MatchFormat.t20, MatchFormat.odi, MatchFormat.t10, MatchFormat.test];
 
-/// Challenge / match-request setup in one sheet. Step 1: Match Format, Ground
-/// and Date ("Review" stays disabled until all three are chosen). Step 2: a
+/// Formats a server challenge can propose (migration 17): Custom too, with
+/// its overs (1–50).
+const serverChallengeFormats = [MatchFormat.t20, MatchFormat.odi, MatchFormat.t10, MatchFormat.test, MatchFormat.custom];
+
+/// Challenge / match-request setup in one sheet. Step 1: Match Format, the
+/// place and Date ("Review" stays disabled until all are valid). Step 2: a
 /// summary and the final confirmation. Resolves to `null` on Cancel.
+///
+/// The demo picks one of its listed grounds. A server challenge
+/// ([challengesLiveProvider]) names its venue, may be Custom (with overs)
+/// and may carry a message; its date follows the server's rule (from
+/// tomorrow in Pakistan, up to a year ahead).
 class _ChallengeSetupSheet extends ConsumerStatefulWidget {
   const _ChallengeSetupSheet({
     required this.club,
@@ -133,7 +166,7 @@ class _ChallengeSetupSheet extends ConsumerStatefulWidget {
     this.date,
     this.groundName,
   });
-  final ClubSummary club;
+  final ChallengeOpponent club;
   final bool matchRequest;
   final MatchFormat? format;
   final DateTime? date;
@@ -144,19 +177,45 @@ class _ChallengeSetupSheet extends ConsumerStatefulWidget {
 }
 
 class _ChallengeSetupSheetState extends ConsumerState<_ChallengeSetupSheet> {
-  late MatchFormat? _format = challengeFormats.contains(widget.format) ? widget.format : null;
+  late final bool _live = ref.read(challengesLiveProvider);
+  late final List<MatchFormat> _formats = _live ? serverChallengeFormats : challengeFormats;
+  late MatchFormat? _format = _formats.contains(widget.format) ? widget.format : null;
   Ground? _ground;
   bool _groundSeeded = false;
+  late final _venue = TextEditingController(text: _live ? (widget.groundName ?? '') : '');
+  final _overs = TextEditingController();
+  final _message = TextEditingController();
   // A prefilled date is kept only if it's still a valid match date.
-  late DateTime? _date = widget.date == null || CeValidators.matchDate(widget.date, ref.read(clockProvider).now()) != null
-      ? null
-      : CeFormat.dateOnly(widget.date!);
+  late DateTime? _date = widget.date == null || _dateProblem(widget.date) != null ? null : CeFormat.dateOnly(widget.date!);
   late DateTime _month = _date ?? _today;
   bool _pickerOpen = false;
   bool _review = false;
 
-  DateTime get _today => CeFormat.dateOnly(ref.read(clockProvider).now());
-  bool get _complete => _format != null && _ground != null && _date != null;
+  DateTime get _now => ref.read(clockProvider).now();
+  DateTime get _today => CeFormat.dateOnly(_now);
+  String? _dateProblem(DateTime? d) => _live ? ChallengeRules.date(d, _now) : CeValidators.matchDate(d, _now);
+  int? get _customOvers => int.tryParse(_overs.text.trim());
+
+  /// What still keeps "Review" disabled, or `null`.
+  String? get _problem {
+    if (!_live) return _format != null && _ground != null && _date != null ? null : '';
+    return ChallengeRules.problem(
+      format: _format,
+      customOvers: _customOvers,
+      proposedAt: _date,
+      venueName: _venue.text,
+      message: _message.text,
+      now: _now,
+    );
+  }
+
+  @override
+  void dispose() {
+    _venue.dispose();
+    _overs.dispose();
+    _message.dispose();
+    super.dispose();
+  }
 
   Widget _label(String t) => Padding(
         padding: const EdgeInsets.only(top: 14, bottom: 8),
@@ -168,38 +227,75 @@ class _ChallengeSetupSheetState extends ConsumerState<_ChallengeSetupSheet> {
 
   Widget _buildDetails(BuildContext context) {
     final club = widget.club;
-    final grounds = (ref.watch(groundDirectoryProvider).value ?? const <String, Ground>{}).values.toList();
+    final grounds = _live
+        ? const <Ground>[]
+        : (ref.watch(groundDirectoryProvider).value ?? const <String, Ground>{}).values.toList();
     // A listing that names a listed ground starts with it selected.
-    if (!_groundSeeded && grounds.isNotEmpty) {
+    if (!_live && !_groundSeeded && grounds.isNotEmpty) {
       _groundSeeded = true;
       _ground = grounds.where((g) => g.name == widget.groundName).firstOrNull;
     }
+    final formats = club.summary?.formats;
+    final problem = _problem;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
       Text(widget.matchRequest ? 'Match request to ${club.name}' : 'Challenge ${club.name}',
           style: Theme.of(context).textTheme.titleLarge),
       const SizedBox(height: 4),
       Text(
-          'Choose the match format, ground and date. ${club.name} plays '
-          '${club.formats.trim().toLowerCase() == 'any' ? 'any format' : club.formats}.',
+          formats != null
+              ? 'Choose the match format, ground and date. ${club.name} plays '
+                  '${formats.trim().toLowerCase() == 'any' ? 'any format' : formats}.'
+              : 'Choose the match format, venue and date. ${club.name} can accept or decline.',
           style: const TextStyle(fontSize: 12.5, color: CeColors.muted, height: 1.4)),
       _label('Match Format'),
       Wrap(spacing: 8, runSpacing: 8, children: [
-        for (final f in challengeFormats)
-          CeChip(label: f.label, selected: f == _format, onTap: () => setState(() => _format = f)),
+        for (final f in _formats)
+          CeChip(
+            key: Key('challenge.format.${f.name}'),
+            label: f.label,
+            selected: f == _format,
+            onTap: () => setState(() => _format = f),
+          ),
       ]),
-      _label('Ground'),
-      CeSelectField<Ground>(
-        fieldKey: const Key('challenge.ground'),
-        items: grounds,
-        value: _ground,
-        labelOf: (g) => '${g.name} — ${g.city}',
-        onChanged: (g) => setState(() => _ground = g),
-        sheetTitle: 'Ground',
-        hint: 'Select ground',
-        icon: 'flag',
-        itemIcon: 'flag',
-      ),
+      if (_live && _format == MatchFormat.custom) ...[
+        _label('Overs'),
+        CeTextField(
+          fieldKey: const Key('challenge.overs'),
+          controller: _overs,
+          hint: '1–50 overs',
+          icon: 'circle-dot',
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(2)],
+          onChanged: (_) => setState(() {}),
+        ),
+      ],
+      if (_live) ...[
+        _label('Venue'),
+        CeTextField(
+          fieldKey: const Key('challenge.venue'),
+          controller: _venue,
+          hint: 'Ground or venue name',
+          icon: 'flag',
+          textCapitalization: TextCapitalization.words,
+          inputFormatters: [LengthLimitingTextInputFormatter(ChallengeRules.venueMax)],
+          onChanged: (_) => setState(() {}),
+        ),
+      ] else ...[
+        _label('Ground'),
+        CeSelectField<Ground>(
+          fieldKey: const Key('challenge.ground'),
+          items: grounds,
+          value: _ground,
+          labelOf: (g) => '${g.name} — ${g.city}',
+          onChanged: (g) => setState(() => _ground = g),
+          sheetTitle: 'Ground',
+          hint: 'Select ground',
+          icon: 'flag',
+          itemIcon: 'flag',
+        ),
+      ],
       // CeSelectField already leaves a gap below itself.
+      if (_live) const SizedBox(height: 14),
       const Text('Date', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: CeColors.ink2)),
       const SizedBox(height: 8),
       CeDateRow(
@@ -218,23 +314,43 @@ class _ChallengeSetupSheetState extends ConsumerState<_ChallengeSetupSheet> {
           visibleMonth: _month,
           today: _today,
           selected: _date,
-          // Same rule as Match Setup: from tomorrow on.
-          isEnabled: (d) => CeValidators.matchDate(d, ref.read(clockProvider).now()) == null,
+          // Same rule as Match Setup (demo) / the server: from tomorrow on.
+          isEnabled: (d) => _dateProblem(d) == null,
           onMonthChanged: (m) => setState(() => _month = m),
           onSelected: (d) => setState(() {
             _date = d;
             _pickerOpen = false;
           }),
         ),
+      if (_live) ...[
+        _label('Message (optional)'),
+        CeTextField(
+          fieldKey: const Key('challenge.message'),
+          controller: _message,
+          hint: 'A note for ${club.name}',
+          icon: 'file-text',
+          maxLines: 3,
+          maxLength: ChallengeRules.messageMax,
+          textCapitalization: TextCapitalization.sentences,
+          onChanged: (_) => setState(() {}),
+        ),
+        if (problem != null && _format != null && _date != null && _venue.text.trim().isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(problem,
+                key: const Key('challenge.problem'), style: const TextStyle(fontSize: 12, color: CeColors.red)),
+          ),
+      ],
       const SizedBox(height: 18),
       Row(children: [
         Expanded(child: CeButton.soft(label: 'Cancel', onPressed: () => Navigator.of(context).pop())),
         const SizedBox(width: 8),
         Expanded(
           child: CeButton(
+            key: const Key('challenge.review'),
             label: 'Review',
             trailingIcon: CeIcons.of('arrow-right'),
-            onPressed: _complete ? () => setState(() => _review = true) : null,
+            onPressed: problem == null ? () => setState(() => _review = true) : null,
           ),
         ),
       ]),
@@ -243,6 +359,7 @@ class _ChallengeSetupSheetState extends ConsumerState<_ChallengeSetupSheet> {
 
   Widget _buildReview(BuildContext context) {
     final request = widget.matchRequest;
+    final message = _message.text.trim();
     Widget row(String label, String value) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 6),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -268,9 +385,10 @@ class _ChallengeSetupSheetState extends ConsumerState<_ChallengeSetupSheet> {
         decoration: BoxDecoration(color: CeColors.mint, borderRadius: BorderRadius.circular(CeRadius.row)),
         child: Column(children: [
           row('Opponent', widget.club.name),
-          row('Format', _format!.label),
-          row('Ground', _ground!.name),
+          row('Format', _live ? _format!.display(_format == MatchFormat.custom ? _customOvers : null) : _format!.label),
+          if (_live) row('Venue', _venue.text.trim()) else row('Ground', _ground!.name),
           row('Date', CeFormat.dayDate(_date!)),
+          if (_live && message.isNotEmpty) row('Message', message),
         ]),
       ),
       const SizedBox(height: 12),
@@ -285,9 +403,16 @@ class _ChallengeSetupSheetState extends ConsumerState<_ChallengeSetupSheet> {
         const SizedBox(width: 8),
         Expanded(
           child: CeButton(
+            key: const Key('challenge.send'),
             label: request ? 'Send Request' : 'Send Challenge',
-            onPressed: () =>
-                Navigator.of(context).pop(ChallengeRequest(format: _format!, ground: _ground!, date: _date!)),
+            onPressed: () => Navigator.of(context).pop(ChallengeRequest(
+              format: _format!,
+              date: _date!,
+              venueName: _live ? _venue.text.trim() : _ground!.name,
+              ground: _live ? null : _ground,
+              customOvers: _live && _format == MatchFormat.custom ? _customOvers : null,
+              message: _live && message.isNotEmpty ? message : null,
+            )),
           ),
         ),
       ]),
@@ -306,7 +431,8 @@ Future<Challenge?> respondToChallenge(
   required bool accept,
   VoidCallback? onResponding, // called once confirmed, before saving
 }) async {
-  final name = ref.read(clubDirectoryProvider).value?[c.opponentClubId]?.name ?? 'this club';
+  final name = ref.read(clubDirectoryProvider).value?[c.opponentClubId]?.name ?? c.opponentName ?? 'this club';
+  final live = ref.read(challengesLiveProvider);
   final ok = accept
       ? await showCeConfirmSheet(
           context,
@@ -326,9 +452,20 @@ Future<Challenge?> respondToChallenge(
   if (!ok || !context.mounted) return null;
   onResponding?.call();
   final ctrl = ref.read(challengesProvider.notifier);
-  final result = accept ? await ctrl.accept(c.id) : await ctrl.decline(c.id);
+  final Challenge? result;
+  try {
+    result = accept ? await ctrl.accept(c.id) : await ctrl.decline(c.id);
+  } on AccountException catch (e) {
+    // Already answered, no permission, offline… (the list was reloaded).
+    if (context.mounted) showCeToast(context, e.message);
+    return null;
+  }
   if (!context.mounted) return result;
   switch (result?.status) {
+    case ChallengeStatus.accepted when live:
+      // The server created the match (pending, awaiting a schedule); its
+      // screens come in P5, so stay on My Challenges.
+      showCeToast(context, 'Challenge accepted — the match is waiting for both clubs to agree a time');
     case ChallengeStatus.accepted:
       showCeToast(context, 'Challenge accepted!');
       context.go(Routes.matchManagement(MatchTab.waiting));

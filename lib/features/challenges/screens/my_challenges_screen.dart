@@ -17,7 +17,10 @@ import '../widgets/challenge_widgets.dart';
 /// `screens.myChallenges`, :7044): incoming and outgoing challenges. A card
 /// opens the challenge in a bottom sheet, where a pending incoming challenge
 /// is accepted or declined (no new screen); the opponent's Club Profile is
-/// one tap further.
+/// one tap further (demo clubs).
+///
+/// Server challenges carry the opponent's public name, short name and city;
+/// the demo's carry a club profile. Pull down to reload.
 class MyChallengesView extends ConsumerWidget {
   const MyChallengesView({super.key});
 
@@ -27,6 +30,7 @@ class MyChallengesView extends ConsumerWidget {
     final sections = ref.watch(myChallengeSectionsProvider);
     final dir = ref.watch(clubDirectoryProvider).value ?? const <String, ClubSummary>{};
     final now = ref.read(clockProvider).now();
+    ChallengeOpponent? opponentOf(Challenge c) => ChallengeOpponent.forChallenge(c, dir[c.opponentClubId]);
 
     Widget empty(String text) => Padding(
           padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 6, CeSpace.gutter, 4),
@@ -34,72 +38,86 @@ class MyChallengesView extends ConsumerWidget {
         );
 
     List<Widget> details(Challenge c) => [
-          if (c.format != null) InlineInfo(icon: 'circle-dot', text: c.format!.display()),
+          if (c.format != null) InlineInfo(icon: 'circle-dot', text: c.format!.display(c.customOvers)),
           if (c.proposedAt != null) InlineInfo(icon: 'calendar', text: CeFormat.dayDate(c.proposedAt!)),
           if (c.groundName != null) InlineInfo(icon: 'map-pin', text: c.groundName!),
+          if (c.message != null) InlineInfo(icon: 'file-text', text: c.message!, maxLines: 2),
         ];
     // A sheet first (details; Accept / Decline for a received challenge).
     void open(Challenge c) => openChallengeSheet(context, ref, c);
 
-    return ListView(padding: const EdgeInsets.only(bottom: 24), children: [
-        if (async.isLoading)
-          const Padding(padding: EdgeInsets.all(30), child: Center(child: CircularProgressIndicator()))
-        else if (async.hasError)
-          CeErrorState(title: 'Couldn\'t load your challenges', onRetry: () => ref.invalidate(challengesProvider))
-        else ...[
-          // ---- Received, awaiting a decision ----
-          const CeSectionHeader('Awaiting your Decision',
-              padding: EdgeInsets.fromLTRB(CeSpace.gutter, 16, CeSpace.gutter, 0)),
-          if (sections.awaitingDecision.isEmpty) empty('No challenges awaiting your decision.'),
-          for (final c in sections.awaitingDecision)
-            if (dir[c.opponentClubId] case final club?)
-              ChallengeCard(
-                abbr: club.abbr,
-                color: club.color,
-                name: club.name,
-                nameTrailing: c.isNew ? const NewPill() : null,
-                meta: Text('${club.city} · W${club.wins}, L${club.losses}'),
-                details: details(c),
-                onTap: () => open(c),
-                actions: const _RespondHint(),
-              ),
-
-          // ---- Sent, awaiting their reply (Demo OFF — approved P9) ----
-          if (sections.sent.isNotEmpty) ...[
-            const CeSectionHeader('Sent'),
-            for (final c in sections.sent)
-              if (dir[c.opponentClubId] case final club?)
+    return RefreshIndicator(
+      onRefresh: () => ref.read(challengesProvider.notifier).refresh(keepOnError: true),
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(bottom: 24),
+        children: [
+          if (async.isLoading && !async.hasValue)
+            const Padding(padding: EdgeInsets.all(30), child: Center(child: CircularProgressIndicator()))
+          else if (async.hasError && !async.hasValue)
+            CeErrorState(title: 'Couldn\'t load your challenges', onRetry: () => ref.invalidate(challengesProvider))
+          else ...[
+            // ---- Received, awaiting a decision ----
+            const CeSectionHeader('Awaiting your Decision',
+                padding: EdgeInsets.fromLTRB(CeSpace.gutter, 16, CeSpace.gutter, 0)),
+            if (sections.awaitingDecision.isEmpty) empty('No challenges awaiting your decision.'),
+            for (final c in sections.awaitingDecision)
+              if (opponentOf(c) case final club?)
                 ChallengeCard(
+                  key: Key('challenge.card.${c.id}'),
                   abbr: club.abbr,
-                  color: club.color,
+                  color: opponentColor(club),
                   name: club.name,
-                  meta: Text('Sent ${CeFormat.dayMonth(c.createdAt)}'
-                      '${c.expiresAt == null ? '' : ' · expires ${CeFormat.dayMonth(c.expiresAt!)}'}'),
-                  trailing: challengeStatusChip(ChallengeStatus.pending, c.direction),
+                  nameTrailing: c.isNew ? const NewPill() : null,
+                  meta: Text([
+                    club.meta,
+                    if (club.summary == null && c.expiresAt != null) 'expires ${CeFormat.dayMonth(c.expiresAt!)}',
+                  ].where((s) => s.isNotEmpty).join(' · ')),
                   details: details(c),
+                  onTap: () => open(c),
+                  actions: const _RespondHint(),
+                ),
+
+            // ---- Sent, awaiting their reply (Demo OFF — approved P9) ----
+            if (sections.sent.isNotEmpty) ...[
+              const CeSectionHeader('Sent'),
+              for (final c in sections.sent)
+                if (opponentOf(c) case final club?)
+                  ChallengeCard(
+                    key: Key('challenge.card.${c.id}'),
+                    abbr: club.abbr,
+                    color: opponentColor(club),
+                    name: club.name,
+                    meta: Text('Sent ${CeFormat.dayMonth(c.createdAt)}'
+                        '${c.expiresAt == null ? '' : ' · expires ${CeFormat.dayMonth(c.expiresAt!)}'}'),
+                    trailing: challengeStatusChip(ChallengeStatus.pending, c.direction),
+                    details: details(c),
+                    onTap: () => open(c),
+                  ),
+            ],
+
+            // ---- Resolved ----
+            const CeSectionHeader('Resolved'),
+            if (sections.resolved.isEmpty) empty('No resolved challenges yet.'),
+            for (final c in sections.resolved)
+              if (opponentOf(c) case final club?)
+                ChallengeCard(
+                  key: Key('challenge.card.${c.id}'),
+                  abbr: club.abbr,
+                  color: opponentColor(club),
+                  name: club.name,
+                  meta: Text([
+                    if (c.format != null) c.format!.display(c.customOvers),
+                    if (c.proposedAt != null) CeFormat.dayDate(c.proposedAt!) else CeFormat.dayDate(c.createdAt),
+                    c.direction == ChallengeDirection.sent ? 'Sent' : 'Received',
+                  ].join(' · ')),
+                  trailing: challengeStatusChip(c.statusAt(now), c.direction),
                   onTap: () => open(c),
                 ),
           ],
-
-          // ---- Resolved ----
-          const CeSectionHeader('Resolved'),
-          if (sections.resolved.isEmpty) empty('No resolved challenges yet.'),
-          for (final c in sections.resolved)
-            if (dir[c.opponentClubId] case final club?)
-              ChallengeCard(
-                abbr: club.abbr,
-                color: club.color,
-                name: club.name,
-                meta: Text([
-                  if (c.format != null) c.format!.display(),
-                  if (c.proposedAt != null) CeFormat.dayDate(c.proposedAt!) else CeFormat.dayDate(c.createdAt),
-                  c.direction == ChallengeDirection.sent ? 'Sent' : 'Received',
-                ].join(' · ')),
-                trailing: challengeStatusChip(c.statusAt(now), c.direction),
-                onTap: () => open(c),
-              ),
         ],
-    ]);
+      ),
+    );
   }
 }
 

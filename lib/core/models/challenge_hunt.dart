@@ -21,7 +21,14 @@ class Challenge {
     this.customOvers,
     this.message,
     this.opponentName,
+    this.opponentShortName,
+    this.opponentCity,
   });
+
+  /// The opponent's public short name and city from the server (`null` in
+  /// the demo, and on rows returned by send / respond).
+  final String? opponentShortName;
+  final String? opponentCity;
 
   /// Overs for a custom-format challenge (server challenges, migration 17).
   final int? customOvers;
@@ -80,6 +87,8 @@ class Challenge {
         customOvers: customOvers,
         message: message,
         opponentName: opponentName,
+        opponentShortName: opponentShortName,
+        opponentCity: opponentCity,
       );
 }
 

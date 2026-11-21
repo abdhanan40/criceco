@@ -18,6 +18,9 @@ class FakeMatchDb implements MatchGateway {
   /// The next call fails with this (then it's cleared).
   GatewayException? failNext;
 
+  /// Every call of a given function fails with this while it's set.
+  final failOn = <String, GatewayException>{};
+
   /// The next single-row call returns this instead (malformed responses).
   Map<String, dynamic>? rowNext;
 
@@ -89,7 +92,7 @@ class FakeMatchDb implements MatchGateway {
 
   String _uid(String fn, Map<String, Object?> params, String prefix) {
     calls.add((fn: fn, params: params));
-    final f = failNext;
+    final f = failNext ?? failOn[fn];
     if (f != null) {
       failNext = null;
       throw f;
