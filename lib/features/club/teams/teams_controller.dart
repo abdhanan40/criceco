@@ -227,10 +227,33 @@ final teamProvider = Provider.family<Team?, String>(
 );
 
 /// The club's player pool (Add Players / Team Builder source).
+///
+/// On the server with the matches switch (migration 19) each member carries
+/// their own availability, as the club owner may see it: injured or
+/// unavailable today locks them out of picks (an injury whose end date has
+/// passed no longer does). If that can't be read, the pool is shown without
+/// it — the server still refuses such a player when a lineup is saved.
 final clubPlayerPoolProvider = FutureProvider<List<SquadPlayer>>((ref) async {
   final clubId = ref.watch(currentClubProvider.select((c) => c?.id));
   if (clubId == null) return const [];
-  return ref.read(clubRepositoryProvider).playerPool(clubId);
+  final pool = await ref.read(clubRepositoryProvider).playerPool(clubId);
+  if (!ref.watch(matchesBackendLiveProvider)) return pool;
+  final List<ClubMemberAvailability> availability;
+  try {
+    availability = await ref.read(playerAvailabilityRepositoryProvider).clubAvailability(clubId);
+  } on AccountException {
+    return pool;
+  }
+  final byMember = {for (final a in availability) a.memberId: a};
+  PlayerAvailability statusOf(ClubMemberAvailability a) =>
+      a.locksSelection || !a.status.locksSelection ? a.status : PlayerAvailability.available;
+  return [
+    for (final p in pool)
+      if (byMember[p.id] case final a?)
+        SquadPlayer(id: p.id, name: p.name, position: p.position, availability: statusOf(a))
+      else
+        p,
+  ];
 });
 
 enum PickOutcome { changed, locked, full }

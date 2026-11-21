@@ -397,8 +397,12 @@ class _LiveMatchCard extends ConsumerWidget {
               const _Cta(icon: 'calendar', label: 'Propose a Time', color: CeColors.amberInk, tint: CeColors.amberSoft),
             _ when p != null && !p.byMe => const _Cta(icon: 'hourglass', label: 'Review Proposal'),
             MatchStatus.pending => _Cta(icon: 'hourglass', label: 'Waiting for $name', tint: CeColors.historySoft),
-            _ => const _Cta(icon: 'calendar', label: 'View Schedule', tint: CeColors.historySoft),
+            // Confirmed: the next step is the line-up (below).
+            _ => null,
           };
+    // A confirmed match before its start: our club's line-up (migration 18),
+    // in the same sheet as the demo's.
+    final lineupOpen = open && m.status == MatchStatus.confirmed;
     return _CardShell(
       key: Key('match.card.${m.id}'),
       onTap: () => showMatchScheduleSheet(context, m.id),
@@ -427,8 +431,23 @@ class _LiveMatchCard extends ConsumerWidget {
             ),
           if (m.cancellation case final c?)
             _Meta(icon: 'x-circle', text: '${c.byMe ? 'Cancelled by your club' : 'Cancelled by $name'}: ${c.reason}'),
+          if (m.status == MatchStatus.confirmed || m.status == MatchStatus.completed)
+            _Meta(icon: 'users', text: m.lineup == null ? 'Line-up needed' : 'Line-up: ${m.lineup!.name}'),
         ]),
         ?cta,
+        if (lineupOpen)
+          Semantics(
+            button: true,
+            label: m.lineup == null ? 'Select Your Playing XI' : 'View or edit line-up',
+            excludeSemantics: true,
+            child: InkWell(
+              key: Key('match.lineup.${m.id}'),
+              onTap: () => showMatchLineupSheet(context, m.id),
+              child: m.lineup == null
+                  ? const _Cta(icon: 'circle-dot', label: 'Select Your Playing XI')
+                  : const _Cta(icon: 'users', label: 'View / Edit Line-up'),
+            ),
+          ),
       ]),
     );
   }

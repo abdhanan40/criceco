@@ -6,6 +6,7 @@ import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
+import '../../../data/repositories/repositories.dart' show AccountException;
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
@@ -82,7 +83,19 @@ class _MatchLineupSheetState extends ConsumerState<_MatchLineupSheet> {
       if (!ok || !mounted) return;
     }
     setState(() => _saving = true);
-    final leftOut = await ref.read(lineupDraftProvider(_target).notifier).useTeam(team);
+    final int leftOut;
+    try {
+      leftOut = await ref.read(lineupDraftProvider(_target).notifier).useTeam(team);
+    } on AccountException catch (e) {
+      // A server match refused it (incomplete squad, a player who left…).
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _error = e.message;
+        });
+      }
+      return;
+    }
     if (!mounted) return;
     setState(() {
       _saving = false;

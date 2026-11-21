@@ -93,7 +93,7 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
     );
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     FocusScope.of(context).unfocus();
     final untilDate = _needsUntil ? resolveUntil(_until, _today, _customDate) : null;
     if (_needsUntil && untilDate == null) {
@@ -111,13 +111,19 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
       });
       return;
     }
-    ref.read(playerAvailabilityProvider.notifier).update(
+    final error = await ref.read(playerAvailabilityProvider.notifier).update(
           status: _status,
           reason: _reason,
           until: _until,
           untilDate: untilDate,
           notes: _notes.text.trim(),
         );
+    if (!mounted) return;
+    // On the server the answer comes back first: say what it was.
+    if (error != null) {
+      showCeToast(context, error);
+      return;
+    }
     setState(() => _dateError = null);
     showCeToast(context, 'Availability updated');
   }

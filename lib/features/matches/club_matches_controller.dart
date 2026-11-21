@@ -34,7 +34,23 @@ class ClubMatchesController extends AsyncNotifier<List<ClubMatch>> {
   @override
   Future<List<ClubMatch>> build() async {
     ref.watch(currentAccountProvider.select((a) => a?.id));
-    return ref.read(matchRepositoryProvider).clubMatches();
+    return _load();
+  }
+
+  /// The matches; on the server each confirmed (or played) match also gets
+  /// its saved lineup (migration 18 — our club's only), so every lineup
+  /// screen reads [ClubMatch.lineup] in both modes.
+  Future<List<ClubMatch>> _load() async {
+    final repo = ref.read(matchRepositoryProvider);
+    final list = await repo.clubMatches();
+    if (!ref.read(matchesLiveProvider)) return list;
+    return Future.wait([
+      for (final m in list)
+        if (m.status == MatchStatus.confirmed || m.status == MatchStatus.completed)
+          repo.lineup(m.id).then((l) => l == null ? m : m.copyWith(lineup: l.asLineup))
+        else
+          Future.value(m),
+    ]);
   }
 
   ClubMatch? byId(String id) => state.value?.where((m) => m.id == id).firstOrNull;
@@ -64,7 +80,7 @@ class ClubMatchesController extends AsyncNotifier<List<ClubMatch>> {
   /// the list shown (after a change that did succeed).
   Future<bool> refresh({bool keepOnError = false}) async {
     try {
-      state = AsyncData(await ref.read(matchRepositoryProvider).clubMatches());
+      state = AsyncData(await _load());
       return true;
     } catch (e, st) {
       if (!keepOnError) state = AsyncError(e, st);
@@ -81,6 +97,29 @@ class ClubMatchesController extends AsyncNotifier<List<ClubMatch>> {
   /// Answers the other club's proposal [proposalVersion]: accept → confirmed.
   Future<ClubMatch?> respondToSchedule(String matchId, {required int proposalVersion, required bool accept}) =>
       _run(matchId, (repo) => repo.respondToSchedule(matchId, proposalVersion: proposalVersion, accept: accept));
+
+  /// Saves our club's whole lineup for a confirmed, not-started match
+  /// (exactly 11 + 4, active members, none injured / unavailable on the day:
+  /// the server decides). The match then carries it as [ClubMatch.lineup].
+  Future<ClubMatch?> saveLineup(String matchId, Lineup lineup, {String? captainMemberId, String? viceCaptainMemberId}) async {
+    final busy = ref.read(busyMatchesProvider.notifier);
+    if (!busy.begin(matchId)) return null;
+    try {
+      final saved = await ref.read(matchRepositoryProvider).saveLineup(
+            matchId,
+            lineup,
+            captainMemberId: captainMemberId,
+            viceCaptainMemberId: viceCaptainMemberId,
+          );
+      final m = byId(matchId);
+      if (m == null) return null;
+      final updated = m.copyWith(lineup: saved.asLineup);
+      _put(updated);
+      return updated;
+    } finally {
+      busy.end(matchId);
+    }
+  }
 
   /// Cancels a pending match, or a confirmed one before it starts.
   Future<ClubMatch?> cancel(String matchId, {required String reason}) =>

@@ -83,10 +83,12 @@ class PlayerDashboardScreen extends ConsumerWidget {
                   label: available ? 'Available. Tap to mark unavailable' : 'Unavailable. Tap to mark available',
                   excludeSemantics: true,
                   child: GestureDetector(
-                    onTap: () {
-                      ref.read(playerAvailabilityProvider.notifier).toggleQuick();
-                      // Feedback for a one-tap status change.
-                      showCeToast(context, available ? "You're marked unavailable" : "You're marked available");
+                    onTap: () async {
+                      final error = await ref.read(playerAvailabilityProvider.notifier).toggleQuick();
+                      if (!context.mounted) return;
+                      // Feedback for a one-tap status change (or why it didn't happen).
+                      showCeToast(
+                          context, error ?? (available ? "You're marked unavailable" : "You're marked available"));
                     },
                     child: CeHeroPill(
                       dotColor: available ? CeColors.fresh : CeColors.red,

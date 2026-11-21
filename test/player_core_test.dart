@@ -535,7 +535,7 @@ void main() {
       expect(find.text('Unavailable'), findsWidgets);
 
       // A detailed status (Injured) shows as OFF with its name; ON makes them Available.
-      c.read(playerAvailabilityProvider.notifier).update(status: PlayerAvailability.injured, notes: 'Hamstring');
+      await c.read(playerAvailabilityProvider.notifier).update(status: PlayerAvailability.injured, notes: 'Hamstring');
       await _go(tester, c, Routes.playerHome);
       await open();
       expect(sw('status.available').value, isFalse);
@@ -1290,7 +1290,7 @@ void main() {
       testWidgets('Phase 2 screens render without overflow at ${width.toInt()} px (long content)', (tester) async {
         final c = await _pumpPlayer(tester,
             width: width, fullName: 'Muhammad Abdul Rehman Chaudhry Al-Pakistani the Third');
-        c.read(playerAvailabilityProvider.notifier).update(
+        await c.read(playerAvailabilityProvider.notifier).update(
               status: PlayerAvailability.limited,
               reason: AvailabilityReason.familyEmergency,
               untilDate: DateTime(2026, 12, 31),

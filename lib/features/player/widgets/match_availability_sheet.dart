@@ -45,17 +45,22 @@ class _MatchAvailabilitySheetState extends ConsumerState<_MatchAvailabilitySheet
 
   bool get _changed => _status != _saved.status || _notes.text.trim() != _saved.notes;
 
-  void _save() {
+  Future<void> _save() async {
     final same = _status == _saved.status;
     // Same status: only the note changes (its date / reason are kept).
     // New status: open-ended — dates and reasons live on the full screen.
-    ref.read(playerAvailabilityProvider.notifier).update(
+    final error = await ref.read(playerAvailabilityProvider.notifier).update(
           status: _status,
           reason: same ? _saved.reason : null,
           until: same ? _saved.until : AvailabilityUntil.custom,
           untilDate: same ? _saved.untilDate : null,
           notes: _notes.text.trim(),
         );
+    if (!mounted) return;
+    if (error != null) {
+      showCeToast(context, error);
+      return;
+    }
     Navigator.of(context).pop();
     showCeToast(context, 'Availability updated');
   }

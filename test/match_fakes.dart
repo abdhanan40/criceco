@@ -516,6 +516,26 @@ class FakeMatchDb implements MatchGateway {
         throw err('23514', 'lineup: player not in club');
       }
     }
+    // Migration 19's rule: nobody injured / unavailable on the match day
+    // (Asia/Karachi), unless their status ends before it.
+    final pk = DateTime.parse(m['starts_at'] as String)
+        .toUtc()
+        .add(const Duration(hours: 5));
+    final day = DateTime.utc(pk.year, pk.month, pk.day);
+    for (final p in players) {
+      final user = members.firstWhere(
+        (x) => x['id'] == p['member_id'],
+      )['user_id'];
+      final a = availability[user];
+      final until = a?['until_date'] == null
+          ? null
+          : DateTime.parse('${a!['until_date']}');
+      if (a != null &&
+          ['injured', 'unavailable'].contains(a['status']) &&
+          (until == null || !until.isBefore(day))) {
+        throw err('P0001', 'lineup: player unavailable');
+      }
+    }
     lineups.removeWhere(
       (l) => l['match_id'] == m['id'] && l['club_id'] == club,
     );
@@ -639,10 +659,16 @@ class FakeMatchDb implements MatchGateway {
             'until_date': availability[m['user_id']]?['until_date'],
             'notes': availability[m['user_id']]?['notes'],
             'updated_at': availability[m['user_id']]?['updated_at'],
-            'locks_selection': [
-              'injured',
-              'unavailable',
-            ].contains(availability[m['user_id']]?['status']),
+            // Injured / unavailable covering today (Pakistan), as the server.
+            'locks_selection':
+                [
+                  'injured',
+                  'unavailable',
+                ].contains(availability[m['user_id']]?['status']) &&
+                (availability[m['user_id']]?['until_date'] == null ||
+                    !DateTime.parse(
+                      '${availability[m['user_id']]!['until_date']}',
+                    ).isBefore(_pkToday)),
           },
     ]);
   }

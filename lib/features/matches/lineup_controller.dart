@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers/core_providers.dart';
 import '../../core/models/models.dart';
+import '../../data/repositories/repositories.dart';
 import '../club/teams/teams_controller.dart';
 import '../tournaments/registration_draft.dart';
 import 'club_matches_controller.dart';
@@ -93,27 +94,65 @@ class LineupDraftController extends Notifier<LineupDraft> {
     if (state.picks.keys.any((id) => byId[id]?.locked ?? true)) {
       return 'Remove injured or unavailable players first';
     }
-    await _save(Lineup(
-      name: state.name ?? Lineup.newMatchDaySquadName,
-      sourceTeamId: state.sourceTeamId,
-      members: state.toMembers(),
-    ));
+    try {
+      await _save(Lineup(
+        name: state.name ?? Lineup.newMatchDaySquadName,
+        sourceTeamId: state.sourceTeamId,
+        members: state.toMembers(),
+      ));
+    } on AccountException catch (e) {
+      // The server refused it (a player left the club or is unavailable on
+      // the match day, the match changed…): say why; the picks stay.
+      return e.message;
+    }
     return null;
   }
 
   /// "Select Existing Team": the team's saved XI / subs become this match's
   /// line-up (a snapshot — later squad edits don't change a past line-up).
   /// Injured / unavailable members are left out. Returns how many were left out.
+  ///
+  /// A server match (migration 18) takes only a complete line-up: exactly
+  /// 11 + 4 after leaving those players out — otherwise a
+  /// [MatchRuleException] says so and nothing is saved. Its captain and
+  /// vice-captain come along when both are still in the Playing XI.
   Future<int> useTeam(Team team) async {
     final pool = await ref.read(clubPlayerPoolProvider.future);
     final byId = {for (final p in pool) p.id: p};
     final members = [for (final m in team.members) if (byId[m.playerId]?.locked == false) m];
-    await _save(Lineup(name: team.name, sourceTeamId: team.id, members: members));
-    return team.members.length - members.length;
+    final leftOut = team.members.length - members.length;
+    final lineup = Lineup(name: team.name, sourceTeamId: team.id, members: members);
+    if (_serverMatch) {
+      final playing = members.where((m) => m.selection == SelectionRole.playing).toList();
+      if (playing.length != SquadRules.maxPlaying || members.length - playing.length != SquadRules.maxSubs) {
+        throw MatchRuleException(
+          '${team.name} has ${playing.length} + ${members.length - playing.length} available players'
+          '${leftOut > 0 ? ' ($leftOut injured or unavailable left out)' : ''}. '
+          'A match line-up needs exactly ${SquadRules.maxPlaying} + ${SquadRules.maxSubs} — build one instead.',
+        );
+      }
+      bool inXi(String? id) => id != null && playing.any((m) => m.playerId == id);
+      final captain = inXi(team.captainId) ? team.captainId : null;
+      final vice = inXi(team.viceCaptainId) && team.viceCaptainId != captain ? team.viceCaptainId : null;
+      await _save(lineup, captainMemberId: captain, viceCaptainMemberId: vice);
+      return leftOut;
+    }
+    await _save(lineup);
+    return leftOut;
   }
 
-  Future<void> _save(Lineup lineup) async {
+  /// A server match's line-up (migration 18) rather than the demo's.
+  bool get _serverMatch => target is MatchLineupTarget && ref.read(matchesLiveProvider);
+
+  Future<void> _save(Lineup lineup, {String? captainMemberId, String? viceCaptainMemberId}) async {
     switch (target) {
+      case MatchLineupTarget(:final matchId) when _serverMatch:
+        await ref.read(clubMatchesProvider.notifier).saveLineup(
+              matchId,
+              lineup,
+              captainMemberId: captainMemberId,
+              viceCaptainMemberId: viceCaptainMemberId,
+            );
       case MatchLineupTarget(:final matchId):
         final matches = ref.read(clubMatchesProvider.notifier);
         final m = matches.byId(matchId);

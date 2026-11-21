@@ -373,7 +373,7 @@ void main() {
       await _tap(tester, _button('Close'));
       expect(find.byKey(const Key('fitness.sheet')), findsNothing);
 
-      c.read(playerAvailabilityProvider.notifier).update(status: PlayerAvailability.unavailable);
+      await c.read(playerAvailabilityProvider.notifier).update(status: PlayerAvailability.unavailable);
       await tester.pumpAndSettle();
       expect(find.text('Avoid playing — marked unavailable'), findsOneWidget);
       expect(find.text('SIT OUT'), findsOneWidget);

@@ -459,3 +459,33 @@ Ship an app build without `CRICECO_MATCHES` first.
 **Not yet:** line-ups on server matches (P6), results (M2), and the player's own match list.
 
 **Tests:** `test/match_schedule_supabase_test.dart` (13): rules, controller flows (propose, accept, decline, a stale version, a clash, cancel, repeated taps, no permission) and screen flows on `FakeMatchDb`. The demo booking tests are unchanged.
+
+---
+
+## P6 — Line-ups and player availability
+
+**Status (2026-11-21):** works on the server with `CRICECO_MATCHES` on, and is tested with fakes. The switch stays **off**; nothing is in production. The demo's line-up and availability flows are unchanged.
+
+| Part | Server mode |
+|---|---|
+| **Line-up loading** | `ClubMatchesController` reads each confirmed or played match's saved line-up (`match_lineup`, our club's only), so the existing line-up sheet and screens show it as `ClubMatch.lineup` |
+| **Saving** | Builder ("Confirm Team") and "Select Existing Team" save through `save_match_lineup`: exactly 11 + 4 in pick order. A team keeps its captain and vice-captain when both are in the XI |
+| **Team snapshot** | A team that isn't a complete 11 + 4 after leaving out injured or unavailable players is refused before saving, with the counts |
+| **Refusals** | A player who left, or is injured or unavailable on the match day, comes back as the server's reason. The builder keeps the picks |
+| **Match Management** | A confirmed card shows "Line-up needed" or "Line-up: name", and its **Select Your Playing XI** / **View / Edit Line-up** action opens the same line-up sheet as the demo |
+| **Squad pool** | For the owner, each member's availability comes from `club_player_availability`. Injured or unavailable today is locked; an injury whose end date has passed is not. If availability can't be read, the pool still loads, and the server refuses such a player on save |
+| **Player availability** | `PlayerAvailabilityController` reads the player's own record (`my_availability`) and saves through `set_my_availability`, which never sends a user id. The new status is shown once stored; a refusal is shown and the record stays. One save at a time. The Availability screen, the Match Availability sheet and the dashboard pill all wait for the answer. The demo still saves at once |
+
+**Not yet:**
+- **Player's own match list:** needs a server function (`my_matches()`), which means a new migration that isn't approved. "My Matches" stays empty on the server.
+- **Results:** M2.
+
+**Kept on the device only:** the availability "until" shortcut (Today / Tomorrow / Weekend) and "Open to offers" (Player Hunt).
+
+**Tests:** `test/lineups_availability_supabase_test.dart` (14) covers:
+- loading, building, refusal, team snapshot (complete, and with an injured player) and closed line-ups;
+- pool locks and the fallback when availability can't be read;
+- player read, save, refusal and duplicate save, plus the demo's immediate save;
+- the Match Management line-up entry.
+
+`FakeMatchDb` applies the injured/unavailable rule on save, as migration 19 does.

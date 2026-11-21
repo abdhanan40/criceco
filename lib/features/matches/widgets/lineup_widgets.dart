@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
+import '../../../data/repositories/repositories.dart' show AccountException;
 import '../../../shared/state/selection_controller.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
@@ -417,7 +418,19 @@ class _LineupTeamPickerViewState extends ConsumerState<LineupTeamPickerView> {
       if (!ok || !mounted) return;
     }
     setState(() => _saving = true);
-    final leftOut = await ref.read(lineupDraftProvider(widget.target).notifier).useTeam(team);
+    final int leftOut;
+    try {
+      leftOut = await ref.read(lineupDraftProvider(widget.target).notifier).useTeam(team);
+    } on AccountException catch (e) {
+      // A server match refused it (incomplete squad, a player who left…).
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _error = e.message;
+        });
+      }
+      return;
+    }
     if (!mounted) return;
     setState(() => _saving = false);
     widget.onConfirmed(leftOut);

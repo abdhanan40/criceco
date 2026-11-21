@@ -5,6 +5,7 @@ import '../../app/providers/core_providers.dart';
 import '../../app/session/session_controller.dart';
 import '../../core/models/models.dart';
 import '../../core/utils/ranked_search.dart';
+import '../../data/repositories/repositories.dart' show AccountException;
 import '../../demo/seed_data.dart';
 import '../../shared/state/selection_controller.dart';
 
@@ -74,21 +75,41 @@ class PlayerAvailabilityController extends Notifier<PlayerAvailabilityRecord> {
     if (ref.read(backendModulesProvider).isDemo) {
       return PlayerAvailabilityRecord(status: PlayerAvailability.available, since: DateTime(2025, 4, 12));
     }
+    // The server's record (migration 19), once read: nothing stored there
+    // means available.
+    if (_live) Future.microtask(_load);
     return PlayerAvailabilityRecord(status: PlayerAvailability.available, since: ref.read(clockProvider).now());
   }
 
   DateTime get _now => ref.read(clockProvider).now();
 
-  /// "Update Availability".
-  void update({
+  /// The server keeps this record (Supabase with the matches switch).
+  bool get _live => ref.read(matchesBackendLiveProvider);
+
+  bool _saving = false;
+
+  Future<void> _load() async {
+    try {
+      final saved = await ref.read(playerAvailabilityRepositoryProvider).mine();
+      if (saved != null && ref.mounted) state = saved.copyWith(openToOffers: state.openToOffers);
+    } on AccountException {
+      // Not readable now (offline…): shown as available until the next read.
+    }
+  }
+
+  /// "Update Availability". The demo saves at once; on the server the new
+  /// record is shown once stored. Returns `null` when saved, or why not
+  /// (the record then stays as it was). A second save while one is on its
+  /// way is ignored.
+  Future<String?> update({
     required PlayerAvailability status,
     AvailabilityReason? reason,
     AvailabilityUntil until = AvailabilityUntil.custom,
     DateTime? untilDate,
     String notes = '',
-  }) {
+  }) async {
     final available = status == PlayerAvailability.available;
-    state = PlayerAvailabilityRecord(
+    final record = PlayerAvailabilityRecord(
       status: status,
       since: _now,
       reason: available ? null : reason,
@@ -97,10 +118,26 @@ class PlayerAvailabilityController extends Notifier<PlayerAvailabilityRecord> {
       notes: notes,
       openToOffers: state.openToOffers,
     );
+    if (!_live) {
+      state = record;
+      return null;
+    }
+    if (_saving) return null;
+    _saving = true;
+    try {
+      final saved = await ref.read(playerAvailabilityRepositoryProvider).setMine(record);
+      // The server doesn't keep the "until" shortcut or the Player Hunt flag.
+      state = saved.copyWith(until: until, openToOffers: state.openToOffers);
+      return null;
+    } on AccountException catch (e) {
+      return e.message;
+    } finally {
+      _saving = false;
+    }
   }
 
   /// Dashboard pill: Available ↔ Unavailable on the same record.
-  void toggleQuick() => update(
+  Future<String?> toggleQuick() => update(
         status: state.status == PlayerAvailability.available ? PlayerAvailability.unavailable : PlayerAvailability.available,
       );
 
