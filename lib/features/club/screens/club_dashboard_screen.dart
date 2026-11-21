@@ -316,12 +316,20 @@ class _NextMatch extends ConsumerWidget {
     final opponent = ref.watch(clubDirectoryProvider).value?[match.opponentClubId];
     final ground = match.groundId == null ? null : ref.watch(groundDirectoryProvider).value?[match.groundId];
     final startsAt = match.startsAt;
-    final groundLabel = ground == null ? 'Ground TBD' : '${ground.name}, ${ground.city}';
+    // A server match has no demo profile or listed ground: its own opponent
+    // name and agreed venue (migration 17).
+    final opponentName = opponent?.name ?? match.opponentName;
+    final venue = match.venueName;
+    final groundLabel = ground != null
+        ? '${ground.name}, ${ground.city}'
+        : venue != null
+            ? [venue, ?match.city].join(', ')
+            : 'Ground TBD';
     return CeMatchCard(
       homeAbbr: clubAbbr(clubShortName),
-      awayAbbr: opponent?.abbr ?? '?',
+      awayAbbr: opponent?.abbr ?? (opponentName == null ? '?' : clubAbbr(opponentName)),
       awayColor: opponent?.color ?? CeColors.primary,
-      title: '$clubShortName vs ${opponent?.name ?? 'Opponent'}',
+      title: '$clubShortName vs ${opponentName ?? 'Opponent'}',
       status: const CeStatusChip('Confirmed', icon: 'check'),
       // Reference match card: date block, "time · format", ground footer.
       date: startsAt,

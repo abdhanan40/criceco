@@ -1363,9 +1363,9 @@ void main() {
         final cancelled = await matches.cancelMatch(pending.id, reason: 'Rain');
         expect(cancelled.status, MatchStatus.cancelled);
         expect(
-          MatchTab.values.any((t) => t.includes(MatchStatus.cancelled)),
-          isFalse,
-          reason: 'no tab for it until P5',
+          MatchTab.values.where((t) => t.includes(MatchStatus.cancelled)),
+          [MatchTab.history],
+          reason: 'cancelled matches are shown under History (P5)',
         );
       },
     );

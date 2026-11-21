@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/providers/core_providers.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/session/session_controller.dart';
 import '../../../app/theme/tokens.dart';
@@ -18,6 +19,7 @@ import '../../booking/widgets/booking_widgets.dart';
 import '../../club/club_providers.dart';
 import '../club_matches_controller.dart';
 import '../widgets/match_lineup_sheet.dart';
+import '../widgets/match_schedule_sheet.dart';
 
 /// Match Management / Upcoming Matches (prototype `screens.upcomingMatches`,
 /// :6863). Tabs Waiting / Scheduled / History live in `?tab=`. Accepted
@@ -31,7 +33,14 @@ class MatchManagementScreen extends ConsumerWidget {
 
   /// Where a card goes (prototype `openMatchSetup`): pending → setup,
   /// reserved → payment or payment status, expired (paid) → refund choice.
+  ///
+  /// Server matches (migration 17) have no booking: a card opens the
+  /// schedule sheet (propose / answer / cancel) instead.
   static void open(BuildContext context, WidgetRef ref, ClubMatch m) {
+    if (ref.read(matchesLiveProvider)) {
+      showMatchScheduleSheet(context, m.id);
+      return;
+    }
     final booking = ref.read(bookingProvider(m.id));
     switch (m.status) {
       case MatchStatus.confirmed || MatchStatus.completed:
@@ -57,10 +66,12 @@ class MatchManagementScreen extends ConsumerWidget {
     final async = ref.watch(clubMatchesProvider);
     final all = async.value ?? const <ClubMatch>[];
     final dir = ref.watch(clubDirectoryProvider).value ?? const <String, ClubSummary>{};
+    final live = ref.watch(matchesLiveProvider);
     int count(MatchTab t) => all.where((m) => t.includes(m.status)).length;
+    // A server match without an agreed time sorts by its proposed one.
     final list = all.where((m) => tab.includes(m.status)).toList()
       ..sort((a, b) {
-        final x = a.startsAt, y = b.startsAt;
+        final x = a.startsAt ?? a.proposal?.startsAt, y = b.startsAt ?? b.proposal?.startsAt;
         if (x == null || y == null) return x == null ? (y == null ? 0 : 1) : -1;
         return tab == MatchTab.history ? y.compareTo(x) : x.compareTo(y);
       });
@@ -74,15 +85,18 @@ class MatchManagementScreen extends ConsumerWidget {
           labelOf: (t) => count(t) == 0 ? t.label : '${t.label} (${count(t)})',
           onSelected: (t) => context.go(Routes.matchManagement(t)),
         ),
-        if (async.isLoading)
+        if (async.isLoading && !(live && async.hasValue))
           const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator()))
-        else if (async.hasError)
+        else if (async.hasError && !(live && async.hasValue))
           CeErrorState(title: 'Couldn\'t load your matches', onRetry: () => ref.invalidate(clubMatchesProvider))
         else if (list.isEmpty)
           CeEmptyState(
             icon: 'calendar',
             title: 'No ${tab.label.toLowerCase()} matches',
             body: switch (tab) {
+              MatchTab.waiting when live => 'Accept a challenge, or have one accepted, to see it here',
+              MatchTab.scheduled when live => 'Agree a time with the other club to see it here',
+              MatchTab.history when live => 'Played and cancelled matches show up here',
               MatchTab.waiting => 'Accept a challenge or finish paying to see it here',
               MatchTab.scheduled => 'Complete a booking and payment to see it here',
               MatchTab.history => "Matches you've played will show up here",
@@ -90,7 +104,9 @@ class MatchManagementScreen extends ConsumerWidget {
           )
         else
           for (final m in list)
-            if (dir[m.opponentClubId] case final opp?)
+            if (live)
+              _LiveMatchCard(match: m)
+            else if (dir[m.opponentClubId] case final opp?)
               switch (tab) {
                 MatchTab.waiting => _WaitingCard(match: m, opponent: opp),
                 MatchTab.scheduled => _ScheduledCard(match: m, opponent: opp),
@@ -102,7 +118,7 @@ class MatchManagementScreen extends ConsumerWidget {
 }
 
 class _CardShell extends StatelessWidget {
-  const _CardShell({required this.child, this.onTap});
+  const _CardShell({super.key, required this.child, this.onTap});
   final Widget child;
   final VoidCallback? onTap;
 
@@ -357,4 +373,63 @@ class _Meta extends StatelessWidget {
         const SizedBox(width: 4),
         Flexible(child: Text(text, style: const TextStyle(fontSize: 12, color: CeColors.muted))),
       ]);
+}
+
+/// A server match (migration 17): the opponent's public name, the agreed
+/// schedule or the open proposal, or the cancellation — and the next step.
+/// Tapping opens the schedule sheet.
+class _LiveMatchCard extends ConsumerWidget {
+  const _LiveMatchCard({required this.match});
+  final ClubMatch match;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final m = match;
+    final now = ref.read(clockProvider).now();
+    final name = m.opponentName ?? 'Opponent';
+    final p = m.proposal;
+    final open = MatchScheduleRules.open(m) && !MatchScheduleRules.started(m, now);
+    final meta = [if (m.format != null) m.format!.display(m.customOvers), m.challengedByMe == true ? 'You challenged' : 'They challenged'].join(' · ');
+    final Widget? cta = !open
+        ? null
+        : switch (m.status) {
+            MatchStatus.pending when p == null =>
+              const _Cta(icon: 'calendar', label: 'Propose a Time', color: CeColors.amberInk, tint: CeColors.amberSoft),
+            _ when p != null && !p.byMe => const _Cta(icon: 'hourglass', label: 'Review Proposal'),
+            MatchStatus.pending => _Cta(icon: 'hourglass', label: 'Waiting for $name', tint: CeColors.historySoft),
+            _ => const _Cta(icon: 'calendar', label: 'View Schedule', tint: CeColors.historySoft),
+          };
+    return _CardShell(
+      key: Key('match.card.${m.id}'),
+      onTap: () => showMatchScheduleSheet(context, m.id),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          CeTeamBadge(clubAbbr(name), color: CeColors.primary, size: 40),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('vs $name', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: CeColors.ink)),
+              const SizedBox(height: 1),
+              Text(meta, style: const TextStyle(fontSize: 11.5, color: CeColors.muted)),
+            ]),
+          ),
+          const SizedBox(width: 8),
+          liveMatchChip(m, now),
+        ]),
+        const SizedBox(height: 8),
+        Wrap(spacing: 10, runSpacing: 4, children: [
+          if (m.startsAt != null) _Meta(icon: 'calendar', text: matchWhen(m.startsAt!)),
+          if (m.venueName != null) _Meta(icon: 'flag', text: matchWhere(m.venueName!, m.city)),
+          if (p != null && open)
+            _Meta(
+              icon: 'hourglass',
+              text: '${p.byMe ? 'You proposed' : '$name proposed'} ${matchWhen(p.startsAt)} · ${matchWhere(p.venueName, p.city)}',
+            ),
+          if (m.cancellation case final c?)
+            _Meta(icon: 'x-circle', text: '${c.byMe ? 'Cancelled by your club' : 'Cancelled by $name'}: ${c.reason}'),
+        ]),
+        ?cta,
+      ]),
+    );
+  }
 }

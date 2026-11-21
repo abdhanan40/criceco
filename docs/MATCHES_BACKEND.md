@@ -437,3 +437,25 @@ Ship an app build without `CRICECO_MATCHES` first.
 - `Challenge` gains `opponentShortName` and `opponentCity`, from `club_challenges()`.
 
 **Tests:** `test/challenges_supabase_test.dart` (21): directory, sending, lists, accept/decline, and widget flows on `FakeMatchDb`. The demo tests (`challenges_test.dart` and others) are unchanged and pass.
+
+---
+
+## P5 — Scheduling and cancellation (Match Management)
+
+**Status (2026-11-21):** Match Management works on the server with `CRICECO_MATCHES` on, and is tested with fakes. The switch stays **off**; nothing is in production.
+
+`matchesLiveProvider` (any non-demo build) chooses the server path. The demo keeps its booking-based flow and cards unchanged.
+
+| Part | Server mode |
+|---|---|
+| **Tabs** | Waiting = pending. Scheduled = confirmed. History = completed and **cancelled**; `MatchTab.history` now includes cancelled for both modes, though the demo has no cancelled matches |
+| **Cards** (`_LiveMatchCard`) | The opponent's name, the format, who challenged, and the agreed time and venue. They also show the open proposal ("You proposed…" / "Karachi Kings proposed…") or the cancellation ("Cancelled by …: reason"). Chips: *Time needed*, *Awaiting reply*, *Reply needed*, *Confirmed*, *New time proposed*, *Cancelled*. There is no booking or payment: tapping a card opens the schedule sheet |
+| **Schedule sheet** (`match_schedule_sheet.dart`) | Accept or decline the other club's proposal, naming the version it answers. Propose a time with date, start time, venue and optional city: on a pending match, or as a reschedule of a confirmed one, which stays confirmed until accepted. Cancel with a reason (1–200 characters) |
+| **Errors** | A refusal stays in the sheet: proposal changed, schedule clash, match closed, no permission. The match is re-read, so a proposal changed meanwhile appears at once. Success closes the sheet with a toast |
+| **Guards** | `MatchScheduleRules`: a future time within a year, venue 1–100 characters, city up to 60, reason 1–200. A started match can't change. `busyMatchesProvider` sends one request per match; a second tap does nothing. The server remains the authority |
+| **Hand-off** | Accepting a challenge now goes to Match Management → Waiting, as in the demo |
+| **Dashboard** | "Next Match" shows the server match's opponent name and agreed venue |
+
+**Not yet:** line-ups on server matches (P6), results (M2), and the player's own match list.
+
+**Tests:** `test/match_schedule_supabase_test.dart` (13): rules, controller flows (propose, accept, decline, a stale version, a clash, cancel, repeated taps, no permission) and screen flows on `FakeMatchDb`. The demo booking tests are unchanged.

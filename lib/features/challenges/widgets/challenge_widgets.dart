@@ -463,9 +463,10 @@ Future<Challenge?> respondToChallenge(
   if (!context.mounted) return result;
   switch (result?.status) {
     case ChallengeStatus.accepted when live:
-      // The server created the match (pending, awaiting a schedule); its
-      // screens come in P5, so stay on My Challenges.
-      showCeToast(context, 'Challenge accepted — the match is waiting for both clubs to agree a time');
+      // The server created the match (pending, awaiting a schedule):
+      // Match Management → Waiting, where both clubs agree a time.
+      showCeToast(context, 'Challenge accepted — agree a time in Match Management');
+      context.go(Routes.matchManagement(MatchTab.waiting));
     case ChallengeStatus.accepted:
       showCeToast(context, 'Challenge accepted!');
       context.go(Routes.matchManagement(MatchTab.waiting));

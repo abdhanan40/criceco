@@ -17,6 +17,7 @@ import 'package:criceco/data/supabase/supabase_gateways.dart';
 import 'package:criceco/features/challenges/challenges_controller.dart';
 import 'package:criceco/features/challenges/screens/challenges_hub_screen.dart';
 import 'package:criceco/features/challenges/widgets/challenge_widgets.dart';
+import 'package:criceco/features/matches/screens/match_management_screen.dart';
 import 'package:criceco/shared/widgets/ce_buttons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -565,6 +566,12 @@ void main() {
             path: Routes.clubHome,
             builder: (_, _) => const Scaffold(body: Text('club home')),
           ),
+          GoRoute(
+            path: Routes.matchManagementPath,
+            builder: (_, s) => MatchManagementScreen(
+              tab: MatchManagementScreen.parseTab(s.uri.queryParameters['tab']),
+            ),
+          ),
         ],
       );
       addTearDown(router.dispose);
@@ -744,8 +751,11 @@ void main() {
         expect(w.mdb.matches, hasLength(1));
         expect(w.calls('respond_to_challenge'), 1);
         expect(find.textContaining('Challenge accepted'), findsOneWidget);
-        expect(find.text('ACCEPTED'), findsOneWidget);
-        expect(find.text('Tap to accept or decline'), findsNothing);
+        // Handed off to Match Management → Waiting: the server's pending
+        // match, with the challenger's proposal to answer (P5).
+        expect(find.text('vs Karachi Kings'), findsOneWidget);
+        expect(find.text('REPLY NEEDED'), findsOneWidget);
+        expect(find.text('Review Proposal'), findsOneWidget);
       },
     );
 
