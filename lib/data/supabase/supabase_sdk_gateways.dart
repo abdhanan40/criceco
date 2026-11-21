@@ -900,6 +900,67 @@ class SupabaseMatchGateway implements MatchGateway {
       );
 }
 
+/// Migrations 20–23 (the `CRICECO_RESULTS` switch): database functions only.
+class SupabaseResultsGateway implements ResultsGateway {
+  SupabaseResultsGateway(this._client, {this.timeout = kGatewayTimeout});
+  final sb.SupabaseClient _client;
+  final Duration timeout;
+
+  @override
+  Future<Map<String, dynamic>> submitResult(Map<String, Object?> params) =>
+      _one('submit_match_result_with_scorecard', params);
+
+  @override
+  Future<Map<String, dynamic>> confirmResult(String matchId, int version) =>
+      _one('confirm_match_result', {'p_match_id': matchId, 'p_version': version});
+
+  @override
+  Future<Map<String, dynamic>> disputeResult(String matchId, int version, String reason) =>
+      _one('dispute_match_result', {'p_match_id': matchId, 'p_version': version, 'p_reason': reason});
+
+  @override
+  Future<List<Map<String, dynamic>>> matchResult(String matchId) => _list('match_result', {'p_match_id': matchId});
+
+  @override
+  Future<List<Map<String, dynamic>>> clubResults(String clubId) => _list('club_results', {'p_club_id': clubId});
+
+  @override
+  Future<Map<String, dynamic>> clubRecord(String clubId) => _one('club_record', {'p_club_id': clubId});
+
+  @override
+  Future<List<Map<String, dynamic>>> playerPool(String matchId) => _list('match_player_pool', {'p_match_id': matchId});
+
+  @override
+  Future<List<Map<String, dynamic>>> scorecard(String matchId, {int? version}) =>
+      _list('match_scorecard', {'p_match_id': matchId, 'p_version': version});
+
+  @override
+  Future<Map<String, dynamic>> playerStats({String? userId}) => _one('player_stats', {'p_user_id': userId});
+
+  @override
+  Future<List<Map<String, dynamic>>> clubMemberStats(String clubId) =>
+      _list('club_member_stats', {'p_club_id': clubId});
+
+  @override
+  Future<List<Map<String, dynamic>>> playerMatchLog({String? userId, int limit = 50}) =>
+      _list('player_match_log', {'p_user_id': userId, 'p_limit': limit});
+
+  @override
+  Future<List<Map<String, dynamic>>> myMatches() => _list('my_matches', const {});
+
+  Future<Map<String, dynamic>> _one(String fn, Map<String, Object?> params) => _guarded(() async {
+        final row = SupabaseClubGateway._row(await _client.rpc<dynamic>(fn, params: params));
+        if (row == null) throw GatewayUnexpectedException('$fn-no-row');
+        return row;
+      }, timeout, SupabaseProfileGateway.translate);
+
+  Future<List<Map<String, dynamic>>> _list(String fn, Map<String, Object?> params) => _guarded(
+        () async => _rowsOf(await _client.rpc<dynamic>(fn, params: params)),
+        timeout,
+        SupabaseProfileGateway.translate,
+      );
+}
+
 Future<T> _guarded<T>(
   Future<T> Function() run,
   Duration timeout,

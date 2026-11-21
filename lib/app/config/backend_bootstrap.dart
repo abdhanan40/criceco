@@ -68,5 +68,7 @@ Future<List<Override>> backendOverrides(
     ownershipGatewayProvider.overrideWithValue(SupabaseOwnershipGateway(client)),
     // Used only with the matches switch (migrations 17–19 live).
     matchGatewayProvider.overrideWithValue(SupabaseMatchGateway(client)),
+    // Used only with the results switch (migrations 20–23 live).
+    resultsGatewayProvider.overrideWithValue(SupabaseResultsGateway(client)),
   ];
 }

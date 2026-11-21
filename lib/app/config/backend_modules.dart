@@ -23,6 +23,17 @@ const bool kMatchesBuild = bool.fromEnvironment('CRICECO_MATCHES');
 /// The matches switch: [kMatchesBuild], overridden in tests.
 final matchesEnabledProvider = Provider<bool>((ref) => kMatchesBuild);
 
+/// The results switch as built: `--dart-define=CRICECO_RESULTS=true` once
+/// migrations 20–23 (results, scorecards, player statistics, my_matches)
+/// are live on the Supabase project. OFF by default — and it needs the
+/// memberships and matches switches too. It only selects the results data
+/// layer ([resultsBackendLiveProvider]); no screen uses it before M2 P4–P5,
+/// so turn it on only with those (docs/MATCH_RESULTS_BACKEND.md).
+const bool kResultsBuild = bool.fromEnvironment('CRICECO_RESULTS');
+
+/// The results switch: [kResultsBuild], overridden in tests.
+final resultsEnabledProvider = Provider<bool>((ref) => kResultsBuild);
+
 /// App areas whose data needs a backend.
 enum BackendModule {
   memberships('Club memberships'),
@@ -77,6 +88,16 @@ class BackendModules {
   static bool matchesLive(BackendConfig config, {required bool memberships, required bool matches}) =>
       config.isSupabase && memberships && matches;
 
+  /// Supabase with the memberships, matches AND results switches:
+  /// migrations 20–23 are used.
+  static bool resultsLive(
+    BackendConfig config, {
+    required bool memberships,
+    required bool matches,
+    required bool results,
+  }) =>
+      matchesLive(config, memberships: memberships, matches: matches) && results;
+
   final Set<BackendModule> _available;
 
   /// Memory mode: everything shown is the demo's sample data.
@@ -108,5 +129,16 @@ final matchesBackendLiveProvider = Provider<bool>(
     ref.watch(backendConfigProvider),
     memberships: ref.watch(membershipsEnabledProvider),
     matches: ref.watch(matchesEnabledProvider),
+  ),
+);
+
+/// `true` when the results repository uses the server (Supabase + the
+/// memberships, matches and results switches).
+final resultsBackendLiveProvider = Provider<bool>(
+  (ref) => BackendModules.resultsLive(
+    ref.watch(backendConfigProvider),
+    memberships: ref.watch(membershipsEnabledProvider),
+    matches: ref.watch(matchesEnabledProvider),
+    results: ref.watch(resultsEnabledProvider),
   ),
 );

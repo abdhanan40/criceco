@@ -343,3 +343,39 @@ Reverse order only: **23 → 22 → 21** (→ 20). Each runs inside `begin; set 
 - **Not stored:** wicketkeeper and captain marks on the card, and fall of wickets (decision 3).
 - **Statistics** are computed on each read. A cache can come later if needed.
 - **Visibility:** an owner reads the opponent's whole active-member list when the opponent saved no line-up (P2 decision b).
+
+## P3 — Flutter data layer (`CRICECO_RESULTS`)
+
+**Status (2026-11-21):** implemented, not committed. No screen uses it yet (P4 entry, P5 display), so nothing visible changes in any build.
+
+### The switch
+- `--dart-define=CRICECO_RESULTS=true` (`kResultsBuild`, `resultsEnabledProvider`), **off by default**.
+- The results data layer is used only with Supabase plus the memberships, matches **and** results switches (`BackendModules.resultsLive`, `resultsBackendLiveProvider`). Turn it on only after migrations 20–23 are live, and only with the P4–P5 screens.
+- It adds no screen module: `BackendModule.playerStats` stays "not available yet" in Supabase builds until P5.
+
+### Layers
+| Layer | File | Role |
+|---|---|---|
+| Models | `lib/core/models/match_result.dart` | `ResultVersion`, `InningsTotals`, `ResultReceipt`, `ClubResultRow`, `ClubRecord`, `PoolPlayer`, `InningsCard`, `CardBattingRow`, `CardBowlingRow`, `CricketStats`, `ClubMemberStats`, `PlayerMatchLogRow`, `MyMatch`; inputs `ResultSubmission`, `InningsInput`, `BattingInput`, `BowlingInput`; enums `ResultOutcome`, `ResultStatus`, `ClubResultKind`, `DismissalKind`, `PoolSelection` |
+| Gateway | `ResultsGateway` (`supabase_gateways.dart`), `SupabaseResultsGateway` (`supabase_sdk_gateways.dart`) | One RPC per database function; `resultsGatewayProvider`, set in `backend_bootstrap.dart` |
+| Mapper | `lib/data/supabase/result_row_mapper.dart` | Strict reading of rows; request building (`submitParams`) |
+| Repository | `ResultsRepository` and `UnavailableResultsRepository` (`repositories.dart`); `SupabaseResultsRepository` | `resultsRepositoryProvider` (`core_providers.dart`) |
+| Errors | `supabase_error_mapper.dart` | `result:` refusals → `MatchRuleException` with what to do next |
+
+- **Players** are referenced by club membership id everywhere. The name-keyed demo models (`Scorecard`, `PlayerStats`, …) are untouched; P5 moves the screens to the id-keyed ones.
+- **Submitting** always goes through `submit_match_result_with_scorecard`. A totals-only result sends no `batting` / `bowling` keys; a result with cards sends them on every innings. Optional fields (bowler, fielder, direct hit) are sent only when set. The server computes margins and bowlers' wickets.
+- **Reading is strict:** a missing field, a wrong type or an unknown code (status, outcome, dismissal, selection, format) is a generic "something went wrong" (`BackendOperationException`), never a guessed value. Averages and rates are read from a JSON number or a numeric string; `null` stays `null`.
+- **Errors:**
+  - `result: not allowed`, `stats: not allowed` (42501) → `PermissionDeniedException`;
+  - `… not authenticated` → `NotSignedInException`;
+  - other `result:` reasons → `MatchRuleException`, with a generic text for an unknown reason (never the database text);
+  - network failures → `BackendUnavailableException`.
+- **Without the results switch, and in the demo:** `UnavailableResultsRepository` lists nothing, counts zeros, refuses every change with `ModuleUnavailableException`, and makes no network call. The demo's own sample screens are unchanged.
+
+### Tests (P3)
+| File | Covers |
+|---|---|
+| `test/results_supabase_test.dart` (23) | Mapping of every row shape; request building with and without cards; strict reading; every `result:` refusal text; 42501 and network errors; the switch and provider selection (the gateway is never read when results aren't live) |
+| `test/supabase_results_gateway_test.dart` (7) | Every RPC name and parameter on the real `supabase_flutter` client with faked HTTP; one-row functions; error translation |
+
+**Results:** `flutter analyze` reports no issues, and all **1,386** tests pass (30 new).

@@ -109,7 +109,8 @@ abstract final class SupabaseErrorMapper {
     if (_membership(e.message) case final mapped?) return mapped;
     if (_team(e.message) case final mapped?) return mapped;
     if (_ownership(e.message) case final mapped?) return mapped;
-    // Challenges, matches, lineups, availability (migrations 17–19).
+    // Challenges, matches, lineups, availability (migrations 17–19);
+    // results, scorecards and statistics (migrations 20–23).
     if (_matches(e.message) case final mapped?) return mapped;
     // update_profile_details() (migration 9): no profile row for the
     // signed-in user — nothing was written.
@@ -253,7 +254,22 @@ abstract final class SupabaseErrorMapper {
     'not found': 'Complete your profile first.',
   };
 
-  /// Refusals of migrations 17–19 → [MatchRuleException] with what to do
+  /// Results, scorecards and statistics (migrations 20–23).
+  static const _resultTexts = {
+    'match not played': 'A result can be entered only once the match has started.',
+    'invalid innings': 'Check the innings: runs, wickets, balls (within the overs) and extras.',
+    'inconsistent result': 'The result doesn’t match the scores — check the winner and the totals.',
+    'invalid scorecard':
+        'The scorecard doesn’t add up — check every batter, bowler and dismissal against the innings totals.',
+    'invalid player': 'Choose the Player of the Match from the two clubs’ players.',
+    'invalid reason': 'Give a reason for the dispute (up to 300 characters).',
+    'not pending': 'This result has already been answered.',
+    'version changed': 'The result was changed — check the new version and try again.',
+    'invalid': 'Choose a valid result.',
+    'not found': 'This match no longer exists.',
+  };
+
+  /// Refusals of migrations 17–23 → [MatchRuleException] with what to do
   /// next ("not authenticated" / "not allowed" are 42501: handled above).
   /// An unknown reason gets a generic text — never the raw database message.
   static Exception? _matches(String message) {
@@ -262,6 +278,8 @@ abstract final class SupabaseErrorMapper {
       ('match', _matchTexts, "Some match details aren't valid — please check and try again"),
       ('lineup', _lineupTexts, "Some lineup details aren't valid — please check and try again"),
       ('availability', _availabilityTexts, "Some availability details aren't valid — please check and try again"),
+      ('result', _resultTexts, "Some result details aren't valid — please check and try again"),
+      ('stats', const <String, String>{}, 'These statistics aren’t available.'),
     ]) {
       final reason = _reason(message, prefix);
       if (reason == null) continue;

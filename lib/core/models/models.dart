@@ -6,6 +6,7 @@ export 'club.dart';
 export 'fitness.dart';
 export 'location.dart';
 export 'match_booking.dart';
+export 'match_result.dart';
 export 'notification.dart';
 export 'ownership_transfer.dart';
 export 'player.dart';

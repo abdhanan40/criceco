@@ -414,6 +414,68 @@ final ownershipGatewayProvider = Provider<OwnershipGateway>(
 final matchGatewayProvider = Provider<MatchGateway>(
   (ref) => throw StateError(_notInitialized),
 );
+final resultsGatewayProvider = Provider<ResultsGateway>(
+  (ref) => throw StateError(_notInitialized),
+);
+
+/// Match results, scorecards, player statistics and the player's match list
+/// (migrations 20–23, with the `CRICECO_RESULTS` switch). Every call is a
+/// database function that identifies the caller by `auth.uid()` and checks
+/// club ownership or membership itself; the app never sends a user id
+/// except to ask for another player's statistics. Write functions return the
+/// changed `match_results` row; read functions return their own row shapes
+/// (docs/MATCH_RESULTS_BACKEND.md).
+abstract interface class ResultsGateway {
+  /// `rpc('submit_match_result_with_scorecard', {p_match_id, p_outcome,
+  /// p_innings, p_player_of_match_member_id})` — the new version's
+  /// `match_results` row. Cards inside `p_innings` are optional.
+  Future<Map<String, dynamic>> submitResult(Map<String, Object?> params);
+
+  /// `rpc('confirm_match_result', {p_match_id, p_version})` — the
+  /// confirmed row (the match becomes completed).
+  Future<Map<String, dynamic>> confirmResult(String matchId, int version);
+
+  /// `rpc('dispute_match_result', {p_match_id, p_version, p_reason})`.
+  Future<Map<String, dynamic>> disputeResult(
+    String matchId,
+    int version,
+    String reason,
+  );
+
+  /// `rpc('match_result', {p_match_id})` — the versions the caller may see,
+  /// newest first, each with its innings as JSON.
+  Future<List<Map<String, dynamic>>> matchResult(String matchId);
+
+  /// `rpc('club_results', {p_club_id})` — confirmed results, newest first.
+  Future<List<Map<String, dynamic>>> clubResults(String clubId);
+
+  /// `rpc('club_record', {p_club_id})` — one row.
+  Future<Map<String, dynamic>> clubRecord(String clubId);
+
+  /// `rpc('match_player_pool', {p_match_id})` — owners only.
+  Future<List<Map<String, dynamic>>> playerPool(String matchId);
+
+  /// `rpc('match_scorecard', {p_match_id, p_version})` — one row per
+  /// innings with its batting and bowling cards as JSON; `p_version` null =
+  /// the confirmed result.
+  Future<List<Map<String, dynamic>>> scorecard(String matchId, {int? version});
+
+  /// `rpc('player_stats', {p_user_id})` — one row; `p_user_id` null = the
+  /// caller.
+  Future<Map<String, dynamic>> playerStats({String? userId});
+
+  /// `rpc('club_member_stats', {p_club_id})` — one row per active member.
+  Future<List<Map<String, dynamic>>> clubMemberStats(String clubId);
+
+  /// `rpc('player_match_log', {p_user_id, p_limit})` — newest first.
+  Future<List<Map<String, dynamic>>> playerMatchLog({
+    String? userId,
+    int limit = 50,
+  });
+
+  /// `rpc('my_matches')` — the caller's scheduled matches, newest first.
+  Future<List<Map<String, dynamic>>> myMatches();
+}
 
 /// Challenges, matches, lineups and player availability (migrations 17–19,
 /// with the `CRICECO_MATCHES` switch). Every call is a database function

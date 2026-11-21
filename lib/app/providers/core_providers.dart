@@ -18,6 +18,7 @@ import '../../data/supabase/supabase_gateways.dart';
 import '../../data/supabase/supabase_location_repository.dart';
 import '../../data/supabase/supabase_match_repository.dart';
 import '../../data/supabase/supabase_ownership_repository.dart';
+import '../../data/supabase/supabase_results_repository.dart';
 import '../../data/supabase/supabase_team_repository.dart';
 import '../../demo/demo_stats.dart';
 import '../../demo/seed_data.dart';
@@ -158,6 +159,15 @@ final challengeRepositoryProvider = Provider<ChallengeRepository>((ref) {
       ? SupabaseChallengeRepository(db: ref.watch(matchGatewayProvider), ownClub: ref.watch(ownClubLookupProvider))
       : InMemoryChallengeRepository.empty();
 });
+
+/// Match results, scorecards, statistics and the player's match list:
+/// migrations 20–23 in Supabase mode with the memberships, matches AND
+/// results switches ([resultsBackendLiveProvider]). Everywhere else — the
+/// demo included, whose screens keep their own sample data — nothing is
+/// listed and no network call is made for them.
+final resultsRepositoryProvider = Provider<ResultsRepository>((ref) => ref.watch(resultsBackendLiveProvider)
+    ? SupabaseResultsRepository(db: ref.watch(resultsGatewayProvider))
+    : const UnavailableResultsRepository());
 
 /// The signed-in person's availability and the owner's view of the club's.
 final playerAvailabilityRepositoryProvider = Provider<PlayerAvailabilityRepository>((ref) {
