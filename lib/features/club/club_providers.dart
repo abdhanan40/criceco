@@ -1,10 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/config/backend_config.dart';
+import '../../app/config/backend_modules.dart';
 import '../../app/providers/core_providers.dart';
 import '../../app/session/session_controller.dart';
 import '../../core/models/models.dart';
 import '../../core/utils/ranked_search.dart';
+import '../../data/supabase/result_display_adapter.dart';
 import '../../demo/demo_stats.dart';
 import '../../shared/state/selection_controller.dart';
 import '../matches/club_matches_controller.dart';
@@ -159,21 +161,44 @@ final addPlayersFilterProvider =
     NotifierProvider.family<SelectionController<SquadCategory?>, SquadCategory?, String>(
         (_) => SelectionController<SquadCategory?>(null));
 
-/// Scouting stats for a pool player (Add Players rows + Stats sheet). Demo
-/// generator for now; a repository call later without screen changes.
-/// Keyed by a value record (name, position, availability) so lookups are
-/// stable across pool reloads.
-/// Supabase mode: no match statistics are stored yet — the player's own
-/// position and availability, nothing else ([PlayerStats.unrecorded]).
-final squadPlayerStatsProvider = Provider.family<PlayerStats, (String, String, PlayerAvailability)>(
-  (ref, key) => ref.watch(backendConfigProvider).isSupabase
-      ? PlayerStats.unrecorded(
-          position: key.$2,
-          category: SquadCategory.fromPosition(key.$2),
-          availability: key.$3,
-        )
-      : DemoStats.forPlayer(key.$1, position: key.$2, availability: key.$3),
+/// The owner's club's OFFICIAL squad figures (`club_member_stats()`), by
+/// membership id — only with the results switch (Supabase); empty
+/// otherwise. A failed load leaves the squad without figures (never
+/// invented ones).
+final clubMemberStatsProvider = FutureProvider<Map<String, ClubMemberStats>>((ref) async {
+  ref.watch(currentAccountProvider.select((a) => a?.id));
+  if (!ref.watch(resultsBackendLiveProvider)) return const {};
+  try {
+    final clubId = await ref.read(ownClubLookupProvider).clubId();
+    if (clubId == null) return const {};
+    return {for (final s in await ref.read(resultsRepositoryProvider).clubMemberStats(clubId)) s.memberId: s};
+  } on Exception {
+    return const {};
+  }
+});
+
+/// Scouting stats for a pool player (Add Players rows + Stats sheet), keyed
+/// by a value record (membership id, name, position, availability) so
+/// lookups are stable across pool reloads.
+/// * Demo: the demo generator (sample data, by name).
+/// * Supabase with the results switch: the member's official figures, by
+///   MEMBERSHIP ID — never matched by name; rating, skill and "verified"
+///   are not computed.
+/// * Otherwise: the player's own position and availability, nothing else
+///   ([PlayerStats.unrecorded]).
+final squadPlayerStatsProvider = Provider.family<PlayerStats, (String, String, String, PlayerAvailability)>(
+  (ref, key) {
+    final (memberId, name, position, availability) = key;
+    if (!ref.watch(backendConfigProvider).isSupabase) {
+      return DemoStats.forPlayer(name, position: position, availability: availability);
+    }
+    final category = SquadCategory.fromPosition(position);
+    final official = memberId.isEmpty ? null : ref.watch(clubMemberStatsProvider).value?[memberId];
+    return official == null
+        ? PlayerStats.unrecorded(position: position, category: category, availability: availability)
+        : ResultDisplayAdapter.squadStats(official, position: position, category: category, availability: availability);
+  },
 );
 
 PlayerStats readSquadPlayerStats(WidgetRef ref, SquadPlayer p) =>
-    ref.watch(squadPlayerStatsProvider((p.name, p.position, p.availability)));
+    ref.watch(squadPlayerStatsProvider((p.id, p.name, p.position, p.availability)));

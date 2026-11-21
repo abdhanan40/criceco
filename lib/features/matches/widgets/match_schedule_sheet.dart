@@ -583,7 +583,7 @@ class _MatchScheduleSheetState extends ConsumerState<_MatchScheduleSheet> {
 }
 
 /// Status chip of a server match card.
-Widget liveMatchChip(ClubMatch m, DateTime now) {
+Widget liveMatchChip(ClubMatch m, DateTime now, {bool resultsLive = false}) {
   final p = m.proposal;
   return switch (m.status) {
     MatchStatus.cancelled => const CeStatusChip(
@@ -592,6 +592,14 @@ Widget liveMatchChip(ClubMatch m, DateTime now) {
       icon: 'x',
     ),
     MatchStatus.completed => const CeStatusChip('Played', tone: CeTone.neutral),
+    // Played, and the official result isn't published yet (results switch).
+    MatchStatus.confirmed
+        when resultsLive && m.startsAt != null && !m.startsAt!.isAfter(now) =>
+      const CeStatusChip(
+        'Result pending',
+        tone: CeTone.amber,
+        icon: 'hourglass',
+      ),
     MatchStatus.confirmed when p != null && !p.byMe => const CeStatusChip(
       'New time proposed',
       tone: CeTone.amber,

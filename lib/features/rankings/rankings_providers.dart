@@ -64,14 +64,14 @@ final rankingInputsProvider = FutureProvider<List<RankingInput>>((ref) async {
   // ---- The club roster ----
   for (final p in roster) {
     if (!names.add(key(p.name))) continue;
-    final stats = ref.watch(squadPlayerStatsProvider((p.name, p.position, p.availability)));
+    final stats = ref.watch(squadPlayerStatsProvider((p.id, p.name, p.position, p.availability)));
     inputs.add(rankingInputFromStats(stats, playerId: p.id, name: p.name, club: rosterClub));
   }
 
   // ---- Available Players (free agents) ----
   for (final p in open) {
     if (p.isMe || !names.add(key(p.name))) continue;
-    final stats = ref.watch(squadPlayerStatsProvider((p.name, p.role.label, PlayerAvailability.available)));
+    final stats = ref.watch(squadPlayerStatsProvider(('', p.name, p.role.label, PlayerAvailability.available)));
     inputs.add(rankingInputFromStats(stats, playerId: p.id, name: p.name, club: 'Free agent'));
   }
   return inputs;

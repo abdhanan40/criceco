@@ -458,20 +458,35 @@ class CeStatTile extends StatelessWidget {
 
 /// W / L result pill (`.mp-match-result`).
 class CeResultPill extends StatelessWidget {
-  const CeResultPill({super.key, required this.won});
-  final bool won;
+  const CeResultPill({super.key, required this.result});
+  final MatchResult result;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: won ? CeColors.mint : CeColors.redSoft,
-          borderRadius: BorderRadius.circular(CeRadius.xs),
-        ),
-        child: Text(won ? 'WON' : 'LOST',
-            style: CeType.micro.copyWith(fontSize: 11, color: won ? CeColors.primary : CeColors.red)),
-      );
+  Widget build(BuildContext context) {
+    final (background, foreground) = resultColors(result);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(CeRadius.xs)),
+      child: Text(result.label.toUpperCase(), style: CeType.micro.copyWith(fontSize: 11, color: foreground)),
+    );
+  }
 }
+
+/// (background, foreground) for a result: won green, lost red; tied, no
+/// result and abandoned neutral.
+(Color, Color) resultColors(MatchResult r) => switch (r) {
+      MatchResult.won => (CeColors.mint, CeColors.primary),
+      MatchResult.lost => (CeColors.redSoft, CeColors.red),
+      _ => (CeColors.bg, CeColors.muted),
+    };
+
+/// The solid colour of a result chip or bar: won green, lost red, the rest
+/// grey.
+Color resultSolid(MatchResult r) => switch (r) {
+      MatchResult.won => CeColors.fresh,
+      MatchResult.lost => CeColors.red,
+      _ => CeColors.muted2,
+    };
 
 /// Club badge colours (prototype `clubColors`); unknown clubs use deep green.
 Color clubBadgeColor(String abbr) => switch (abbr) {

@@ -22,17 +22,62 @@ class MatchScorecardView extends ConsumerWidget {
     final scId = match.scorecardId;
     final scAsync = scId == null ? null : ref.watch(scorecardProvider(scId));
     if (scAsync?.isLoading ?? false) return const Center(child: CircularProgressIndicator());
+    if (scAsync?.hasError ?? false) {
+      return CeEmptyState(
+        icon: 'info',
+        title: 'Scorecard unavailable',
+        body: 'The scorecard could not be loaded. Please try again.',
+        primaryLabel: 'Try again',
+        onPrimary: () => ref.invalidate(scorecardProvider(scId!)),
+      );
+    }
     final sc = scAsync?.value;
-    if (sc == null || sc.innings.isEmpty) {
-      return const CeEmptyState(
+    if (sc == null || sc.innings.isEmpty) return const ScorecardNotAvailable();
+    return ScorecardBody(
+      scorecard: sc,
+      meta: '${CeFormat.dayDate(match.startsAt)} · ${match.format.display()} · ${match.ground}',
+      teams: ((match.ownTeamName, match.ownTeamAbbr), (match.opponentName, match.opponentAbbr)),
+    );
+  }
+}
+
+/// No published scorecard (yet) for a match.
+class ScorecardNotAvailable extends StatelessWidget {
+  const ScorecardNotAvailable({super.key});
+
+  @override
+  Widget build(BuildContext context) => const CeEmptyState(
+        key: Key('scorecard.notAvailable'),
         icon: 'file-text',
         title: 'Scorecard not available',
         body: 'A scorecard has not been published for this match.',
       );
-    }
+}
+
+/// A published scorecard, read-only: the result header, Top Scorer, Top
+/// Wicket-Taker and Player of the Match, then each innings. Shared by the
+/// player's Match workspace and the club's match result screen.
+class ScorecardBody extends StatelessWidget {
+  const ScorecardBody({super.key, required this.scorecard, required this.meta, this.teams});
+  final Scorecard scorecard;
+
+  /// "Sat, 21 Nov · T20 · Ground" under the result.
+  final String meta;
+
+  /// The two sides (name, badge) when one innings can't tell them — e.g. a
+  /// no result after one innings; otherwise the innings name them.
+  final ((String, String), (String, String))? teams;
+
+  @override
+  Widget build(BuildContext context) {
+    final sc = scorecard;
     final top = sc.topScorer;
     final wk = sc.topWicketTaker;
     final white85 = Colors.white.withValues(alpha: 0.85);
+    final sameSide = sc.innings.first.team == sc.innings.last.team;
+    final (home, away) = sameSide && teams != null
+        ? teams!
+        : ((sc.innings.first.team, sc.innings.first.abbr), (sc.innings.last.team, sc.innings.last.abbr));
     return ListView(padding: const EdgeInsets.only(bottom: 28), children: [
         CeBrandHero(
           margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 0),
@@ -40,15 +85,15 @@ class MatchScorecardView extends ConsumerWidget {
           padding: const EdgeInsets.all(18),
           child: Column(children: [
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              CeTeamBadge(sc.innings.first.abbr, size: 46, onDark: true),
+              CeTeamBadge(home.$2, size: 46, onDark: true),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Text('VS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: white85)),
               ),
-              CeTeamBadge(sc.innings.last.abbr, size: 46, onDark: true),
+              CeTeamBadge(away.$2, size: 46, onDark: true),
             ]),
             const SizedBox(height: 10),
-            Text('${sc.innings.first.team} vs ${sc.innings.last.team}',
+            Text('${home.$1} vs ${away.$1}',
                 textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
             const SizedBox(height: 8),
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -60,8 +105,7 @@ class MatchScorecardView extends ConsumerWidget {
               ),
             ]),
             const SizedBox(height: 4),
-            Text('${CeFormat.dayDate(match.startsAt)} · ${match.format.display()} · ${match.ground}',
-                textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: white85)),
+            Text(meta, textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: white85)),
           ]),
         ),
         Padding(
@@ -138,7 +182,10 @@ class _InningsCard extends StatelessWidget {
         ),
         child: Row(children: [
           Expanded(flex: 23, child: cells.first),
-          for (final c in cells.skip(1)) ...[const SizedBox(width: 6), Expanded(flex: 7, child: Center(child: c))],
+          for (final c in cells.skip(1)) ...[
+            const SizedBox(width: 4),
+            Expanded(flex: 7, child: Center(child: FittedBox(fit: BoxFit.scaleDown, child: c))),
+          ],
         ]),
       );
 
@@ -152,45 +199,64 @@ class _InningsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final inn = innings;
+    final batted = [for (final b in inn.batting) if (!b.didNotBat) b];
+    final didNotBat = [for (final b in inn.batting) if (b.didNotBat) b.name];
+    const name = TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: CeColors.ink);
+    const note = TextStyle(fontSize: 11, color: CeColors.muted, height: 1.35);
     return CeCard(
       margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 16, CeSpace.gutter, 0),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Text(inn.team, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
         const SizedBox(height: 2),
         Text.rich(TextSpan(children: [
-          TextSpan(text: '${inn.total}/${inn.wickets} '),
+          TextSpan(text: '${inn.total}/${inn.wickets}${inn.declared ? ' dec' : ''} '),
           TextSpan(text: '(${inn.overs} overs)', style: const TextStyle(color: CeColors.muted2)),
         ]), style: const TextStyle(fontSize: 12, color: CeColors.muted)),
-        _sub('Batting'),
-        _row(header: true, [
-          for (final h in ['BATTER', 'R', 'B', '4S', '6S']) Text(h, style: _head),
-        ]),
-        for (var i = 0; i < inn.batting.length; i++)
-          _row(last: i == inn.batting.length - 1, [
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(inn.batting[i].name,
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: CeColors.ink)),
-              const SizedBox(height: 1),
-              Text(inn.batting[i].dismissal, style: const TextStyle(fontSize: 9.5, color: CeColors.muted)),
+        if (inn.extras != null) ...[
+          const SizedBox(height: 2),
+          Text('Extras ${inn.extras}${inn.extrasDetail == null ? '' : ' (${inn.extrasDetail})'}', style: note),
+        ],
+        if (!inn.cardRecorded) ...[
+          const SizedBox(height: 10),
+          const Text('Full scorecard not recorded — innings totals only.',
+              key: Key('scorecard.totalsOnly'), style: note),
+        ] else ...[
+          _sub('Batting'),
+          _row(header: true, [
+            for (final h in ['BATTER', 'R', 'B', '4S', '6S', 'SR']) Text(h, style: _head),
+          ]),
+          for (var i = 0; i < batted.length; i++)
+            _row(last: i == batted.length - 1, [
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(batted[i].name, style: name),
+                const SizedBox(height: 1),
+                Text(batted[i].dismissal, style: const TextStyle(fontSize: 9.5, color: CeColors.muted)),
+              ]),
+              Text('${batted[i].runs}', style: _num.copyWith(fontWeight: FontWeight.w700)),
+              Text('${batted[i].balls}', style: _num),
+              Text('${batted[i].fours}', style: _num),
+              Text('${batted[i].sixes}', style: _num),
+              Text(batted[i].strikeRate, style: _num.copyWith(fontWeight: FontWeight.w500)),
             ]),
-            Text('${inn.batting[i].runs}', style: _num.copyWith(fontWeight: FontWeight.w700)),
-            Text('${inn.batting[i].balls}', style: _num),
-            Text('${inn.batting[i].fours}', style: _num),
-            Text('${inn.batting[i].sixes}', style: _num),
+          if (didNotBat.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text('Did not bat: ${didNotBat.join(', ')}', style: note),
+            ),
+          _sub('Bowling'),
+          _row(header: true, [
+            for (final h in ['BOWLER', 'O', 'M', 'R', 'W', 'ECON']) Text(h, style: _head),
           ]),
-        _sub('Bowling'),
-        _row(header: true, [
-          for (final h in ['BOWLER', 'O', 'M', 'R', 'W']) Text(h, style: _head),
-        ]),
-        for (var i = 0; i < inn.bowling.length; i++)
-          _row(last: i == inn.bowling.length - 1, [
-            Text(inn.bowling[i].name,
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: CeColors.ink)),
-            Text('${inn.bowling[i].overs}', style: _num),
-            Text('${inn.bowling[i].maidens}', style: _num),
-            Text('${inn.bowling[i].runs}', style: _num),
-            Text('${inn.bowling[i].wickets}', style: _num.copyWith(fontWeight: FontWeight.w700)),
-          ]),
+          for (var i = 0; i < inn.bowling.length; i++)
+            _row(last: i == inn.bowling.length - 1, [
+              Text(inn.bowling[i].name, style: name),
+              Text('${inn.bowling[i].overs}', style: _num),
+              Text('${inn.bowling[i].maidens}', style: _num),
+              Text('${inn.bowling[i].runs}', style: _num),
+              Text('${inn.bowling[i].wickets}', style: _num.copyWith(fontWeight: FontWeight.w700)),
+              Text(inn.bowling[i].economy, style: _num.copyWith(fontWeight: FontWeight.w500)),
+            ]),
+        ],
       ]),
     );
   }

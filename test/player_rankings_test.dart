@@ -274,7 +274,7 @@ void main() {
       await c.read(rankingBoardProvider.future);
       final player = (await c.read(clubPlayerPoolProvider.future)).first;
       final ctx = tester.element(find.byType(Scaffold).last);
-      unawaited(showPlayerStatsSheet(ctx, player: player, stats: c.read(squadPlayerStatsProvider((player.name, player.position, player.availability)))));
+      unawaited(showPlayerStatsSheet(ctx, player: player, stats: c.read(squadPlayerStatsProvider((player.id, player.name, player.position, player.availability)))));
       await tester.pumpAndSettle();
       final section = find.byKey(const Key('rankings.section'));
       expect(section, findsOneWidget);
@@ -301,7 +301,7 @@ void main() {
         expect(tester.takeException(), isNull, reason: 'hunt badge @ $width');
         final player = (await c.read(clubPlayerPoolProvider.future)).first;
         unawaited(showPlayerStatsSheet(tester.element(find.byType(Scaffold).last),
-            player: player, stats: c.read(squadPlayerStatsProvider((player.name, player.position, player.availability)))));
+            player: player, stats: c.read(squadPlayerStatsProvider((player.id, player.name, player.position, player.availability)))));
         await tester.pumpAndSettle();
         await tester.scrollUntilVisible(find.byKey(const Key('rankings.section')), 200,
             scrollable: find.byType(Scrollable).last);

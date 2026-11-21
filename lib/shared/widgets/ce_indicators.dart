@@ -173,11 +173,18 @@ class CeFormDots extends StatelessWidget {
             height: size,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: form[i] == MatchResult.won ? CeColors.primary : CeColors.red,
+              color: switch (form[i]) {
+                MatchResult.won => CeColors.primary,
+                MatchResult.lost => CeColors.red,
+                _ => CeColors.muted2,
+              },
               borderRadius: BorderRadius.circular(size > 16 ? 7 : 4),
             ),
-            child: Text(form[i] == MatchResult.won ? 'W' : 'L',
-                style: TextStyle(color: Colors.white, fontSize: size * 0.62, fontWeight: FontWeight.w700)),
+            child: Text(form[i].short,
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: size * (form[i].short.length > 1 ? 0.46 : 0.62),
+                    fontWeight: FontWeight.w700)),
           ),
         ],
       ]);

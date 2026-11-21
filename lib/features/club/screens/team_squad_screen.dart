@@ -154,7 +154,7 @@ class TeamSquadScreen extends ConsumerWidget {
               onTap: () => showPlayerStatsSheet(
                 context,
                 player: e.player,
-                stats: ref.read(squadPlayerStatsProvider((e.player.name, e.player.position, e.player.availability))),
+                stats: ref.read(squadPlayerStatsProvider((e.player.id, e.player.name, e.player.position, e.player.availability))),
               ),
             ),
       ]),

@@ -138,7 +138,13 @@ final ownClubLookupProvider = Provider<OwnClubLookup>(
 final matchRepositoryProvider = Provider<MatchRepository>((ref) {
   if (_demo(ref)) return InMemoryMatchRepository(ref.watch(seedDataProvider));
   return ref.watch(matchesBackendLiveProvider)
-      ? SupabaseMatchRepository(db: ref.watch(matchGatewayProvider), ownClub: ref.watch(ownClubLookupProvider))
+      ? SupabaseMatchRepository(
+          db: ref.watch(matchGatewayProvider),
+          ownClub: ref.watch(ownClubLookupProvider),
+          // Official results (read-only), only with the results switch.
+          results: ref.watch(resultsBackendLiveProvider) ? ref.watch(resultsRepositoryProvider) : null,
+          clock: ref.watch(clockProvider),
+        )
       : InMemoryMatchRepository.empty();
 });
 final groundRepositoryProvider = Provider<GroundRepository>(

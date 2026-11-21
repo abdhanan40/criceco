@@ -289,7 +289,7 @@ void main() {
       final pool = c.read(clubPlayerPoolProvider).value!;
       final s = TeamSuggestion.build(
         pool,
-        stats: {for (final p in pool) p.id: c.read(squadPlayerStatsProvider((p.name, p.position, p.availability)))},
+        stats: {for (final p in pool) p.id: c.read(squadPlayerStatsProvider((p.id, p.name, p.position, p.availability)))},
         fitness: c.read(poolFitnessProvider),
       );
       final xi = [for (final e in s.picks.entries) if (e.value == SelectionRole.playing) e.key];

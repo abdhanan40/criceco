@@ -41,16 +41,32 @@ const Map<String, (String, Color)> _statStyle = {
   'Direct Hits': ('circle-dot', _redTint),
 };
 
-Widget _loadingOr(AsyncValue<PerformanceSummary> async, Widget Function(PerformanceSummary) builder) =>
-    async.when(
+Widget _loadingOr(WidgetRef ref, Widget Function(PerformanceSummary) builder) =>
+    ref.watch(performanceProvider).when(
       data: builder,
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (_, _) => const CeEmptyState(
+      error: (_, _) => CeEmptyState(
         icon: 'info',
         title: 'Performance unavailable',
         body: 'Your stats could not be loaded. Please try again later.',
+        primaryLabel: 'Try again',
+        onPrimary: () => ref.invalidate(performanceProvider),
       ),
     );
+
+/// No official match statistics for this player yet. Statistics come only
+/// from official results — never estimated, never typed in the app.
+class StatisticsNotAvailable extends StatelessWidget {
+  const StatisticsNotAvailable({super.key});
+
+  @override
+  Widget build(BuildContext context) => const CeEmptyState(
+        key: Key('performance.notAvailable'),
+        icon: 'bar-chart',
+        title: 'Statistics not available yet',
+        body: 'Your statistics appear here once official results of your matches are published.',
+      );
+}
 
 /// Overview tab of the Performance workspace — the former My Performance
 /// screen (prototype `screens.myPerformance`, :3906): summary, recent form,
@@ -64,7 +80,8 @@ class PerformanceOverviewView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tab = ref.watch(performanceTabProvider);
-    return _loadingOr(ref.watch(performanceProvider), (p) {
+    return _loadingOr(ref, (p) {
+      if (p.matches == 0 && p.matchLog.isEmpty) return const StatisticsNotAvailable();
       final stats = switch (tab) {
         PerformanceTab.batting => p.batting,
         PerformanceTab.bowling => p.bowling,
@@ -121,12 +138,14 @@ class MatchHistoryView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final filter = ref.watch(historyFilterProvider);
-    return _loadingOr(ref.watch(performanceProvider), (p) {
+    return _loadingOr(ref, (p) {
       final log = p.matchLog;
+      if (p.matches == 0 && log.isEmpty) return const StatisticsNotAvailable();
       final wins = log.where((m) => m.result == MatchResult.won).length;
+      final losses = log.where((m) => m.result == MatchResult.lost).length;
       final filtered = log.where((m) => filter.matches(m.result)).toList();
       return ListView(padding: const EdgeInsets.only(bottom: 24), children: [
-        CeSummaryStrip(items: [('${log.length}', 'Total'), ('$wins', 'Won'), ('${log.length - wins}', 'Lost')]),
+        CeSummaryStrip(items: [('${log.length}', 'Total'), ('$wins', 'Won'), ('$losses', 'Lost')]),
         if (log.isNotEmpty) PerMatchChart(entries: log),
         CeChipRow<HistoryFilter>(
           values: HistoryFilter.values,
@@ -161,7 +180,7 @@ class PerMatchChart extends ConsumerWidget {
     final total = chrono.fold<int>(0, (s, m) => s + metric.of(m));
     final unit = metric.label.toLowerCase();
     final spoken = chrono
-        .map((m) => '${metric.of(m)} against ${m.opponentAbbr}, ${m.result == MatchResult.won ? 'won' : 'lost'}')
+        .map((m) => '${metric.of(m)} against ${m.opponentAbbr}, ${m.result.label.toLowerCase()}')
         .join('; ');
     return CeCard(
       margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 0),
@@ -268,7 +287,7 @@ class _BarsPainter extends CustomPainter {
         topLeft: const Radius.circular(3),
         topRight: const Radius.circular(3),
       );
-      canvas.drawRRect(bar, Paint()..color = m.result == MatchResult.won ? CeColors.fresh : CeColors.red);
+      canvas.drawRRect(bar, Paint()..color = resultSolid(m.result));
       final value = _text('${metric.of(m)}', _valueStyle);
       value.paint(canvas, Offset(cx - value.width / 2, baseY - h - value.height - 1));
       final abbr = _text(m.opponentAbbr, _axisStyle);
@@ -287,9 +306,9 @@ class FormChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final won = entry.result == MatchResult.won;
+    final r = entry.result;
     return Semantics(
-      label: '${won ? 'Won' : 'Lost'} against ${entry.opponentAbbr}, ${entry.runs} runs',
+      label: '${r.label} against ${entry.opponentAbbr}, ${entry.runs} runs',
       excludeSemantics: true,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
@@ -304,10 +323,13 @@ class FormChip extends StatelessWidget {
             height: 20,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: won ? CeColors.fresh : CeColors.red,
+              color: resultSolid(r),
               borderRadius: BorderRadius.circular(6),
             ),
-            child: Text(won ? 'W' : 'L', style: CeType.statValue(10.5).copyWith(color: Colors.white)),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(r.short, style: CeType.statValue(10.5).copyWith(color: Colors.white)),
+            ),
           ),
           const SizedBox(height: 4),
           FittedBox(
@@ -382,7 +404,7 @@ class MatchLogCard extends StatelessWidget {
             ]),
           ),
           const SizedBox(width: 8),
-          CeResultPill(won: m.result == MatchResult.won),
+          CeResultPill(result: m.result),
         ]),
         const CeDashedDivider(padding: EdgeInsets.symmetric(vertical: 10)),
         Wrap(spacing: 14, runSpacing: 4, children: [

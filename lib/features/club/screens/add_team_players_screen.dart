@@ -184,7 +184,7 @@ class _AddTeamPlayersScreenState extends ConsumerState<AddTeamPlayersScreen> {
               onStats: () => showPlayerStatsSheet(
                 context,
                 player: p,
-                stats: ref.read(squadPlayerStatsProvider((p.name, p.position, p.availability))),
+                stats: ref.read(squadPlayerStatsProvider((p.id, p.name, p.position, p.availability))),
               ),
             ),
       ]),
@@ -219,7 +219,7 @@ class _AddPlayerSheetState extends ConsumerState<_AddPlayerSheet> {
   Widget build(BuildContext context) {
     final p = widget.player;
     final draft = ref.watch(squadEditorProvider(widget.teamId));
-    final stats = ref.watch(squadPlayerStatsProvider((p.name, p.position, p.availability)));
+    final stats = ref.watch(squadPlayerStatsProvider((p.id, p.name, p.position, p.availability)));
     final fitness = ref.watch(poolFitnessProvider)[p.id];
     // The player's real role from their member profile when they have one.
     final member = ref.watch(clubMembersProvider).value?.where((m) => m.poolPlayerId == p.id).firstOrNull;

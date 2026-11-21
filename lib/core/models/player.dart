@@ -85,7 +85,7 @@ class PlayerStats {
   final LastMatchLine lastMatch;
 
   int get wins => form.where((f) => f == MatchResult.won).length;
-  int get losses => form.length - wins;
+  int get losses => form.where((f) => f == MatchResult.lost).length;
 
   /// No recorded statistics yet ([unrecorded]).
   bool get hasRecord => matches > 0;
@@ -151,6 +151,9 @@ class PlayerMatch {
   final String? scorecardId;
 
   bool get hasScorecard => scorecardId != null;
+
+  /// Played, but no official result has been published yet.
+  bool get resultPending => status == PlayerMatchStatus.past && result == null && resultText == null;
 }
 
 class BattingEntry {
@@ -161,6 +164,7 @@ class BattingEntry {
     required this.fours,
     required this.sixes,
     required this.dismissal,
+    this.didNotBat = false,
   });
   final String name;
   final int runs;
@@ -168,6 +172,12 @@ class BattingEntry {
   final int fours;
   final int sixes;
   final String dismissal;
+
+  /// Listed on the card without an innings ("Did not bat: …").
+  final bool didNotBat;
+
+  /// Runs per 100 balls ("150.00"); "—" without a ball faced.
+  String get strikeRate => balls == 0 ? '—' : (runs * 100 / balls).toStringAsFixed(2);
 }
 
 class BowlingEntry {
@@ -183,6 +193,12 @@ class BowlingEntry {
   final int maidens;
   final int runs;
   final int wickets;
+
+  /// Legal balls in [overs] (cricket notation: 3.4 = 3 overs and 4 balls).
+  int get balls => overs.floor() * 6 + ((overs - overs.floor()) * 10).round();
+
+  /// Runs per over ("7.50"); "—" without a ball bowled.
+  String get economy => balls == 0 ? '—' : (runs * 6 / balls).toStringAsFixed(2);
 }
 
 class Innings {
@@ -194,6 +210,10 @@ class Innings {
     required this.overs,
     required this.batting,
     required this.bowling,
+    this.extras,
+    this.extrasDetail,
+    this.declared = false,
+    this.cardRecorded = true,
   });
   final String team;
   final String abbr;
@@ -202,6 +222,19 @@ class Innings {
   final String overs;
   final List<BattingEntry> batting;
   final List<BowlingEntry> bowling;
+
+  /// Extras, when recorded (official results); `null` hides the line.
+  final int? extras;
+
+  /// "b 1, lb 2, w 3, nb 1".
+  final String? extrasDetail;
+
+  /// Declared (Test matches).
+  final bool declared;
+
+  /// `false`: only the innings totals were published — no batting or bowling
+  /// card.
+  final bool cardRecorded;
 }
 
 class Scorecard {
@@ -313,5 +346,5 @@ class PerformanceSummary {
 
   int get recentWins =>
       recentForm.where((f) => f.result == MatchResult.won).length;
-  int get recentLosses => recentForm.length - recentWins;
+  int get recentLosses => recentForm.where((f) => f.result == MatchResult.lost).length;
 }

@@ -1000,7 +1000,7 @@ void main() {
       await _tap(tester, find.text('Suggest Team'));
       expect(footer(), 'XI 11/11 · Subs 2/4');
       final s = TeamSuggestion.build(pool,
-          stats: {for (final p in pool) p.id: c.read(squadPlayerStatsProvider((p.name, p.position, p.availability)))},
+          stats: {for (final p in pool) p.id: c.read(squadPlayerStatsProvider((p.id, p.name, p.position, p.availability)))},
           fitness: c.read(poolFitnessProvider));
       final notPicked = open.firstWhere((p) => !s.picks.containsKey(p.id));
       await pick(notPicked, 'playing');

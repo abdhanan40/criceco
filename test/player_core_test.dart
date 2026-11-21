@@ -1048,7 +1048,7 @@ void main() {
       await tester.pumpAndSettle();
       final pills = tester.widgetList<CeResultPill>(find.byType(CeResultPill)).toList();
       expect(pills, isNotEmpty);
-      expect(pills.every((p) => !p.won), isTrue);
+      expect(pills.every((p) => p.result == MatchResult.lost), isTrue);
       expect(losses, greaterThan(0));
       expect(find.byType(MatchLogCard), findsWidgets);
       expect(c.read(historyFilterProvider), HistoryFilter.lost);
@@ -1061,7 +1061,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(_loc(c), PerformanceView.history.location);
       expect(c.read(historyFilterProvider), HistoryFilter.lost);
-      expect(tester.widgetList<CeResultPill>(find.byType(CeResultPill)).every((p) => !p.won), isTrue);
+      expect(tester.widgetList<CeResultPill>(find.byType(CeResultPill)).every((p) => p.result == MatchResult.lost), isTrue);
 
       // Back from History → Overview; Back from Overview → Dashboard.
       await tester.tap(find.byTooltip('Back'));

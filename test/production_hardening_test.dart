@@ -148,7 +148,8 @@ void main() {
       await tester.pumpAndSettle();
 
       await _tap(tester, find.text('Performance'));
-      expect(_pendingSheet(BackendModule.playerStats), findsOneWidget);
+      // Official match statistics (M2): their own module, off without the results switch.
+      expect(_pendingSheet(BackendModule.matchStats), findsOneWidget);
     });
 
     testWidgets('the Availability route is gated', (tester) async {

@@ -22,7 +22,7 @@ import '../screens/performance_workspace.dart';
 /// the existing Performance screen.
 Future<void> showPerformanceSheet(BuildContext context) => showModuleSheet(
       context,
-      BackendModule.playerStats,
+      BackendModule.matchStats,
       title: 'Performance',
       open: () => showCeSheet<void>(context, builder: (_) => _PerformanceSheet(router: GoRouter.of(context))),
     );

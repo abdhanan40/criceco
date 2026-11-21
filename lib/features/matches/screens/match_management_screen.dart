@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/config/backend_modules.dart';
 import '../../../app/providers/core_providers.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/session/session_controller.dart';
@@ -386,6 +387,7 @@ class _LiveMatchCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final m = match;
     final now = ref.read(clockProvider).now();
+    final resultsLive = ref.watch(resultsBackendLiveProvider);
     final name = m.opponentName ?? 'Opponent';
     final p = m.proposal;
     final open = MatchScheduleRules.open(m) && !MatchScheduleRules.started(m, now);
@@ -418,7 +420,7 @@ class _LiveMatchCard extends ConsumerWidget {
             ]),
           ),
           const SizedBox(width: 8),
-          liveMatchChip(m, now),
+          liveMatchChip(m, now, resultsLive: resultsLive),
         ]),
         const SizedBox(height: 8),
         Wrap(spacing: 10, runSpacing: 4, children: [
@@ -434,6 +436,30 @@ class _LiveMatchCard extends ConsumerWidget {
           if (m.status == MatchStatus.confirmed || m.status == MatchStatus.completed)
             _Meta(icon: 'users', text: m.lineup == null ? 'Line-up needed' : 'Line-up: ${m.lineup!.name}'),
         ]),
+        // The official result (read-only), once published.
+        if (m.status == MatchStatus.completed && m.resultText != null) ...[
+          const SizedBox(height: 6),
+          Row(children: [
+            Icon(CeIcons.of('trophy'), size: 13, color: CeColors.primaryDark),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(m.resultText!,
+                  key: Key('match.result.${m.id}'),
+                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: CeColors.primaryDark)),
+            ),
+          ]),
+        ],
+        if (resultsLive && m.status == MatchStatus.completed)
+          Semantics(
+            button: true,
+            label: 'View result',
+            excludeSemantics: true,
+            child: InkWell(
+              key: Key('match.viewResult.${m.id}'),
+              onTap: () => context.go(Routes.clubMatchResult(m.id)),
+              child: const _Cta(icon: 'file-text', label: 'View Result'),
+            ),
+          ),
         ?cta,
         if (lineupOpen)
           Semantics(

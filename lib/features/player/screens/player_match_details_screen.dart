@@ -61,6 +61,11 @@ class MatchDetailsView extends ConsumerWidget {
         // ---- Status-specific block ----
         switch (m.status) {
           PlayerMatchStatus.upcoming => _Countdown(startsAt: m.startsAt),
+          PlayerMatchStatus.past when m.resultPending => const _Notice(
+              key: Key('playerMatch.resultPending'),
+              icon: 'hourglass',
+              text: 'Result pending — the official result of this match hasn’t been published yet.',
+            ),
           PlayerMatchStatus.past => _ResultBlock(match: m, onViewScorecard: onViewScorecard),
           PlayerMatchStatus.cancelled => _Notice(
               icon: 'x-circle',
@@ -167,22 +172,20 @@ class _ResultBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final won = match.result == MatchResult.won;
+    final result = match.result ?? MatchResult.won;
+    final (background, foreground) = resultColors(result);
+    final color = result == MatchResult.won ? CeColors.primaryDark : foreground;
     return Container(
       margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: won ? CeColors.mint : CeColors.redSoft,
-        borderRadius: BorderRadius.circular(CeRadius.row),
-      ),
+      decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(CeRadius.row)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
-          Icon(CeIcons.of('trophy'), size: 18, color: won ? CeColors.primaryDark : CeColors.red),
+          Icon(CeIcons.of('trophy'), size: 18, color: color),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(match.resultText ?? (won ? 'Won' : 'Lost'),
-                style: TextStyle(
-                    fontSize: 13.5, fontWeight: FontWeight.w700, color: won ? CeColors.primaryDark : CeColors.red)),
+            child: Text(match.resultText ?? result.label,
+                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: color)),
           ),
         ]),
         if (match.hasScorecard && onViewScorecard != null) ...[
@@ -199,7 +202,7 @@ class _ResultBlock extends StatelessWidget {
 }
 
 class _Notice extends StatelessWidget {
-  const _Notice({required this.icon, required this.text, this.danger = false});
+  const _Notice({super.key, required this.icon, required this.text, this.danger = false});
   final String icon;
   final String text;
   final bool danger;

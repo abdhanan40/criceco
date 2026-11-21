@@ -104,7 +104,7 @@ void main() {
       expect(s.rating, '—');
       expect(s.verified, isFalse);
       expect(s.form, isEmpty);
-      final pool = c.read(squadPlayerStatsProvider(('Ali Raza', 'Bowler', PlayerAvailability.available)));
+      final pool = c.read(squadPlayerStatsProvider(('', 'Ali Raza', 'Bowler', PlayerAvailability.available)));
       expect(pool.hasRecord, isFalse);
       expect(pool.position, 'Bowler');
       expect(pool.category, SquadCategory.bowler);

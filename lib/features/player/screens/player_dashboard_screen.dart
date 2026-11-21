@@ -47,7 +47,9 @@ class PlayerDashboardScreen extends ConsumerWidget {
     final available = availability.status == PlayerAvailability.available;
     // Production builds: modules with no backend show no invented values.
     final modules = ref.watch(backendModulesProvider);
-    final statsOn = modules.has(BackendModule.playerStats);
+    // Official match statistics (results switch); fitness has no backend yet.
+    final statsOn = modules.has(BackendModule.matchStats);
+    final fitnessOn = modules.has(BackendModule.playerStats);
     final availabilityOn = modules.has(BackendModule.availability);
     final matchesOn = modules.has(BackendModule.matches);
 
@@ -148,7 +150,7 @@ class PlayerDashboardScreen extends ConsumerWidget {
           // ---- Fitness Meter (after the next match, before performance) ----
           // It is worked out from recorded matches: with none recorded (no
           // match statistics in this build) it says so instead of a score.
-          if (!statsOn) ...[
+          if (!fitnessOn) ...[
             const CeSectionHeader('Fitness Meter'),
             const BackendPendingNotice(key: Key('player.fitnessPending'), module: BackendModule.playerStats, icon: 'activity'),
           ] else if (fitness != null)

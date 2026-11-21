@@ -379,3 +379,46 @@ Reverse order only: **23 → 22 → 21** (→ 20). Each runs inside `begin; set 
 | `test/supabase_results_gateway_test.dart` (7) | Every RPC name and parameter on the real `supabase_flutter` client with faked HTTP; one-row functions; error translation |
 
 **Results:** `flutter analyze` reports no issues, and all **1,386** tests pass (30 new).
+
+## P4 — official results and statistics, display only
+
+**Status (2026-11-21):** implemented, not committed. `CRICECO_RESULTS` stays off by default.
+
+### Product decision (2026-11-21)
+CricEco **never** lets players or club owners enter, edit, submit, confirm or dispute official results or statistics. That protects data integrity: nobody can change their own runs, wickets, averages or rankings. Official match data will come from a separate, trusted Scorer/Umpire application through an API (out of scope). The app only **displays** what the server holds.
+
+### What the app shows (Supabase with memberships + matches + results)
+| Screen | Data | States |
+|---|---|---|
+| My Matches (`/player/matches`) | `my_matches()`: Upcoming / Past / Cancelled, the player's own selection (Playing XI, Captain, Substitute, Not selected), the official summary | **Result pending** for a played match without a published result |
+| Match workspace (`/player/matches/:id`) | The result block (won / lost / tied / no result / abandoned); a Scorecard tab once a result is confirmed (not for an abandoned match) | Pending notice; error with Try again |
+| Scorecard | The **confirmed** version only (`match_result()` + `match_scorecard()`): totals, overs, extras (b / lb / w / nb / pen), declared; batting R B 4s 6s **SR**; bowling O M R W **Econ**; "Did not bat"; "Deleted player"; top scorer, top wicket-taker, Player of the Match | **Totals only** ("Full scorecard not recorded"); "Scorecard not available" |
+| Performance (`/player/performance`) | `player_stats()` + `player_match_log()`, as the existing Batting / Bowling / Fielding tiles, Recent Form (W / L / T / NR / A) and History | **Statistics not available yet** with no official match; error with Try again |
+| Club History (Match Management) | Completed server matches with the official result from the club's side ("Won by 30 runs") and **View Result** | Scheduled: **Result pending** chip for a played match |
+| Club match result (`/club/matches/:id/result`) | The same read-only scorecard view | Result pending; "No innings were played" (abandoned) |
+| Squad stats (Add Players, Teams, Team Squad, Rankings) | `club_member_stats()` by **membership id**; rating, skill and "verified" are never computed ("—") | Unrecorded without official matches |
+
+### Gates and modes
+- **New module `BackendModule.matchStats`:** on only with Supabase + memberships + matches + results; always on in the demo. It gates Performance (the route and the dashboard sheet), the dashboard's career numbers, and the club match result screen.
+- **`playerStats` (fitness)** keeps its own gate and stays "not available yet" in Supabase builds.
+- **Demo:** unchanged sample data (by name, as before). It never reads the official results, and the official results never show demo data.
+- **Supabase without the results switch:** everything as before (empty / not available). The results gateway is never read.
+
+### Display models
+- `MatchResult` now has won, lost, **tied, no result, abandoned**. Only won counts as a win and only lost as a loss, so ties and no results are neutral (grey).
+- `Innings` has extras, extras detail, declared and "card recorded".
+- `BattingEntry` has "did not bat" and a strike rate; `BowlingEntry` has balls and economy.
+- `PlayerMatch` has `resultPending`.
+- **The adapter** (`lib/data/supabase/result_display_adapter.dart`) maps the server models into these. It never estimates a value: a missing figure is "—".
+
+### Data integrity
+- Only **confirmed** versions are shown. Waiting, disputed and superseded versions never appear, and statistics count confirmed results only (migration 22).
+- No screen has an input or an action that writes a result. Tests check that the write functions (`submit_` / `confirm_` / `dispute_match_result`) are never called by a display screen.
+- **Open (must be resolved before official data goes live):** migrations 20–21 still let a club **owner** submit, confirm and dispute results through the API, and the P3 data layer still has those calls (unused by any screen). Under the new decision, writes should come only from the trusted scorer source. That needs a new migration (for example, a scorer role or a service-only write path) and removing or disabling the app-side write methods: a separate, approved step.
+
+### Tests (P4)
+| File | Covers |
+|---|---|
+| `test/results_display_test.dart` | The adapter (every outcome, pending, totals-only, cards, extras, deleted players, statistics, squad stats); repository wiring; the switch and the `matchStats` module; demo regression; squad stats by membership id (never by name); screens: My Matches, workspace, scorecard, Performance (data, not available, error), Club History and View Result, the result screen, Result pending; read-only checks |
+| `test/results_fakes.dart` | The shared fake results gateway (moved out of `results_supabase_test.dart`; per-match responses added) |
+| Updated | `player_core_test.dart` (`CeResultPill` now takes a result), `production_hardening_test.dart` (the Performance sheet's gate is `matchStats`), and four squad-stats call sites in `club_core_test`, `fitness_members_test`, `player_rankings_test` and `production_demo_mode_test` (the membership id is now part of the key) |

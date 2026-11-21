@@ -70,9 +70,17 @@ class PlayerMatchCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final m = match;
     Widget? footer;
-    if (m.status == PlayerMatchStatus.past && m.resultText != null) {
-      final won = m.result == MatchResult.won;
-      final color = won ? CeColors.primary : CeColors.red;
+    if (m.resultPending) {
+      footer = Row(children: [
+        Icon(CeIcons.of('hourglass'), size: 13, color: CeColors.amber),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text('Result pending',
+              key: Key('playerMatch.pending.${m.id}'), style: CeType.chip.copyWith(color: CeColors.amber)),
+        ),
+      ]);
+    } else if (m.status == PlayerMatchStatus.past && m.resultText != null) {
+      final color = m.result == null ? CeColors.primary : resultColors(m.result!).$2;
       footer = Row(children: [
         Flexible(
           child: Text(m.resultText!,

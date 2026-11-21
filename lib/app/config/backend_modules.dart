@@ -26,9 +26,10 @@ final matchesEnabledProvider = Provider<bool>((ref) => kMatchesBuild);
 /// The results switch as built: `--dart-define=CRICECO_RESULTS=true` once
 /// migrations 20–23 (results, scorecards, player statistics, my_matches)
 /// are live on the Supabase project. OFF by default — and it needs the
-/// memberships and matches switches too. It only selects the results data
-/// layer ([resultsBackendLiveProvider]); no screen uses it before M2 P4–P5,
-/// so turn it on only with those (docs/MATCH_RESULTS_BACKEND.md).
+/// memberships and matches switches too. It selects the results data layer
+/// ([resultsBackendLiveProvider]) and the [BackendModule.matchStats] screens
+/// (official results, scorecards and statistics — display only;
+/// docs/MATCH_RESULTS_BACKEND.md).
 const bool kResultsBuild = bool.fromEnvironment('CRICECO_RESULTS');
 
 /// The results switch: [kResultsBuild], overridden in tests.
@@ -39,6 +40,11 @@ enum BackendModule {
   memberships('Club memberships'),
   teams('Teams and squads'),
   matches('Matches'),
+  /// Official match results, scorecards and player statistics (migrations
+  /// 20–23, the results switch). Read-only: they come from a trusted
+  /// source, never typed in the app.
+  matchStats('Match results and statistics'),
+  /// Fitness records and the player's own stats settings (no backend yet).
   playerStats('Player statistics'),
   grounds('Ground booking'),
   payments('Payments and wallet'),
@@ -69,6 +75,7 @@ class BackendModules {
     BackendConfig config, {
     bool memberships = kMembershipsBuild,
     bool matches = kMatchesBuild,
+    bool results = kResultsBuild,
   }) =>
       config.isSupabase
           ? BackendModules._(
@@ -79,6 +86,7 @@ class BackendModules {
                   BackendModule.challenges,
                   BackendModule.availability,
                 },
+                if (memberships && matches && results) BackendModule.matchStats,
               },
               isDemo: false,
             )
@@ -119,6 +127,7 @@ final backendModulesProvider = Provider<BackendModules>(
     ref.watch(backendConfigProvider),
     memberships: ref.watch(membershipsEnabledProvider),
     matches: ref.watch(matchesEnabledProvider),
+    results: ref.watch(resultsEnabledProvider),
   ),
 );
 

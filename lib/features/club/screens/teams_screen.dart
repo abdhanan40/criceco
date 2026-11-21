@@ -162,7 +162,7 @@ class _CreateTeamSheetState extends ConsumerState<_CreateTeamSheet> {
     final pool = ref.read(clubPlayerPoolProvider).value ?? const <SquadPlayer>[];
     final s = TeamSuggestion.build(
       pool,
-      stats: {for (final p in pool) p.id: ref.read(squadPlayerStatsProvider((p.name, p.position, p.availability)))},
+      stats: {for (final p in pool) p.id: ref.read(squadPlayerStatsProvider((p.id, p.name, p.position, p.availability)))},
       fitness: ref.read(poolFitnessProvider),
     );
     setState(() {

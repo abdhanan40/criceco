@@ -231,7 +231,21 @@ enum PlayerMatchStatus {
   final String label;
 }
 
-enum MatchResult { won, lost }
+/// A match result from one side. Tied / no result / abandoned come from the
+/// server's official results (M2); the demo's sample matches are won / lost.
+enum MatchResult {
+  won('Won', 'W'),
+  lost('Lost', 'L'),
+  tied('Tied', 'T'),
+  noResult('No result', 'NR'),
+  abandoned('Abandoned', 'A');
+
+  const MatchResult(this.label, this.short);
+  final String label;
+
+  /// Form chips and dots: W / L / T / NR / A.
+  final String short;
+}
 
 enum SelectionRole { playing, sub }
 

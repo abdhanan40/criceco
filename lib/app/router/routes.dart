@@ -105,6 +105,8 @@ abstract final class Routes {
   static String matchManagement([MatchTab? tab]) =>
       tab == null ? matchManagementPath : '$matchManagementPath?tab=${tab.name}';
   static String matchSetup(String matchId) => '/club/matches/$matchId/setup';
+  /// The official result and scorecard of a completed club match (read-only).
+  static String clubMatchResult(String matchId) => '/club/matches/$matchId/result';
   static String bookGround(String matchId) => '/club/matches/$matchId/setup/ground';
   static String groundDetails(String matchId, String groundId) => '/club/matches/$matchId/setup/ground/$groundId';
   static String selectDate(String matchId, String groundId) => '/club/matches/$matchId/setup/ground/$groundId/schedule';

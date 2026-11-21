@@ -31,6 +31,7 @@ import '../../features/club/screens/player_hunt_screen.dart';
 import '../../features/club/screens/team_squad_screen.dart';
 import '../../features/club/screens/teams_screen.dart';
 import '../../features/club_setup/club_setup_screen.dart';
+import '../../features/matches/screens/club_match_result_screen.dart';
 import '../../features/matches/screens/lineup_screens.dart';
 import '../../features/matches/screens/match_management_screen.dart';
 import '../../features/membership/enter_club_code_screen.dart';
@@ -272,7 +273,7 @@ final List<RouteBase> appRoutes = [
         // Performance workspace: Overview | History in `?tab=`.
         GoRoute(
           path: Routes.myPerformance,
-          builder: (_, s) => _gate(BackendModule.playerStats, 'My Performance', Routes.playerHome,
+          builder: (_, s) => _gate(BackendModule.matchStats, 'My Performance', Routes.playerHome,
               PerformanceWorkspace(tab: PerformanceView.parse(s.uri.queryParameters['tab']))),
           routes: [_legacy('history', (_) => PerformanceView.history.location)],
         ),
@@ -404,6 +405,13 @@ final GoRoute _matchManagementRoute = GoRoute(
   builder: (_, s) => _gate(BackendModule.matches, 'Upcoming Matches', Routes.clubHome,
       MatchManagementScreen(tab: MatchManagementScreen.parseTab(s.uri.queryParameters['tab']))),
   routes: [
+    // The official result of a completed match: read-only, with the results switch.
+    GoRoute(
+      path: ':matchId/result',
+      parentNavigatorKey: rootNavigatorKey,
+      builder: (_, s) => _gate(BackendModule.matchStats, 'Match Result', Routes.matchManagement(MatchTab.history),
+          ClubMatchResultScreen(matchId: s.pathParameters['matchId']!)),
+    ),
     GoRoute(
       path: ':matchId/setup',
       parentNavigatorKey: rootNavigatorKey,
