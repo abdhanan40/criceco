@@ -16,6 +16,9 @@ begin
   if to_regclass('public.match_batting') is null and to_regclass('public.match_bowling') is null then
     raise exception 'rollback 21: migration 21 is not applied — nothing changed';
   end if;
+  if to_regclass('public.scorer_clients') is not null or to_regclass('public.result_submission_log') is not null then
+    raise exception 'rollback 21: migration 24 (result write lockdown) is applied — roll it back first';
+  end if;
   if to_regprocedure('public.player_stats(uuid)') is not null or to_regprocedure('public.member_stats(uuid[])') is not null then
     raise exception 'rollback 21: migration 22 (statistics) is applied — roll it back first';
   end if;

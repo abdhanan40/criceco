@@ -1,14 +1,18 @@
 import '../enums/enums.dart';
 
-// Match results, scorecards and statistics from the server (migrations
-// 20–23, M2). Members and players are referenced by club membership id;
-// a deleted account has no id and no name ("Deleted player").
+// OFFICIAL match results, scorecards and statistics from the server
+// (migrations 20–24, M2) — read only: they come from a trusted Scorer/Umpire
+// integration, never from the app. Members and players are referenced by
+// club membership id; a deleted account has no id and no name ("Deleted
+// player").
 
 /// The outcome of a match, from the match's side (club A = the challenger).
 enum ResultOutcome { clubAWon, clubBWon, tie, noResult, abandoned }
 
-/// Where a result version stands in the submit → confirm / dispute flow.
-enum ResultStatus { submitted, confirmed, disputed, superseded }
+/// Where an official result version stands (migration 24): provisional,
+/// official, rejected by a verifier, or replaced. The app is only ever shown
+/// the official (confirmed) one.
+enum ResultStatus { submitted, confirmed, rejected, superseded }
 
 /// A confirmed result from one club's side.
 enum ClubResultKind { won, lost, tied, noResult, abandoned }
@@ -39,11 +43,6 @@ enum DismissalKind {
   bool get isOut =>
       !(this == notOut || this == didNotBat || this == retiredHurt);
 }
-
-/// Where a player sits in a club's pool for a match's scorecard: its saved
-/// line-up (Playing XI or substitute), or — with no line-up — any active
-/// member.
-enum PoolSelection { playing, sub, member }
 
 /// `balls` legal balls as overs: 116 → "19.2".
 String oversOf(int balls) => '${balls ~/ 6}.${balls % 6}';
@@ -96,7 +95,7 @@ class PlayerOfMatch {
   final bool deleted;
 }
 
-/// One version of a match's result (`match_result()`), newest first.
+/// A match's official result (`match_result()`: at most one, confirmed).
 class ResultVersion {
   const ResultVersion({
     required this.matchId,
@@ -104,7 +103,6 @@ class ResultVersion {
     required this.status,
     required this.outcome,
     required this.summary,
-    required this.submittedByMe,
     required this.submittedAt,
     required this.clubAId,
     required this.clubBId,
@@ -113,7 +111,6 @@ class ResultVersion {
     this.inningsVictory = false,
     this.playerOfMatch,
     this.decidedAt,
-    this.disputeReason,
     this.innings = const [],
   });
 
@@ -129,29 +126,14 @@ class ResultVersion {
   final bool inningsVictory;
   final PlayerOfMatch? playerOfMatch;
 
-  /// The caller's club submitted this version (so the other club answers it).
-  final bool submittedByMe;
+  /// When the official scorer submitted it.
   final DateTime submittedAt;
+
+  /// When it was verified (became the official result).
   final DateTime? decidedAt;
-  final String? disputeReason;
   final String clubAId;
   final String clubBId;
   final List<InningsTotals> innings;
-}
-
-/// What a submit / confirm / dispute call left behind.
-class ResultReceipt {
-  const ResultReceipt({
-    required this.matchId,
-    required this.version,
-    required this.status,
-    required this.outcome,
-  });
-
-  final String matchId;
-  final int version;
-  final ResultStatus status;
-  final ResultOutcome outcome;
 }
 
 /// A club's confirmed result (`club_results()`), from its side.
@@ -204,28 +186,6 @@ class ClubRecord {
   final int tied;
   final int noResult;
   final int abandoned;
-}
-
-/// A player an owner may put on a match's scorecard (`match_player_pool()`).
-class PoolPlayer {
-  const PoolPlayer({
-    required this.clubId,
-    required this.memberId,
-    required this.name,
-    required this.selection,
-    this.pickOrder,
-  });
-
-  final String clubId;
-  final String memberId;
-  final String name;
-  final PoolSelection selection;
-
-  /// Position in the saved line-up (1–15); `null` without a line-up.
-  final int? pickOrder;
-
-  /// Substitutes may field, never bat or bowl.
-  bool get canBatOrBowl => selection != PoolSelection.sub;
 }
 
 /// One batting-card row (`match_scorecard()`).
@@ -525,110 +485,4 @@ class MyMatch {
   final ClubResultKind? result;
   final String? summary;
   final int? resultVersion;
-}
-
-// ---- What the app sends ----
-
-/// A batter's row for [InningsInput.batting], in batting order.
-class BattingInput {
-  const BattingInput({
-    required this.memberId,
-    required this.dismissal,
-    this.runs = 0,
-    this.balls = 0,
-    this.fours = 0,
-    this.sixes = 0,
-    this.bowlerMemberId,
-    this.fielderMemberId,
-    this.directHit = false,
-  });
-
-  final String memberId;
-  final DismissalKind dismissal;
-  final int runs;
-  final int balls;
-  final int fours;
-  final int sixes;
-
-  /// Required for bowled / caught / lbw / stumped / hit wicket.
-  final String? bowlerMemberId;
-
-  /// Required for caught / stumped, optional for run out (caught and
-  /// bowled: the bowler).
-  final String? fielderMemberId;
-
-  /// Run outs only.
-  final bool directHit;
-}
-
-/// A bowler's row for [InningsInput.bowling], in bowling order. The
-/// server computes the wickets from the dismissals.
-class BowlingInput {
-  const BowlingInput({
-    required this.memberId,
-    required this.balls,
-    required this.runs,
-    this.maidens = 0,
-    this.wides = 0,
-    this.noBalls = 0,
-  });
-
-  final String memberId;
-  final int balls;
-  final int runs;
-  final int maidens;
-  final int wides;
-  final int noBalls;
-}
-
-/// One innings of a submission, in batting order. [batting] and [bowling]
-/// are both `null` for a totals-only result, or both given for every
-/// innings (the server refuses anything in between).
-class InningsInput {
-  const InningsInput({
-    required this.battingClubId,
-    required this.runs,
-    required this.wickets,
-    required this.balls,
-    this.byes = 0,
-    this.legByes = 0,
-    this.wides = 0,
-    this.noBalls = 0,
-    this.penalty = 0,
-    this.declared = false,
-    this.batting,
-    this.bowling,
-  });
-
-  final String battingClubId;
-  final int runs;
-  final int wickets;
-  final int balls;
-  final int byes;
-  final int legByes;
-  final int wides;
-  final int noBalls;
-  final int penalty;
-
-  /// Test matches only.
-  final bool declared;
-  final List<BattingInput>? batting;
-  final List<BowlingInput>? bowling;
-}
-
-/// A result to submit (or a correction of a confirmed one): the outcome,
-/// every innings in batting order, and an optional Player of the Match.
-/// The margin is computed by the server.
-class ResultSubmission {
-  const ResultSubmission({
-    required this.matchId,
-    required this.outcome,
-    required this.innings,
-    this.playerOfMatchMemberId,
-  });
-
-  final String matchId;
-  final ResultOutcome outcome;
-  final List<InningsInput> innings;
-  final String? playerOfMatchMemberId;
 }

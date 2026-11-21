@@ -1,6 +1,8 @@
 -- CricEco · post-check for migration 20 (match results and innings totals).
 -- READ-ONLY: one SELECT, no DML/DDL, no personal data. Every row must say PASS.
 -- Safe before the migration too (the new objects then FAIL / ABSENT).
+-- Describes the state BEFORE migration 24 (which removes the owner write
+-- functions and columns): after 24, run 24_result_write_lockdown_postcheck.sql.
 with checks(check_name, expected, actual) as (
   values
     ('01 tables match_results / match_innings exist, RLS on', 'true/true',

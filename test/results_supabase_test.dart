@@ -3,12 +3,13 @@
 // gateway that returns rows shaped like the real database functions'. The
 // SQL itself is verified by supabase/tests/local/17–18 on a disposable
 // Postgres.
+import 'dart:io';
+
 import 'package:criceco/app/config/backend_config.dart';
 import 'package:criceco/app/config/backend_modules.dart';
 import 'package:criceco/app/providers/core_providers.dart';
 import 'package:criceco/core/models/models.dart';
 import 'package:criceco/data/repositories/repositories.dart';
-import 'package:criceco/data/supabase/result_row_mapper.dart';
 import 'package:criceco/data/supabase/supabase_gateways.dart';
 import 'package:criceco/data/supabase/supabase_results_repository.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -146,7 +147,6 @@ void main() {
       expect(v.marginRuns, 30);
       expect(v.marginWickets, isNull);
       expect(v.summary, 'Card Lions won by 30 runs');
-      expect(v.submittedByMe, isTrue);
       expect(v.submittedAt, DateTime.utc(2026, 11, 21, 10).toLocal());
       expect(v.decidedAt, DateTime.utc(2026, 11, 21, 11, 30).toLocal());
       expect(v.playerOfMatch?.memberId, 'mem-101');
@@ -176,181 +176,7 @@ void main() {
       expect(none.playerOfMatch, isNull);
     });
 
-    test('a totals-only submission sends no card keys; outcome and innings as the server expects', () async {
-      db.one['submit_match_result_with_scorecard'] = resultsRow();
-      final receipt = await repo.submit(
-        const ResultSubmission(
-          matchId: 'm1',
-          outcome: ResultOutcome.tie,
-          innings: [
-            InningsInput(
-              battingClubId: 'club-a',
-              runs: 150,
-              wickets: 7,
-              balls: 120,
-              wides: 4,
-            ),
-            InningsInput(
-              battingClubId: 'club-b',
-              runs: 150,
-              wickets: 9,
-              balls: 120,
-            ),
-          ],
-        ),
-      );
-      expect(
-        (receipt.matchId, receipt.version, receipt.status, receipt.outcome),
-        ('m1', 1, ResultStatus.submitted, ResultOutcome.tie),
-      );
-      final p = db.calls.single.params;
-      expect(p['p_match_id'], 'm1');
-      expect(p['p_outcome'], 'tie');
-      expect(p['p_player_of_match_member_id'], isNull);
-      expect(p['p_innings'], [
-        {
-          'batting_club_id': 'club-a',
-          'runs': 150,
-          'wickets': 7,
-          'balls': 120,
-          'byes': 0,
-          'leg_byes': 0,
-          'wides': 4,
-          'no_balls': 0,
-          'penalty': 0,
-          'declared': false,
-        },
-        {
-          'batting_club_id': 'club-b',
-          'runs': 150,
-          'wickets': 9,
-          'balls': 120,
-          'byes': 0,
-          'leg_byes': 0,
-          'wides': 0,
-          'no_balls': 0,
-          'penalty': 0,
-          'declared': false,
-        },
-      ]);
-    });
-
-    test('a submission with cards: dismissal codes; bowler, fielder and direct hit only when set', () async {
-      db.one['submit_match_result_with_scorecard'] = resultsRow();
-      await repo.submit(
-        const ResultSubmission(
-          matchId: 'm1',
-          outcome: ResultOutcome.clubBWon,
-          playerOfMatchMemberId: 'mem-9',
-          innings: [
-            InningsInput(
-              battingClubId: 'club-a',
-              runs: 20,
-              wickets: 1,
-              balls: 12,
-              batting: [
-                BattingInput(
-                  memberId: 'a1',
-                  dismissal: DismissalKind.caught,
-                  runs: 15,
-                  balls: 8,
-                  fours: 2,
-                  bowlerMemberId: 'b2',
-                  fielderMemberId: 'b1',
-                ),
-                BattingInput(
-                  memberId: 'a2',
-                  dismissal: DismissalKind.runOut,
-                  fielderMemberId: 'b3',
-                  directHit: true,
-                ),
-                BattingInput(
-                  memberId: 'a3',
-                  dismissal: DismissalKind.didNotBat,
-                ),
-              ],
-              bowling: [
-                BowlingInput(
-                  memberId: 'b2',
-                  balls: 12,
-                  runs: 20,
-                  maidens: 1,
-                  wides: 1,
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
-      final p = db.calls.single.params;
-      expect(p['p_outcome'], 'club_b_won');
-      expect(p['p_player_of_match_member_id'], 'mem-9');
-      final innings = (p['p_innings']! as List).single as Map;
-      expect(innings['batting'], [
-        {
-          'member_id': 'a1',
-          'runs': 15,
-          'balls': 8,
-          'fours': 2,
-          'sixes': 0,
-          'dismissal': 'caught',
-          'bowler_member_id': 'b2',
-          'fielder_member_id': 'b1',
-        },
-        {
-          'member_id': 'a2',
-          'runs': 0,
-          'balls': 0,
-          'fours': 0,
-          'sixes': 0,
-          'dismissal': 'run_out',
-          'fielder_member_id': 'b3',
-          'direct_hit': true,
-        },
-        {
-          'member_id': 'a3',
-          'runs': 0,
-          'balls': 0,
-          'fours': 0,
-          'sixes': 0,
-          'dismissal': 'did_not_bat',
-        },
-      ]);
-      expect(innings['bowling'], [
-        {
-          'member_id': 'b2',
-          'balls': 12,
-          'maidens': 1,
-          'runs': 20,
-          'wides': 1,
-          'no_balls': 0,
-        },
-      ]);
-    });
-
-    test('every outcome and dismissal has its server code', () {
-      expect(ResultOutcome.values.map(ResultRowMapper.outcomeCode), [
-        'club_a_won',
-        'club_b_won',
-        'tie',
-        'no_result',
-        'abandoned',
-      ]);
-      expect(DismissalKind.values.map(ResultRowMapper.dismissalCode), [
-        'not_out',
-        'did_not_bat',
-        'retired_hurt',
-        'retired_out',
-        'bowled',
-        'caught',
-        'lbw',
-        'run_out', //
-        'stumped',
-        'hit_wicket',
-        'obstructing_field',
-        'hit_ball_twice',
-        'timed_out',
-      ]);
+    test('dismissals: which credit the bowler, which count as a wicket', () {
       expect(DismissalKind.values.where((d) => d.creditsBowler), [
         DismissalKind.bowled,
         DismissalKind.caught,
@@ -364,29 +190,6 @@ void main() {
         DismissalKind.retiredHurt,
       ]);
     });
-
-    test(
-      'confirm and dispute name the version; the dispute reason is tidied',
-      () async {
-        db.one['confirm_match_result'] = resultsRow(
-          status: 'confirmed',
-          version: 3,
-        );
-        db.one['dispute_match_result'] = resultsRow(
-          status: 'disputed',
-          version: 3,
-        );
-        expect((await repo.confirm('m1', 3)).status, ResultStatus.confirmed);
-        expect(
-          (await repo.dispute('m1', 3, '  We   scored 121 ')).status,
-          ResultStatus.disputed,
-        );
-        expect(db.calls.map((c) => c.params), [
-          {'p_match_id': 'm1', 'p_version': 3},
-          {'p_match_id': 'm1', 'p_version': 3, 'p_reason': 'We scored 121'},
-        ]);
-      },
-    );
 
     test('club results and record', () async {
       db.many['club_results'] = [
@@ -433,41 +236,6 @@ void main() {
   });
 
   group('scorecards (migration 21)', () {
-    test(
-      'the player pool: line-up order, substitutes may only field',
-      () async {
-        db.many['match_player_pool'] = [
-          {
-            'club_id': 'club-a',
-            'member_id': 'a1',
-            'full_name': 'Ali',
-            'selection': 'playing',
-            'pick_order': 1,
-          },
-          {
-            'club_id': 'club-a',
-            'member_id': 'a12',
-            'full_name': 'Sub',
-            'selection': 'sub',
-            'pick_order': 12,
-          },
-          {
-            'club_id': 'club-b',
-            'member_id': 'b1',
-            'full_name': 'Bilal',
-            'selection': 'member',
-            'pick_order': null,
-          },
-        ];
-        final pool = await repo.playerPool('m1');
-        expect(pool.map((p) => (p.selection, p.pickOrder, p.canBatOrBowl)), [
-          (PoolSelection.playing, 1, true),
-          (PoolSelection.sub, 12, false),
-          (PoolSelection.member, null, true),
-        ]);
-      },
-    );
-
     test('innings cards in order, rows in batting / bowling order; deleted players have no name', () async {
       Map<String, dynamic> bat(
         int pos,
@@ -737,72 +505,37 @@ void main() {
         await errorOf(repo.playerStats()),
         isA<BackendOperationException>(),
       );
-      db.many['match_player_pool'] = [
-        {
-          'club_id': 'c',
-          'member_id': 'm',
-          'full_name': 'X',
-          'selection': 'captain',
-          'pick_order': null,
-        },
+      db.many['my_matches'] = [
+        {'match_id': 'm', 'status': 'live'},
       ];
+      expect(await errorOf(repo.myMatches()), isA<BackendOperationException>());
+    });
+
+    test('read refusals → plain text (never the database text)', () async {
+      db.failOn['match_result'] = refusal('P0002', 'result: not found');
       expect(
-        await errorOf(repo.playerPool('m1')),
-        isA<BackendOperationException>(),
+        await errorOf(repo.matchResult('m1')),
+        isA<MatchRuleException>().having(
+          (e) => e.message,
+          'message',
+          'This match no longer exists.',
+        ),
+      );
+      db.failOn['match_scorecard'] = refusal('P0001', 'result: anything else');
+      expect(
+        await errorOf(repo.scorecard('m1')),
+        isA<MatchRuleException>().having(
+          (e) => e.message,
+          'message',
+          'This result isn’t available.',
+        ),
       );
     });
 
-    test(
-      'result refusals → what to do next (never the database text)',
-      () async {
-        final expected = {
-          'result: match not played':
-              'A result can be entered only once the match has started.',
-          'result: invalid innings': 'Check the innings: runs, wickets, balls (within the overs) and extras.',
-          'result: inconsistent result': 'The result doesn’t match the scores — check the winner and the totals.',
-          'result: invalid scorecard': 'The scorecard doesn’t add up — check every batter, bowler and dismissal against the innings totals.',
-          'result: invalid player':
-              'Choose the Player of the Match from the two clubs’ players.',
-          'result: invalid reason':
-              'Give a reason for the dispute (up to 300 characters).',
-          'result: not pending': 'This result has already been answered.',
-          'result: version changed':
-              'The result was changed — check the new version and try again.',
-          'result: invalid': 'Choose a valid result.',
-          'result: not found': 'This match no longer exists.',
-          'result: invalid transition':
-              "Some result details aren't valid — please check and try again",
-        };
-        for (final MapEntry(key: message, value: text) in expected.entries) {
-          db.failOn['submit_match_result_with_scorecard'] = refusal(
-            '22023',
-            message,
-          );
-          final e = await errorOf(
-            repo.submit(
-              const ResultSubmission(
-                matchId: 'm1',
-                outcome: ResultOutcome.abandoned,
-                innings: [],
-              ),
-            ),
-          );
-          expect(
-            e,
-            isA<MatchRuleException>().having((e) => e.message, 'message', text),
-            reason: message,
-          );
-        }
-      },
-    );
-
     test('"not allowed" is a refusal, "not authenticated" a lost session; network stays network', () async {
-      db.failOn['confirm_match_result'] = refusal(
-        '42501',
-        'result: not allowed',
-      );
+      db.failOn['match_result'] = refusal('42501', 'result: not allowed');
       expect(
-        await errorOf(repo.confirm('m1', 1)),
+        await errorOf(repo.matchResult('m1')),
         isA<PermissionDeniedException>(),
       );
       db.failOn['player_stats'] = refusal('42501', 'stats: not allowed');
@@ -911,7 +644,7 @@ void main() {
       ('the demo', const BackendConfig.memory(), true, true),
     ]) {
       test(
-        '$name → unavailable: nothing listed, changes refused, the gateway never read',
+        '$name → unavailable: nothing listed, the gateway never read',
         () async {
           final c = container(
             config: config,
@@ -926,24 +659,49 @@ void main() {
           expect(await r.scorecard('m1'), isEmpty);
           expect((await r.playerStats()).matches, 0);
           expect((await r.clubRecord('c1')).played, 0);
-          expect(
-            await errorOf(r.confirm('m1', 1)),
-            isA<ModuleUnavailableException>(),
-          );
-          expect(
-            await errorOf(
-              r.submit(
-                const ResultSubmission(
-                  matchId: 'm1',
-                  outcome: ResultOutcome.abandoned,
-                  innings: [],
-                ),
-              ),
-            ),
-            isA<ModuleUnavailableException>(),
-          );
         },
       );
     }
+  });
+
+  group('no write path in the app (migration 24, D8)', () {
+    test('the app code calls no result write function — owner or scorer', () {
+      const forbidden = [
+        // Removed by migration 24 (owner writes).
+        'submit_match_result',
+        'confirm_match_result',
+        'dispute_match_result',
+        'match_player_pool',
+        // The trusted scorer integration only (server-side, service_role).
+        'ingest_official_result',
+        'verify_official_result',
+        'correct_official_result',
+        'assign_match_official',
+        'unassign_match_official',
+        'official_match_roster',
+      ];
+      final offenders = <String>[];
+      for (final f in Directory(
+        'lib',
+      ).listSync(recursive: true).whereType<File>()) {
+        if (!f.path.endsWith('.dart')) continue;
+        final src = f.readAsStringSync();
+        for (final name in forbidden) {
+          if (src.contains(name)) offenders.add('${f.path}: $name');
+        }
+      }
+      expect(offenders, isEmpty);
+    });
+
+    test(
+      'the unavailable repository and the gateway are read-only by design',
+      () {
+        // A compile-time guarantee, checked here for the record: the read API
+        // is all there is.
+        const ResultsRepository r = UnavailableResultsRepository();
+        expect(r, isA<ResultsRepository>());
+        expect(FakeResultsDb(), isA<ResultsGateway>());
+      },
+    );
   });
 }

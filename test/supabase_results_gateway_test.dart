@@ -65,34 +65,9 @@ void main() {
 
   group('ResultsGateway requests', () {
     test(
-      'every function by name, with its parameters (nulls sent as null)',
+      'every READ function by name, with its parameters (nulls sent as null)',
       () async {
-        final row = {'match_id': 'm1', 'version': 1};
-        respond = (_) => json(row);
-        final innings = [
-          {'batting_club_id': 'a', 'runs': 10, 'wickets': 0, 'balls': 6},
-        ];
-        await gateway.submitResult({
-          'p_match_id': 'm1',
-          'p_outcome': 'club_a_won',
-          'p_innings': innings,
-          'p_player_of_match_member_id': null,
-        });
-        expectRpc('submit_match_result_with_scorecard', {
-          'p_match_id': 'm1',
-          'p_outcome': 'club_a_won',
-          'p_innings': innings,
-          'p_player_of_match_member_id': null,
-        });
-        await gateway.confirmResult('m1', 2);
-        expectRpc('confirm_match_result', {'p_match_id': 'm1', 'p_version': 2});
-        await gateway.disputeResult('m1', 2, 'Wrong total');
-        expectRpc('dispute_match_result', {
-          'p_match_id': 'm1',
-          'p_version': 2,
-          'p_reason': 'Wrong total',
-        });
-
+        final row = {'played': 1};
         respond = (_) => json([row]);
         await gateway.clubRecord('c1');
         expectRpc('club_record', {'p_club_id': 'c1'});
@@ -106,8 +81,6 @@ void main() {
         expectRpc('match_result', {'p_match_id': 'm1'});
         await gateway.clubResults('c1');
         expectRpc('club_results', {'p_club_id': 'c1'});
-        await gateway.playerPool('m1');
-        expectRpc('match_player_pool', {'p_match_id': 'm1'});
         await gateway.scorecard('m1');
         expectRpc('match_scorecard', {'p_match_id': 'm1', 'p_version': null});
         await gateway.scorecard('m1', version: 3);
@@ -135,21 +108,13 @@ void main() {
       },
     );
 
-    test(
-      'a write or one-row read without a row is an unexpected response',
-      () async {
-        respond = (_) => json([]);
-        expect(
-          await errorOf(gateway.clubRecord('c1')),
-          isA<GatewayUnexpectedException>(),
-        );
-        respond = (_) => json(null);
-        expect(
-          await errorOf(gateway.confirmResult('m1', 1)),
-          isA<GatewayUnexpectedException>(),
-        );
-      },
-    );
+    test('a one-row read without a row is an unexpected response', () async {
+      respond = (_) => json([]);
+      expect(
+        await errorOf(gateway.clubRecord('c1')),
+        isA<GatewayUnexpectedException>(),
+      );
+    });
 
     test('list responses keep only object rows', () async {
       respond = (_) => json([
@@ -169,7 +134,7 @@ void main() {
     test('a function refusal keeps its SQLSTATE and message', () async {
       respond = (_) =>
           json({'code': 'P0001', 'message': 'result: version changed'}, 400);
-      final e = await errorOf(gateway.confirmResult('m1', 1));
+      final e = await errorOf(gateway.clubRecord('c1'));
       expect(e, isA<GatewayConstraintException>());
       expect((e as GatewayConstraintException).sqlState, 'P0001');
       expect(e.message, 'result: version changed');

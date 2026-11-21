@@ -414,7 +414,7 @@ CricEco **never** lets players or club owners enter, edit, submit, confirm or di
 ### Data integrity
 - Only **confirmed** versions are shown. Waiting, disputed and superseded versions never appear, and statistics count confirmed results only (migration 22).
 - No screen has an input or an action that writes a result. Tests check that the write functions (`submit_` / `confirm_` / `dispute_match_result`) are never called by a display screen.
-- **Open (must be resolved before official data goes live):** migrations 20–21 still let a club **owner** submit, confirm and dispute results through the API, and the P3 data layer still has those calls (unused by any screen). Under the new decision, writes should come only from the trusted scorer source. That needs a new migration (for example, a scorer role or a service-only write path) and removing or disabling the app-side write methods: a separate, approved step.
+- **Owner writes:** migrations 20–21 alone still let a club owner submit, confirm and dispute results through the API. **Migration 24 removes that** (see [M2 security](#m2-security--migration-24-result-write-lockdown)), and it is applied in the same transaction as 20–23.
 
 ### Tests (P4)
 | File | Covers |
@@ -422,3 +422,87 @@ CricEco **never** lets players or club owners enter, edit, submit, confirm or di
 | `test/results_display_test.dart` | The adapter (every outcome, pending, totals-only, cards, extras, deleted players, statistics, squad stats); repository wiring; the switch and the `matchStats` module; demo regression; squad stats by membership id (never by name); screens: My Matches, workspace, scorecard, Performance (data, not available, error), Club History and View Result, the result screen, Result pending; read-only checks |
 | `test/results_fakes.dart` | The shared fake results gateway (moved out of `results_supabase_test.dart`; per-match responses added) |
 | Updated | `player_core_test.dart` (`CeResultPill` now takes a result), `production_hardening_test.dart` (the Performance sheet's gate is `matchStats`), and four squad-stats call sites in `club_core_test`, `fitness_members_test`, `player_rankings_test` and `production_demo_mode_test` (the membership id is now part of the key) |
+
+## M2 security — migration 24 (result write lockdown)
+
+**Status (2026-11-22):** written and validated on a disposable PostgreSQL 17 only. Not committed, not applied to production. Approved decisions D1–D8 (2026-11-21).
+
+**Rule:** official results and statistics come **only** from a trusted, authorized Scorer/Umpire system. Players and club owners can never submit, edit, confirm, dispute or otherwise change them through CricEco.
+
+### What migration 24 does
+| Part | Change |
+|---|---|
+| Owner writes removed (D1, D5) | Drops `submit_match_result`, `submit_match_result_with_scorecard`, `confirm_match_result`, `dispute_match_result`, and `match_player_pool` (the opponent's member list) |
+| No direct writes (D6) | `service_role` loses INSERT / UPDATE / DELETE / TRUNCATE on the four result tables and EXECUTE on every internal helper. Supabase's default privileges had given it both |
+| Trusted clients | `scorer_clients`: name, `key_id` (names the signing key in the Edge Function's secrets — **never the secret**), active / revoked, `single_step_trusted` (off by default). Managed by an administrator in SQL |
+| Assignments | `match_officials` (match, client, role `scorer` / `verifier`), written by `assign_match_official` / `unassign_match_official` |
+| Audit (append-only) | `result_submission_log`: every write call, accepted or rejected, with client, action, match, idempotency key, payload and its SHA-256, request id, outcome, reason, version and caller role. `result_change_log`: every insert / update / delete on the result tables and assignments, with role, session user, `auth.uid()` and transaction id. Triggers refuse updates, deletes and truncation of both |
+| Provenance | `match_results` loses the owner-era columns (`submitted_by_club_id`, `submitted_by`, `decided_by_club_id`, `decided_by`, `dispute_reason`) and gains `source`, `scorer_client_id`, `submission_id` (to the log), `decided_by_client_id`, `decision_note`, `corrects_version`, `correction_reason`. Statuses: submitted (provisional), confirmed (official), **rejected**, superseded — no more "disputed" (D3) |
+| Guard | A version is inserted only as provisional and never changes; only its status moves on once, with who and when |
+| Reads (D4) | All four read rules, `match_result()` and `match_scorecard()` show **only the official (confirmed) version** to every app user, owners included. Statistics (22), `my_matches` (23) and the club results / record are unchanged |
+| Write path (D2, D7) | `ingest_official_result`, `verify_official_result`, `correct_official_result`, `official_match_roster`: SECURITY DEFINER, empty `search_path`, **EXECUTE for `service_role` only** (the future Edge Function) |
+
+### The official write path
+```
+Scorer system ─signed request─▶ Edge Function (later: verifies the signature,
+timestamp, nonce, rate limit; holds the service key)
+   ─rpc─▶ ingest / verify / correct_official_result (service_role only)
+   ─▶ match_results / innings / cards        (+ result_submission_log, result_change_log)
+```
+- **Client checks:** the client must exist, be **active**, and be **assigned** to the match (as scorer to submit or correct, as verifier to verify). The match must be confirmed or completed and already started.
+- **Validation:** exactly migrations 20 and 21's rules (outcome, innings, margin, Player of the Match, cards adding up, player pools), now in one internal `official_result_store`.
+- **Two-person rule (D2):** a scorer's submission is **provisional**. A **different** assigned verifier approves it (it becomes official, the previous one is superseded, the match completes) or rejects it with a reason. A single-step trusted client confirms its own submissions; that is off by default.
+- **Corrections:** with an official result, only `correct_official_result` (it names the version and gives a reason) is accepted. The new version is provisional until verified; the official one stands meanwhile.
+- **Idempotency:** one call per (client, key) at a time. A repeat replays the first outcome, and a different request under the same key is refused (`idempotency conflict`).
+- **Outcomes:** rule refusals come back as `outcome = 'rejected'` with a reason, and are recorded. Anything unexpected stays an error, and then nothing is stored.
+
+### Flutter (D8)
+The P3 data layer has no write code any more:
+- **Removed:** `submitResult`, `confirmResult`, `disputeResult` and `playerPool` from `ResultsGateway` / `SupabaseResultsGateway`; `submit`, `confirm`, `dispute` and `playerPool` from the repositories; `submitParams`, `receipt` and `poolPlayer` from the mapper; the models `ResultSubmission`, `InningsInput`, `BattingInput`, `BowlingInput`, `ResultReceipt`, `PoolPlayer` and `PoolSelection`; the write-only error texts; and `ResultVersion.submittedByMe` / `disputeReason`.
+- **Status:** `ResultStatus.disputed` is now `rejected`.
+- **Test:** `results_supabase_test.dart` fails if any write function name (owner or scorer) appears anywhere in `lib/`.
+
+### Files
+| File | Purpose |
+|---|---|
+| `supabase/migrations/20261121090400_lock_down_result_writes.sql` | Migration 24 |
+| `supabase/rollback/20261121_rollback_result_write_lockdown.sql` | Rollback 24 (keeps the lockdown, see below) |
+| `supabase/tests/24_result_write_lockdown_postcheck.sql` | Read-only, 12 rows; replaces post-checks 20 and 21 after 24 |
+| `supabase/tests/local/19_result_write_lockdown_local_check.sql` | 89 checks |
+| `supabase/tests/local/19b_result_write_lockdown_concurrency.sh` | 4 two-session races |
+| Rollbacks 20 / 21 (updated) | Refuse while migration 24 is applied |
+| Post-checks 20 / 21 (header only) | Marked "before migration 24" |
+
+### Validation (2026-11-22, PostgreSQL 17, the auth stub granting like Supabase)
+| Step | Result |
+|---|---|
+| Apply 20–24 in **one transaction** | OK; 1–24 is 1,296 objects, md5 `0b860c01cd295b9032fb1f1c06e43d62` |
+| Apply 24 again | Refused by its guard |
+| Post-checks 17, 18, 19, 22, 23, **24** | 13, 12, 10, 6, 3, **12** PASS |
+| Post-checks 20 / 21 after 24 | Fail only on the rows of the removed owner functions and columns (expected: they describe the state before 24) |
+| Local check 19 (security) | **89 / 89 PASS**: permission matrix (anon, owner, member, service_role direct writes, internal functions), every refusal recorded, provisional invisible to app users, replay and idempotency conflict, two-person rule, rejection, approval, corrections, single-step trust, a full scorecard and statistics through the official path, the roster, guards, append-only logs, the change log, account deletion |
+| Concurrency 19b | **4 / 4 PASS**: K1 the same request twice, K2 verify vs replacement, K3 two verifiers, K4 account deletion during an official ingest |
+| Regression on 1–24 | Local 14: 146, 15: 75, 16: 48; 14b and 15b: 4 / 4 each |
+| The owner-era checks on 1–23 | Local 17: 87, 18: 96; 17b: 4 / 4, 18b: 2 / 2 (migrations 20–23 unchanged) |
+| Rollback order | R20 and R21 refuse while 24 is applied; R24 refuses while a result exists, and while the audit logs hold records unless `criceco.rollback_audit_exported = 'yes'` is set |
+| Rollback 24 | Identical to 1–23 plus the lockdown it keeps (1,162 objects, md5 `8b85c9ad6e38279d21ce474e30f8dad4`) |
+| Rollbacks 23 → 20 after it | Identical to the 1–19 baseline (935 objects, md5 `39a0e2e9…`) |
+| Re-apply 20–24 | Same 1–24 fingerprint; post-check 24 12 / 12 |
+
+### Rollback 24
+- **Keeps the lockdown on purpose:** the owner write functions and `match_player_pool` stay dropped, and `service_role` gets no direct write rights back. A rollback never reopens a write path; results are then frozen.
+- **Removes:** the scorer tables, the functions and audit triggers, and the provenance columns. It restores migration 20's columns and the 20–21 read rules and functions.
+- **Refuses:**
+  - while any result exists: removing official results is a separate, approved, destructive step;
+  - while the audit logs hold records, unless they were exported (`supabase db dump --data-only -t public.result_submission_log -t public.result_change_log`) and the session sets `criceco.rollback_audit_exported = 'yes'`.
+
+### Production (not done; separate approval for each step)
+1. Fresh backup.
+2. Apply **20, 21, 22, 23 and 24 in one transaction** (`begin; set local lock_timeout = '5s'; … commit;`).
+3. Post-checks 22, 23 and 24 (and 17–19 unchanged), plus a read-only probe that no app role can execute a write function.
+4. `CRICECO_RESULTS` stays off until official data exists. Until the scorer integration is built there is **no write path at all**, so the app shows "Result pending" and "Statistics not available".
+
+### Remaining (future, separate approvals)
+- **The scorer Edge Function** (`official-results-ingest`): signed-request verification (key id, timestamp ±5 minutes, nonce store, body hash), rate limits, request ids, mapping refusals to HTTP responses, monitoring and alerts on rejected signatures. Plus client onboarding, key rotation and revocation, and how matches get officials assigned (league / ground integration).
+- **The `postgres` role** can still write directly. That can't be prevented, only audited (`result_change_log`), so keep administrative SQL to a minimum.
+- **Completion status:** `service_role` still has direct write rights on `matches` (migration 17). Setting a match completed without an official result would only show it as played with no result; it could be locked down in a later migration.

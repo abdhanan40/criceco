@@ -900,23 +900,13 @@ class SupabaseMatchGateway implements MatchGateway {
       );
 }
 
-/// Migrations 20–23 (the `CRICECO_RESULTS` switch): database functions only.
+/// Migrations 20–24 (the `CRICECO_RESULTS` switch): READ-ONLY database
+/// functions. There is deliberately no write call: official results come
+/// only from the trusted Scorer/Umpire integration on the server.
 class SupabaseResultsGateway implements ResultsGateway {
   SupabaseResultsGateway(this._client, {this.timeout = kGatewayTimeout});
   final sb.SupabaseClient _client;
   final Duration timeout;
-
-  @override
-  Future<Map<String, dynamic>> submitResult(Map<String, Object?> params) =>
-      _one('submit_match_result_with_scorecard', params);
-
-  @override
-  Future<Map<String, dynamic>> confirmResult(String matchId, int version) =>
-      _one('confirm_match_result', {'p_match_id': matchId, 'p_version': version});
-
-  @override
-  Future<Map<String, dynamic>> disputeResult(String matchId, int version, String reason) =>
-      _one('dispute_match_result', {'p_match_id': matchId, 'p_version': version, 'p_reason': reason});
 
   @override
   Future<List<Map<String, dynamic>>> matchResult(String matchId) => _list('match_result', {'p_match_id': matchId});
@@ -926,9 +916,6 @@ class SupabaseResultsGateway implements ResultsGateway {
 
   @override
   Future<Map<String, dynamic>> clubRecord(String clubId) => _one('club_record', {'p_club_id': clubId});
-
-  @override
-  Future<List<Map<String, dynamic>>> playerPool(String matchId) => _list('match_player_pool', {'p_match_id': matchId});
 
   @override
   Future<List<Map<String, dynamic>>> scorecard(String matchId, {int? version}) =>

@@ -20,6 +20,9 @@ begin
   if to_regclass('public.match_results') is null and to_regclass('public.match_innings') is null then
     raise exception 'rollback 20: migration 20 is not applied — nothing changed';
   end if;
+  if to_regclass('public.scorer_clients') is not null or to_regclass('public.result_submission_log') is not null then
+    raise exception 'rollback 20: migration 24 (result write lockdown) is applied — roll it back first';
+  end if;
   if to_regclass('public.match_batting') is not null or to_regclass('public.match_bowling') is not null then
     raise exception 'rollback 20: migration 21 (scorecards) is applied — roll it back first';
   end if;

@@ -424,27 +424,15 @@ class UnavailablePlayerAvailabilityRepository implements PlayerAvailabilityRepos
   Future<List<ClubMemberAvailability>> clubAvailability(String clubId) async => const [];
 }
 
-/// Match results, scorecards, player statistics and the player's match list
-/// (migrations 20–23, M2). The server checks who may submit, answer or
-/// read; refusals arrive as [MatchRuleException] (or
-/// [PermissionDeniedException] for "not allowed"). Players are referenced by
-/// club membership id.
+/// OFFICIAL match results, scorecards, player statistics and the player's
+/// match list (migrations 20–24, M2) — READ ONLY. Official results are
+/// written only by the trusted Scorer/Umpire integration on the server; the
+/// app can't submit, edit, confirm or dispute anything. The server checks
+/// who may read ("not allowed" arrives as [PermissionDeniedException]).
+/// Players are referenced by club membership id.
 abstract interface class ResultsRepository {
-  /// Submits a result for a played match — or a correction of its confirmed
-  /// result — with or without scorecards. It replaces a version still
-  /// waiting for the other club; the margin is computed by the server.
-  Future<ResultReceipt> submit(ResultSubmission submission);
-
-  /// The OTHER club's owner confirms [version]: it becomes the result and
-  /// the match is completed.
-  Future<ResultReceipt> confirm(String matchId, int version);
-
-  /// The OTHER club's owner disputes [version] with [reason] (1–300
-  /// characters).
-  Future<ResultReceipt> dispute(String matchId, int version, String reason);
-
-  /// The versions the caller may see, newest first: every version for the
-  /// two owners, the confirmed one for members.
+  /// The match's official result (at most one), for the two clubs' owners
+  /// and active members.
   Future<List<ResultVersion>> matchResult(String matchId);
 
   /// [clubId]'s confirmed results, newest first.
@@ -453,12 +441,8 @@ abstract interface class ResultsRepository {
   /// [clubId]'s record from its confirmed results.
   Future<ClubRecord> clubRecord(String clubId);
 
-  /// The players an owner may put on [matchId]'s scorecards: their own
-  /// club's always, the other club's once the match has started.
-  Future<List<PoolPlayer>> playerPool(String matchId);
-
-  /// The scorecards of [version] (`null`: the confirmed result), innings by
-  /// innings; empty for a totals-only result.
+  /// The official scorecard ([version], when given, must be the official
+  /// one), innings by innings; empty for a totals-only result.
   Future<List<InningsCard>> scorecard(String matchId, {int? version});
 
   /// A player's career figures; [userId] `null` = the signed-in player.
@@ -475,26 +459,17 @@ abstract interface class ResultsRepository {
 }
 
 /// Builds without the results server side (the demo, or Supabase without
-/// the results switch): nothing is listed or counted, and every change says
-/// it isn't available. No network call is made.
+/// the results switch): nothing is listed or counted. No network call is
+/// made.
 class UnavailableResultsRepository implements ResultsRepository {
   const UnavailableResultsRepository();
 
-  @override
-  Future<ResultReceipt> submit(ResultSubmission submission) async => throw const ModuleUnavailableException();
-  @override
-  Future<ResultReceipt> confirm(String matchId, int version) async => throw const ModuleUnavailableException();
-  @override
-  Future<ResultReceipt> dispute(String matchId, int version, String reason) async =>
-      throw const ModuleUnavailableException();
   @override
   Future<List<ResultVersion>> matchResult(String matchId) async => const [];
   @override
   Future<List<ClubResultRow>> clubResults(String clubId) async => const [];
   @override
   Future<ClubRecord> clubRecord(String clubId) async => ClubRecord.empty;
-  @override
-  Future<List<PoolPlayer>> playerPool(String matchId) async => const [];
   @override
   Future<List<InningsCard>> scorecard(String matchId, {int? version}) async => const [];
   @override

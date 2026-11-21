@@ -18,7 +18,7 @@ abstract final class ResultRowMapper {
   static const _statuses = {
     'submitted': ResultStatus.submitted,
     'confirmed': ResultStatus.confirmed,
-    'disputed': ResultStatus.disputed,
+    'rejected': ResultStatus.rejected,
     'superseded': ResultStatus.superseded,
   };
   static const _kinds = {
@@ -43,22 +43,12 @@ abstract final class ResultRowMapper {
     'hit_ball_twice': DismissalKind.hitBallTwice,
     'timed_out': DismissalKind.timedOut,
   };
-  static const _pool = {
-    'playing': PoolSelection.playing,
-    'sub': PoolSelection.sub,
-    'member': PoolSelection.member,
-  };
 
   static T _code<T>(
     Map<String, T> codes,
     Map<String, dynamic> row,
     String key,
   ) => codes[row[key]] ?? (throw MatchRowFormatException(key));
-
-  static String outcomeCode(ResultOutcome o) =>
-      _outcomes.entries.firstWhere((e) => e.value == o).key;
-  static String dismissalCode(DismissalKind d) =>
-      _dismissals.entries.firstWhere((e) => e.value == d).key;
 
   // ---- Field readers (on top of MatchRowMapper's) ----
 
@@ -134,24 +124,14 @@ abstract final class ResultRowMapper {
       playerOfMatch: pomId == null && pomName == null && !pomDeleted
           ? null
           : PlayerOfMatch(memberId: pomId, name: pomName, deleted: pomDeleted),
-      submittedByMe: _flag(r, 'submitted_by_me'),
       submittedAt: MatchRowMapper.time(r, 'submitted_at'),
       decidedAt: MatchRowMapper.optTime(r, 'decided_at'),
-      disputeReason: _optText(r, 'dispute_reason'),
       clubAId: _text(r, 'club_a_id'),
       clubBId: _text(r, 'club_b_id'),
       innings: [for (final i in _maps(r, 'innings')) innings(i)]
         ..sort((a, b) => a.inningsNo - b.inningsNo),
     );
   }
-
-  /// A `match_results` table row (what submit / confirm / dispute return).
-  static ResultReceipt receipt(Map<String, dynamic> r) => ResultReceipt(
-    matchId: _text(r, 'match_id'),
-    version: _int(r, 'version'),
-    status: _code(_statuses, r, 'status'),
-    outcome: _code(_outcomes, r, 'outcome'),
-  );
 
   static ClubResultRow clubResult(Map<String, dynamic> r) => ClubResultRow(
     matchId: _text(r, 'match_id'),
@@ -177,68 +157,7 @@ abstract final class ResultRowMapper {
     abandoned: _int(r, 'abandoned'),
   );
 
-  /// `submit_match_result_with_scorecard`'s parameters. An innings carries
-  /// `batting` / `bowling` only when given; the server checks that they add
-  /// up (and that every innings has them, or none).
-  static Map<String, Object?> submitParams(ResultSubmission s) => {
-    'p_match_id': s.matchId,
-    'p_outcome': outcomeCode(s.outcome),
-    'p_innings': [
-      for (final i in s.innings)
-        {
-          'batting_club_id': i.battingClubId,
-          'runs': i.runs,
-          'wickets': i.wickets,
-          'balls': i.balls,
-          'byes': i.byes,
-          'leg_byes': i.legByes,
-          'wides': i.wides,
-          'no_balls': i.noBalls,
-          'penalty': i.penalty,
-          'declared': i.declared,
-          if (i.batting case final batting?)
-            'batting': [
-              for (final b in batting)
-                {
-                  'member_id': b.memberId,
-                  'runs': b.runs,
-                  'balls': b.balls,
-                  'fours': b.fours,
-                  'sixes': b.sixes,
-                  'dismissal': dismissalCode(b.dismissal),
-                  if (b.bowlerMemberId != null)
-                    'bowler_member_id': b.bowlerMemberId,
-                  if (b.fielderMemberId != null)
-                    'fielder_member_id': b.fielderMemberId,
-                  if (b.directHit) 'direct_hit': true,
-                },
-            ],
-          if (i.bowling case final bowling?)
-            'bowling': [
-              for (final w in bowling)
-                {
-                  'member_id': w.memberId,
-                  'balls': w.balls,
-                  'maidens': w.maidens,
-                  'runs': w.runs,
-                  'wides': w.wides,
-                  'no_balls': w.noBalls,
-                },
-            ],
-        },
-    ],
-    'p_player_of_match_member_id': s.playerOfMatchMemberId,
-  };
-
   // ---- Scorecards (migration 21) ----
-
-  static PoolPlayer poolPlayer(Map<String, dynamic> r) => PoolPlayer(
-    clubId: _text(r, 'club_id'),
-    memberId: _text(r, 'member_id'),
-    name: _text(r, 'full_name'),
-    selection: _code(_pool, r, 'selection'),
-    pickOrder: _optInt(r, 'pick_order'),
-  );
 
   static CardBattingRow batting(Map<String, dynamic> r) => CardBattingRow(
     position: _int(r, 'position'),
