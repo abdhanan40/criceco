@@ -992,6 +992,16 @@ class SupabaseNotificationsGateway implements NotificationsGateway {
   Future<Map<String, dynamic>> setPreferences(Map<String, Object?> params) =>
       _one('set_notification_preferences', params);
 
+  @override
+  Future<void> registerDevice(String token, String platform) => _guarded(
+        () => _client.rpc<dynamic>('register_push_device', params: {'p_token': token, 'p_platform': platform}),
+        timeout,
+        SupabaseProfileGateway.translate,
+      );
+
+  @override
+  Future<int> unregisterDevice(String token) => _int('unregister_push_device', {'p_token': token});
+
   Future<Map<String, dynamic>> _one(String fn, Map<String, Object?> params) => _guarded(() async {
         final row = SupabaseClubGateway._row(await _client.rpc<dynamic>(fn, params: params));
         if (row == null) throw GatewayUnexpectedException('$fn-no-row');

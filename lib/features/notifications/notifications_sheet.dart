@@ -16,6 +16,7 @@ import '../../shared/widgets/ce_icons.dart';
 import '../club/announcements/announcements.dart';
 import 'notifications_controller.dart';
 import 'notifications_screen.dart' show NotificationRow, OlderNotificationsButton;
+import 'push/push_ui.dart' show offerPush;
 
 /// Opens a notification: marks it read, then its existing action — an
 /// announcement is read in place (sheet on top), anything else opens its
@@ -106,6 +107,8 @@ class _NotificationsPanelState extends ConsumerState<NotificationsPanel> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !ref.read(notificationsBackendLiveProvider)) return;
       refreshNotifications(ref, role).catchError((Object _) {});
+      // M3 P5: the one-time push offer, the first time the inbox opens.
+      offerPush(context, ref);
     });
   }
 

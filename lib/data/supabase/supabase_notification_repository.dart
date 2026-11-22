@@ -140,3 +140,18 @@ class SupabaseNotificationPreferencesRepository
         ),
       );
 }
+
+/// [PushDeviceRepository] on Supabase (migration 27): Android tokens.
+class SupabasePushDeviceRepository implements PushDeviceRepository {
+  SupabasePushDeviceRepository({required this.db});
+
+  final NotificationsGateway db;
+
+  @override
+  Future<void> register(String token) =>
+      guardMatchCall(() => db.registerDevice(token, 'android'));
+
+  @override
+  Future<void> unregister(String token) =>
+      guardMatchCall(() async => db.unregisterDevice(token));
+}

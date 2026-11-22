@@ -406,6 +406,24 @@ class UnavailableNotificationPreferencesRepository implements NotificationPrefer
       throw const ModuleUnavailableException();
 }
 
+/// This installation's push registration (migration 27, M3 P5). The server
+/// keeps at most 10 devices per person; a token signed in as someone else
+/// moves to them.
+abstract interface class PushDeviceRepository {
+  Future<void> register(String token);
+  Future<void> unregister(String token);
+}
+
+/// Builds without the server side: there is nothing to register.
+class UnavailablePushDeviceRepository implements PushDeviceRepository {
+  const UnavailablePushDeviceRepository();
+
+  @override
+  Future<void> register(String token) async {}
+  @override
+  Future<void> unregister(String token) async {}
+}
+
 /// Club announcements on the server (migration 25, decision D10): the owner
 /// publishes, the server picks the recipients and notifies them.
 abstract interface class AnnouncementServerRepository {

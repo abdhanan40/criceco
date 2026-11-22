@@ -215,6 +215,13 @@ final notificationPreferencesRepositoryProvider = Provider<NotificationPreferenc
         ? SupabaseNotificationPreferencesRepository(db: ref.watch(notificationsGatewayProvider))
         : const UnavailableNotificationPreferencesRepository());
 
+/// This installation's push registration (migration 27), with the same
+/// switches.
+final pushDeviceRepositoryProvider = Provider<PushDeviceRepository>((ref) =>
+    ref.watch(notificationsBackendLiveProvider)
+        ? SupabasePushDeviceRepository(db: ref.watch(notificationsGatewayProvider))
+        : const UnavailablePushDeviceRepository());
+
 /// Location lookup (Stage 4.2). Supabase mode: the location tables of
 /// migration 6 (read-only); memory mode: the 20 featured cities only. Not yet
 /// used by any screen — the city pickers switch in Stage 4.3.

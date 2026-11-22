@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/config/backend_modules.dart';
+import '../../app/config/push_config.dart';
 import '../../app/router/routes.dart';
 import '../../app/theme/tokens.dart';
 import '../../app/theme/typography.dart';
@@ -12,6 +13,8 @@ import '../../shared/widgets/ce_rows.dart';
 import '../../shared/widgets/ce_surfaces.dart';
 import '../../shared/widgets/ce_top_bar.dart';
 import 'notification_preferences_controller.dart';
+import 'push/push_controller.dart';
+import 'push/push_messaging.dart' show PushPermission;
 
 /// Notification settings (M3 P4, decision D8): opened from inside the
 /// inbox. Which categories CricEco tells this person about — enforced on the
@@ -151,8 +154,57 @@ class NotificationSettingsScreen extends ConsumerWidget {
                     for (final c in owners) row(c, last: c == owners.last),
                   ],
                 ),
+                // M3 P5: push for this phone (only in builds that have it).
+                if (ref.watch(pushAvailableProvider)) const _PushOnThisDevice(),
               ],
             ),
+    );
+  }
+}
+
+/// "Push on this device": the categories above apply to push too (a
+/// category that is off is never created, so never pushed).
+class _PushOnThisDevice extends ConsumerWidget {
+  const _PushOnThisDevice();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final push = ref.watch(pushControllerProvider);
+    final subtitle = push.active
+        ? 'On — they arrive even when CricEco is closed'
+        : push.enabled && push.permission == PushPermission.denied
+        ? 'Allow notifications for CricEco in Android settings'
+        : 'Off';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const CeSectionHeader(
+          'This phone',
+          padding: EdgeInsets.fromLTRB(CeSpace.gutter, 18, CeSpace.gutter, 8),
+        ),
+        CeGroupCard(
+          children: [
+            CeToggleRow(
+              key: const Key('notificationSettings.push'),
+              icon: 'bell',
+              title: 'Push on this device',
+              subtitle: subtitle,
+              value: push.active,
+              showDivider: false,
+              onChanged: (on) async {
+                final controller = ref.read(pushControllerProvider.notifier);
+                if (!on) return controller.turnOff();
+                if (!await controller.turnOn() && context.mounted) {
+                  showCeToast(
+                    context,
+                    'Notifications are off for CricEco — you can allow them in Android settings.',
+                  );
+                }
+              },
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

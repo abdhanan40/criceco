@@ -459,6 +459,13 @@ abstract interface class NotificationsGateway {
   /// p_matches, p_results, p_announcements})` — the saved row.
   Future<Map<String, dynamic>> setPreferences(Map<String, Object?> params);
 
+  /// `rpc('register_push_device', {p_token, p_platform})` — this
+  /// installation's FCM token for push (migration 27).
+  Future<void> registerDevice(String token, String platform);
+
+  /// `rpc('unregister_push_device', {p_token})` — how many were removed.
+  Future<int> unregisterDevice(String token);
+
   /// `rpc('club_announcement_list', {p_club_id, p_limit})` — newest first.
   Future<List<Map<String, dynamic>>> clubAnnouncements(
     String clubId, {

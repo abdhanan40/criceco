@@ -16,6 +16,7 @@ import '../../shared/widgets/ce_surfaces.dart';
 import '../../shared/widgets/ce_top_bar.dart';
 import 'notifications_controller.dart';
 import 'notifications_sheet.dart' show openNotification;
+import 'push/push_ui.dart' show offerPush;
 
 /// Notifications (prototype `screens.notifications`, :8105): one screen,
 /// content from the active role. Each row opens its real destination inside
@@ -39,6 +40,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       final role = ref.read(activeRoleProvider);
       if (!mounted || role == null || !ref.read(notificationsBackendLiveProvider)) return;
       refreshNotifications(ref, role).catchError((Object _) {});
+      // M3 P5: the one-time push offer, the first time the inbox opens.
+      offerPush(context, ref);
     });
   }
 

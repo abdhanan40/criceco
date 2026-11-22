@@ -1,8 +1,9 @@
-# Notifications — migrations 25–26 (M3 P1, P4) and the app (P2–P4)
+# Notifications — migrations 25–27 (M3 P1, P4, P5) and the app (P2–P5)
 
 **Status (2026-11-22):**
 - **Migration 25** (P1): committed in `45d06ca`, validated on a disposable PostgreSQL 17. **Not applied to production.**
-- **Migration 26** (P4, notification preferences): validated on a disposable PostgreSQL 17. **Not applied to production.** See [P4](#p4--notification-preferences-migration-26).
+- **Migration 26** (P4, notification preferences): committed in `371c7ce`, validated on a disposable PostgreSQL 17. **Not applied to production.** See [P4](#p4--notification-preferences-migration-26).
+- **Migration 27 and the `push-dispatch` Edge Function** (P5, push): validated locally (FCM replaced by stand-ins). **Not applied, not deployed, no Firebase project yet.** See [P5](#p5--push-migration-27-the-push-dispatch-edge-function-the-app).
 - **Flutter data layer** (P2, `6da3583`), **the inbox on server data** (P3, `5156470`) and **Notification settings** (P4): behind the `CRICECO_NOTIFICATIONS` switch, off by default. See [P2](#p2--the-flutter-data-layer) and [P3](#p3--the-inbox-on-server-data). Without the switch, Supabase builds still show notifications as "not available yet"; the demo inbox is unchanged.
 
 ## Purpose and scope
@@ -326,7 +327,93 @@ One setting per account. Everything is on until the person changes something.
 | Rollback 26 | catalogue identical to 1–25; refusal while rows exist; re-apply OK (1,441 objects, `3166fdbd…`) |
 | Flutter | `test/notification_preferences_test.dart`: categories read from migration 26 itself; mapper; repository; switch and providers; the controller's order and rollback; the screen (groups, "Always on", save, refusal, load error, demo); the inbox entries, including 320 px. The gateway test covers the two RPCs |
 
+## P5 — push (migration 27, the `push-dispatch` Edge Function, the app)
+**Approved 2026-11-22:**
+- Build and test everything locally, with FCM replaced by stand-ins. The Firebase project and the secrets come later, from the project owner, as separate steps.
+- The lock-screen text is a short title and one line per type, written by the server.
+- A database webhook wakes the dispatcher.
+- The Android permission is asked once, from the inbox, after an explanation. "Push on this device" is in Notification settings.
+- Muted categories stay muted, because they are never created.
+- Android only for now.
+
+### How a push travels
+1. **An event creates a notification** (P1), unless the category is muted (P4).
+2. **The trigger `notifications_queue_push`** queues it in `push_deliveries`, if the recipient has a registered device. No text or token is stored there.
+3. **`push_wake()` calls the `push-dispatch` Edge Function**, once per transaction, through pg_net. It reads its URL and shared secret from Supabase Vault (`push_dispatch_url`, `push_dispatch_secret`).
+   - pg_net only sends after the commit, so a rolled-back action wakes nothing.
+   - Without pg_net or those secrets, which is the case locally and until the settings step, nothing is sent and the queue waits.
+   - A failed wake-up never fails the action. The delivery stays pending for the next wake-up, and for the sweeper in P6.
+4. **The function claims the queued deliveries** with `push_claim` (service_role only; `skip locked`, so two dispatchers never take the same row).
+   - It writes the text (`templates.ts`) and sends one FCM HTTP v1 message per device (`fcm.ts`).
+   - It reports the results with `push_report`:
+     - **sent:** at least one device received it;
+     - **retry:** FCM busy or a network error; the database tries at most 3 times;
+     - **failed:** anything else;
+     - **gone tokens** (`UNREGISTERED`, `SENDER_ID_MISMATCH`) are removed. A badly formed message never removes a token.
+   - Deliveries older than a day, or whose recipient has no device any more, are skipped. A claim stuck in "sending" for 5 minutes is taken again.
+5. **Tapping the push** opens what its inbox row opens, inside that inbox's role, switching role if needed (as the drawer does). An announcement or an unknown type opens the inbox. The notification is marked read.
+
+### Database (migration 27, `20261122090200_create_push_delivery.sql`)
+- **`device_tokens`:** one row per installation (the token is unique), Android only, at most 10 per person (the longest unseen go). Signing in on a shared phone moves the token to the new person. It is deleted with the profile.
+- **`push_deliveries`:** one row per notification to push. It holds the status, attempts and timestamps, plus an FCM error *code* only. It is deleted with its notification.
+- **Access:**
+  - No role (not even `service_role`) can read or write the tables directly.
+  - The app has `register_push_device` / `unregister_push_device` (signed in; the token is checked).
+  - The dispatcher has `push_claim` / `push_report` (`service_role` only).
+- **Rollback** (`20261122_rollback_push_delivery.sql`):
+  - It removes the trigger, the functions and both tables.
+  - The catalogue goes back to 1–26 exactly (1,441 objects, `3166fdbd…`).
+  - It refuses while devices or queued pushes exist, unless `set local criceco.rollback_push_discarded = 'yes'` is set.
+  - Undeploy the function first.
+
+### The Edge Function (`supabase/functions/push-dispatch/`)
+- **`index.ts`:** the Deno entry point, wiring only.
+- **`dispatch.ts`:** the handler and the loop.
+  - It accepts POST only, with `x-push-secret` compared in constant time.
+  - It runs up to 5 rounds of 100 deliveries per wake-up.
+  - Answers carry counts only, never a token, a text or an error detail.
+- **`fcm.ts`:** the OAuth assertion (RS256 with the service account key, via WebCrypto), access-token caching, the message, and how FCM's answers are classified.
+- **`templates.ts`:** the same wording as the app's inbox, for all 23 types, in Pakistan time. A deleted account is "Deleted player". No free text appears, except an announcement's title.
+- **Deploy:** `supabase functions deploy push-dispatch --no-verify-jwt`. The database calls it, not a user, so there is no JWT; the shared secret protects it.
+- **Secrets:** `PUSH_DISPATCH_SECRET`, `FCM_SERVICE_ACCOUNT` (the service account JSON), plus the built-in `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
+
+### App
+- **Firebase settings** come from four public identifiers given at build time (`FCM_API_KEY`, `FCM_APP_ID`, `FCM_SENDER_ID`, `FCM_PROJECT_ID`, taken from the Firebase console's Android app).
+  - No `google-services.json` is committed and no Gradle plugin is needed.
+  - Without them, the build has no push and behaves exactly as before.
+  - `pushAvailableProvider` is true only with the server inbox, the four values, and Android.
+- **`PushMessaging`** (`lib/features/notifications/push/push_messaging.dart`) wraps firebase_messaging 17 (`register` / `onRegistered` / `unregister`), so tests use a fake.
+- **`PushController`:**
+  - It is **off until the person says yes.**
+  - It registers the device while someone is signed in and push is on, and registers a new token when Firebase rotates it.
+  - "Off" unregisters the device and invalidates the token.
+  - Signing out invalidates the token at Firebase, with no call that needs the old session. The server drops it on its next send, and a new person signing in takes it over.
+  - Every failure is quiet: the inbox works without push.
+- **The one-time offer** appears when the inbox (screen or panel) first opens: "Get notified on this phone", then "Turn on" (Android's own dialog) or "Not now". It is never shown again; Notification settings has the "Push on this device" switch.
+- **`PushRouter`** sits around the app. It opens tapped pushes, including the push that launched the app (it waits for sign-in), and refreshes the inbox when a push arrives while the app is open.
+- **`AndroidManifest.xml`** declares `POST_NOTIFICATIONS`.
+
+### Setting it up (the project owner, each step approved separately)
+1. **Firebase console:** create the project and add the Android app `com.criceco.criceco`. Note its four public values. Create a service account key (Project settings → Service accounts). **Keep that key private: never paste it anywhere but the secret below.**
+2. **Supabase:**
+   - `supabase secrets set FCM_SERVICE_ACCOUNT='<the JSON>' PUSH_DISPATCH_SECRET='<a long random value>'`;
+   - deploy the function (see above);
+   - enable pg_net;
+   - in Vault, add `push_dispatch_url` (`https://<project>.supabase.co/functions/v1/push-dispatch`) and `push_dispatch_secret` (the same random value);
+   - apply migration 27 (after 25–26).
+3. **Build:** add `--dart-define=FCM_API_KEY=… --dart-define=FCM_APP_ID=… --dart-define=FCM_SENDER_ID=… --dart-define=FCM_PROJECT_ID=…` to the APK command, together with `CRICECO_NOTIFICATIONS=true`.
+
+### Tests (P5)
+| Test | Result |
+|---|---|
+| Post-check 27 (read-only) | 8 PASS + 2 INFO (pg_net/Vault present; row counts); on 1–26 all 8 rows FAIL as expected |
+| Local check 22 | 44/44, run twice. It covers: access; registration (validation, moving a token, the 10-device limit, nobody removes someone else's device); the queue (no device → nothing; muted → nothing; refusals); the wake-up with pg_net/Vault stand-ins (once per transaction, with the secret and no content; none on rollback; a failing wake-up never fails the action); claim and report (sent / retry / failed, 3 attempts, gone tokens removed only for that recipient, malformed reports refused, reclaiming stuck rows, expired, no device); account deletion |
+| Concurrency 22b | 2/2, two runs: two dispatchers never claim the same delivery; the same phone registered by two people ends with one owner |
+| Regression on 1–27 | local checks 10 / 12 / 13 / 14 / 15 / 16 / 19 / 20 / 21 and concurrency 14b / 15b / 19b / 20b / 21b unchanged |
+| Rollback 27 | catalogue identical to 1–26; refusal while rows exist; re-apply OK (1,492 objects, `21cda8b8…`) |
+| Edge Function | `node --test supabase/functions/push-dispatch/*_test.ts`: 22/22 (wording for all 23 types read from migration 25, Pakistan time, no free text; an RS256 assertion verified with a throwaway key; token caching; FCM answers; the secret; batching and rounds; counts-only answers) |
+| Flutter | `test/push_test.dart` (availability, off until yes, turn on, denied, not now, start-up registration and rotated tokens, off, sign-out, quiet failures, the offer, the settings switch, taps, launch, foreground); the gateway test covers the two device RPCs |
+
 ### Next
-- **P5:** push (FCM, D9): device tokens, the dispatcher Edge Function, the app integration. Push follows these preferences.
-- **P6:** reminders and the 90-day cleanup job.
-- **P7:** the production rollout of migrations 25–26 and an APK with the switch, each step approved separately.
+- **P6:** reminders (`pg_cron`), the 90-day cleanup, and a sweeper for pushes left pending.
+- **P7:** the production rollout of migrations 25–27, the Firebase and Supabase setup above, and an APK, each step approved separately.

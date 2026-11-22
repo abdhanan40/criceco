@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Supabase backend (release builds; debug/profile manifests add it too). -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- M3 P5: push notifications (Android 13+ asks; the app asks only after explaining). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="CricEco"
         android:name="${applicationName}"

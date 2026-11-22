@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/booking/booking_controller.dart';
 import '../features/notifications/notifications_resume_refresh.dart';
+import '../features/notifications/push/push_ui.dart';
 import 'router/app_router.dart';
 import 'splash/criceco_splash.dart';
 import 'theme/app_theme.dart';
@@ -45,14 +46,17 @@ class CricEcoApp extends ConsumerWidget {
     final router = ref.watch(routerProvider);
     // The server inbox catches up when the app returns to the foreground.
     return NotificationsResumeRefresh(
-      child: MaterialApp.router(
-        title: 'CricEco',
-        debugShowCheckedModeBanner: false,
-        scaffoldMessengerKey: rootScaffoldMessengerKey,
-        // Manrope is bundled in assets/fonts (see pubspec.yaml).
-        theme: AppTheme.light(),
-        routerConfig: router,
-        builder: showSplash ? (context, child) => SplashGate(child: child ?? const SizedBox.shrink()) : null,
+      // Push (M3 P5): registers this phone, opens tapped pushes.
+      child: PushRouter(
+        child: MaterialApp.router(
+          title: 'CricEco',
+          debugShowCheckedModeBanner: false,
+          scaffoldMessengerKey: rootScaffoldMessengerKey,
+          // Manrope is bundled in assets/fonts (see pubspec.yaml).
+          theme: AppTheme.light(),
+          routerConfig: router,
+          builder: showSplash ? (context, child) => SplashGate(child: child ?? const SizedBox.shrink()) : null,
+        ),
       ),
     );
   }

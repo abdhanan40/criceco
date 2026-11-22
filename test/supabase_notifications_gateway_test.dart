@@ -115,6 +115,17 @@ void main() {
         );
         requests.clear();
 
+        // Push devices (migration 27).
+        respond = (_) => json(null);
+        await gateway.registerDevice('fcm_tok_${'a' * 30}', 'android');
+        expectRpc('register_push_device', {
+          'p_token': 'fcm_tok_${'a' * 30}',
+          'p_platform': 'android',
+        });
+        respond = (_) => json(1);
+        expect(await gateway.unregisterDevice('fcm_tok_x'), 1);
+        expectRpc('unregister_push_device', {'p_token': 'fcm_tok_x'});
+
         respond = (_) => json(3);
         expect(await gateway.unreadCount('club_owner'), 3);
         expectRpc('notification_unread_count', {'p_inbox': 'club_owner'});

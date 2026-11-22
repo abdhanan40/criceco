@@ -304,6 +304,7 @@ abstract final class SupabaseErrorMapper {
     for (final (prefix, texts, fallback) in [
       ('notification', _notificationTexts, 'Couldn’t update your notifications — please try again.'),
       ('announcement', _announcementTexts, "Some announcement details aren't valid — please check and try again"),
+      ('push', const <String, String>{}, 'Couldn’t set up notifications on this phone — please try again.'),
     ]) {
       final reason = _reason(message, prefix);
       if (reason == null) continue;

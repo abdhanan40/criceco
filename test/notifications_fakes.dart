@@ -74,6 +74,21 @@ class FakeNotificationsDb implements NotificationsGateway {
     return announcementRows;
   }
 
+  /// Registered device tokens (register / unregister).
+  final devices = <String>{};
+
+  @override
+  Future<void> registerDevice(String token, String platform) async {
+    _record('register_push_device', {'p_token': token, 'p_platform': platform});
+    devices.add(token);
+  }
+
+  @override
+  Future<int> unregisterDevice(String token) async {
+    _record('unregister_push_device', {'p_token': token});
+    return devices.remove(token) ? 1 : 0;
+  }
+
   @override
   Future<Map<String, dynamic>> myPreferences() async {
     _record('my_notification_preferences', const {});
