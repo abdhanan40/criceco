@@ -11,9 +11,12 @@
 # clubs (ids ef3…) and always deletes them again on exit.
 # Prints PASS / FAIL lines; exits with the number of failures.
 #
-# Session 1 does its step inside a transaction and then sleeps; session 2
-# starts only once session 1 is CONFIRMED sleeping, and where it must wait its
-# result only counts once it is CONFIRMED waiting on a lock.
+# Session 1 does its step inside a transaction and then waits at a GATE (an
+# advisory lock the driver holds), so it keeps its locks for as long as the
+# driver needs — not for a fixed time. Session 2 starts only once session 1 is
+# CONFIRMED at the gate, and where it must wait its result only counts once it
+# is CONFIRMED waiting on a row lock; only then is the gate opened.
+# (Hardened 2026-11-22: a fixed 3-second hold failed under machine load.)
 #   P1 a challenge sent while the challenged owner is turning challenges off:
 #      the challenge does not wait; it follows the setting as committed then
 #      (told), and the next one after the commit is not told;
@@ -65,17 +68,36 @@ session() { # name user sql
   { printf "set application_name = 'm26k_%s';\n" "$1"; claims "$2"; printf "%s\n" "$3"; } | $PSQL -X -At -q >"$T/$1.out" 2>&1 &
 }
 as_user() { { claims "$1"; printf "%s\n" "$2"; } | $PSQL -X -At -q 2>&1 | tail -n 1; }
-wait_until() {
-  local i
-  for i in $(seq 100); do
-    [ "$(one "$1")" = "t" ] && return 0; sleep 0.1
+# ---- Synchronisation: an explicit gate, no fixed sleep decides a result ------
+# A GATE session holds an advisory lock. Session 1 does its step inside its
+# transaction and then waits for that lock — holding its own row locks — so it
+# commits only when the driver opens the gate, however slow the machine is.
+# The gate gives up by itself after GATE_MAX seconds (a dead driver never
+# leaves a lock behind); every wait below gives up after WAIT_MAX seconds.
+GATE_KEY=26100021
+GATE_MAX=120
+WAIT_MAX=60
+wait_until() { # SQL answering t — polled until true, or WAIT_MAX seconds pass
+  local deadline=$((SECONDS + WAIT_MAX))
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    [ "$(one "$1")" = "t" ] && return 0; sleep 0.2
   done
   return 1
 }
-sleeping() { wait_until "select exists (select 1 from pg_stat_activity where $MINE and application_name = 'm26k_$1'
-                           and state = 'active' and query like '%pg_sleep%')"; }
-blocked()  { wait_until "select exists (select 1 from pg_stat_activity where $MINE and application_name = 'm26k_$1'
-                           and wait_event_type = 'Lock')"; }
+gate_close() {
+  printf "set application_name = 'm26k_gate';\nselect pg_advisory_lock(%s);\nselect pg_sleep(%s);\n" "$GATE_KEY" "$GATE_MAX" \
+    | $PSQL -X -At -q >/dev/null 2>&1 &
+  wait_until "select exists (select 1 from pg_locks l where l.locktype = 'advisory' and l.objid = $GATE_KEY and l.granted
+                 and l.pid in (select pid from pg_stat_activity where $MINE and application_name = 'm26k_gate'))"
+}
+gate_open() { one "select count(pg_terminate_backend(pid)) from pg_stat_activity where $MINE and application_name = 'm26k_gate'" >/dev/null; }
+GATE="select pg_advisory_lock($GATE_KEY);"
+# Session 1 has done its step and waits at the gate.
+at_gate() { wait_until "select exists (select 1 from pg_stat_activity where $MINE and application_name = 'm26k_$1'
+                          and wait_event_type = 'Lock' and wait_event = 'advisory')"; }
+# Session 2 waits on a row lock (not on the gate).
+blocked() { wait_until "select exists (select 1 from pg_stat_activity where $MINE and application_name = 'm26k_$1'
+                          and wait_event_type = 'Lock' and wait_event <> 'advisory')"; }
 cnt() { one "select count(*) from public.notifications where recipient_id = '$(uid "$1")' and type = '$2'"; }
 prefs() { one "select join_requests || '/' || challenges || '/' || matches || '/' || results || '/' || announcements
                  from public.notification_preferences where user_id = '$(uid "$1")'"; }
@@ -104,12 +126,16 @@ CHALLENGE="select (public.send_challenge('$CA', '$CB', 't20', null, current_date
 LAST="(select id from public.match_challenges where from_club_id = '$CA' order by created_at desc limit 1)"
 
 # --- P1 a challenge while the owner is turning challenges off ----------------
+if ! gate_close; then fail "P1 the gate could not be closed"; fi
 session p1a 2 "begin; select challenges from public.set_notification_preferences(true, false, true, true, true);
-               select pg_sleep(3); commit;"
-if sleeping p1a; then
+               $GATE commit;"
+if at_gate p1a; then
+  # Session 1 has saved "challenges off" but not committed: it waits at the gate.
   sent=$(as_user 1 "$CHALLENGE")
   during=$(cnt 2 challenge_received)
-  still=$(one "select exists (select 1 from pg_stat_activity where $MINE and application_name = 'm26k_p1a')")
+  still=$(one "select exists (select 1 from pg_stat_activity where $MINE and application_name = 'm26k_p1a'
+                               and wait_event = 'advisory')")
+  gate_open
   wait
   as_user 2 "select (public.respond_to_challenge($LAST, false)).status;" >/dev/null
   as_user 1 "$CHALLENGE" >/dev/null
@@ -120,15 +146,17 @@ if sleeping p1a; then
     fail "P1 sent=$sent during=$during still=$still after=$(cnt 2 challenge_received) prefs=$(prefs 2)"
   fi
 else
-  fail "P1 session 1 never started sleeping: $(cat "$T/p1a.out")"; wait
+  fail "P1 session 1 never reached the gate: $(cat "$T/p1a.out")"; gate_open; wait
 fi
 
 # --- P2 two first saves at once ------------------------------------------------
+if ! gate_close; then fail "P2 the gate could not be closed"; fi
 session p2a 3 "begin; select matches from public.set_notification_preferences(true, true, false, true, true);
-               select pg_sleep(3); commit;"
-if sleeping p2a; then
+               $GATE commit;"
+if at_gate p2a; then
   session p2b 3 "select results from public.set_notification_preferences(true, true, true, false, true);"
   if blocked p2b; then
+    gate_open
     wait
     if [ "$(head -n 1 "$T/p2a.out")" = "f" ] && [ "$(tail -n 1 "$T/p2b.out")" = "f" ] \
        && [ "$(prefs 3)" = "true/true/true/false/true" ] \
@@ -138,8 +166,8 @@ if sleeping p2a; then
       fail "P2 a=$(tr '\n' ' ' <"$T/p2a.out") b=$(tr '\n' ' ' <"$T/p2b.out") prefs=$(prefs 3)"
     fi
   else
-    fail "P2 session 2 did not wait: $(tr '\n' ' ' <"$T/p2b.out")"; wait
+    fail "P2 session 2 did not wait: $(tr '\n' ' ' <"$T/p2b.out")"; gate_open; wait
   fi
 else
-  fail "P2 session 1 never started sleeping: $(cat "$T/p2a.out")"; wait
+  fail "P2 session 1 never reached the gate: $(cat "$T/p2a.out")"; gate_open; wait
 fi

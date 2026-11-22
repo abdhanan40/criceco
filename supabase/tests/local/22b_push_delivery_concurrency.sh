@@ -14,6 +14,12 @@
 #      what the first didn't take — no delivery is sent twice;
 #   D2 the same phone registered by two people at once: the second waits,
 #      then the token is theirs — one row, never two owners.
+# Session 1 does its step inside a transaction and then waits at a GATE (an
+# advisory lock the driver holds), so it keeps its locks for as long as the
+# driver needs — not for a fixed time. Session 2 starts only once session 1 is
+# CONFIRMED at the gate, and where it must wait its result only counts once it
+# is CONFIRMED waiting on a row lock; only then is the gate opened.
+# (Hardened 2026-11-22: a fixed 3-second hold failed under machine load.)
 set -u
 : "${PSQL:?set PSQL to a psql command for the LOCAL test database (see the header)}"
 fails=0
@@ -67,17 +73,36 @@ session() { # name user|service sql
   fi | $PSQL -X -At -q >"$T/$1.out" 2>&1 &
 }
 as_user() { { claims "$1"; printf "%s\n" "$2"; } | $PSQL -X -At -q 2>&1 | tail -n 1; }
-wait_until() {
-  local i
-  for i in $(seq 100); do
-    [ "$(one "$1")" = "t" ] && return 0; sleep 0.1
+# ---- Synchronisation: an explicit gate, no fixed sleep decides a result ------
+# A GATE session holds an advisory lock. Session 1 does its step inside its
+# transaction and then waits for that lock — holding its own row locks — so it
+# commits only when the driver opens the gate, however slow the machine is.
+# The gate gives up by itself after GATE_MAX seconds (a dead driver never
+# leaves a lock behind); every wait below gives up after WAIT_MAX seconds.
+GATE_KEY=27100022
+GATE_MAX=120
+WAIT_MAX=60
+wait_until() { # SQL answering t — polled until true, or WAIT_MAX seconds pass
+  local deadline=$((SECONDS + WAIT_MAX))
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    [ "$(one "$1")" = "t" ] && return 0; sleep 0.2
   done
   return 1
 }
-sleeping() { wait_until "select exists (select 1 from pg_stat_activity where $MINE and application_name = 'm27k_$1'
-                           and state = 'active' and query like '%pg_sleep%')"; }
-blocked()  { wait_until "select exists (select 1 from pg_stat_activity where $MINE and application_name = 'm27k_$1'
-                           and wait_event_type = 'Lock')"; }
+gate_close() {
+  printf "set application_name = 'm27k_gate';\nselect pg_advisory_lock(%s);\nselect pg_sleep(%s);\n" "$GATE_KEY" "$GATE_MAX" \
+    | $PSQL -X -At -q >/dev/null 2>&1 &
+  wait_until "select exists (select 1 from pg_locks l where l.locktype = 'advisory' and l.objid = $GATE_KEY and l.granted
+                 and l.pid in (select pid from pg_stat_activity where $MINE and application_name = 'm27k_gate'))"
+}
+gate_open() { one "select count(pg_terminate_backend(pid)) from pg_stat_activity where $MINE and application_name = 'm27k_gate'" >/dev/null; }
+GATE="select pg_advisory_lock($GATE_KEY);"
+# Session 1 has done its step and waits at the gate.
+at_gate() { wait_until "select exists (select 1 from pg_stat_activity where $MINE and application_name = 'm27k_$1'
+                          and wait_event_type = 'Lock' and wait_event = 'advisory')"; }
+# Session 2 waits on a row lock (not on the gate).
+blocked() { wait_until "select exists (select 1 from pg_stat_activity where $MINE and application_name = 'm27k_$1'
+                          and wait_event_type = 'Lock' and wait_event <> 'advisory')"; }
 
 # --- Synthetic data: owner 1 (club A), members 11–30, each with a device.
 one "do \$\$
@@ -109,10 +134,14 @@ as_user 1 "select (public.publish_club_announcement('$CA', 'Race', 'Twenty pushe
   || { fail "setup: 20 pending deliveries expected"; exit 1; }
 
 # --- D1 two dispatchers claim at once ------------------------------------------
-session d1a service "begin; select notification_id from public.push_claim(10); select pg_sleep(3); commit;"
-if sleeping d1a; then
+if ! gate_close; then fail "D1 the gate could not be closed"; fi
+session d1a service "begin; select notification_id from public.push_claim(10); $GATE commit;"
+if at_gate d1a; then
+  # Session 1 holds its 10 claimed rows (uncommitted) at the gate.
   printf "set role service_role;\nselect notification_id from public.push_claim(500);\n" | $PSQL -X -At -q >"$T/d1b.out" 2>&1
-  still=$(one "select exists (select 1 from pg_stat_activity where $MINE and application_name = 'm27k_d1a')")
+  still=$(one "select exists (select 1 from pg_stat_activity where $MINE and application_name = 'm27k_d1a'
+                               and wait_event = 'advisory')")
+  gate_open
   wait
   a=$(grep -cE '^[0-9a-f-]{36}$' "$T/d1a.out"); b=$(grep -cE '^[0-9a-f-]{36}$' "$T/d1b.out")
   both=$(sort "$T/d1a.out" "$T/d1b.out" | grep -E '^[0-9a-f-]{36}$' | uniq -d | wc -l)
@@ -123,14 +152,16 @@ if sleeping d1a; then
     fail "D1 during=$still a=$a b=$b overlap=$both"
   fi
 else
-  fail "D1 session 1 never started sleeping: $(cat "$T/d1a.out")"; wait
+  fail "D1 session 1 never reached the gate: $(cat "$T/d1a.out")"; gate_open; wait
 fi
 
 # --- D2 the same phone registered by two people at once -----------------------
-session d2a 11 "begin; select public.register_push_device('$TOKEN'); select pg_sleep(3); commit;"
-if sleeping d2a; then
+if ! gate_close; then fail "D2 the gate could not be closed"; fi
+session d2a 11 "begin; select public.register_push_device('$TOKEN'); $GATE commit;"
+if at_gate d2a; then
   session d2b 12 "select public.register_push_device('$TOKEN');"
   if blocked d2b; then
+    gate_open
     wait
     owner=$(one "select string_agg(right(user_id::text, 2), ',') from public.device_tokens where token = '$TOKEN'")
     if [ "$owner" = "12" ] && ! grep -q ERROR "$T/d2a.out" "$T/d2b.out"; then
@@ -139,8 +170,8 @@ if sleeping d2a; then
       fail "D2 owner=$owner a=$(tr '\n' ' ' <"$T/d2a.out") b=$(tr '\n' ' ' <"$T/d2b.out")"
     fi
   else
-    fail "D2 session 2 did not wait: $(tr '\n' ' ' <"$T/d2b.out")"; wait
+    fail "D2 session 2 did not wait: $(tr '\n' ' ' <"$T/d2b.out")"; gate_open; wait
   fi
 else
-  fail "D2 session 1 never started sleeping: $(cat "$T/d2a.out")"; wait
+  fail "D2 session 1 never reached the gate: $(cat "$T/d2a.out")"; gate_open; wait
 fi
