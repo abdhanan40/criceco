@@ -38,9 +38,9 @@ final resultsEnabledProvider = Provider<bool>((ref) => kResultsBuild);
 /// The notifications switch as built: `--dart-define=CRICECO_NOTIFICATIONS=true`
 /// once migration 25 (the server inbox and club announcements) is live on
 /// the Supabase project. OFF by default — and it needs the memberships switch
-/// too (every notification is about a club). M3 P2 selects only the data
-/// layer ([notificationsBackendLiveProvider]); the inbox screens move to it
-/// in P3 (docs/NOTIFICATIONS_BACKEND.md).
+/// too (every notification is about a club). It selects the server inbox
+/// ([notificationsBackendLiveProvider]) and the [BackendModule.notifications]
+/// and [BackendModule.announcements] screens (docs/NOTIFICATIONS_BACKEND.md).
 const bool kNotificationsBuild = bool.fromEnvironment('CRICECO_NOTIFICATIONS');
 
 /// The notifications switch: [kNotificationsBuild], overridden in tests.
@@ -87,6 +87,7 @@ class BackendModules {
     bool memberships = kMembershipsBuild,
     bool matches = kMatchesBuild,
     bool results = kResultsBuild,
+    bool notifications = kNotificationsBuild,
   }) =>
       config.isSupabase
           ? BackendModules._(
@@ -98,6 +99,7 @@ class BackendModules {
                   BackendModule.availability,
                 },
                 if (memberships && matches && results) BackendModule.matchStats,
+                if (memberships && notifications) ...{BackendModule.notifications, BackendModule.announcements},
               },
               isDemo: false,
             )
@@ -148,6 +150,7 @@ final backendModulesProvider = Provider<BackendModules>(
     memberships: ref.watch(membershipsEnabledProvider),
     matches: ref.watch(matchesEnabledProvider),
     results: ref.watch(resultsEnabledProvider),
+    notifications: ref.watch(notificationsEnabledProvider),
   ),
 );
 

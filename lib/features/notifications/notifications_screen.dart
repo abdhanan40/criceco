@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/config/backend_modules.dart';
 import '../../app/providers/core_providers.dart';
 import '../../app/router/routes.dart';
 import '../../app/session/role_controller.dart';
@@ -19,12 +20,54 @@ import 'notifications_sheet.dart' show openNotification;
 /// Notifications (prototype `screens.notifications`, :8105): one screen,
 /// content from the active role. Each row opens its real destination inside
 /// that same role (never a toast); Back → the previous screen, else the
-/// role's home.
-class NotificationsScreen extends ConsumerWidget {
+/// role's home. With the notifications switch the rows come from the server:
+/// refreshed on opening and on pull-down, older ones page by page.
+class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<NotificationsScreen> createState() => _NotificationsScreenState();
+}
+
+class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Opening the inbox shows what is new (D12). Quietly: a failure keeps
+    // what was shown, and the error state covers a first load that fails.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final role = ref.read(activeRoleProvider);
+      if (!mounted || role == null || !ref.read(notificationsBackendLiveProvider)) return;
+      refreshNotifications(ref, role).catchError((Object _) {});
+    });
+  }
+
+  Future<void> _pullToRefresh(UserRole role) async {
+    try {
+      await refreshNotifications(ref, role);
+    } catch (_) {
+      if (mounted) showCeToast(context, "Couldn't refresh notifications — please try again");
+    }
+  }
+
+  Future<void> _markAll(UserRole role, Iterable<String> unread) async {
+    try {
+      await markAllNotificationsRead(ref, role, unread);
+    } catch (_) {
+      if (mounted) showCeToast(context, "Couldn't mark them read — please try again");
+    }
+  }
+
+  Future<void> _more(UserRole role) async {
+    try {
+      await loadMoreNotifications(ref, role);
+    } catch (_) {
+      if (mounted) showCeToast(context, "Couldn't load older notifications — please try again");
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final role = ref.watch(activeRoleProvider);
     if (role == null) {
       return Scaffold(
@@ -41,18 +84,24 @@ class NotificationsScreen extends ConsumerWidget {
     final home = Routes.home(role);
     final async = ref.watch(roleNotificationsProvider(role));
     final items = async.value ?? const <NotificationItem>[];
-    final read = ref.watch(notificationReadProvider);
-    final unread = items.where((n) => !read.contains(n.id)).toList();
+    final unread = ref.watch(unreadNotificationIdsProvider(role));
+    final paging = ref.watch(notificationPagingProvider(role));
     final now = ref.read(clockProvider).now();
+
+    Widget refreshable(List<Widget> children, {EdgeInsets? padding}) => RefreshIndicator(
+          onRefresh: () => _pullToRefresh(role),
+          child: ListView(physics: const AlwaysScrollableScrollPhysics(), padding: padding, children: children),
+        );
 
     return Scaffold(
       appBar: CeTopBar(
         title: 'Notifications',
         fallbackLocation: home,
         actions: [
-          if (unread.isNotEmpty)
+          if (unread.isNotEmpty || ref.watch(unreadNotificationCountProvider(role)) > 0)
             TextButton(
-              onPressed: () => ref.read(notificationReadProvider.notifier).markAllRead(unread.map((n) => n.id)),
+              key: const Key('notifications.markAll'),
+              onPressed: () => _markAll(role, unread),
               child: Text('Mark all read', style: CeType.buttonSmall.copyWith(color: CeColors.accent)),
             ),
         ],
@@ -60,14 +109,14 @@ class NotificationsScreen extends ConsumerWidget {
       body: async.isLoading && items.isEmpty
           ? const Center(child: CircularProgressIndicator())
           : async.hasError && items.isEmpty
-              ? ListView(children: [
+              ? refreshable([
                   CeErrorState(
                     title: 'Couldn\'t load notifications',
-                    onRetry: () => ref.invalidate(roleNotificationsProvider(role)),
+                    onRetry: () => _pullToRefresh(role),
                   ),
                 ])
               : items.isEmpty
-                  ? ListView(children: [
+                  ? refreshable([
                       CeEmptyState(
                         icon: 'bell',
                         title: 'No notifications yet',
@@ -76,7 +125,7 @@ class NotificationsScreen extends ConsumerWidget {
                         onPrimary: () => context.go(home),
                       ),
                     ])
-                  : ListView(padding: const EdgeInsets.only(bottom: 24), children: [
+                  : refreshable(padding: const EdgeInsets.only(bottom: 24), [
                       // Newest first, grouped by day: Today, then Earlier.
                       for (final (label, group) in [
                         ('Today', [for (final n in items) if (_sameDay(n.createdAt, now)) n]),
@@ -88,17 +137,43 @@ class NotificationsScreen extends ConsumerWidget {
                           for (final n in group)
                             NotificationRow(
                               item: n,
-                              unread: !read.contains(n.id),
+                              unread: unread.contains(n.id),
                               timeLabel: CeFormat.timeAgo(n.createdAt, now),
                               // Same action as the dashboard panel.
                               onTap: () => openNotification(context, ref, n),
                             ),
                         ],
+                      if (paging.hasMore)
+                        OlderNotificationsButton(loading: paging.loading, onPressed: () => _more(role)),
                     ]),
     );
   }
 
   static bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
+}
+
+/// "Show older notifications" at the end of a server inbox (pages of 30).
+class OlderNotificationsButton extends StatelessWidget {
+  const OlderNotificationsButton({super.key, required this.loading, required this.onPressed});
+  final bool loading;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 4, CeSpace.gutter, 8),
+        child: Center(
+          child: loading
+              ? const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5)),
+                )
+              : TextButton(
+                  key: const Key('notifications.more'),
+                  onPressed: onPressed,
+                  child: Text('Show older notifications', style: CeType.buttonSmall.copyWith(color: CeColors.accent)),
+                ),
+        ),
+      );
 }
 
 /// `.ce-notif`: tone icon, title, subtitle, age; unread rows are marked.

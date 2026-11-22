@@ -1,11 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/config/backend_modules.dart';
 import '../../app/providers/core_providers.dart';
 import '../../app/router/routes.dart';
 import '../../app/session/session_controller.dart';
 import '../../core/models/models.dart';
 import '../club/club_providers.dart';
 import '../tournaments/tournaments_controller.dart';
+import 'server_inbox_controller.dart';
+import 'server_notification_adapter.dart';
 
 /// The route a notification opens — always inside the notification's own
 /// role (Player targets are `/player/**`, Club Owner targets `/club/**`), so
@@ -85,11 +90,19 @@ final ownMemberIdsProvider = FutureProvider<Set<String>>((ref) async {
   return {for (final m in members) if (m.role == MemberRole.owner) m.id};
 });
 
-/// One role's inbox, newest first: the seeded items plus live event items.
-/// Player and Club Owner inboxes never mix. Items addressed to a club member
-/// (announcements) show only to that member.
+/// One role's inbox, newest first.
+/// * With the notifications switch ([notificationsBackendLiveProvider]): the
+///   server inbox as loaded so far ([serverInboxProvider]), in the app's
+///   wording ([ServerNotificationAdapter]).
+/// * Otherwise (the demo): the seeded items plus live event items. Items
+///   addressed to a club member (announcements) show only to that member.
+/// Player and Club Owner inboxes never mix.
 final roleNotificationsProvider = FutureProvider.family<List<NotificationItem>, UserRole>((ref, role) async {
   ref.watch(currentAccountProvider.select((a) => a?.id));
+  if (ref.watch(notificationsBackendLiveProvider)) {
+    final inbox = await ref.watch(serverInboxProvider(role).future);
+    return [for (final n in inbox.items) ServerNotificationAdapter.item(n)];
+  }
   final live = role == UserRole.clubOwner ? ref.watch(tournamentNotificationsProvider) : const <NotificationItem>[];
   final stored = await ref.read(notificationRepositoryProvider).forRole(role);
   final mine = stored.any((n) => n.recipientMemberId != null) ? await ref.watch(ownMemberIdsProvider.future) : const <String>{};
@@ -100,7 +113,9 @@ final roleNotificationsProvider = FutureProvider.family<List<NotificationItem>, 
   ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 });
 
-/// Read state (session). Opening a row marks it read; "Mark all as read".
+/// Read state of the demo inbox (this session only). Opening a row marks it
+/// read; "Mark all as read". With the notifications switch read state is on
+/// the server instead ([serverInboxProvider]).
 class NotificationReadController extends Notifier<Set<String>> {
   @override
   Set<String> build() {
@@ -118,9 +133,68 @@ class NotificationReadController extends Notifier<Set<String>> {
 final notificationReadProvider =
     NotifierProvider<NotificationReadController, Set<String>>(NotificationReadController.new);
 
-/// Unread count for a role (dashboard bell badge).
-final unreadNotificationCountProvider = Provider.family<int, UserRole>((ref, role) {
+/// The unread rows among those loaded for [role]: the server's read state,
+/// or the demo's session read state.
+final unreadNotificationIdsProvider = Provider.family<Set<String>, UserRole>((ref, role) {
+  if (ref.watch(notificationsBackendLiveProvider)) {
+    final items = ref.watch(serverInboxProvider(role)).value?.items ?? const <ServerNotification>[];
+    return {for (final n in items) if (!n.isRead) n.id};
+  }
   final items = ref.watch(roleNotificationsProvider(role)).value ?? const <NotificationItem>[];
   final read = ref.watch(notificationReadProvider);
-  return items.where((n) => !read.contains(n.id)).length;
+  return {for (final n in items) if (!read.contains(n.id)) n.id};
 });
+
+/// Unread count for a role (dashboard bell badge, "N new"). With the switch:
+/// the server's count, which covers pages not loaded yet.
+final unreadNotificationCountProvider = Provider.family<int, UserRole>((ref, role) {
+  if (ref.watch(notificationsBackendLiveProvider)) {
+    return ref.watch(serverInboxProvider(role)).value?.unread ?? 0;
+  }
+  return ref.watch(unreadNotificationIdsProvider(role)).length;
+});
+
+/// Whether older notifications can be loaded, and one page is on its way.
+final notificationPagingProvider = Provider.family<({bool hasMore, bool loading}), UserRole>((ref, role) {
+  if (!ref.watch(notificationsBackendLiveProvider)) return (hasMore: false, loading: false);
+  final inbox = ref.watch(serverInboxProvider(role)).value;
+  return (hasMore: inbox?.hasMore ?? false, loading: inbox?.loadingMore ?? false);
+});
+
+// ---- Actions shared by the panel, the screen and the app ----
+
+/// Marks [n] read (opening it).
+void markNotificationRead(WidgetRef ref, NotificationItem n) {
+  if (ref.read(notificationsBackendLiveProvider)) {
+    unawaited(ref.read(serverInboxProvider(n.role).notifier).markRead(n.id));
+  } else {
+    ref.read(notificationReadProvider.notifier).markRead(n.id);
+  }
+}
+
+/// "Mark all read" for [role] ([ids]: the unread rows shown, demo only).
+/// Throws if the server refuses (the list is restored).
+Future<void> markAllNotificationsRead(WidgetRef ref, UserRole role, Iterable<String> ids) async {
+  if (ref.read(notificationsBackendLiveProvider)) {
+    await ref.read(serverInboxProvider(role).notifier).markAllRead();
+  } else {
+    ref.read(notificationReadProvider.notifier).markAllRead(ids);
+  }
+}
+
+/// Reloads [role]'s inbox (opening it, pull-down, Retry). With the switch the
+/// list shown stays if it fails, and the error is rethrown.
+Future<void> refreshNotifications(WidgetRef ref, UserRole role) async {
+  if (ref.read(notificationsBackendLiveProvider)) {
+    await ref.read(serverInboxProvider(role).notifier).refresh();
+  } else {
+    ref.invalidate(roleNotificationsProvider(role));
+  }
+}
+
+/// Loads the next (older) page of [role]'s inbox (server inbox only).
+Future<void> loadMoreNotifications(WidgetRef ref, UserRole role) async {
+  if (ref.read(notificationsBackendLiveProvider)) {
+    await ref.read(serverInboxProvider(role).notifier).loadMore();
+  }
+}

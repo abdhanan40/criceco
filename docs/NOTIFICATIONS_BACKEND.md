@@ -1,8 +1,8 @@
-# Notifications backend — migration 25 (M3 P1) and the Flutter data layer (M3 P2)
+# Notifications — migration 25 (M3 P1), the Flutter data layer (P2) and the inbox on server data (P3)
 
 **Status (2026-11-22):**
 - **Migration 25** (P1): committed in `45d06ca`, validated on a disposable PostgreSQL 17. **Not applied to production.**
-- **Flutter data layer** (P2): behind the new `CRICECO_NOTIFICATIONS` switch, off by default. See [P2](#p2--the-flutter-data-layer). No screen uses it yet (P3): Supabase builds still show notifications as "not available yet", and the demo inbox is unchanged.
+- **Flutter data layer** (P2, `6da3583`) and **the inbox on server data** (P3): behind the `CRICECO_NOTIFICATIONS` switch, off by default. See [P2](#p2--the-flutter-data-layer) and [P3](#p3--the-inbox-on-server-data). Without the switch, Supabase builds still show notifications as "not available yet"; the demo inbox is unchanged.
 
 ## Purpose and scope
 Migration 25 adds the server side of the in-app inbox:
@@ -217,11 +217,55 @@ This matches the app's `ClubMember.plays`.
 | `test/notifications_supabase_test.dart` | the mapper (the 23 types are read from the migration file itself, so the app and the database can't drift); unknown types; broken rows; paging and cursors; the repositories' requests and batching; error texts; the switch and providers (the gateway is never read when the switch is off); the source never writes notifications directly; the wording, icons and targets of every type in both inboxes |
 | `test/supabase_notifications_gateway_test.dart` | the gateway on the real `supabase_flutter` client with HTTP faked: RPC names and bodies, integer results, error translation |
 
-### Next: P3 (the inbox on server data)
-- `BackendModule.notifications` and `.announcements` become available with the switch.
-- `roleNotificationsProvider` reads `notificationInboxRepositoryProvider` (through the adapter) in place of the in-memory repository.
-- Read state comes from `readAt`, and marking read calls the server.
-- Paging, and refresh on open, on resume and on pull-down (D12).
-- The badge uses `unreadCount`.
-- Announcements publish and open through `announcementServerRepositoryProvider`.
-- The demo stays as it is.
+
+## P3 — the inbox on server data
+**With the switch** (Supabase + memberships + `CRICECO_NOTIFICATIONS`), `BackendModule.notifications` and `.announcements` become available. The bell, the panel, the Notifications screen and Create Announcement then work on the server.
+
+**Without the switch,** nothing changes:
+- Supabase builds still show "not available yet".
+- The demo inbox works exactly as before, with session-only read state.
+- No request is made (tested).
+
+| Piece | File | What |
+|---|---|---|
+| Server inbox | `lib/features/notifications/server_inbox_controller.dart` | `serverInboxProvider(role)`: the rows loaded so far (newest first), the server's unread count, and the next-page cursor. Its actions: `refresh`, `loadMore`, `markRead`, `markAllRead` |
+| Providers | `lib/features/notifications/notifications_controller.dart` | `roleNotificationsProvider` maps the server rows through the wording adapter. New: `unreadNotificationIdsProvider`, `notificationPagingProvider`, and the shared actions `markNotificationRead`, `markAllNotificationsRead`, `refreshNotifications`, `loadMoreNotifications`. The badge (`unreadNotificationCountProvider`) is the server's count, which covers pages not loaded yet |
+| Panel and screen | `notifications_sheet.dart`, `notifications_screen.dart` | refresh on opening; pull-down; "Show older notifications"; "N new" and "Mark all read" from the server; Retry |
+| Resume | `notifications_resume_refresh.dart`, wrapped around the app in `app.dart` | when the app returns to the foreground, the active role's inbox is refreshed — only if it was already loaded, and only with the switch |
+| Announcements | `lib/features/club/announcements/announcements.dart`, `openNotification` | publishing calls `publish_club_announcement`. The toast shows the server's recipient count, and the "Goes to N members" estimate leaves out the author as the server does. Refusals show the server's text (the daily limit, too long). Opening one reads `club_announcement`; if it is gone, a toast says so |
+
+**Read state (D6):**
+- **Opening a row** marks it read at once in the list and the badge, then on the server. A mark the server refuses is undone quietly, and opening still works.
+- **"Mark all read"** covers everything up to the newest row shown, so one arriving meanwhile stays unread. Afterwards the count is fetched again from the server. If it fails, the list is restored and a toast says so.
+
+**Refresh (D12):**
+- The inbox refreshes on opening, on pull-down and on resume.
+- A failed refresh keeps what was shown, with a toast on pull-down.
+- Realtime is still for later.
+
+### Tests (P3)
+`test/notifications_inbox_test.dart` (23 tests) covers:
+- **The controller:**
+  - wording and read state;
+  - one row marked read, and the undo when the server refuses;
+  - "mark all read" up to the newest row, the new count, and the rollback when it fails;
+  - paging with no duplicates and a stop at the end;
+  - refresh, and a failed refresh;
+  - the two inboxes kept apart;
+  - no request with the switch off.
+- **The panel:**
+  - rows, "N new", the dots and the badge;
+  - opening a row (mark read, then its screen);
+  - refresh on reopening, mark all read, older pages, and Retry;
+  - an announcement read from the server, and one that is gone.
+- **The screen:** pull-down, a failed pull-down, mark all read.
+- **Resume:** the badge catches up; nothing is asked with the switch off.
+- **Announcements:** the request sent, the server's count shown, the author left out of the estimate, and a refusal's text.
+
+The demo inbox keeps its own tests: `support_screens_test.dart`, `club_core_test.dart` and `production_hardening_test.dart`.
+
+### Next
+- **P4:** notification preferences ("Notification settings" inside the inbox, D8).
+- **P5:** push (FCM).
+- **P6:** reminders and the 90-day cleanup job.
+- **P7:** the production rollout of migration 25 and an APK with the switch, each step approved separately.

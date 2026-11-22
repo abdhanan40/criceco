@@ -73,6 +73,21 @@ class ServerNotification {
 
   bool get isRead => readAt != null;
 
+  /// The same notification read at [at] (`null` = unread again: only to undo
+  /// an optimistic mark that the server refused).
+  ServerNotification withReadAt(DateTime? at) => ServerNotification(
+    id: id,
+    role: role,
+    type: type,
+    params: params,
+    createdAt: createdAt,
+    cursor: cursor,
+    clubId: clubId,
+    matchId: matchId,
+    subjectId: subjectId,
+    readAt: at,
+  );
+
   /// A text parameter, or `null` when missing or not text.
   String? text(String key) => switch (params[key]) {
     final String s when s.trim().isNotEmpty => s.trim(),

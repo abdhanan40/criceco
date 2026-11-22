@@ -475,15 +475,29 @@ void main() {
       },
     );
 
-    test('P2 adds no screen module: the inbox stays "not available" in Supabase builds until P3', () {
-      final modules = BackendModules.of(
-        supabase,
-        memberships: true,
-        matches: true,
-        results: true,
+    test('the inbox and announcement screens come with the switch (P3), never without it', () {
+      for (final (memberships, notifications) in [
+        (true, true),
+        (true, false),
+        (false, true),
+      ]) {
+        final modules = BackendModules.of(
+          supabase,
+          memberships: memberships,
+          matches: true,
+          results: true,
+          notifications: notifications,
+        );
+        final live = memberships && notifications;
+        expect(modules.has(BackendModule.notifications), live);
+        expect(modules.has(BackendModule.announcements), live);
+      }
+      // The demo keeps every module, as before.
+      expect(
+        BackendModules.of(const BackendConfig.memory())
+            .has(BackendModule.notifications),
+        isTrue,
       );
-      expect(modules.has(BackendModule.notifications), isFalse);
-      expect(modules.has(BackendModule.announcements), isFalse);
     });
 
     ProviderContainer container({

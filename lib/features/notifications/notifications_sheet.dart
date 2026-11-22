@@ -8,12 +8,13 @@ import '../../app/theme/tokens.dart';
 import '../../app/theme/typography.dart';
 import '../../core/models/models.dart';
 import '../../core/utils/formatters.dart';
+import '../../data/repositories/repositories.dart' show AccountException;
 import '../../shared/widgets/backend_pending.dart';
 import '../../shared/widgets/ce_feedback.dart';
 import '../../shared/widgets/ce_icons.dart';
 import '../club/announcements/announcements.dart';
 import 'notifications_controller.dart';
-import 'notifications_screen.dart' show NotificationRow;
+import 'notifications_screen.dart' show NotificationRow, OlderNotificationsButton;
 
 /// Opens a notification: marks it read, then its existing action — an
 /// announcement is read in place (sheet on top), anything else opens its
@@ -26,9 +27,15 @@ Future<void> openNotification(
   NotificationItem n, {
   VoidCallback? leave,
 }) async {
-  ref.read(notificationReadProvider.notifier).markRead(n.id);
+  markNotificationRead(ref, n);
   if (n.target case AnnouncementTarget(:final announcementId)) {
-    final a = await ref.read(announcementRepositoryProvider).byId(announcementId);
+    final ClubAnnouncement? a;
+    try {
+      a = await _announcement(ref, announcementId);
+    } on AccountException catch (e) {
+      if (context.mounted) showCeToast(context, e.message);
+      return;
+    }
     if (!context.mounted) return;
     a == null
         ? showCeToast(context, 'This announcement is no longer available.')
@@ -40,6 +47,25 @@ Future<void> openNotification(
   final router = GoRouter.of(context);
   leave?.call();
   router.go(location);
+}
+
+/// The announcement behind a notification: from the server with the
+/// notifications switch (its recipients and the club's owner may read it),
+/// else the demo's own store.
+Future<ClubAnnouncement?> _announcement(WidgetRef ref, String id) async {
+  if (!ref.read(notificationsBackendLiveProvider)) return ref.read(announcementRepositoryProvider).byId(id);
+  final r = await ref.read(announcementServerRepositoryProvider).announcement(id);
+  return ClubAnnouncement(
+    id: r.id,
+    clubId: r.clubId,
+    clubName: r.clubName,
+    title: r.title,
+    message: r.message,
+    audience: r.audience,
+    createdBy: '', // not sent to recipients
+    createdAt: r.createdAt,
+    recipientMemberIds: const [],
+  );
 }
 
 /// Dashboard bell → the notifications inbox as a large panel over the
@@ -61,16 +87,58 @@ Future<void> showNotificationsSheet(BuildContext context, UserRole role) {
   );
 }
 
-class NotificationsPanel extends ConsumerWidget {
+class NotificationsPanel extends ConsumerStatefulWidget {
   const NotificationsPanel({super.key, required this.role});
   final UserRole role;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<NotificationsPanel> createState() => _NotificationsPanelState();
+}
+
+class _NotificationsPanelState extends ConsumerState<NotificationsPanel> {
+  UserRole get role => widget.role;
+
+  @override
+  void initState() {
+    super.initState();
+    // Opening the panel shows what is new (D12); a failure keeps what was shown.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !ref.read(notificationsBackendLiveProvider)) return;
+      refreshNotifications(ref, role).catchError((Object _) {});
+    });
+  }
+
+  Future<void> _refresh() async {
+    try {
+      await refreshNotifications(ref, role);
+    } catch (_) {
+      if (mounted) showCeToast(context, "Couldn't refresh notifications — please try again");
+    }
+  }
+
+  Future<void> _markAll(Iterable<String> unread) async {
+    try {
+      await markAllNotificationsRead(ref, role, unread);
+    } catch (_) {
+      if (mounted) showCeToast(context, "Couldn't mark them read — please try again");
+    }
+  }
+
+  Future<void> _more() async {
+    try {
+      await loadMoreNotifications(ref, role);
+    } catch (_) {
+      if (mounted) showCeToast(context, "Couldn't load older notifications — please try again");
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final async = ref.watch(roleNotificationsProvider(role));
     final items = async.value ?? const <NotificationItem>[];
-    final read = ref.watch(notificationReadProvider);
-    final unread = [for (final n in items) if (!read.contains(n.id)) n.id];
+    final unread = ref.watch(unreadNotificationIdsProvider(role));
+    final newCount = ref.watch(unreadNotificationCountProvider(role));
+    final paging = ref.watch(notificationPagingProvider(role));
     final now = ref.read(clockProvider).now();
 
     Widget body;
@@ -81,29 +149,31 @@ class NotificationsPanel extends ConsumerWidget {
         icon: 'info',
         title: "Couldn't load notifications",
         body: 'Check your connection and try again.',
-        action: TextButton(
-          onPressed: () => ref.invalidate(roleNotificationsProvider(role)),
-          child: const Text('Retry'),
-        ),
+        action: TextButton(onPressed: _refresh, child: const Text('Retry')),
       );
     } else if (items.isEmpty) {
       body = const _Empty(icon: 'bell', title: 'No notifications yet', body: "You're all caught up.");
     } else {
-      body = ListView.separated(
-        key: const Key('notifications.panel.list'),
-        shrinkWrap: true,
-        padding: const EdgeInsets.only(bottom: 16),
-        itemCount: items.length,
-        separatorBuilder: (_, _) => const Divider(height: 1, thickness: 1, color: CeColors.hairline),
-        itemBuilder: (context, i) {
-          final n = items[i];
-          return _PanelRow(
-            item: n,
-            unread: !read.contains(n.id),
-            timeLabel: CeFormat.timeAgo(n.createdAt, now),
-            onTap: () => openNotification(context, ref, n, leave: () => Navigator.of(context).pop()),
-          );
-        },
+      body = RefreshIndicator(
+        onRefresh: _refresh,
+        child: ListView.separated(
+          key: const Key('notifications.panel.list'),
+          shrinkWrap: true,
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.only(bottom: 16),
+          itemCount: items.length + (paging.hasMore ? 1 : 0),
+          separatorBuilder: (_, _) => const Divider(height: 1, thickness: 1, color: CeColors.hairline),
+          itemBuilder: (context, i) {
+            if (i == items.length) return OlderNotificationsButton(loading: paging.loading, onPressed: _more);
+            final n = items[i];
+            return _PanelRow(
+              item: n,
+              unread: unread.contains(n.id),
+              timeLabel: CeFormat.timeAgo(n.createdAt, now),
+              onTap: () => openNotification(context, ref, n, leave: () => Navigator.of(context).pop()),
+            );
+          },
+        ),
       );
     }
 
@@ -131,22 +201,23 @@ class NotificationsPanel extends ConsumerWidget {
                   child: Text('Notifications', maxLines: 1, style: CeType.pageTitle),
                 ),
               ),
-              if (unread.isNotEmpty) ...[
+              if (newCount > 0) ...[
                 const SizedBox(width: 8),
                 Container(
                   key: const Key('notifications.panel.newBadge'),
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(color: CeColors.sage, borderRadius: BorderRadius.circular(CeRadius.xs)),
-                  child: Text('${unread.length} new', style: CeType.micro.copyWith(fontSize: 11, color: CeColors.ink)),
+                  child: Text('$newCount new', style: CeType.micro.copyWith(fontSize: 11, color: CeColors.ink)),
                 ),
               ],
             ]),
           ),
           TextButton(
             key: const Key('notifications.panel.markAll'),
-            onPressed: unread.isEmpty ? null : () => ref.read(notificationReadProvider.notifier).markAllRead(unread),
+            onPressed: newCount == 0 ? null : () => _markAll(unread),
             style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8)),
-            child: Text('Mark all read', style: CeType.buttonSmall.copyWith(color: unread.isEmpty ? CeColors.muted2 : CeColors.accent)),
+            child: Text('Mark all read',
+                style: CeType.buttonSmall.copyWith(color: newCount == 0 ? CeColors.muted2 : CeColors.accent)),
           ),
         ]),
       ),

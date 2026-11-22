@@ -7,6 +7,7 @@ import '../../../app/session/session_controller.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../data/repositories/repositories.dart' show AccountException;
 import '../../../shared/widgets/backend_pending.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
@@ -17,24 +18,41 @@ import '../../notifications/notifications_controller.dart';
 import '../club_providers.dart';
 
 // Club announcements: Create (sheet) → Publish → one in-app notification per
-// selected member → the member reads it from Notifications (sheet). In-app
-// only: there is no backend or push service yet, so nothing leaves the device.
+// selected member → the member reads it from Notifications (sheet).
+// * With the notifications switch (migration 25): the server stores it, picks
+//   the recipients (the audience's active members, never the author) and
+//   notifies them — the count shown is the server's.
+// * The demo: stored and delivered on this device only.
 
 int _seq = 0;
 
-/// Members of the owner's club an announcement to [audience] reaches.
-List<ClubMember> announcementRecipients(List<ClubMember> members, AnnouncementAudience audience) =>
-    [for (final m in members) if (audience.includes(m)) m];
+/// Members of the owner's club an announcement to [audience] reaches. The
+/// server never tells the author ([includeOwner] false); the demo does.
+List<ClubMember> announcementRecipients(
+  List<ClubMember> members,
+  AnnouncementAudience audience, {
+  bool includeOwner = true,
+}) =>
+    [for (final m in members) if (audience.includes(m) && (includeOwner || m.role != MemberRole.owner)) m];
 
-/// Stores the announcement and delivers a "Club Announcement"
-/// notification to every selected member. Returns it (with its recipients).
-Future<ClubAnnouncement> publishAnnouncement(
+/// Publishes the announcement and notifies every selected member. Returns how
+/// many were told.
+Future<int> publishAnnouncement(
   WidgetRef ref, {
   required String title,
   required String message,
   required AnnouncementAudience audience,
 }) async {
   final club = ref.read(currentClubProvider)!;
+  if (ref.read(notificationsBackendLiveProvider)) {
+    final published = await ref.read(announcementServerRepositoryProvider).publish(
+          clubId: club.id,
+          title: title.trim(),
+          message: message.trim(),
+          audience: audience,
+        );
+    return published.recipientCount;
+  }
   final account = ref.read(currentAccountProvider)!;
   final now = ref.read(clockProvider).now();
   final recipients = announcementRecipients(await ref.read(clubMembersProvider.future), audience);
@@ -64,7 +82,7 @@ Future<ClubAnnouncement> publishAnnouncement(
       ),
   ]);
   ref.invalidate(roleNotificationsProvider(UserRole.player));
-  return announcement;
+  return recipients.length;
 }
 
 /// The short preview a member sees in Notifications: the title, then the start
@@ -106,16 +124,19 @@ class _CreateAnnouncementSheetState extends ConsumerState<_CreateAnnouncementShe
     if (_publishing) return;
     FocusScope.of(context).unfocus();
     setState(() => _publishing = true);
-    final ClubAnnouncement a;
+    final int n;
     try {
-      a = await publishAnnouncement(ref, title: _title.text, message: _message.text, audience: _audience);
-    } catch (_) {
+      n = await publishAnnouncement(ref, title: _title.text, message: _message.text, audience: _audience);
+    } catch (e) {
       if (mounted) setState(() => _publishing = false);
-      if (mounted) showCeToast(context, "Couldn't publish the announcement — please try again");
+      // The server's refusals say what to do (the daily limit, a title too long…).
+      if (mounted) {
+        showCeToast(
+            context, e is AccountException ? e.message : "Couldn't publish the announcement — please try again");
+      }
       return;
     }
     if (!mounted) return;
-    final n = a.recipientMemberIds.length;
     final messenger = context;
     Navigator.of(context).pop();
     if (messenger.mounted) showCeToast(messenger, 'Announcement published to $n member${n == 1 ? '' : 's'}.');
@@ -124,7 +145,9 @@ class _CreateAnnouncementSheetState extends ConsumerState<_CreateAnnouncementShe
   @override
   Widget build(BuildContext context) {
     final members = ref.watch(clubMembersProvider).value ?? const <ClubMember>[];
-    final count = announcementRecipients(members, _audience).length;
+    final count = announcementRecipients(members, _audience,
+            includeOwner: !ref.watch(notificationsBackendLiveProvider))
+        .length;
     final valid = _title.text.trim().isNotEmpty && _message.text.trim().isNotEmpty && count > 0;
 
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [

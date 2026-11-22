@@ -6,8 +6,10 @@ import 'package:criceco/data/supabase/supabase_gateways.dart';
 class FakeNotificationsDb implements NotificationsGateway {
   final calls = <({String fn, Map<String, Object?> params})>[];
 
-  /// `my_notifications` pages, returned in order (then empty).
+  /// `my_notifications` pages, returned in order; once used up, the last
+  /// one again (as the server would, asked twice).
   final pages = <List<Map<String, dynamic>>>[];
+  List<Map<String, dynamic>> _lastPage = const [];
   int unread = 0;
 
   /// What each `mark_notifications_read` call returns: its ids' count.
@@ -33,7 +35,8 @@ class FakeNotificationsDb implements NotificationsGateway {
     Map<String, Object?> params,
   ) async {
     _record('my_notifications', params);
-    return pages.isEmpty ? const [] : pages.removeAt(0);
+    if (pages.isNotEmpty) _lastPage = pages.removeAt(0);
+    return _lastPage;
   }
 
   @override
