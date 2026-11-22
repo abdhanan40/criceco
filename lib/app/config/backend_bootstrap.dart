@@ -70,5 +70,7 @@ Future<List<Override>> backendOverrides(
     matchGatewayProvider.overrideWithValue(SupabaseMatchGateway(client)),
     // Used only with the results switch (migrations 20–23 live).
     resultsGatewayProvider.overrideWithValue(SupabaseResultsGateway(client)),
+    // Used only with the notifications switch (migration 25 live).
+    notificationsGatewayProvider.overrideWithValue(SupabaseNotificationsGateway(client)),
   ];
 }

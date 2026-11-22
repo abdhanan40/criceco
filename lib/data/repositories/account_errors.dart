@@ -122,6 +122,13 @@ class MatchRuleException extends AccountException {
   const MatchRuleException(super.message);
 }
 
+/// An inbox or announcement call the server refused (migration 25): an
+/// invalid title or message, the daily announcement limit, an announcement
+/// that is gone… [message] says what to do next.
+class NotificationRuleException extends AccountException {
+  const NotificationRuleException(super.message);
+}
+
 /// This part of the app has no backend in this build (Supabase mode,
 /// docs/PRODUCTION_DEMO_MODE.md): nothing is saved, so nothing is pretended.
 /// Delete Account: the password typed to confirm it is wrong.

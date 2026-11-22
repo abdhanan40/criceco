@@ -21,6 +21,17 @@ class AvailabilityTarget extends NotificationTarget {
   const AvailabilityTarget();
 }
 
+/// The club ownership offers made to me (M3: `ownership_offered`).
+class OwnershipOffersTarget extends NotificationTarget {
+  const OwnershipOffersTarget();
+}
+
+/// A match's official scorecard, from the player's side (M3: results).
+class PlayerScorecardTarget extends NotificationTarget {
+  const PlayerScorecardTarget(this.matchId);
+  final String matchId;
+}
+
 // ---- Club Owner ----
 class JoinRequestTarget extends NotificationTarget {
   const JoinRequestTarget(this.requestId);
@@ -29,6 +40,17 @@ class JoinRequestTarget extends NotificationTarget {
 
 class MyChallengesTarget extends NotificationTarget {
   const MyChallengesTarget();
+}
+
+/// My club's ownership transfer screen (M3: an offer was declined).
+class ClubOwnershipTarget extends NotificationTarget {
+  const ClubOwnershipTarget();
+}
+
+/// A match's official result, from the owner's side (M3: results).
+class ClubMatchResultTarget extends NotificationTarget {
+  const ClubMatchResultTarget(this.matchId);
+  final String matchId;
 }
 
 class ClubMatchesTarget extends NotificationTarget {

@@ -948,6 +948,57 @@ class SupabaseResultsGateway implements ResultsGateway {
       );
 }
 
+/// Migration 25 (the `CRICECO_NOTIFICATIONS` switch): the server inbox and
+/// club announcements. Notifications themselves are written only by the
+/// server; the app reads its own and marks them read.
+class SupabaseNotificationsGateway implements NotificationsGateway {
+  SupabaseNotificationsGateway(this._client, {this.timeout = kGatewayTimeout});
+  final sb.SupabaseClient _client;
+  final Duration timeout;
+
+  @override
+  Future<List<Map<String, dynamic>>> myNotifications(Map<String, Object?> params) =>
+      _list('my_notifications', params);
+
+  @override
+  Future<int> unreadCount(String inbox) => _int('notification_unread_count', {'p_inbox': inbox});
+
+  @override
+  Future<int> markRead(List<String> ids) => _int('mark_notifications_read', {'p_ids': ids});
+
+  @override
+  Future<int> markAllRead(String inbox, {String? upTo}) =>
+      _int('mark_all_notifications_read', {'p_inbox': inbox, 'p_up_to': upTo});
+
+  @override
+  Future<Map<String, dynamic>> publishAnnouncement(Map<String, Object?> params) => _guarded(() async {
+        final row = SupabaseClubGateway._row(await _client.rpc<dynamic>('publish_club_announcement', params: params));
+        if (row == null) throw const GatewayUnexpectedException('publish_club_announcement-no-row');
+        return row;
+      }, timeout, SupabaseProfileGateway.translate);
+
+  @override
+  Future<List<Map<String, dynamic>>> announcement(String announcementId) =>
+      _list('club_announcement', {'p_announcement_id': announcementId});
+
+  @override
+  Future<List<Map<String, dynamic>>> clubAnnouncements(String clubId, {int limit = 50}) =>
+      _list('club_announcement_list', {'p_club_id': clubId, 'p_limit': limit});
+
+  /// A function returning one integer (PostgREST sends the bare number).
+  Future<int> _int(String fn, Map<String, Object?> params) => _guarded(() async {
+        final v = await _client.rpc<dynamic>(fn, params: params);
+        if (v is num && v == v.roundToDouble()) return v.toInt();
+        throw GatewayUnexpectedException('$fn-not-an-integer');
+      }, timeout, SupabaseProfileGateway.translate);
+
+  Future<List<Map<String, dynamic>>> _list(String fn, Map<String, Object?> params) => _guarded(
+        () async => _rowsOf(await _client.rpc<dynamic>(fn, params: params)),
+        timeout,
+        SupabaseProfileGateway.translate,
+      );
+}
+
 Future<T> _guarded<T>(
   Future<T> Function() run,
   Duration timeout,

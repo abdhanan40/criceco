@@ -1,8 +1,8 @@
-# Notifications backend — migration 25 (M3 P1)
+# Notifications backend — migration 25 (M3 P1) and the Flutter data layer (M3 P2)
 
-**Status (2026-11-22):** migration 25 is written and validated on a disposable PostgreSQL 17. It is **not committed and not applied to production**.
-
-No app code uses it yet. The Flutter data layer (M3 P2) comes next, behind a new `CRICECO_NOTIFICATIONS` switch that is off by default. Until then, Supabase builds keep the current behaviour: notifications show as "not available yet", and the demo inbox is unchanged.
+**Status (2026-11-22):**
+- **Migration 25** (P1): committed in `45d06ca`, validated on a disposable PostgreSQL 17. **Not applied to production.**
+- **Flutter data layer** (P2): behind the new `CRICECO_NOTIFICATIONS` switch, off by default. See [P2](#p2--the-flutter-data-layer). No screen uses it yet (P3): Supabase builds still show notifications as "not available yet", and the demo inbox is unchanged.
 
 ## Purpose and scope
 Migration 25 adds the server side of the in-app inbox:
@@ -188,3 +188,40 @@ This matches the app's `ClubMember.plays`.
 - **No cleanup job for rows older than 90 days** (P6). They are hidden by the read functions.
 - **Results fan out to every active member of both clubs.** With today's club sizes that is a few dozen rows per result.
 - **A client cannot defer line-up notices to "immediate":** PostgREST does not expose `SET CONSTRAINTS`. Run by hand as the owner, it would send "dropped" and then "selected" for one save.
+
+## P2 — the Flutter data layer
+**The switch:** `--dart-define=CRICECO_NOTIFICATIONS=true`, off by default, once migration 25 is live.
+- It needs the memberships switch too, because every notification is about a club.
+- `notificationsBackendLiveProvider` is true only in Supabase mode with both switches.
+- It selects the data layer only. `BackendModules` still lacks `notifications` and `announcements` in Supabase builds, so those screens stay "not available yet" until P3.
+
+| Piece | File | What |
+|---|---|---|
+| Gateway | `lib/data/supabase/supabase_gateways.dart` (`NotificationsGateway`), `supabase_sdk_gateways.dart` (`SupabaseNotificationsGateway`), wired in `backend_bootstrap.dart` | the 7 functions by name. Integer results are checked (anything else is an unexpected response). No table access: notifications are written only by the server |
+| Models | `lib/core/models/server_notification.dart` | `ServerNotificationType` (23), `ServerNotification` (typed parameter readers, `personDeleted`), `NotificationCursor`, `NotificationPage`, `AnnouncementRecord`, `PublishedAnnouncement` |
+| Mapper | `lib/data/supabase/notification_row_mapper.dart` | rows ↔ models. A broken row is an error, never a guess. A type this version doesn't know (a newer server) is skipped, so the rest of the inbox still shows |
+| Repositories | `lib/data/repositories/repositories.dart` (interfaces and `Unavailable…`), `lib/data/supabase/supabase_notification_repository.dart` | `NotificationInboxRepository` (`page`, `unreadCount`, `markRead`, `markAllRead`); `AnnouncementServerRepository` (`publish`, `announcement`, `clubAnnouncements`) |
+| Providers | `lib/app/providers/core_providers.dart` | `notificationInboxRepositoryProvider`, `announcementServerRepositoryProvider`: Supabase when live, otherwise `Unavailable…` (no network call; the demo keeps its own sample inbox) |
+| Errors | `supabase_error_mapper.dart`, `account_errors.dart` | `notification:` and `announcement:` refusals → `NotificationRuleException` with text people can act on (invalid title or message, unknown audience, the daily limit, an announcement that is gone). `not authenticated` → sign in again; `not allowed` → permission denied. Never the raw database text |
+| Wording | `lib/features/notifications/server_notification_adapter.dart` | `ServerNotification` → `NotificationItem` (title, subtitle, icon, tone, target) for all 23 types, from the recipient's side. Missing parameters get neutral words; "Deleted player" (D11); a target never leaves its inbox |
+| New targets | `lib/core/models/notification.dart`, `notifications_controller.dart` | `OwnershipOffersTarget` → `/player/ownership-offers`; `PlayerScorecardTarget` → `/player/matches/:id/scorecard`; `ClubOwnershipTarget` → `/club/my-club/transfer`; `ClubMatchResultTarget` → `/club/matches/:id/result` |
+
+**Request rules:**
+- **Paging:** a full page continues after its last row. The cursor keeps the server's exact timestamp text, because a parsed date can lose microseconds on the web and skip rows. The page size is 1–100.
+- **`markRead`** sends unique ids only. With none, it makes no call. More than 200 ids go in batches of 200.
+- **`markAllRead`** takes the cursor of the newest notification shown, so one arriving meanwhile stays unread.
+
+### Tests (P2)
+| File | Covers |
+|---|---|
+| `test/notifications_supabase_test.dart` | the mapper (the 23 types are read from the migration file itself, so the app and the database can't drift); unknown types; broken rows; paging and cursors; the repositories' requests and batching; error texts; the switch and providers (the gateway is never read when the switch is off); the source never writes notifications directly; the wording, icons and targets of every type in both inboxes |
+| `test/supabase_notifications_gateway_test.dart` | the gateway on the real `supabase_flutter` client with HTTP faked: RPC names and bodies, integer results, error translation |
+
+### Next: P3 (the inbox on server data)
+- `BackendModule.notifications` and `.announcements` become available with the switch.
+- `roleNotificationsProvider` reads `notificationInboxRepositoryProvider` (through the adapter) in place of the in-memory repository.
+- Read state comes from `readAt`, and marking read calls the server.
+- Paging, and refresh on open, on resume and on pull-down (D12).
+- The badge uses `unreadCount`.
+- Announcements publish and open through `announcementServerRepositoryProvider`.
+- The demo stays as it is.

@@ -35,6 +35,17 @@ const bool kResultsBuild = bool.fromEnvironment('CRICECO_RESULTS');
 /// The results switch: [kResultsBuild], overridden in tests.
 final resultsEnabledProvider = Provider<bool>((ref) => kResultsBuild);
 
+/// The notifications switch as built: `--dart-define=CRICECO_NOTIFICATIONS=true`
+/// once migration 25 (the server inbox and club announcements) is live on
+/// the Supabase project. OFF by default — and it needs the memberships switch
+/// too (every notification is about a club). M3 P2 selects only the data
+/// layer ([notificationsBackendLiveProvider]); the inbox screens move to it
+/// in P3 (docs/NOTIFICATIONS_BACKEND.md).
+const bool kNotificationsBuild = bool.fromEnvironment('CRICECO_NOTIFICATIONS');
+
+/// The notifications switch: [kNotificationsBuild], overridden in tests.
+final notificationsEnabledProvider = Provider<bool>((ref) => kNotificationsBuild);
+
 /// App areas whose data needs a backend.
 enum BackendModule {
   memberships('Club memberships'),
@@ -106,6 +117,15 @@ class BackendModules {
   }) =>
       matchesLive(config, memberships: memberships, matches: matches) && results;
 
+  /// Supabase with the memberships AND notifications switches: migration 25
+  /// is used.
+  static bool notificationsLive(
+    BackendConfig config, {
+    required bool memberships,
+    required bool notifications,
+  }) =>
+      config.isSupabase && memberships && notifications;
+
   final Set<BackendModule> _available;
 
   /// Memory mode: everything shown is the demo's sample data.
@@ -149,5 +169,15 @@ final resultsBackendLiveProvider = Provider<bool>(
     memberships: ref.watch(membershipsEnabledProvider),
     matches: ref.watch(matchesEnabledProvider),
     results: ref.watch(resultsEnabledProvider),
+  ),
+);
+
+/// `true` when the notification inbox and announcement repositories use the
+/// server (Supabase + the memberships and notifications switches).
+final notificationsBackendLiveProvider = Provider<bool>(
+  (ref) => BackendModules.notificationsLive(
+    ref.watch(backendConfigProvider),
+    memberships: ref.watch(membershipsEnabledProvider),
+    notifications: ref.watch(notificationsEnabledProvider),
   ),
 );

@@ -347,6 +347,81 @@ abstract interface class AnnouncementRepository {
   Future<ClubAnnouncement?> byId(String id);
 }
 
+/// The server inbox (migration 25, M3): notifications are created by the
+/// server when something happens; the signed-in person reads their own, per
+/// role, and marks them read (stored on the server — decision D6). The last
+/// 90 days only (D7).
+abstract interface class NotificationInboxRepository {
+  /// One page of [role]'s inbox, newest first; [after] = the previous page's
+  /// [NotificationPage.next]. [limit] 1–100.
+  Future<NotificationPage> page(UserRole role, {NotificationCursor? after, int limit = 30});
+
+  /// [role]'s unread notifications.
+  Future<int> unreadCount(UserRole role);
+
+  /// Marks these of the signed-in person's notifications read (others' ids
+  /// and already-read ones are ignored); how many changed. At most 200.
+  Future<int> markRead(Iterable<String> ids);
+
+  /// Marks [role]'s inbox read — up to [upTo] (the newest one shown: its
+  /// [ServerNotification.cursor]), so one arriving meanwhile stays unread;
+  /// how many changed.
+  Future<int> markAllRead(UserRole role, {NotificationCursor? upTo});
+}
+
+/// Builds without the server inbox (the demo, or Supabase without the
+/// notifications switch): nothing is listed and no network call is made.
+class UnavailableNotificationInboxRepository implements NotificationInboxRepository {
+  const UnavailableNotificationInboxRepository();
+
+  @override
+  Future<NotificationPage> page(UserRole role, {NotificationCursor? after, int limit = 30}) async =>
+      NotificationPage.empty;
+  @override
+  Future<int> unreadCount(UserRole role) async => 0;
+  @override
+  Future<int> markRead(Iterable<String> ids) async => 0;
+  @override
+  Future<int> markAllRead(UserRole role, {NotificationCursor? upTo}) async => 0;
+}
+
+/// Club announcements on the server (migration 25, decision D10): the owner
+/// publishes, the server picks the recipients and notifies them.
+abstract interface class AnnouncementServerRepository {
+  /// Publishes to the active members in [audience] (except the owner).
+  Future<PublishedAnnouncement> publish({
+    required String clubId,
+    required String title,
+    required String message,
+    required AnnouncementAudience audience,
+  });
+
+  /// One announcement, for its club's owner and the people it was sent to.
+  Future<AnnouncementRecord> announcement(String announcementId);
+
+  /// The club's announcements, newest first (owner only). [limit] 1–100.
+  Future<List<AnnouncementRecord>> clubAnnouncements(String clubId, {int limit = 50});
+}
+
+/// Builds without the server side: nothing is listed, and publishing or
+/// opening one says it isn't available.
+class UnavailableAnnouncementServerRepository implements AnnouncementServerRepository {
+  const UnavailableAnnouncementServerRepository();
+
+  @override
+  Future<PublishedAnnouncement> publish({
+    required String clubId,
+    required String title,
+    required String message,
+    required AnnouncementAudience audience,
+  }) async =>
+      throw const ModuleUnavailableException();
+  @override
+  Future<AnnouncementRecord> announcement(String announcementId) async => throw const ModuleUnavailableException();
+  @override
+  Future<List<AnnouncementRecord>> clubAnnouncements(String clubId, {int limit = 50}) async => const [];
+}
+
 /// Nationwide location lookup (Stage 4.2): provinces → districts → cities.
 /// Supabase mode reads `provinces` / `districts` / `v_city_options` and
 /// `search_cities()`; memory mode offers the 20 featured cities only.

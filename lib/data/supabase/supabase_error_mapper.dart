@@ -1,3 +1,4 @@
+import '../../core/models/announcement.dart' show ClubAnnouncement;
 import '../../core/utils/validators.dart';
 import '../repositories/repositories.dart';
 import 'supabase_gateways.dart';
@@ -112,6 +113,8 @@ abstract final class SupabaseErrorMapper {
     // Challenges, matches, lineups, availability (migrations 17–19);
     // results, scorecards and statistics (migrations 20–23).
     if (_matches(e.message) case final mapped?) return mapped;
+    // The server inbox and club announcements (migration 25).
+    if (_notifications(e.message) case final mapped?) return mapped;
     // update_profile_details() (migration 9): no profile row for the
     // signed-in user — nothing was written.
     if (e.sqlState == 'P0002' && e.message.contains('profile not found')) {
@@ -277,6 +280,33 @@ abstract final class SupabaseErrorMapper {
       final reason = _reason(message, prefix);
       if (reason == null) continue;
       return MatchRuleException(texts[reason] ?? fallback);
+    }
+    return null;
+  }
+
+  /// The server inbox and club announcements (migration 25). "not
+  /// authenticated" / "not allowed" are 42501 (above).
+  static const _notificationTexts = {
+    'invalid': 'Couldn’t load your notifications — please try again.',
+  };
+  static const _announcementTexts = {
+    'invalid title': 'Enter a title (up to ${ClubAnnouncement.titleMaxLength} characters).',
+    'invalid message': 'Enter a message (up to ${ClubAnnouncement.messageMaxLength} characters).',
+    'invalid audience': 'Choose who gets the announcement.',
+    'too many': 'Your club has sent 20 announcements in the last 24 hours — please try again later.',
+    'not found': 'This announcement is no longer available.',
+  };
+
+  /// Refusals of migration 25 → [NotificationRuleException]; an unknown
+  /// reason gets a generic text — never the raw database message.
+  static Exception? _notifications(String message) {
+    for (final (prefix, texts, fallback) in [
+      ('notification', _notificationTexts, 'Couldn’t update your notifications — please try again.'),
+      ('announcement', _announcementTexts, "Some announcement details aren't valid — please check and try again"),
+    ]) {
+      final reason = _reason(message, prefix);
+      if (reason == null) continue;
+      return NotificationRuleException(texts[reason] ?? fallback);
     }
     return null;
   }

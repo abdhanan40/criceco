@@ -417,6 +417,46 @@ final matchGatewayProvider = Provider<MatchGateway>(
 final resultsGatewayProvider = Provider<ResultsGateway>(
   (ref) => throw StateError(_notInitialized),
 );
+final notificationsGatewayProvider = Provider<NotificationsGateway>(
+  (ref) => throw StateError(_notInitialized),
+);
+
+/// The server inbox and club announcements (migration 25, with the
+/// `CRICECO_NOTIFICATIONS` switch). Notifications are written only by the
+/// server (triggers on the events); the app reads its own and marks them
+/// read. Every call is a database function that identifies the caller by
+/// `auth.uid()`; the app never sends a user id. `p_inbox` is `player` or
+/// `club_owner` (docs/NOTIFICATIONS_BACKEND.md).
+abstract interface class NotificationsGateway {
+  /// `rpc('my_notifications', {p_inbox, p_before, p_before_id, p_limit})` —
+  /// one page, newest first (the last 90 days).
+  Future<List<Map<String, dynamic>>> myNotifications(
+    Map<String, Object?> params,
+  );
+
+  /// `rpc('notification_unread_count', {p_inbox})` — an integer.
+  Future<int> unreadCount(String inbox);
+
+  /// `rpc('mark_notifications_read', {p_ids})` — how many changed.
+  Future<int> markRead(List<String> ids);
+
+  /// `rpc('mark_all_notifications_read', {p_inbox, p_up_to})` — how many
+  /// changed.
+  Future<int> markAllRead(String inbox, {String? upTo});
+
+  /// `rpc('publish_club_announcement', {p_club_id, p_title, p_message,
+  /// p_audience})` — one row: `announcement_id`, `recipient_count`.
+  Future<Map<String, dynamic>> publishAnnouncement(Map<String, Object?> params);
+
+  /// `rpc('club_announcement', {p_announcement_id})` — at most one row.
+  Future<List<Map<String, dynamic>>> announcement(String announcementId);
+
+  /// `rpc('club_announcement_list', {p_club_id, p_limit})` — newest first.
+  Future<List<Map<String, dynamic>>> clubAnnouncements(
+    String clubId, {
+    int limit = 50,
+  });
+}
 
 /// OFFICIAL match results, scorecards, player statistics and the player's
 /// match list (migrations 20–24, with the `CRICECO_RESULTS` switch) — READ

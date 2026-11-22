@@ -17,6 +17,7 @@ import '../../data/supabase/supabase_club_repository.dart';
 import '../../data/supabase/supabase_gateways.dart';
 import '../../data/supabase/supabase_location_repository.dart';
 import '../../data/supabase/supabase_match_repository.dart';
+import '../../data/supabase/supabase_notification_repository.dart';
 import '../../data/supabase/supabase_ownership_repository.dart';
 import '../../data/supabase/supabase_results_repository.dart';
 import '../../data/supabase/supabase_team_repository.dart';
@@ -190,6 +191,22 @@ final notificationRepositoryProvider = Provider<NotificationRepository>((ref) =>
     _demo(ref) ? InMemoryNotificationRepository(ref.watch(seedDataProvider)) : InMemoryNotificationRepository.empty());
 final announcementRepositoryProvider =
     Provider<AnnouncementRepository>((ref) => InMemoryAnnouncementRepository());
+
+/// The server inbox (migration 25) in Supabase mode with the memberships AND
+/// notifications switches ([notificationsBackendLiveProvider]). Everywhere
+/// else — the demo included, whose inbox keeps its own sample data
+/// ([notificationRepositoryProvider]) — nothing is listed and no network
+/// call is made. M3 P2: the data layer only; the screens use it from P3.
+final notificationInboxRepositoryProvider = Provider<NotificationInboxRepository>((ref) =>
+    ref.watch(notificationsBackendLiveProvider)
+        ? SupabaseNotificationInboxRepository(db: ref.watch(notificationsGatewayProvider))
+        : const UnavailableNotificationInboxRepository());
+
+/// Club announcements on the server (migration 25), with the same switches.
+final announcementServerRepositoryProvider = Provider<AnnouncementServerRepository>((ref) =>
+    ref.watch(notificationsBackendLiveProvider)
+        ? SupabaseAnnouncementServerRepository(db: ref.watch(notificationsGatewayProvider))
+        : const UnavailableAnnouncementServerRepository());
 
 /// Location lookup (Stage 4.2). Supabase mode: the location tables of
 /// migration 6 (read-only); memory mode: the 20 featured cities only. Not yet

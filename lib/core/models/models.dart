@@ -10,5 +10,6 @@ export 'match_result.dart';
 export 'notification.dart';
 export 'ownership_transfer.dart';
 export 'player.dart';
+export 'server_notification.dart';
 export 'team.dart';
 export 'tournament.dart';
