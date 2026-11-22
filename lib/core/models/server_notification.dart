@@ -28,6 +28,11 @@ enum ServerNotificationType {
   resultCorrected,
   playerOfMatch,
   announcement,
+
+  // Reminders (migration 28, M3 P6).
+  matchReminder,
+  challengeExpiring,
+  ownershipExpiring,
 }
 
 /// One notification from the server inbox (migration 25): immutable except
@@ -254,6 +259,8 @@ enum NotificationCategory {
     ServerNotificationType.resultCorrected ||
     ServerNotificationType.playerOfMatch => results,
     ServerNotificationType.announcement => announcements,
+    ServerNotificationType.matchReminder => matches,
+    ServerNotificationType.challengeExpiring => challenges,
     _ => membership,
   };
 }

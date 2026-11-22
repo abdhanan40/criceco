@@ -55,6 +55,11 @@ function when(p: Record<string, unknown>, key: string): string | null {
   return `${day} ${time}, ${date}`;
 }
 
+function answerBy(p: Record<string, unknown>): string | null {
+  const w = when(p, "expires_at");
+  return w === null ? null : `Answer by ${w}`;
+}
+
 /** "2 Dec" from a calendar date (YYYY-MM-DD). */
 function calendarDate(p: Record<string, unknown>, key: string): string | null {
   const s = text(p, key);
@@ -184,6 +189,19 @@ export function render(row: Pick<PushRow, "type" | "params" | "inbox">): PushTex
       return { title: "You’re the Player of the Match", body: `${club} vs ${opponent}` };
     case "announcement":
       return { title: "Club Announcement", body: join([club, text(p, "title")]) };
+    // Reminders (migration 28, M3 P6).
+    case "match_reminder":
+      return { title: "Your match is coming up", body: join([fixture, text(p, "venue_name")]) };
+    case "challenge_expiring":
+      return {
+        title: `Challenge from ${opponent} expires soon`,
+        body: join([answerBy(p), terms]) || "Open My Challenges to answer",
+      };
+    case "ownership_expiring":
+      return {
+        title: "Ownership offer expires soon",
+        body: join([`${person} offered you ${club}`, answerBy(p)]),
+      };
     default:
       return GENERIC;
   }

@@ -1,9 +1,10 @@
-# Notifications — migrations 25–27 (M3 P1, P4, P5) and the app (P2–P5)
+# Notifications — migrations 25–28 (M3 P1, P4–P6) and the app (P2–P6)
 
 **Status (2026-11-22):**
 - **Migration 25** (P1): committed in `45d06ca`, validated on a disposable PostgreSQL 17. **Not applied to production.**
 - **Migration 26** (P4, notification preferences): committed in `371c7ce`, validated on a disposable PostgreSQL 17. **Not applied to production.** See [P4](#p4--notification-preferences-migration-26).
-- **Migration 27 and the `push-dispatch` Edge Function** (P5, push): validated locally (FCM replaced by stand-ins). **Not applied, not deployed, no Firebase project yet.** See [P5](#p5--push-migration-27-the-push-dispatch-edge-function-the-app).
+- **Migration 27 and the `push-dispatch` Edge Function** (P5, push): committed in `c14b909`, validated locally (FCM replaced by stand-ins). **Not applied, not deployed, no Firebase project yet.** See [P5](#p5--push-migration-27-the-push-dispatch-edge-function-the-app).
+- **Migration 28** (P6, reminders, cleanup, push sweeper on pg_cron): validated locally. **Not applied; pg_cron not enabled.** See [P6](#p6--scheduled-jobs-migration-28).
 - **Flutter data layer** (P2, `6da3583`), **the inbox on server data** (P3, `5156470`) and **Notification settings** (P4): behind the `CRICECO_NOTIFICATIONS` switch, off by default. See [P2](#p2--the-flutter-data-layer) and [P3](#p3--the-inbox-on-server-data). Without the switch, Supabase builds still show notifications as "not available yet"; the demo inbox is unchanged.
 
 ## Purpose and scope
@@ -414,6 +415,52 @@ One setting per account. Everything is on until the person changes something.
 | Edge Function | `node --test supabase/functions/push-dispatch/*_test.ts`: 22/22 (wording for all 23 types read from migration 25, Pakistan time, no free text; an RS256 assertion verified with a throwaway key; token caching; FCM answers; the secret; batching and rounds; counts-only answers) |
 | Flutter | `test/push_test.dart` (availability, off until yes, turn on, denied, not now, start-up registration and rotated tokens, off, sign-out, quiet failures, the offer, the settings switch, taps, launch, foreground); the gateway test covers the two device RPCs |
 
+## P6 — scheduled jobs (migration 28)
+**Approved 2026-11-22:** three reminders; pg_cron in the database; the cleanup removes notifications and announcements older than 90 days.
+
+| Job | Schedule (pg_cron, UTC) | What it does |
+|---|---|---|
+| `notification_send_reminders()` | every 15 minutes (`criceco-notification-reminders`) | **`match_reminder`:** a confirmed match starts within 24 hours. It goes to both owners and the selected players, in the "matches" category (can be muted), once per schedule; a reschedule is a new reminder. **`challenge_expiring`:** an unanswered challenge expires within 24 hours. It goes to the challenged club's owner, in "challenges". **`ownership_expiring`:** an unanswered ownership offer expires within 24 hours. It goes to the member, in "membership" (always on). Each is sent once (dedupe keys), goes through `notification_add` (preferences apply; nobody is told of their own action) and is pushed like any notification. It returns how many were sent |
+| `push_sweep()` | every 5 minutes (`criceco-push-sweep`) | Pushes still waiting after 2 minutes (or stuck "sending" for 5) wake the dispatcher again. It returns how many are waiting |
+| `notification_cleanup()` | daily 22:15 UTC = 03:15 Pakistan (`criceco-notification-cleanup`) | Removes notifications older than 90 days (read or not), with their push records, and club announcements older than 90 days. At most 10,000 of each per run, to keep locks short. It returns the counts |
+| `notification_jobs_schedule()` | — | (Re)schedules the three jobs. Running it twice is harmless. Without pg_cron it changes nothing and says so. Migration 28 calls it; after pg_cron is enabled, run `select public.notification_jobs_schedule();` once as the database owner |
+
+**Other changes:**
+- The notifications type list gains the three reminder types (26 in all).
+- `notification_category` (migration 26) knows them.
+- No role can call the jobs through the API, not `anon`, `authenticated` or `service_role`; pg_cron runs them as the database owner.
+
+**Rollback** (`20261122_rollback_notification_jobs.sql`):
+- It unschedules the jobs (where pg_cron exists) and drops the four functions.
+- It restores migration 26's `notification_category` verbatim and migration 25's type list. The catalogue returns to 1–27 exactly (1,492 objects, `21cda8b8…`).
+- It refuses while any reminder has been sent, unless `set local criceco.rollback_reminders_discarded = 'yes'` is set; the reminders are then deleted.
+
+**App and push:**
+- `ServerNotificationType` has the three reminders, with their wording:
+  - "Your match is coming up", with the fixture, time and venue;
+  - "Challenge from X expires soon", with "Answer by …";
+  - "Ownership offer expires soon".
+- Their targets: the match (or Match Management for owners), My Challenges, and Ownership offers.
+- The push texts match (`templates.ts`).
+- The tests now read the newest type list and categories from the migrations themselves.
+
+### Tests (P6)
+| Test | Result |
+|---|---|
+| Post-check 28 (read-only) | 5 PASS + 2 INFO (pg_cron jobs; the cleanup's backlog); on 1–27, 5 FAIL as expected |
+| Local check 23 | 22/22, twice. It covers: nobody can run the jobs through the API; the reminders (who gets them, muted players skipped, ownership always on, nothing for matches in 30 h, started or cancelled matches, or challenges in 3 days; no repeats; a reschedule is a new reminder); the cleanup (91 days goes, 89 stays, push records go too); the sweeper with pg_net/Vault stand-ins (only after 2 minutes; without pg_net it only counts); the schedule with a pg_cron stand-in (three jobs, once; without pg_cron, no error) |
+| Regression on 1–28 | local checks 10 / 12 / 13 / 14 / 15 / 16 / 19 / 20 / 21 / 22 and concurrency 14b / 15b / 19b / 20b / 21b / 22b unchanged |
+| Rollback 28 | catalogue identical to 1–27; refusal while reminders exist; on confirmation back to 1–27; re-apply OK (1,496 objects, `1e6ebca4…`) |
+| Edge Function | `node --test …`: 23/23 (all 26 types, reminder wording) |
+| Flutter | reminder wording and targets; the type list and categories read from migration 28 |
+
+### Production order (each step approved separately)
+1. Backup.
+2. Migrations 25 → 28, in one transaction.
+3. The post-checks 25–28.
+4. Enable pg_net and pg_cron, add the Vault entries, then `select public.notification_jobs_schedule();`.
+5. The Firebase project and the function's secrets, then deploy `push-dispatch`.
+6. An APK with `CRICECO_NOTIFICATIONS=true` and the four Firebase values.
+
 ### Next
-- **P6:** reminders (`pg_cron`), the 90-day cleanup, and a sweeper for pushes left pending.
-- **P7:** the production rollout of migrations 25–27, the Firebase and Supabase setup above, and an APK, each step approved separately.
+- **P7:** the production rollout above, with a rehearsal package like M2's (preflight, one-transaction apply with a self-check, post-checks, rollback), then device tests.

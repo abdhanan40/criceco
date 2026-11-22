@@ -42,12 +42,23 @@ Future<Object?> errorOf(Future<Object?> call) =>
 
 /// Migration 26's `notification_category`: type code → category code.
 Map<String, String> migrationCategories() {
-  final sql = File(
-    'supabase/migrations/20261122090100_create_notification_preferences.sql',
-  ).readAsStringSync();
-  final body = RegExp(
-    r'function public\.notification_category\(p_type text\)[\s\S]*?\$\$([\s\S]*?)\$\$',
-  ).firstMatch(sql)!.group(1)!;
+  // The LAST definition across the migrations (26, then 28 …).
+  final files =
+      Directory('supabase/migrations')
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.sql'))
+          .toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
+  String? found;
+  for (final f in files) {
+    for (final m in RegExp(
+      r'function public\.notification_category\(p_type text\)[\s\S]*?\$\$([\s\S]*?)\$\$',
+    ).allMatches(f.readAsStringSync())) {
+      found = m.group(1);
+    }
+  }
+  final body = found!;
   final out = <String, String>{};
   for (final m in RegExp(
     r"when p_type (?:= '([a-z_]+)'|in \(([^)]*)\)) then '([a-z_]+)'",

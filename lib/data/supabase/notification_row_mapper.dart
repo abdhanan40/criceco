@@ -31,6 +31,9 @@ abstract final class NotificationRowMapper {
     'result_corrected': ServerNotificationType.resultCorrected,
     'player_of_match': ServerNotificationType.playerOfMatch,
     'announcement': ServerNotificationType.announcement,
+    'match_reminder': ServerNotificationType.matchReminder,
+    'challenge_expiring': ServerNotificationType.challengeExpiring,
+    'ownership_expiring': ServerNotificationType.ownershipExpiring,
   };
 
   /// The database code of [type].

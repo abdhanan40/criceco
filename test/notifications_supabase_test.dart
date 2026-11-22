@@ -62,15 +62,26 @@ ServerNotification note(
 )!;
 
 /// The type codes of migration 25's `notifications_type_check`.
+/// The notification types as the database defines them now: the LAST
+/// `notifications_type_check` across the migrations (25, then 28 …).
 List<String> migrationTypeCodes() {
-  final sql = File(
-    'supabase/migrations/20261122090000_create_notifications.sql',
-  ).readAsStringSync();
-  final check = RegExp(
-    r"notifications_type_check check \(type in \(([^)]*)\)\)",
-  ).firstMatch(sql)!.group(1)!;
+  final files =
+      Directory('supabase/migrations')
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.sql'))
+          .toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
+  String? check;
+  for (final f in files) {
+    for (final m in RegExp(
+      r"notifications_type_check check \(type in \(([^)]*)\)\)",
+    ).allMatches(f.readAsStringSync())) {
+      check = m.group(1);
+    }
+  }
   return [
-    for (final m in RegExp(r"'([a-z_]+)'").allMatches(check)) m.group(1)!,
+    for (final m in RegExp(r"'([a-z_]+)'").allMatches(check!)) m.group(1)!,
   ];
 }
 
@@ -109,19 +120,22 @@ void main() {
       },
     );
 
-    test('knows exactly the 23 types of migration 25, both ways', () {
-      final codes = migrationTypeCodes();
-      expect(codes, hasLength(23));
-      expect(codes.toSet(), hasLength(ServerNotificationType.values.length));
-      for (final code in codes) {
-        final n = NotificationRowMapper.notification(
-          UserRole.player,
-          row('x', code),
-        );
-        expect(n, isNotNull, reason: code);
-        expect(NotificationRowMapper.typeCode(n!.type), code);
-      }
-    });
+    test(
+      'knows exactly the database types (26 since migration 28), both ways',
+      () {
+        final codes = migrationTypeCodes();
+        expect(codes, hasLength(26));
+        expect(codes.toSet(), hasLength(ServerNotificationType.values.length));
+        for (final code in codes) {
+          final n = NotificationRowMapper.notification(
+            UserRole.player,
+            row('x', code),
+          );
+          expect(n, isNotNull, reason: code);
+          expect(NotificationRowMapper.typeCode(n!.type), code);
+        }
+      },
+    );
 
     test('a type from a newer server is skipped, not an error', () {
       expect(
@@ -825,6 +839,52 @@ void main() {
           'id',
           'ann-1',
         ),
+      );
+    });
+
+    test('the reminders (migration 28): wording and where they lead', () {
+      final match = ServerNotificationAdapter.item(
+        note('match_reminder', params: full, matchId: 'm1'),
+      );
+      expect(match.title, 'Your match is coming up');
+      expect(match.subtitle, startsWith('Note Lions vs Note Kings · '));
+      expect(match.subtitle, endsWith(' · Note Ground'));
+      expect(
+        notificationLocation(match.target),
+        Routes.playerMatchDetails('m1'),
+      );
+      final owner = ServerNotificationAdapter.item(
+        note(
+          'match_reminder',
+          role: UserRole.clubOwner,
+          params: full,
+          matchId: 'm1',
+        ),
+      );
+      expect(
+        notificationLocation(owner.target),
+        Routes.matchManagement(MatchTab.scheduled),
+      );
+      final expires = {...full, 'expires_at': '2026-12-01T07:30:00+00:00'};
+      final challenge = ServerNotificationAdapter.item(
+        note('challenge_expiring', role: UserRole.clubOwner, params: expires),
+      );
+      expect(challenge.title, 'Challenge from Note Kings expires soon');
+      expect(challenge.subtitle, startsWith('Answer by '));
+      expect(notificationLocation(challenge.target), Routes.myChallenges);
+      final offer = ServerNotificationAdapter.item(
+        note('ownership_expiring', params: expires),
+      );
+      expect(offer.title, 'Ownership offer expires soon');
+      expect(
+        offer.subtitle,
+        startsWith('Ali Khan offered you Note Lions · Answer by '),
+      );
+      expect(notificationLocation(offer.target), Routes.ownershipOffers);
+      expect(
+        NotificationCategory.of(ServerNotificationType.ownershipExpiring),
+        NotificationCategory.membership,
+        reason: 'always on',
       );
     });
 

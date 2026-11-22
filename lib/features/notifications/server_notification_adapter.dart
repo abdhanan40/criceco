@@ -240,10 +240,38 @@ abstract final class ServerNotificationAdapter {
         _join([club, n.text('title')]),
         subjectId == null ? null : AnnouncementTarget(subjectId),
       ),
+      // Reminders (migration 28, M3 P6).
+      ServerNotificationType.matchReminder => (
+        'clock',
+        NotificationTone.blue,
+        'Your match is coming up',
+        _join([fixture, n.text('venue_name')]),
+        matchTarget,
+      ),
+      ServerNotificationType.challengeExpiring => (
+        'hourglass',
+        NotificationTone.amber,
+        'Challenge from $opponent expires soon',
+        _join([_answerBy(n), _terms(n)]),
+        const MyChallengesTarget(),
+      ),
+      ServerNotificationType.ownershipExpiring => (
+        'hourglass',
+        NotificationTone.amber,
+        'Ownership offer expires soon',
+        _join(['$person offered you $club', _answerBy(n)]),
+        const OwnershipOffersTarget(),
+      ),
     };
   }
 
   // ---- Pieces ----
+
+  static String? _answerBy(ServerNotification n) =>
+      switch (_when(n.instant('expires_at'))) {
+        final String w => 'Answer by $w',
+        null => null,
+      };
 
   static String _join(List<String?> parts) =>
       parts.whereType<String>().where((s) => s.isNotEmpty).join(' · ');

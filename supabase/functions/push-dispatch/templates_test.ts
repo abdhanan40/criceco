@@ -2,16 +2,18 @@
 //   node --test supabase/functions/push-dispatch/*_test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { GENERIC, render } from "./templates.ts";
 
-/** The 23 types of migration 25's notifications_type_check. */
+/** The database's types now: the LAST notifications_type_check across the
+ * migrations (25, then 28 …). */
 function migrationTypes(): string[] {
-  const sql = readFileSync(
-    new URL("../../migrations/20261122090000_create_notifications.sql", import.meta.url),
-    "utf8",
-  );
-  const list = /notifications_type_check check \(type in \(([^)]*)\)\)/.exec(sql)![1];
+  const dir = new URL("../../migrations/", import.meta.url);
+  let list = "";
+  for (const name of readdirSync(dir).filter((n) => n.endsWith(".sql")).sort()) {
+    const sql = readFileSync(new URL(name, dir), "utf8");
+    for (const m of sql.matchAll(/notifications_type_check check \(type in \(([^)]*)\)\)/g)) list = m[1];
+  }
   return [...list.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
 }
 
@@ -29,9 +31,9 @@ const full = {
   title: "Nets on Friday",
 };
 
-test("every type of migration 25 has its own text, in both inboxes", () => {
+test("every database type (migrations 25 and 28) has its own text, in both inboxes", () => {
   const types = migrationTypes();
-  assert.equal(types.length, 23);
+  assert.equal(types.length, 26);
   for (const type of types) {
     for (const inbox of ["player", "club_owner"] as const) {
       const t = render({ type, inbox, params: full });
@@ -91,4 +93,18 @@ test("times are Pakistan time", () => {
 
 test("an unknown (newer) type gets the generic text", () => {
   assert.deepEqual(render({ type: "tournament_reminder", inbox: "player", params: full }), GENERIC);
+});
+
+test("the reminders (migration 28)", () => {
+  assert.deepEqual(render({ type: "match_reminder", inbox: "player", params: full }), {
+    title: "Your match is coming up",
+    body: "Note Lions vs Note Kings · Wed 10:00 am, 2 Dec · Note Ground",
+  });
+  const expires = { ...full, expires_at: "2026-12-01T07:30:00+00:00" };
+  assert.equal(render({ type: "challenge_expiring", inbox: "club_owner", params: expires }).title,
+    "Challenge from Note Kings expires soon");
+  assert.match(render({ type: "challenge_expiring", inbox: "club_owner", params: expires }).body,
+    /^Answer by Tue 12:30 pm, 1 Dec · T20 · 2 Dec · Note Ground$/i);
+  assert.match(render({ type: "ownership_expiring", inbox: "player", params: expires }).body,
+    /^Ali Khan offered you Note Lions · Answer by Tue 12:30 pm, 1 Dec$/i);
 });
