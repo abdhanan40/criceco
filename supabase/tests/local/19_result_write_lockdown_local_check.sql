@@ -444,13 +444,19 @@ select t.ok((select player_deleted and player_name is null from public.match_bat
 -- the logs and clients they produced.
 delete from public.clubs where owner_id::text like 'ee100000%';
 delete from auth.users where id::text like 'ee100000%';
+-- Only this check's own records (clients ec1e…, matches ee1…), so it also runs
+-- on a copy that holds other data.
 set session_replication_role = replica;
-delete from public.result_submission_log;
-delete from public.result_change_log;
+delete from public.result_submission_log
+ where client_id::text like 'ec1e0000%' or match_id::text like 'ee1000aa%';
+delete from public.result_change_log where match_id::text like 'ee1000aa%';
 delete from public.scorer_clients where id::text like 'ec1e0000%';
 set session_replication_role = default;
 select t.ok(not exists (select 1 from public.profiles where id::text like 'ee100000%')
-            and not exists (select 1 from public.match_results) and not exists (select 1 from public.scorer_clients)
-            and not exists (select 1 from public.result_submission_log) and not exists (select 1 from public.result_change_log)
-            and not exists (select 1 from public.matches),
+            and not exists (select 1 from public.match_results where match_id::text like 'ee1000aa%')
+            and not exists (select 1 from public.scorer_clients where id::text like 'ec1e0000%')
+            and not exists (select 1 from public.result_submission_log
+                             where client_id::text like 'ec1e0000%' or match_id::text like 'ee1000aa%')
+            and not exists (select 1 from public.result_change_log where match_id::text like 'ee1000aa%')
+            and not exists (select 1 from public.matches where id::text like 'ee1000aa%'),
             'Z cleanup done');
