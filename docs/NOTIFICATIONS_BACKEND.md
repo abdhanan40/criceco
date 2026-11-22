@@ -464,3 +464,62 @@ One setting per account. Everything is on until the person changes something.
 
 ### Next
 - **P7:** the production rollout above, with a rehearsal package like M2's (preflight, one-transaction apply with a self-check, post-checks, rollback), then device tests.
+
+## P6 hardening — failure isolation and a run log (migration 29)
+**Status:** local only — implemented and tested 2026-11-22; **not applied to production**. Migrations 25–28 are live; 29 needs its own package and approval.
+
+It closes two gaps found when P6 was re-verified:
+- **G1:** `notification_send_reminders()` ran as one transaction. One failing row lost the whole run, and the same row failed again every 15 minutes, so nobody was reminded.
+- **G2:** nothing recorded what a run did; pg_cron keeps only "succeeded" or "failed".
+
+### What changes (`20261122090400_harden_notification_jobs.sql`)
+| Job | Now |
+|---|---|
+| `notification_send_reminders()` | Each unit is sent on its own (a savepoint each): per match, owner A, owner B and the selected players; each challenge; each offer. A failing unit is recorded and skipped; everything else is still sent. A section whose query fails (matches, challenges or offers) is recorded and the other sections still run. Its count covers only this run's own reminders, so a run overlapping another no longer counts the other's (nothing was ever sent twice) |
+| `notification_cleanup()` | Its three deletes fail independently: notifications (90 days), announcements (90 days), and job runs older than **30 days** (new). At most 10,000 of each per run |
+| `push_sweep()` | A failure is recorded instead of failing the job |
+
+- **Retries:** nothing marks a failed unit. The next run, 15 minutes later, tries it again, and migration 28's dedupe keys (one row per person and key) keep anything already sent from being sent twice. A unit stops being retried once it is no longer due (the match has started, or the challenge or offer has expired).
+- **Unchanged:** the function names, arguments and result types (the pg_cron commands and the schedule stay as they are), who receives what, preferences, dedupe keys, the 90-day rule and the sweeper's windows. `notification_jobs_schedule()` is untouched, and the log cleanup needs no new job.
+
+### The run log: `public.notification_job_runs`
+One row per run of the three jobs:
+- `job` (`reminders` / `cleanup` / `push_sweep`) and `status`:
+  - `ok`: no error;
+  - `partial`: some units failed, the rest went through;
+  - `failed`: the run as a whole failed, nothing of it kept.
+- `started_at`, `finished_at`.
+- Counts:
+  - `processed`: units looked at; waiting pushes for the sweeper; rows removed for the cleanup;
+  - `created`: reminders sent;
+  - `removed_notifications`, `removed_announcements`, `removed_job_runs`.
+- `errors`, `first_error` (at most 300 characters, e.g. `match:<id>:players: P0001 …`), and `failed_items` (at most 20, e.g. `match:<id>:owner_a`, `challenge:<id>`, `offer:<id>`, `offers`, `run`).
+- **Rule:** `ok` exactly when `errors = 0` and there is no `first_error` (a table constraint).
+- **Writing it never fails the job.** `notification_job_record(…)` catches its own errors and leaves a WARNING in the database log.
+- **Privacy:** no personal data, only ids of matches, challenges and offers, and database error messages.
+- **Access:** no app role can read or change it, not `anon`, `authenticated` or `service_role`. There are no grants on the table, its sequence or the writer; RLS is on and there are no policies. The database owner reads it in the SQL editor, e.g.
+
+  ```sql
+  select job, status, started_at, processed, created, errors, first_error, failed_items
+    from public.notification_job_runs order by started_at desc limit 50;
+  ```
+- **Size:** about 385 rows a day (96 reminder runs, 288 sweeps, 1 cleanup), so about 11,500 rows for the 30 days kept.
+
+### Rollback (`20261122_rollback_notification_jobs_hardening.sql`)
+- It restores migration 28's three job functions verbatim (generated from `cb492e1`), then drops `notification_job_record` and the table.
+- The catalogue returns to 1–28 exactly (1,496 objects, `1e6ebca4…`).
+- It refuses while the log has rows, unless `set local criceco.rollback_job_runs_discarded = 'yes'` is set. It touches no notification, announcement, push or schedule.
+
+### Tests (migration 29)
+| Test | Result |
+|---|---|
+| Post-check 29 (read-only) | 8 PASS + 2 INFO (runs in the last 24 hours; the latest error); on 1–28 the new objects FAIL as expected. With Supabase-like default privileges (everything new granted to `anon` / `authenticated` / `service_role`) still 8 PASS: the migration revokes them |
+| Local check 24 | 30/30, on fresh copies and twice on the same database. **S:** nobody but the owner reads, writes or calls the log. **F (forced failures with test triggers):** a failing line-up and challenge, while both owners and the offer are still sent and the run is logged partial with the failed items and first error; the retry fails again with nothing twice; once fixed, the retry sends exactly the missing three; a missing table fails one section only; a whole-run failure is logged `failed`; a refused log row leaves the reminders sent; 25 failures log 20 items and 300 characters, and the retry sends the 25. **C:** a failing announcements delete leaves the notifications delete done; the retry; job runs over 30 days removed, 29 days kept; 10,000 per run. **W:** sweeps logged `ok` or `failed`. **R:** the table refuses `ok` with errors |
+| Concurrency 24b | 3/3: a second reminder run started while the first is uncommitted waits, then sends nothing twice (6 reminders, one each), counting 6 and 0 |
+| Regression on 1–29 | local checks 20 (92) / 21 (27) / 22 (44) / 23 (22) unchanged; concurrency 21b / 22b 3/3 each; post-check 28 5 PASS + 2 INFO |
+| Guards and rollback | 29 refuses on 1–27 and a second time; the rollback refuses on 1–28 and while runs exist; after confirmation the catalogue equals 1–28, check 23 passes, and re-applying gives the same 1–29 catalogue (1,535 objects, `3add0adf…`) |
+
+### Production (not done; each step needs its own approval)
+1. Backup.
+2. Migration 29 in one transaction, with the post-check 29 rows as its self-check; then post-checks 28 and 29.
+3. Nothing else changes: the existing pg_cron schedule (once enabled) runs the hardened functions as they are.
