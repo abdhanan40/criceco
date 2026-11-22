@@ -288,6 +288,7 @@ abstract final class SupabaseErrorMapper {
   /// authenticated" / "not allowed" are 42501 (above).
   static const _notificationTexts = {
     'invalid': 'Couldn’t load your notifications — please try again.',
+    'not found': 'Complete your profile first.',
   };
   static const _announcementTexts = {
     'invalid title': 'Enter a title (up to ${ClubAnnouncement.titleMaxLength} characters).',

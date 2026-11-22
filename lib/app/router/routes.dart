@@ -31,6 +31,8 @@ abstract final class Routes {
   static const continueAs = '/continue-as';
   static const roleSetup = '/role-setup';
   static const notifications = '/notifications';
+  /// Notification settings, opened from inside the inbox (M3 P4, D8).
+  static const notificationSettings = '/notifications/settings';
   static const settings = '/settings';
   /// Legacy (consolidation Phase A) → Settings with Privacy expanded.
   static const privacySettings = '/settings/privacy';

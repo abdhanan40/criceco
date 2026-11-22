@@ -116,3 +116,27 @@ class SupabaseAnnouncementServerRepository
     ],
   );
 }
+
+/// [NotificationPreferencesRepository] on Supabase (migration 26): the
+/// server stores one row per person and skips the categories they turned off.
+class SupabaseNotificationPreferencesRepository
+    implements NotificationPreferencesRepository {
+  SupabaseNotificationPreferencesRepository({required this.db});
+
+  final NotificationsGateway db;
+
+  @override
+  Future<NotificationPreferences> load() => guardMatchCall(
+    () async => NotificationRowMapper.preferences(await db.myPreferences()),
+  );
+
+  @override
+  Future<NotificationPreferences> save(NotificationPreferences preferences) =>
+      guardMatchCall(
+        () async => NotificationRowMapper.preferences(
+          await db.setPreferences(
+            NotificationRowMapper.preferencesParams(preferences),
+          ),
+        ),
+      );
+}

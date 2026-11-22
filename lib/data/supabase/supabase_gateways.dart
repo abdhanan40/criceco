@@ -451,6 +451,14 @@ abstract interface class NotificationsGateway {
   /// `rpc('club_announcement', {p_announcement_id})` — at most one row.
   Future<List<Map<String, dynamic>>> announcement(String announcementId);
 
+  /// `rpc('my_notification_preferences')` — one row (all on when never
+  /// changed; migration 26).
+  Future<Map<String, dynamic>> myPreferences();
+
+  /// `rpc('set_notification_preferences', {p_join_requests, p_challenges,
+  /// p_matches, p_results, p_announcements})` — the saved row.
+  Future<Map<String, dynamic>> setPreferences(Map<String, Object?> params);
+
   /// `rpc('club_announcement_list', {p_club_id, p_limit})` — newest first.
   Future<List<Map<String, dynamic>>> clubAnnouncements(
     String clubId, {

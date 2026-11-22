@@ -385,6 +385,27 @@ class UnavailableNotificationInboxRepository implements NotificationInboxReposit
   Future<int> markAllRead(UserRole role, {NotificationCursor? upTo}) async => 0;
 }
 
+/// The signed-in person's notification preferences (migration 26, M3 P4):
+/// categories they turned off are not created for them by the server.
+abstract interface class NotificationPreferencesRepository {
+  /// Everything on until they change something.
+  Future<NotificationPreferences> load();
+
+  /// Saves all five optional categories at once; returns what was saved.
+  Future<NotificationPreferences> save(NotificationPreferences preferences);
+}
+
+/// Builds without the server side: there are no preferences to change.
+class UnavailableNotificationPreferencesRepository implements NotificationPreferencesRepository {
+  const UnavailableNotificationPreferencesRepository();
+
+  @override
+  Future<NotificationPreferences> load() async => throw const ModuleUnavailableException();
+  @override
+  Future<NotificationPreferences> save(NotificationPreferences preferences) async =>
+      throw const ModuleUnavailableException();
+}
+
 /// Club announcements on the server (migration 25, decision D10): the owner
 /// publishes, the server picks the recipients and notifies them.
 abstract interface class AnnouncementServerRepository {

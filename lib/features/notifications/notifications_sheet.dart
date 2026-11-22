@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../app/config/backend_modules.dart';
 import '../../app/providers/core_providers.dart';
+import '../../app/router/routes.dart';
 import '../../app/theme/tokens.dart';
 import '../../app/theme/typography.dart';
 import '../../core/models/models.dart';
@@ -212,6 +213,19 @@ class _NotificationsPanelState extends ConsumerState<NotificationsPanel> {
               ],
             ]),
           ),
+          // D8: the settings live inside the inbox (server inbox only).
+          if (ref.watch(notificationsBackendLiveProvider))
+            IconButton(
+              key: const Key('notifications.panel.settings'),
+              tooltip: 'Notification settings',
+              visualDensity: VisualDensity.compact,
+              icon: Icon(CeIcons.of('sliders'), size: 19, color: CeColors.ink2),
+              onPressed: () {
+                final router = GoRouter.of(context);
+                Navigator.of(context).pop();
+                router.push(Routes.notificationSettings);
+              },
+            ),
           TextButton(
             key: const Key('notifications.panel.markAll'),
             onPressed: newCount == 0 ? null : () => _markAll(unread),

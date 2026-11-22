@@ -122,6 +122,26 @@ abstract final class NotificationRowMapper {
         recipientCount: MatchRowMapper.optInt(row, 'recipient_count'),
       );
 
+  /// A `my_notification_preferences` / `set_notification_preferences` row.
+  static NotificationPreferences preferences(Map<String, dynamic> row) =>
+      NotificationPreferences(
+        joinRequests: MatchRowMapper.flag(row, 'join_requests'),
+        challenges: MatchRowMapper.flag(row, 'challenges'),
+        matches: MatchRowMapper.flag(row, 'matches'),
+        results: MatchRowMapper.flag(row, 'results'),
+        announcements: MatchRowMapper.flag(row, 'announcements'),
+        updatedAt: MatchRowMapper.optTime(row, 'updated_at'),
+      );
+
+  /// `set_notification_preferences` parameters (membership is not a setting).
+  static Map<String, Object?> preferencesParams(NotificationPreferences p) => {
+    'p_join_requests': p.joinRequests,
+    'p_challenges': p.challenges,
+    'p_matches': p.matches,
+    'p_results': p.results,
+    'p_announcements': p.announcements,
+  };
+
   static PublishedAnnouncement published(Map<String, dynamic> row) =>
       PublishedAnnouncement(
         id: MatchRowMapper.text(row, 'announcement_id'),

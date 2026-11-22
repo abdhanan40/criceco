@@ -1,8 +1,9 @@
-# Notifications — migration 25 (M3 P1), the Flutter data layer (P2) and the inbox on server data (P3)
+# Notifications — migrations 25–26 (M3 P1, P4) and the app (P2–P4)
 
 **Status (2026-11-22):**
 - **Migration 25** (P1): committed in `45d06ca`, validated on a disposable PostgreSQL 17. **Not applied to production.**
-- **Flutter data layer** (P2, `6da3583`) and **the inbox on server data** (P3): behind the `CRICECO_NOTIFICATIONS` switch, off by default. See [P2](#p2--the-flutter-data-layer) and [P3](#p3--the-inbox-on-server-data). Without the switch, Supabase builds still show notifications as "not available yet"; the demo inbox is unchanged.
+- **Migration 26** (P4, notification preferences): validated on a disposable PostgreSQL 17. **Not applied to production.** See [P4](#p4--notification-preferences-migration-26).
+- **Flutter data layer** (P2, `6da3583`), **the inbox on server data** (P3, `5156470`) and **Notification settings** (P4): behind the `CRICECO_NOTIFICATIONS` switch, off by default. See [P2](#p2--the-flutter-data-layer) and [P3](#p3--the-inbox-on-server-data). Without the switch, Supabase builds still show notifications as "not available yet"; the demo inbox is unchanged.
 
 ## Purpose and scope
 Migration 25 adds the server side of the in-app inbox:
@@ -264,8 +265,68 @@ This matches the app's `ClubMember.plays`.
 
 The demo inbox keeps its own tests: `support_screens_test.dart`, `club_core_test.dart` and `production_hardening_test.dart`.
 
+## P4 — notification preferences (migration 26)
+**Approved 2026-11-22:**
+- **Enforced on the server:** a category a person turned off is never created for them. Push (P5) will read the same rows.
+- **Six categories,** one of them always on (below).
+- **Turning a category off** keeps what is already in the inbox; only new notifications stop.
+
+One setting per account. Everything is on until the person changes something.
+
+| Category | Types | Can be turned off |
+|---|---|---|
+| Club membership and ownership | join approved or declined, removed from club, ownership offered, accepted, rejected or withdrawn, and any type added later | **no** (always on) |
+| Join requests (club owners) | `join_request_received` | yes |
+| Challenges and scheduling (club owners) | challenges received, accepted or declined; schedule proposed, accepted or declined | yes |
+| Line-ups and match changes | selected, changed, dropped; rescheduled; cancelled | yes |
+| Results and awards | result published, corrected; Player of the Match | yes |
+| Club announcements | `announcement` | yes |
+
+### Database (migration 26, `20261122090100_create_notification_preferences.sql`)
+- **Table:** `notification_preferences` has one row per person who changed something (no row means all on), five booleans and `updated_at`. It is deleted with the profile. RLS is on with no policy, and no role has table access.
+- **Internal helpers:**
+  - `notification_category(type)` maps a type to its category. Unknown types count as membership, so a new type is never silently dropped.
+  - `notification_muted(user, type)` says whether that person turned the type's category off.
+  - Neither can be called by app roles.
+- **Changed from migration 25:**
+  - `notification_add` skips muted recipients. Every trigger goes through it.
+  - `publish_club_announcement` skips members who turned announcements off. Its `recipient_count` is the number actually told, and a muted member can't open the announcement.
+  - Both are replaced in place (`create or replace`); nothing else in migration 25 changes.
+- **API (signed in only):**
+  - `my_notification_preferences()` returns one row (all on when nothing was saved).
+  - `set_notification_preferences(p_join_requests, p_challenges, p_matches, p_results, p_announcements)` takes all five at once and returns the saved row. A missing value is refused (`notification: invalid`).
+- **Rollback** (`20261122_rollback_notification_preferences.sql`):
+  - It restores migration 25's two functions verbatim and drops the rest.
+  - The catalogue goes back to 1–25 exactly (1,421 objects, `6a5bc0b1…`).
+  - It refuses while any preference row exists, unless `set local criceco.rollback_preferences_discarded = 'yes'` is set.
+
+### App
+- **Data layer:**
+  - `NotificationCategory` (with `of(type)`) and `NotificationPreferences` in `server_notification.dart`.
+  - The gateway calls `myPreferences` and `setPreferences`; the mapper reads the row.
+  - `NotificationPreferencesRepository`: a Supabase version and an `Unavailable…` stand-in.
+  - `notificationPreferencesRepositoryProvider`, live only with the switch.
+- **Controller** (`notification_preferences_controller.dart`):
+  - A switch changes at once.
+  - Saves run one after another, each sending the whole choice at that moment.
+  - A refused save puts back the last saved state and shows a toast.
+- **Screen:** "Notification settings" (`/notifications/settings`, D8).
+  - It opens from the inbox: the sliders button on the Notifications screen, and in the panel header (the panel closes first).
+  - It has two groups, "Your notifications" and "For club owners". Membership shows "Always on" with no switch.
+  - A failed load shows an error with Retry.
+  - In the demo (no server preferences) the entry is hidden, and the screen says "Not available yet".
+
+### Tests (P4)
+| Test | Result |
+|---|---|
+| Post-check 26 (read-only) | 8 PASS + 1 INFO; on 1–25 all 8 rows FAIL as expected |
+| Local check 21 | 27/27, twice: access; the API; each category enforced through the real functions (join requests, challenges, line-ups, official results and Player of the Match, announcements); membership always on; muting keeps the inbox; account deletion |
+| Concurrency 21b | 2/2, two runs: a challenge while challenges are being turned off; two first saves at once |
+| Regression on 1–26 | local checks 10 / 12 / 13 / 14 / 15 / 16 / 19 / 20 and concurrency 14b / 15b / 19b / 20b unchanged (109 / 31 / 53 / 146 / 75 / 48 / 89 / 92; 4 / 4 / 4 / 6) |
+| Rollback 26 | catalogue identical to 1–25; refusal while rows exist; re-apply OK (1,441 objects, `3166fdbd…`) |
+| Flutter | `test/notification_preferences_test.dart`: categories read from migration 26 itself; mapper; repository; switch and providers; the controller's order and rollback; the screen (groups, "Always on", save, refusal, load error, demo); the inbox entries, including 320 px. The gateway test covers the two RPCs |
+
 ### Next
-- **P4:** notification preferences ("Notification settings" inside the inbox, D8).
-- **P5:** push (FCM).
+- **P5:** push (FCM, D9): device tokens, the dispatcher Edge Function, the app integration. Push follows these preferences.
 - **P6:** reminders and the 90-day cleanup job.
-- **P7:** the production rollout of migration 25 and an APK with the switch, each step approved separately.
+- **P7:** the production rollout of migrations 25–26 and an APK with the switch, each step approved separately.

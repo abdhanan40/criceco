@@ -88,6 +88,33 @@ void main() {
           'p_limit': 50,
         });
 
+        // Preferences (migration 26): set-returning, the first row.
+        respond = (_) => json([
+          {'matches': false},
+        ]);
+        expect((await gateway.myPreferences())['matches'], isFalse);
+        expectRpc('my_notification_preferences', {});
+        await gateway.setPreferences({
+          'p_join_requests': true,
+          'p_challenges': true,
+          'p_matches': false,
+          'p_results': true,
+          'p_announcements': true,
+        });
+        expectRpc('set_notification_preferences', {
+          'p_join_requests': true,
+          'p_challenges': true,
+          'p_matches': false,
+          'p_results': true,
+          'p_announcements': true,
+        });
+        respond = (_) => json([]);
+        expect(
+          await errorOf(gateway.myPreferences()),
+          isA<GatewayUnexpectedException>(),
+        );
+        requests.clear();
+
         respond = (_) => json(3);
         expect(await gateway.unreadCount('club_owner'), 3);
         expectRpc('notification_unread_count', {'p_inbox': 'club_owner'});

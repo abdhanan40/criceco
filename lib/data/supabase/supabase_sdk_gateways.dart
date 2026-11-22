@@ -985,6 +985,19 @@ class SupabaseNotificationsGateway implements NotificationsGateway {
   Future<List<Map<String, dynamic>>> clubAnnouncements(String clubId, {int limit = 50}) =>
       _list('club_announcement_list', {'p_club_id': clubId, 'p_limit': limit});
 
+  @override
+  Future<Map<String, dynamic>> myPreferences() => _one('my_notification_preferences', const {});
+
+  @override
+  Future<Map<String, dynamic>> setPreferences(Map<String, Object?> params) =>
+      _one('set_notification_preferences', params);
+
+  Future<Map<String, dynamic>> _one(String fn, Map<String, Object?> params) => _guarded(() async {
+        final row = SupabaseClubGateway._row(await _client.rpc<dynamic>(fn, params: params));
+        if (row == null) throw GatewayUnexpectedException('$fn-no-row');
+        return row;
+      }, timeout, SupabaseProfileGateway.translate);
+
   /// A function returning one integer (PostgREST sends the bare number).
   Future<int> _int(String fn, Map<String, Object?> params) => _guarded(() async {
         final v = await _client.rpc<dynamic>(fn, params: params);

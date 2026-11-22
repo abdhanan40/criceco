@@ -22,6 +22,9 @@ class FakeNotificationsDb implements NotificationsGateway {
   List<Map<String, dynamic>> announcementRows = [];
   List<Map<String, dynamic>> listRows = [];
 
+  /// The stored preferences row (`null` = never changed: all on).
+  Map<String, dynamic>? preferencesRow;
+
   /// Every call of a function fails with this while it's set.
   final failOn = <String, GatewayException>{};
 
@@ -69,6 +72,35 @@ class FakeNotificationsDb implements NotificationsGateway {
   Future<List<Map<String, dynamic>>> announcement(String announcementId) async {
     _record('club_announcement', {'p_announcement_id': announcementId});
     return announcementRows;
+  }
+
+  @override
+  Future<Map<String, dynamic>> myPreferences() async {
+    _record('my_notification_preferences', const {});
+    return preferencesRow ??
+        {
+          'join_requests': true,
+          'challenges': true,
+          'matches': true,
+          'results': true,
+          'announcements': true,
+          'updated_at': null,
+        };
+  }
+
+  @override
+  Future<Map<String, dynamic>> setPreferences(
+    Map<String, Object?> params,
+  ) async {
+    _record('set_notification_preferences', params);
+    return preferencesRow = {
+      'join_requests': params['p_join_requests'],
+      'challenges': params['p_challenges'],
+      'matches': params['p_matches'],
+      'results': params['p_results'],
+      'announcements': params['p_announcements'],
+      'updated_at': '2026-11-22T12:00:00+00:00',
+    };
   }
 
   @override

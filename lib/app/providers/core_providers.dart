@@ -208,6 +208,13 @@ final announcementServerRepositoryProvider = Provider<AnnouncementServerReposito
         ? SupabaseAnnouncementServerRepository(db: ref.watch(notificationsGatewayProvider))
         : const UnavailableAnnouncementServerRepository());
 
+/// Notification preferences on the server (migration 26), with the same
+/// switches. The demo has none (its inbox is not filtered).
+final notificationPreferencesRepositoryProvider = Provider<NotificationPreferencesRepository>((ref) =>
+    ref.watch(notificationsBackendLiveProvider)
+        ? SupabaseNotificationPreferencesRepository(db: ref.watch(notificationsGatewayProvider))
+        : const UnavailableNotificationPreferencesRepository());
+
 /// Location lookup (Stage 4.2). Supabase mode: the location tables of
 /// migration 6 (read-only); memory mode: the 20 featured cities only. Not yet
 /// used by any screen — the city pickers switch in Stage 4.3.

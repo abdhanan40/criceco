@@ -36,6 +36,7 @@ import '../../features/matches/screens/lineup_screens.dart';
 import '../../features/matches/screens/match_management_screen.dart';
 import '../../features/membership/enter_club_code_screen.dart';
 import '../../features/membership/join_status_screens.dart';
+import '../../features/notifications/notification_settings_screen.dart';
 import '../../features/notifications/notifications_screen.dart';
 import '../../features/player/screens/availability_screen.dart';
 import '../../features/player/screens/my_matches_screen.dart';
@@ -193,6 +194,10 @@ final List<RouteBase> appRoutes = [
   // ---- Shared ----
   GoRoute(path: Routes.roleSetup, builder: (_, _) => const RoleSetupScreen()),
   GoRoute(path: Routes.notifications, builder: (_, _) => _gate(BackendModule.notifications, 'Notifications', null, const NotificationsScreen())),
+  GoRoute(
+      path: Routes.notificationSettings,
+      builder: (_, _) =>
+          _gate(BackendModule.notifications, 'Notification settings', Routes.notifications, const NotificationSettingsScreen())),
   // Settings with the Privacy section inline (`?section=privacy` expands it).
   GoRoute(
     path: Routes.settings,

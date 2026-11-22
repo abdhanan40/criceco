@@ -98,6 +98,14 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         title: 'Notifications',
         fallbackLocation: home,
         actions: [
+          // D8: the settings live inside the inbox (server inbox only).
+          if (ref.watch(notificationsBackendLiveProvider))
+            IconButton(
+              key: const Key('notifications.settings'),
+              tooltip: 'Notification settings',
+              icon: Icon(CeIcons.of('sliders'), size: 20, color: CeColors.ink),
+              onPressed: () => context.push(Routes.notificationSettings),
+            ),
           if (unread.isNotEmpty || ref.watch(unreadNotificationCountProvider(role)) > 0)
             TextButton(
               key: const Key('notifications.markAll'),
