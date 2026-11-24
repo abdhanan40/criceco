@@ -1,4 +1,6 @@
-// CricEco · Edge Function `push-dispatch` — NOT DEPLOYED (M3 P5).
+// CricEco · Edge Function `push-dispatch` (M3 P5). Deployed to production in
+// M3 B2 (2026-11-23); the C3 Fix A change (devices addressed by FID) needs a
+// redeploy, approved separately.
 //
 // Sends queued in-app notifications as Android pushes through Firebase Cloud
 // Messaging (docs/NOTIFICATIONS_BACKEND.md, "P5"). Requires migration 27.
@@ -48,9 +50,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       if (error) throw new Error("report_failed");
       return typeof data === "number" ? data : 0;
     },
-    send: async (token, row, text) => {
+    send: async (fid, row, text) => {
       const access = await tokens.get();
-      const outcome = await sendOne(fetch, account.project_id, access, buildMessage(token, row, text));
+      const outcome = await sendOne(fetch, account.project_id, access, buildMessage(fid, row, text));
       if (outcome.kind === "retry" && outcome.error === "AUTH") tokens.reset();
       return outcome;
     },

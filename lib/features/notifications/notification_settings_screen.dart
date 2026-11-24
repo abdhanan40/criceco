@@ -8,6 +8,7 @@ import '../../app/theme/tokens.dart';
 import '../../app/theme/typography.dart';
 import '../../core/models/models.dart';
 import '../../data/repositories/repositories.dart' show AccountException;
+import '../../shared/widgets/ce_buttons.dart';
 import '../../shared/widgets/ce_feedback.dart';
 import '../../shared/widgets/ce_rows.dart';
 import '../../shared/widgets/ce_surfaces.dart';
@@ -15,6 +16,7 @@ import '../../shared/widgets/ce_top_bar.dart';
 import 'notification_preferences_controller.dart';
 import 'push/push_controller.dart';
 import 'push/push_messaging.dart' show PushPermission;
+import 'push/push_ui.dart' show pushFailureText;
 
 /// Notification settings (M3 P4, decision D8): opened from inside the
 /// inbox. Which categories CricEco tells this person about — enforced on the
@@ -170,7 +172,10 @@ class _PushOnThisDevice extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final push = ref.watch(pushControllerProvider);
-    final subtitle = push.active
+    final failure = push.active ? push.failure : null;
+    final subtitle = failure != null
+        ? pushFailureText(failure)
+        : push.active
         ? 'On — they arrive even when CricEco is closed'
         : push.enabled && push.permission == PushPermission.denied
         ? 'Allow notifications for CricEco in Android settings'
@@ -190,7 +195,7 @@ class _PushOnThisDevice extends ConsumerWidget {
               title: 'Push on this device',
               subtitle: subtitle,
               value: push.active,
-              showDivider: false,
+              showDivider: failure != null,
               onChanged: (on) async {
                 final controller = ref.read(pushControllerProvider.notifier);
                 if (!on) return controller.turnOff();
@@ -202,6 +207,18 @@ class _PushOnThisDevice extends ConsumerWidget {
                 }
               },
             ),
+            // C3 Fix A: a failed registration is shown, with a way to retry.
+            if (failure != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+                child: CeButton.soft(
+                  key: const Key('notificationSettings.push.retry'),
+                  label: 'Try again',
+                  dense: true,
+                  onPressed: () =>
+                      ref.read(pushControllerProvider.notifier).retry(),
+                ),
+              ),
           ],
         ),
       ],

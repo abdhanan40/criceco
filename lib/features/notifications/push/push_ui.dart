@@ -21,6 +21,13 @@ import '../server_notification_adapter.dart';
 import 'push_controller.dart';
 import 'push_messaging.dart';
 
+/// What the app says when push is on but this phone isn't registered
+/// (C3 Fix A); Notification settings offers "Try again" with it.
+String pushFailureText(PushFailure failure) => switch (failure) {
+  PushFailure.phone => "This phone couldn't be registered for push — try again",
+  PushFailure.server => "Couldn't reach CricEco to register this phone — check your connection and try again",
+};
+
 /// The one-time offer, when the inbox first opens (M3 P5): what push is,
 /// then Android's own question. Nothing is asked again after an answer;
 /// Notification settings can still turn it on or off.
@@ -82,11 +89,14 @@ Future<void> offerPush(BuildContext context, WidgetRef ref) async {
   );
   if (yes == true) {
     final on = await push.turnOn();
-    if (!on && context.mounted) {
+    if (!context.mounted) return;
+    if (!on) {
       showCeToast(
         context,
         'Notifications are off for CricEco — you can allow them in Android settings.',
       );
+    } else if (ref.read(pushControllerProvider).failure case final failure?) {
+      showCeToast(context, pushFailureText(failure));
     }
   } else {
     await push.notNow();
@@ -106,6 +116,9 @@ class PushRouter extends ConsumerStatefulWidget {
 class _PushRouterState extends ConsumerState<PushRouter> {
   final _subs = <StreamSubscription<Object?>>[];
   PushTap? _pending;
+
+  /// The last notification a tap opened (a repeat of the same tap is ignored).
+  String? _opened;
 
   @override
   void initState() {
@@ -130,6 +143,10 @@ class _PushRouterState extends ConsumerState<PushRouter> {
   void _start() {
     if (_subs.isNotEmpty) return;
     final messaging = ref.read(pushMessagingProvider);
+    // At app start, before the controller can register: Firebase starts and
+    // listens for this installation's FID (C3 Fix A), so none is missed.
+    // A failure here shows up when the controller registers.
+    unawaited(messaging.start().catchError((Object _) {}));
     _subs
       ..add(
         messaging.taps.listen(
@@ -171,6 +188,10 @@ class _PushRouterState extends ConsumerState<PushRouter> {
       _pending = tap;
       return;
     }
+    // A launch tap can arrive twice on a cold start (getInitialMessage and
+    // onMessageOpenedApp, seen on the Vivo in C3 T7): open it once.
+    if (tap.notificationId == _opened) return;
+    _opened = tap.notificationId;
     // Read: on the server (quietly), then the inbox catches up.
     unawaited(
       ref

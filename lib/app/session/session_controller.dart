@@ -67,6 +67,7 @@ class SessionController extends Notifier<SessionState> {
   /// Returns `false` when the credentials are rejected (the screen shows a
   /// friendly error; no exception reaches the UI).
   Future<bool> signIn({required String identifier, required String password}) async {
+    await _afterSignOut();
     final account = await ref.read(accountRepositoryProvider).signIn(identifier: identifier, password: password);
     if (account == null) return false;
     await _setAccount(account);
@@ -80,6 +81,7 @@ class SessionController extends Notifier<SessionState> {
     required String password,
   }) async {
     _requireStrongPassword(password);
+    await _afterSignOut();
     final account = await ref
         .read(accountRepositoryProvider)
         .signUp(fullName: fullName, method: method, identifier: identifier, password: password);
@@ -94,6 +96,7 @@ class SessionController extends Notifier<SessionState> {
   /// [InvalidVerificationCodeException]; other failures their own
   /// [AccountException]. On any failure the session stays as it was.
   Future<void> verifySignUpCode({required String email, required String code}) async {
+    await _afterSignOut();
     final account = await ref
         .read(accountRepositoryProvider)
         .verifySignUpCode(email, code, at: ref.read(clockProvider).now());
@@ -113,6 +116,7 @@ class SessionController extends Notifier<SessionState> {
   /// the web ([restore]), or as an event on Android — and the router guard
   /// sends a new user to Profile Setup and a returning one to their role.
   Future<bool> signInWithGoogle() async {
+    await _afterSignOut();
     final repo = ref.read(accountRepositoryProvider);
     _listenToAuthEvents();
     if (await repo.startGoogleSignIn()) return false;
@@ -190,6 +194,11 @@ class SessionController extends Notifier<SessionState> {
       ownClub: club,
     );
     await ref.read(sharedPreferencesProvider).setString(_kAccount, account.id);
+    // Told explicitly: a logout and a quick sign-in as the same person may
+    // never show as a change of currentAccountProvider.
+    try {
+      afterSignIn?.call(account.id);
+    } catch (_) {}
   }
 
   /// App start: restore a remembered session so the persisted active role
@@ -554,10 +563,45 @@ class SessionController extends Notifier<SessionState> {
     await ref.read(sharedPreferencesProvider).remove(_kAccount);
   }
 
+  /// Work that must finish while the backend session still works, run by
+  /// [logout] before the session ends; it gets [beforeSignOutTimeout] at most.
+  /// C3 Fix A: PushController sets it to remove this phone's push
+  /// registration at CricEco.
+  Future<void> Function()? beforeSignOut;
+
+  /// Called after every sign-in (C3 Fix A: PushController registers this
+  /// phone for the new session).
+  void Function(String accountId)? afterSignIn;
+  static const beforeSignOutTimeout = Duration(seconds: 4);
+
+  /// The backend sign-out still under way; a sign-in waits for it, so it can
+  /// never end the new session.
+  Future<void>? _signingOut;
+
+  Future<void> _afterSignOut() async {
+    if (_signingOut case final pending?) await pending;
+  }
+
   void logout() {
+    final repo = ref.read(accountRepositoryProvider);
+    Future<void>? before;
+    try {
+      before = beforeSignOut?.call();
+    } catch (_) {
+      before = null;
+    }
     state = const SessionState();
     ref.read(sharedPreferencesProvider).remove(_kAccount);
-    ref.read(accountRepositoryProvider).signOut().catchError((Object _) {});
+    final pending = _signingOut = (before == null
+            ? repo.signOut()
+            : before
+                .timeout(beforeSignOutTimeout)
+                .catchError((Object _) {})
+                .then<void>((_) => repo.signOut()))
+        .catchError((Object _) {});
+    unawaited(pending.whenComplete(() {
+      if (identical(_signingOut, pending)) _signingOut = null;
+    }));
   }
 }
 

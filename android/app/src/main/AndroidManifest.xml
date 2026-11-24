@@ -45,6 +45,19 @@
                 android:name="flutter_deeplinking_enabled"
                 android:value="false" />
         </activity>
+        <!-- C3 Fix A: push registers this installation by its Firebase
+             Installation ID (FirebaseMessaging.register() / onRegistered).
+             That API is opt-in per app: without this flag register() throws
+             "API disabled". -->
+        <meta-data
+            android:name="firebase_messaging_installation_id_enabled"
+            android:value="true" />
+        <!-- No FCM registration until the person turns push on: the app calls
+             register() itself (PushController), on "Turn on" and on each start
+             while push is on, as Firebase asks when auto-init is off. -->
+        <meta-data
+            android:name="firebase_messaging_auto_init_enabled"
+            android:value="false" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

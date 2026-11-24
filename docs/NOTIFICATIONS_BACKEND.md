@@ -350,7 +350,8 @@ One setting per account. Everything is on until the person changes something.
      - **sent:** at least one device received it;
      - **retry:** FCM busy or a network error; the database tries at most 3 times;
      - **failed:** anything else;
-     - **gone tokens** (`UNREGISTERED`, `SENDER_ID_MISMATCH`) are removed. A badly formed message never removes a token.
+     - **gone devices** (`UNREGISTERED`, `SENDER_ID_MISMATCH`) are removed. A badly formed message (`INVALID_ARGUMENT`) never removes a device.
+   - Each device is addressed by its Firebase Installation ID (`message.fid`, C3 Fix A); the `token` column holds it.
    - Deliveries older than a day, or whose recipient has no device any more, are skipped. A claim stuck in "sending" for 5 minutes is taken again.
 5. **Tapping the push** opens what its inbox row opens, inside that inbox's role, switching role if needed (as the drawer does). An announcement or an unknown type opens the inbox. The notification is marked read.
 
@@ -383,16 +384,16 @@ One setting per account. Everything is on until the person changes something.
   - No `google-services.json` is committed and no Gradle plugin is needed.
   - Without them, the build has no push and behaves exactly as before.
   - `pushAvailableProvider` is true only with the server inbox, the four values, and Android.
-- **`PushMessaging`** (`lib/features/notifications/push/push_messaging.dart`) wraps firebase_messaging 17 (`register` / `onRegistered` / `unregister`), so tests use a fake.
+- **`PushMessaging`** (`lib/features/notifications/push/push_messaging.dart`) wraps firebase_messaging 17 (`register` / `onRegistered` / `unregister`), so tests use a fake. Registration is by Firebase Installation ID (FID); see "C3 Fix A" below.
 - **`PushController`:**
   - It is **off until the person says yes.**
-  - It registers the device while someone is signed in and push is on, and registers a new token when Firebase rotates it.
-  - "Off" unregisters the device and invalidates the token.
-  - Signing out invalidates the token at Firebase, with no call that needs the old session. The server drops it on its next send, and a new person signing in takes it over.
-  - Every failure is quiet: the inbox works without push.
+  - It registers the device's FID while someone is signed in and push is on, and registers a new FID when Firebase rotates it (removing the old one).
+  - "Off" removes the device at CricEco and ends its FCM registration.
+  - Logout removes the device at CricEco while the session still works, then ends its FCM registration.
+  - A failed registration is shown in Notification settings with "Try again" (C3 Fix A; before, failures were silent).
 - **The one-time offer** appears when the inbox (screen or panel) first opens: "Get notified on this phone", then "Turn on" (Android's own dialog) or "Not now". It is never shown again; Notification settings has the "Push on this device" switch.
 - **`PushRouter`** sits around the app. It opens tapped pushes, including the push that launched the app (it waits for sign-in), and refreshes the inbox when a push arrives while the app is open.
-- **`AndroidManifest.xml`** declares `POST_NOTIFICATIONS`.
+- **`AndroidManifest.xml`** declares `POST_NOTIFICATIONS`, turns on the FID API (`firebase_messaging_installation_id_enabled`) and turns off FCM auto-init (`firebase_messaging_auto_init_enabled=false`).
 
 ### Setting it up (the project owner, each step approved separately)
 1. **Firebase console:** create the project and add the Android app `com.criceco.criceco`. Note its four public values. Create a service account key (Project settings → Service accounts). **Keep that key private: never paste it anywhere but the secret below.**
@@ -523,3 +524,46 @@ One row per run of the three jobs:
 1. Backup.
 2. Migration 29 in one transaction, with the post-check 29 rows as its self-check; then post-checks 28 and 29.
 3. Nothing else changes: the existing pg_cron schedule (once enabled) runs the hardened functions as they are.
+
+## C3 Fix A — registration by Firebase Installation ID (2026-11-24)
+**Why:** on the first device test (C3), no phone registered.
+- firebase_messaging 17's `register()` / `onRegistered` give a **Firebase Installation ID (FID)**. That API is opt-in per app, and without the manifest flag `register()` threw "API disabled".
+- `PushController` swallowed the error.
+- The dispatcher addressed `message.token`, not `message.fid`.
+
+**App:**
+- **Manifest:** `firebase_messaging_installation_id_enabled=true`; `firebase_messaging_auto_init_enabled=false` (no FCM registration before the person turns push on; the app calls `register()` itself).
+- **`FidRegistration`** (in `push_messaging.dart`):
+  - listens to `onRegistered` / `onUnregistered` as soon as Firebase starts (`PushRouter` calls `start()` at app start), because the plugin's stream does not replay;
+  - keeps the latest FID and replays it to later listeners;
+  - `installationId()` returns it, or calls `register()` and waits up to 30 s;
+  - failures are typed (`PushRegistrationException`: `firebase`, `rejected`, `timedOut`).
+- **`PushController`:**
+  - **Registering:** registers the FID on each start while push is on (this refreshes `last_seen_at`), once per process. On a rotation it registers the new FID and removes the old one. The registered FID is kept in preferences (`push.fid.v1`) for later removal.
+  - **Failures:** kept in `PushState.failure` (`phone` / `server`) and shown in Notification settings with "Try again".
+  - **Push off:** removes the device at CricEco and at FCM. If CricEco can't be reached, the next start finishes the removal.
+  - **Logout:** `SessionController.beforeSignOut` removes the device at CricEco before the session ends (at most 4 s), then ends the FCM registration. A sign-in waits for a sign-out still under way, and `SessionController.afterSignIn` registers the device for the new session (a logout and a quick sign-in as the same person may not show as an account change).
+- **No database change:** `device_tokens.token` holds the FID; the RPCs are unchanged.
+
+**Dispatcher:**
+- `buildMessage` sends `message.fid`.
+- `INVALID_ARGUMENT` stays a plain failure. Checked live: FCM gives it for payload mistakes too ("Recipient of the message is not set", an unknown field), so deleting on it could wipe every device.
+- An unknown or malformed FID is answered 404 `UNREGISTERED` and removed.
+
+**Tests:**
+- **Flutter:** `test/push_test.dart` covers the startup listener, initial and repeated registration, rotation (open and closed), permission denial, FCM and server failures with retry, push off (including offline), the expired session, logout (including offline) and the settings error row.
+- **Dispatcher:** `fcm_test.ts` covers FID delivery end to end and FCM's recorded answers.
+- **Live:** `fcm_live_test.ts`, opt-in with `FCM_LIVE_SERVICE_ACCOUNT_FILE`, uses `validate_only` and sends nothing.
+
+**Production (2026-11-24, each step approved separately):**
+- `push-dispatch` v2 deployed;
+- the Fix A APK installed on the test phone;
+- device tests on the Vivo V2332:
+  - **T3:** the FID registered;
+  - **T4/T5:** one test announcement delivered in the background;
+  - **T7:** a cold-start tap opens the inbox and marks the row read;
+  - **T9:** push off removes the device at CricEco and FCM;
+  - **T10:** logout removes it before the session ends; signing in again registers it.
+- **Facts learned on the device:**
+  - an FID survives `unregister()` → `register()` (it is re-activated);
+  - a cold-start launch tap can arrive twice, so `PushRouter` opens a tap once.

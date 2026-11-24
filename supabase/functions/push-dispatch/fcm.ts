@@ -1,9 +1,10 @@
 // CricEco · push-dispatch · Firebase Cloud Messaging HTTP v1 (M3 P5).
 //
 // An OAuth access token from the Firebase service account (a JWT signed with
-// its private key, RS256, exchanged at Google), then one request per device
-// token. The service account comes only from the function's secret
-// FCM_SERVICE_ACCOUNT — never logged, never returned.
+// its private key, RS256, exchanged at Google), then one request per device,
+// addressed by its Firebase Installation ID (`message.fid`). The service
+// account comes only from the function's secret FCM_SERVICE_ACCOUNT — never
+// logged, never returned.
 //
 // Plain TypeScript with erasable types only (Deno deployed, Node in tests).
 
@@ -113,8 +114,13 @@ export class AccessTokens {
 }
 
 /** The FCM v1 message for one device: the text, and the ids the app needs
- * to open the right screen when it is tapped (no content in the data). */
-export function buildMessage(token: string, row: PushRow, text: PushText): Record<string, unknown> {
+ * to open the right screen when it is tapped (no content in the data).
+ *
+ * The device is addressed by its Firebase Installation ID (`message.fid`,
+ * C3 Fix A): the app registers with firebase_messaging's register() /
+ * onRegistered, which give an FID, not a classic registration token. The
+ * column that stores it is still called `token` (device_tokens). */
+export function buildMessage(fid: string, row: PushRow, text: PushText): Record<string, unknown> {
   const data: Record<string, string> = {
     notification_id: row.notification_id,
     type: row.type,
@@ -125,7 +131,7 @@ export function buildMessage(token: string, row: PushRow, text: PushText): Recor
   if (row.club_id) data.club_id = row.club_id;
   return {
     message: {
-      token,
+      fid,
       notification: { title: text.title, body: text.body },
       data,
       // One notification per inbox row: a re-send replaces, never doubles.
@@ -134,8 +140,17 @@ export function buildMessage(token: string, row: PushRow, text: PushText): Recor
   };
 }
 
-/** FCM's answer → what to do. A token is dropped only when FCM says it no
- * longer exists (UNREGISTERED) or belongs to another sender. */
+/** FCM's answer → what to do. A device is dropped only when FCM says its
+ * registration no longer exists (UNREGISTERED, 404) or belongs to another
+ * sender.
+ *
+ * INVALID_ARGUMENT (400) is never a reason to drop a device: FCM answers it
+ * for a wrong payload too ("Recipient of the message is not set", an
+ * unknown field, two targets), so treating it as a bad device would let one
+ * payload bug delete every registration. Firebase drops on it only "if the
+ * payload is valid", which this function can't tell; it is a plain failure
+ * (no retry, nothing deleted). Checked live with validate_only (C3 Fix A):
+ * an unknown or malformed FID is answered 404 UNREGISTERED. */
 export async function classify(res: Response): Promise<SendOutcome> {
   if (res.ok) return { kind: "sent" };
   let status = "";
