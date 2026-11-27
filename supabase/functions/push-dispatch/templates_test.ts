@@ -6,7 +6,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { GENERIC, render } from "./templates.ts";
 
 /** The database's types now: the LAST notifications_type_check across the
- * migrations (25, then 28 …). */
+ * migrations (25, then 28, 33 …). */
 function migrationTypes(): string[] {
   const dir = new URL("../../migrations/", import.meta.url);
   let list = "";
@@ -31,9 +31,9 @@ const full = {
   title: "Nets on Friday",
 };
 
-test("every database type (migrations 25 and 28) has its own text, in both inboxes", () => {
+test("every database type (migrations 25, 28, 33 and 35) has its own text, in both inboxes", () => {
   const types = migrationTypes();
-  assert.equal(types.length, 26);
+  assert.equal(types.length, 34);
   for (const type of types) {
     for (const inbox of ["player", "club_owner"] as const) {
       const t = render({ type, inbox, params: full });
@@ -107,4 +107,60 @@ test("the reminders (migration 28)", () => {
     /^Answer by Tue 12:30 pm, 1 Dec · T20 · 2 Dec · Note Ground$/i);
   assert.match(render({ type: "ownership_expiring", inbox: "player", params: expires }).body,
     /^Ali Khan offered you Note Lions · Answer by Tue 12:30 pm, 1 Dec$/i);
+});
+
+test("Player Hunt (migration 33)", () => {
+  const hunt = { ...full, hunt_role: "wicket_keeper", format: "t20", match_date: "2026-12-02" };
+  assert.deepEqual(render({ type: "hunt_invite_received", inbox: "player", params: hunt }), {
+    title: "Playing invite from Note Lions",
+    body: "Wicket-Keeper · T20 · 2 Dec",
+  });
+  assert.deepEqual(render({ type: "hunt_invite_received", inbox: "player", params: { club_name: "Note Lions" } }), {
+    title: "Playing invite from Note Lions",
+    body: "Open Playing Opportunities to answer",
+  });
+  assert.deepEqual(render({ type: "hunt_interest_received", inbox: "club_owner", params: hunt }), {
+    title: "Ali Khan is interested in playing",
+    body: "Wicket-Keeper · T20 · 2 Dec",
+  });
+  assert.equal(
+    render({ type: "hunt_interest_received", inbox: "club_owner", params: { person_deleted: true, club_name: "X" } })
+      .title,
+    "Deleted player is interested in playing",
+  );
+  assert.deepEqual(render({ type: "hunt_invite_accepted", inbox: "club_owner", params: hunt }), {
+    title: "Ali Khan accepted your invite",
+    body: "Note Lions · See Player Hunt",
+  });
+});
+
+test("Tournaments (migration 35)", () => {
+  const entry = { tournament_name: "Spring Cup", applicant_name: "Note Kings", organizer_name: "Note Lions",
+                  team_name: "Kings XI", start_date: "2026-12-02", round_name: "Semifinal" };
+  assert.deepEqual(render({ type: "tournament_registration_received", inbox: "club_owner", params: entry }), {
+    title: "Tournament entry from Note Kings",
+    body: "Spring Cup · Kings XI",
+  });
+  assert.deepEqual(render({ type: "tournament_registration_received", inbox: "club_owner", params: {} }), {
+    title: "Tournament entry from a club",
+    body: "Open Team Requests to answer",
+  });
+  assert.deepEqual(render({ type: "tournament_registration_approved", inbox: "club_owner", params: entry }), {
+    title: "Tournament entry approved",
+    body: "Spring Cup · Kings XI",
+  });
+  assert.deepEqual(render({ type: "tournament_registration_rejected", inbox: "club_owner", params: entry }), {
+    title: "Tournament entry not accepted",
+    body: "Spring Cup · Kings XI",
+  });
+  assert.deepEqual(render({ type: "tournament_team_removed", inbox: "club_owner", params: entry }), {
+    title: "Team removed from tournament",
+    body: "Spring Cup · Kings XI",
+  });
+  assert.deepEqual(render({ type: "tournament_fixtures_published", inbox: "club_owner", params: entry }), {
+    title: "Tournament fixtures published",
+    body: "Spring Cup · Semifinal · Starts 2 Dec",
+  });
+  assert.equal(render({ type: "tournament_fixtures_published", inbox: "club_owner", params: {} }).body,
+    "See the tournament's fixtures");
 });

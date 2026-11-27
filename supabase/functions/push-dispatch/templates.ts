@@ -107,6 +107,27 @@ function role(code: string | null): string {
   }
 }
 
+/** A Player Hunt role code (migration 33) as the app labels it. */
+function huntRole(code: string | null): string | null {
+  switch (code) {
+    case "batsman":
+      return "Batsman";
+    case "bowler":
+      return "Bowler";
+    case "all_rounder":
+      return "All-Rounder";
+    case "wicket_keeper":
+      return "Wicket-Keeper";
+    default:
+      return null;
+  }
+}
+
+/** The player named in a Player Hunt notification ("A player" when missing). */
+function huntPerson(p: Record<string, unknown>): string {
+  return p["person_deleted"] === true ? DELETED_PERSON : (text(p, "person_name") ?? "A player");
+}
+
 /** The push's title and line for [row]. */
 export function render(row: Pick<PushRow, "type" | "params" | "inbox">): PushText {
   const p = row.params ?? {};
@@ -202,6 +223,49 @@ export function render(row: Pick<PushRow, "type" | "params" | "inbox">): PushTex
         title: "Ownership offer expires soon",
         body: join([`${person} offered you ${club}`, answerBy(p)]),
       };
+    // Player Hunt (migration 33, M8).
+    case "hunt_invite_received":
+      return {
+        title: `Playing invite from ${text(p, "club_name") ?? "a club"}`,
+        body: join([huntRole(text(p, "hunt_role")), format(p), calendarDate(p, "match_date")]) ||
+          "Open Playing Opportunities to answer",
+      };
+    case "hunt_interest_received":
+      return {
+        title: `${huntPerson(p)} is interested in playing`,
+        body: join([huntRole(text(p, "hunt_role")), format(p), calendarDate(p, "match_date")]) || club,
+      };
+    case "hunt_invite_accepted":
+      return { title: `${huntPerson(p)} accepted your invite`, body: join([club, "See Player Hunt"]) };
+    // Tournaments (migration 35, M10): all in the club owner's inbox.
+    case "tournament_registration_received":
+      return {
+        title: `Tournament entry from ${text(p, "applicant_name") ?? "a club"}`,
+        body: join([text(p, "tournament_name"), text(p, "team_name")]) || "Open Team Requests to answer",
+      };
+    case "tournament_registration_approved":
+      return {
+        title: "Tournament entry approved",
+        body: join([text(p, "tournament_name"), text(p, "team_name")]) || "See My Registrations",
+      };
+    case "tournament_registration_rejected":
+      return {
+        title: "Tournament entry not accepted",
+        body: join([text(p, "tournament_name"), text(p, "team_name")]) || "See My Registrations",
+      };
+    case "tournament_team_removed":
+      return {
+        title: "Team removed from tournament",
+        body: join([text(p, "tournament_name"), text(p, "team_name")]) || "See My Registrations",
+      };
+    case "tournament_fixtures_published": {
+      const starts = calendarDate(p, "start_date");
+      return {
+        title: "Tournament fixtures published",
+        body: join([text(p, "tournament_name"), text(p, "round_name"), starts === null ? null : `Starts ${starts}`]) ||
+          "See the tournament's fixtures",
+      };
+    }
     default:
       return GENERIC;
   }

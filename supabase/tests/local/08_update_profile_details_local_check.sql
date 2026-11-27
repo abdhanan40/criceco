@@ -268,24 +268,29 @@ begin
   raise notice 'PASSED: L4a a legacy phone spelling is kept as stored by a name-only save';
 end $$;
 
+-- Migration 30: a stored phone is always a valid Pakistani mobile, and a
+-- COMPLETED profile can't lose its phone. The seeds below are therefore valid
+-- numbers in other spellings, and the profile is un-completed here so the
+-- clear paths of update_profile_details stay tested (it never reads
+-- profile_completed).
 reset role;
-update public.profiles set phone = '+15551234567' where id = (select v::uuid from s436.ids where k = 'user');
+update public.profiles set phone = '03005551234', profile_completed = false where id = (select v::uuid from s436.ids where k = 'user');
 set local role authenticated;
 do $$
 declare
   dob date := date '2000-05-01';
   n bigint := s436.writes();
 begin
-  -- A stored number the rule refuses doesn't block a name-only save (also
+  -- A stored number in another spelling doesn't block a name-only save (also
   -- sent in another spelling of the same digits).
-  perform public.update_profile_details('Legacy Two', '+15551234567', dob, 'Karachi', null, 'Clifton', 'House 1',
+  perform public.update_profile_details('Legacy Two', '03005551234', dob, 'Karachi', null, 'Clifton', 'House 1',
                                         'Lahore', null, 'Civil Lines', 'Street 9');
-  perform public.update_profile_details('Legacy Two', '+1 555-123-4567', dob, 'Karachi', null, 'Clifton', 'House 1',
+  perform public.update_profile_details('Legacy Two', '0300-555 1234', dob, 'Karachi', null, 'Clifton', 'House 1',
                                         'Lahore', null, 'Civil Lines', 'Street 9');
   if (select (full_name, phone) from public.profiles where id = auth.uid())::text
-       is distinct from row('Legacy Two', '+15551234567')::text
+       is distinct from row('Legacy Two', '03005551234')::text
      or s436.writes() - n <> 1 then
-    raise exception 'FAIL: a stored non-Pakistani phone blocked or changed a name-only save';
+    raise exception 'FAIL: a stored phone in another spelling blocked or changed a name-only save';
   end if;
   -- Changing it to another invalid number is still refused (nothing written);
   -- clearing it is allowed; a valid number is stored canonically.
@@ -310,7 +315,7 @@ begin
   if (select phone from public.profiles where id = auth.uid()) <> '+923339876543' then
     raise exception 'FAIL: a new phone must be stored as +923XXXXXXXXX';
   end if;
-  raise notice 'PASSED: L4b a stored invalid phone neither blocks nor is changed by a name-only save; new values still checked';
+  raise notice 'PASSED: L4b a stored phone spelling neither blocks nor is changed by a name-only save; new values still checked';
 end $$;
 
 -- L4c (F2, F12): stored values with no digits — dashes only ("---"), or
@@ -318,72 +323,76 @@ end $$;
 -- block a name-only save nor are rewritten; an explicit clear (NULL or a
 -- blank that differs) clears them to NULL.
 reset role;
-update public.profiles set phone = '---' where id = (select v::uuid from s436.ids where k = 'user');
+-- (Migration 30: such values can no longer be stored; the seeds are valid
+-- numbers and the same paths — sent back unchanged, NULL / blank clear — run.)
+update public.profiles set phone = '03011112223' where id = (select v::uuid from s436.ids where k = 'user');
 set local role authenticated;
 do $$
 declare
   dob date := date '2000-05-01';
   n bigint := s436.writes();
 begin
-  perform public.update_profile_details('Junk One', '---', dob, 'Karachi', null, 'Clifton', 'House 1',
+  perform public.update_profile_details('Junk One', '03011112223', dob, 'Karachi', null, 'Clifton', 'House 1',
                                         'Lahore', null, 'Civil Lines', 'Street 9');
   if (select (full_name, phone) from public.profiles where id = auth.uid())::text
-       is distinct from row('Junk One', '---')::text or s436.writes() - n <> 1 then
-    raise exception 'FAIL: L4c a stored "---" sent back blocked or changed a name-only save';
+       is distinct from row('Junk One', '03011112223')::text or s436.writes() - n <> 1 then
+    raise exception 'FAIL: L4c a stored 03… phone sent back blocked or changed a name-only save';
   end if;
   perform public.update_profile_details('Junk One', null, dob, 'Karachi', null, 'Clifton', 'House 1',
                                         'Lahore', null, 'Civil Lines', 'Street 9');
   if (select phone from public.profiles where id = auth.uid()) is not null then
-    raise exception 'FAIL: L4c a stored "---" must be clearable';
+    raise exception 'FAIL: L4c a stored 03… phone must be clearable';
   end if;
 end $$;
 reset role;
-update public.profiles set phone = '   ' where id = (select v::uuid from s436.ids where k = 'user');
+update public.profiles set phone = '+923021112223' where id = (select v::uuid from s436.ids where k = 'user');
 set local role authenticated;
 do $$
 declare
   dob date := date '2000-05-01';
   n bigint := s436.writes();
 begin
-  perform public.update_profile_details('Junk Two', '   ', dob, 'Karachi', null, 'Clifton', 'House 1',
+  perform public.update_profile_details('Junk Two', '+923021112223', dob, 'Karachi', null, 'Clifton', 'House 1',
                                         'Lahore', null, 'Civil Lines', 'Street 9');
   if (select (full_name, phone) from public.profiles where id = auth.uid())::text
-       is distinct from row('Junk Two', '   ')::text or s436.writes() - n <> 1 then
-    raise exception 'FAIL: L4c a stored blank phone sent back must stay as it is';
+       is distinct from row('Junk Two', '+923021112223')::text or s436.writes() - n <> 1 then
+    raise exception 'FAIL: L4c a stored +923… phone sent back must stay as it is';
   end if;
   perform public.update_profile_details('Junk Two', '', dob, 'Karachi', null, 'Clifton', 'House 1',
                                         'Lahore', null, 'Civil Lines', 'Street 9');
   if (select phone from public.profiles where id = auth.uid()) is not null then
-    raise exception 'FAIL: L4c an empty phone must clear a stored blank one';
+    raise exception 'FAIL: L4c an empty phone must clear a stored one';
   end if;
-  raise notice 'PASSED: L4c stored "---" / blank phones: kept when sent back, cleared on request';
+  raise notice 'PASSED: L4c stored 03… / +923… phones: kept when sent back, cleared by NULL or a blank';
 end $$;
 
 -- L4d (finding 2): values without digits are compared with all whitespace
 -- removed, on both sides: a stored "- -" sent back as "--" (or as stored)
 -- is no change; a different digit-less value is still refused.
 reset role;
-update public.profiles set phone = '- -' where id = (select v::uuid from s436.ids where k = 'user');
+-- (Migration 30: a digit-less value can no longer be stored; the seed is a
+-- valid number with a space, sent back without it, as stored and with a tab.)
+update public.profiles set phone = '0303 1112223' where id = (select v::uuid from s436.ids where k = 'user');
 set local role authenticated;
 do $$
 declare
   dob date := date '2000-05-01';
   n bigint := s436.writes();
 begin
-  perform public.update_profile_details('Dash One', '--', dob, 'Karachi', null, 'Clifton', 'House 1',
+  perform public.update_profile_details('Dash One', '03031112223', dob, 'Karachi', null, 'Clifton', 'House 1',
                                         'Lahore', null, 'Civil Lines', 'Street 9');
-  perform public.update_profile_details('Dash One', '- -', dob, 'Karachi', null, 'Clifton', 'House 1',
+  perform public.update_profile_details('Dash One', '0303 1112223', dob, 'Karachi', null, 'Clifton', 'House 1',
                                         'Lahore', null, 'Civil Lines', 'Street 9');
-  perform public.update_profile_details('Dash One', E'-\t-', dob, 'Karachi', null, 'Clifton', 'House 1',
+  perform public.update_profile_details('Dash One', E'0303\t1112223', dob, 'Karachi', null, 'Clifton', 'House 1',
                                         'Lahore', null, 'Civil Lines', 'Street 9');
   if (select (full_name, phone) from public.profiles where id = auth.uid())::text
-       is distinct from row('Dash One', '- -')::text or s436.writes() - n <> 1 then
-    raise exception 'FAIL: L4d "- -" sent back as "--" (or as stored) must be no change';
+       is distinct from row('Dash One', '0303 1112223')::text or s436.writes() - n <> 1 then
+    raise exception 'FAIL: L4d "0303 1112223" sent back without the space (or as stored, or with a tab) must be no change';
   end if;
   perform s436.refused_before_writing(format('select public.update_profile_details(%L, %L, %L::date, %L, null, %L, %L, %L, null, %L, %L)',
     'Dash Two', '---', dob, 'Karachi', 'Clifton', 'House 1', 'Lahore', 'Civil Lines', 'Street 9'),
     'phone must be a Pakistani mobile number');
-  raise notice 'PASSED: L4d digit-less phones compared without whitespace ("- -" = "--"); another digit-less value refused';
+  raise notice 'PASSED: L4d phones compared without whitespace; a digit-less value refused';
 end $$;
 
 -- L5: a signed-in user without a profile row (m3) → "profile not found", nothing written.
