@@ -54,6 +54,7 @@ class _BrowseTournamentsScreenState extends ConsumerState<BrowseTournamentsScree
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(tournamentsSyncProvider('browse'));
     final loading = ref.watch(tournamentsProvider).isLoading;
     final cities = ref.watch(browseCitiesProvider);
     final city = widget.city ?? ref.watch(browseCityProvider);
@@ -129,7 +130,7 @@ class TournamentBrowseCard extends ConsumerWidget {
           ('Type', t.type.label),
           ('Prize Pool', rupeesOrDash(t.prize)),
           ('Entry Fee', rupeesOrDash(t.entryFee)),
-          ('Registered Teams', '${t.joined.length} / ${t.maxTeams} Teams'),
+          ('Registered Teams', '${t.joinedCount} / ${t.maxTeams} Teams'),
           ('Reg. Deadline', CeFormat.date(t.registrationDeadline)),
         ]),
         const SizedBox(height: 12),
@@ -190,7 +191,7 @@ class TournamentRegisterScreen extends ConsumerWidget {
             ('Prize Pool', CeSummaryCard.value(context, rupeesOrDash(t.prize))),
             ('Entry Fee', CeSummaryCard.value(context, rupeesOrDash(t.entryFee))),
             ('Maximum Teams', CeSummaryCard.value(context, '${t.maxTeams}')),
-            ('Registered Teams', CeSummaryCard.value(context, '${t.joined.length}/${t.maxTeams}')),
+            ('Registered Teams', CeSummaryCard.value(context, '${t.joinedCount}/${t.maxTeams}')),
             ('Available Slots', CeSummaryCard.value(context, '${t.availableSlots}')),
             ('Registration Deadline', CeSummaryCard.value(context, CeFormat.date(t.registrationDeadline))),
             ('Start Date', CeSummaryCard.value(context, CeFormat.date(t.startDate))),

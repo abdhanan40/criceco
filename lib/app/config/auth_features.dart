@@ -14,8 +14,9 @@ const bool kGoogleSignInBuild = bool.fromEnvironment('CRICECO_GOOGLE_SIGN_IN');
 /// instead of the backend mode.
 ///
 /// Memory mode (the demo) keeps everything it has today. Supabase mode signs
-/// in with email and password; phone sign-in and password change are not
-/// configured there (D13), so they are hidden rather than shown and failing.
+/// in with email and password; phone sign-in is not configured there (D13),
+/// so it is hidden rather than shown and failing. Password change (M6) works
+/// there too: the current password is re-checked by signing in again.
 /// Its password reset (AUTH-04) needs the recovery email, so it follows the
 /// email-codes switch; Google (AUTH-05) has its own switch, for a project
 /// whose Google provider is set up.
@@ -38,14 +39,14 @@ class AuthFeatures {
       passwordReset = true,
       passwordChange = true;
 
-  /// Supabase mode: email and password; reset with the email-codes switch,
-  /// Google with its own.
+  /// Supabase mode: email and password (and changing it, M6); reset with the
+  /// email-codes switch, Google with its own.
   const AuthFeatures.emailOnly({
     this.emailCodes = false,
     this.googleSignIn = false,
   }) : phoneSignIn = false,
        passwordReset = emailCodes,
-       passwordChange = false;
+       passwordChange = true;
 
   factory AuthFeatures.of(
     BackendConfig config, {

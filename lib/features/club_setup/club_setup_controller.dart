@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/session/role_controller.dart';
 import '../../app/session/session_controller.dart';
 import '../../core/models/models.dart';
+import '../../data/repositories/repositories.dart' show AccountException;
 
 /// Club Setup Details answers (one screen), kept across Back.
 class ClubSetupDraft {
@@ -83,7 +84,12 @@ class ClubSetupController extends Notifier<ClubSetupDraft> {
         );
     // The chosen picture is stored on the club the same way My Club does it.
     if (d.logoPath != null) {
-      await ref.read(sessionProvider.notifier).updateClub((c) => c.withLogo(d.logoPath));
+      try {
+        await ref.read(sessionProvider.notifier).updateClub((c) => c.withLogo(d.logoPath));
+      } on AccountException {
+        // M5: the club exists; a picture the server refused (or offline)
+        // can be added again from My Club.
+      }
     }
     final saved = ref.read(currentClubProvider) ?? club;
     ref.read(roleControllerProvider.notifier).becomeClubOwner();

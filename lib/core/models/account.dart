@@ -222,12 +222,16 @@ class ClubMembership {
     required this.clubName,
     required this.clubCode,
     required this.role,
+    this.clubLogoPath,
   });
 
   final String clubId;
   final String clubName;
   final String clubCode;
   final MemberRole role;
+
+  /// The club's picture (a stored picture, M5); `null` = the default badge.
+  final String? clubLogoPath;
 }
 
 /// Outgoing request from this account to join a club by code.

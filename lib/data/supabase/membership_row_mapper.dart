@@ -1,4 +1,5 @@
 import '../../core/models/models.dart';
+import '../../core/utils/media_ref.dart';
 import 'profile_row_mapper.dart';
 
 /// Pure conversions between the membership and team functions' rows
@@ -43,7 +44,11 @@ abstract final class MembershipRowMapper {
 
   /// A `club_member_list` row → [ClubMember]. Its [ClubMember.poolPlayerId]
   /// is the member id: one person, one id in Members, squads and teams.
-  static ClubMember memberFromRow(Map<String, dynamic> row) {
+  ///
+  /// [media] (the profile-media switch): the row's `avatar_path`
+  /// (migration 31) is the member's picture; without it the column is
+  /// ignored (initials, as before).
+  static ClubMember memberFromRow(Map<String, dynamic> row, {bool media = false}) {
     final id = _text(row['member_id']);
     final role = _playerRole(row['player_role']);
     return ClubMember(
@@ -57,6 +62,7 @@ abstract final class MembershipRowMapper {
       bowlingStyle: _bowling(row['bowling_style']),
       poolPlayerId: role == null ? null : id,
       joinedAt: _time(row['joined_at']),
+      photoPath: media ? _stored(MediaRef.avatarsBucket, row['avatar_path']) : null,
     );
   }
 
@@ -97,27 +103,31 @@ abstract final class MembershipRowMapper {
 
   /// A `club_join_requests` row → [JoinRequest]. No match history is stored
   /// yet, so [JoinRequest.performance] stays `null` (never made up). A
-  /// request from someone without a player profile shows the Batsman /
-  /// right-handed defaults the model requires — flagged by [hasPlayerProfile].
-  static JoinRequest joinRequestFromRow(Map<String, dynamic> row, {required DateTime now}) {
+  /// request from someone without a player profile has no role, batting or
+  /// bowling style (`null`: "Not set"), and an unknown age is `null`.
+  static JoinRequest joinRequestFromRow(Map<String, dynamic> row, {required DateTime now, bool media = false}) {
     final role = _playerRole(row['player_role']);
     return JoinRequest(
       id: _text(row['request_id']),
       name: _text(row['full_name']),
       // The database returns the age only — never the date of birth.
-      age: (row['applicant_age'] as num?)?.toInt() ?? 0,
+      age: (row['applicant_age'] as num?)?.toInt(),
       city: _text(row['city']),
-      battingStyle: _batting(row['batting_style']) ?? BattingStyle.rightHanded,
-      bowlingStyle: _bowling(row['bowling_style']) ?? BowlingStyle.rightArmMedium,
-      role: role ?? PlayerRole.batsman,
+      battingStyle: _batting(row['batting_style']),
+      bowlingStyle: _bowling(row['bowling_style']),
+      role: role,
       phone: displayPhone(row['phone']),
       appliedLabel: appliedLabel(_time(row['created_at']), now),
       review: _review(row['status']),
       assignedRole: row['assigned_role'] == null ? null : memberRoleFromCode(row['assigned_role'] as String?),
       decidedAt: _time(row['decided_at']),
       declineReason: row['decline_reason'] as String?,
+      photoPath: media ? _stored(MediaRef.avatarsBucket, row['avatar_path']) : null,
     );
   }
+
+  /// A stored picture from a picture column (`null` / blank / missing: none).
+  static String? _stored(String bucket, Object? path) => path is String ? MediaRef.of(bucket, path) : null;
 
   /// A `lookup_club_by_code` row → [ClubCodePreview] (the code is the one the
   /// person typed; the database never returns it).
@@ -147,11 +157,13 @@ abstract final class MembershipRowMapper {
       );
 
   /// A `my_club_memberships` row → [ClubMembership].
-  static ClubMembership membershipFromRow(Map<String, dynamic> row) => ClubMembership(
+  /// With [media], the club's picture (`club_logo_path`, migration 31).
+  static ClubMembership membershipFromRow(Map<String, dynamic> row, {bool media = false}) => ClubMembership(
         clubId: _text(row['club_id']),
         clubName: _text(row['club_name']),
         clubCode: _text(row['club_code']),
         role: memberRoleFromCode(row['member_role'] as String?),
+        clubLogoPath: media ? _stored(MediaRef.clubLogosBucket, row['club_logo_path']) : null,
       );
 
   // ---- Teams (migration 12) ----
@@ -190,6 +202,8 @@ abstract final class MembershipRowMapper {
       viceCaptainId: row['vice_captain_member_id'] as String?,
       status: row['status'] == 'archived' ? TeamStatus.archived : TeamStatus.active,
       createdAt: _time(row['created_at']) ?? DateTime.now(),
+      // Optimistic concurrency (M4): `null` from a server without it.
+      version: (row['version'] as num?)?.toInt(),
       members: [
         for (final p in players)
           TeamMember(
@@ -201,7 +215,11 @@ abstract final class MembershipRowMapper {
   }
 
   /// `save_team(...)` parameters for [team] (details, leaders, whole squad).
+  /// With the team's [Team.version] as `p_expected_version`: the database
+  /// refuses the save if the team changed since that copy was read (M4).
+  /// No version known (a server without it): the parameter isn't sent.
   static Map<String, Object?> saveParams(Team team) => {
+        'p_expected_version': ?team.version,
         'p_team_id': team.id,
         'p_name': team.name,
         'p_format': formatCode(team.format),

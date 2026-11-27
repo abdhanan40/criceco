@@ -12,6 +12,9 @@ import 'supabase_gateways.dart';
 ///   the owner, the squad limits (11 + 4), that every player is an active
 ///   member of the club, and that captain / vice-captain are two different
 ///   squad players — the app's own checks are a convenience, not the rule.
+///   A save carries the team's version (`p_expected_version`, M4): a team
+///   changed elsewhere since it was read is refused, as
+///   [TeamChangedElsewhereException].
 /// - [archive] → `archive_team()`: "Delete team" keeps the row (see
 ///   docs/TEAM_SQUAD_IMPLEMENTATION.md).
 class SupabaseTeamRepository implements TeamRepository {

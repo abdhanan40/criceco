@@ -1,5 +1,6 @@
 import '../../core/models/models.dart';
 import '../repositories/repositories.dart';
+import 'discovery_row_mapper.dart';
 import 'match_row_mapper.dart';
 import 'supabase_gateways.dart';
 import 'supabase_match_repository.dart';
@@ -14,12 +15,22 @@ import 'supabase_match_repository.dart';
 ///   transaction and returns its id ([Challenge.matchId]). Nothing here
 ///   creates a match.
 /// - Shared availability slots and match seekers (Find Opponent listings)
-///   have no server side yet (decision 7): empty, never invented.
+///   come from migration 32 with [discovery] (the discovery switch):
+///   `post_match_slot` / `withdraw_match_slot` / `my_club_slots` (owner
+///   only) and `open_match_slots` (other clubs' open slots). Without it they
+///   are empty, never invented.
 class SupabaseChallengeRepository implements ChallengeRepository {
-  SupabaseChallengeRepository({required this.db, required this.ownClub});
+  SupabaseChallengeRepository({
+    required this.db,
+    required this.ownClub,
+    this.discovery,
+  });
 
   final MatchGateway db;
   final OwnClubLookup ownClub;
+
+  /// Migration 32's slot functions; `null` without the discovery switch.
+  final DiscoveryGateway? discovery;
 
   @override
   Future<List<Challenge>> challenges() => guardMatchCall(() async {
@@ -41,8 +52,20 @@ class SupabaseChallengeRepository implements ChallengeRepository {
     ];
   });
 
+  /// Other clubs' open slots, soonest first (owners only: none for anyone
+  /// else).
   @override
-  Future<List<MatchSeekerListing>> matchSeekers() async => const [];
+  Future<List<MatchSeekerListing>> matchSeekers() async {
+    final gateway = discovery;
+    if (gateway == null) return const [];
+    return guardMatchCall(() async {
+      if (await ownClub.clubId() == null) return const <MatchSeekerListing>[];
+      return [
+        for (final r in await gateway.openMatchSlots(const {'p_limit': 100}))
+          DiscoveryRowMapper.seeker(r),
+      ];
+    });
+  }
 
   @override
   Future<Challenge> send({
@@ -102,13 +125,42 @@ class SupabaseChallengeRepository implements ChallengeRepository {
         return MatchRowMapper.challengeFromTableRow(row, ownClubId: clubId);
       });
 
+  /// The own club's open slots that haven't started ("Your Open Slot").
   @override
-  Future<List<AvailabilitySlot>> availabilitySlots() async => const [];
+  Future<List<AvailabilitySlot>> availabilitySlots() async {
+    final gateway = discovery;
+    if (gateway == null) return const [];
+    return guardMatchCall(() async {
+      final clubId = await ownClub.clubId();
+      if (clubId == null) return const <AvailabilitySlot>[];
+      return [
+        for (final r in await gateway.myClubSlots(clubId))
+          DiscoveryRowMapper.slot(r),
+      ];
+    });
+  }
+
+  /// Posts [slot] for the owner's club: the server checks the owner, the
+  /// date (from tomorrow, Pakistan time), the times, overlaps with the
+  /// club's own open slots and the 10-open cap ([MatchRuleException]).
+  @override
+  Future<AvailabilitySlot> postAvailabilitySlot(AvailabilitySlot slot) async {
+    final gateway = discovery;
+    if (gateway == null) throw const ModuleUnavailableException();
+    return guardMatchCall(() async {
+      final clubId = await ownClub.requireClubId();
+      return DiscoveryRowMapper.slot(
+        await gateway.postMatchSlot(
+          DiscoveryRowMapper.postParams(clubId, slot),
+        ),
+      );
+    });
+  }
 
   @override
-  Future<AvailabilitySlot> postAvailabilitySlot(AvailabilitySlot slot) async =>
-      throw const ModuleUnavailableException();
-
-  @override
-  Future<void> removeAvailabilitySlot(String slotId) async {}
+  Future<void> removeAvailabilitySlot(String slotId) async {
+    final gateway = discovery;
+    if (gateway == null) return;
+    await guardMatchCall(() => gateway.withdrawMatchSlot(slotId));
+  }
 }

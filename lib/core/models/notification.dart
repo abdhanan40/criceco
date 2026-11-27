@@ -21,6 +21,12 @@ class AvailabilityTarget extends NotificationTarget {
   const AvailabilityTarget();
 }
 
+/// Playing Opportunities: clubs' requirements and my Player Hunt invites
+/// (M8: `hunt_invite_received`).
+class PlayingOpportunitiesTarget extends NotificationTarget {
+  const PlayingOpportunitiesTarget();
+}
+
 /// The club ownership offers made to me (M3: `ownership_offered`).
 class OwnershipOffersTarget extends NotificationTarget {
   const OwnershipOffersTarget();
@@ -36,6 +42,13 @@ class PlayerScorecardTarget extends NotificationTarget {
 class JoinRequestTarget extends NotificationTarget {
   const JoinRequestTarget(this.requestId);
   final String requestId;
+}
+
+/// Find Player (M8): my posts and the interested players, or Available
+/// Players with the accepted invites ([availablePlayers]).
+class PlayerHuntTarget extends NotificationTarget {
+  const PlayerHuntTarget({this.availablePlayers = false});
+  final bool availablePlayers;
 }
 
 class MyChallengesTarget extends NotificationTarget {

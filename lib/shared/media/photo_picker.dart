@@ -5,9 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../app/config/profile_media.dart';
 import '../../app/theme/tokens.dart';
+import '../../core/utils/media_ref.dart';
 import '../widgets/ce_feedback.dart';
 import '../widgets/ce_icons.dart';
+import 'media_urls.dart';
 
 enum PhotoSource { gallery, camera }
 
@@ -26,10 +29,12 @@ class PhotoRejected implements Exception {
 }
 
 class DevicePhotoPicker implements PhotoPicker {
-  const DevicePhotoPicker();
+  const DevicePhotoPicker({this.maxBytes = MediaRef.maxLocalBytes});
 
-  /// Largest picture accepted (after the picker's own down-scaling).
-  static const maxBytes = 10 * 1024 * 1024;
+  /// Largest picture accepted (after the picker's own down-scaling): 10 MB
+  /// on this device only, 2 MB when it is uploaded (M5, the buckets' limit)
+  /// — refused here, before any upload.
+  final int maxBytes;
 
   @override
   Future<String?> pick(PhotoSource source) async {
@@ -43,12 +48,14 @@ class DevicePhotoPicker implements PhotoPicker {
     // An empty or oversized file (e.g. a corrupt pick) is rejected.
     final bytes = await file.length();
     if (bytes == 0) throw const PhotoRejected("That picture couldn't be read. Try another one.");
-    if (bytes > maxBytes) throw const PhotoRejected('That picture is too large. Choose one under 10 MB.');
+    if (bytes > maxBytes) {
+      throw PhotoRejected('That picture is too large. Choose one under ${maxBytes ~/ (1024 * 1024)} MB.');
+    }
     return file.path;
   }
 }
 
-final photoPickerProvider = Provider<PhotoPicker>((ref) => const DevicePhotoPicker());
+final photoPickerProvider = Provider<PhotoPicker>((ref) => DevicePhotoPicker(maxBytes: ref.watch(photoMaxBytesProvider)));
 
 /// Outcome of [choosePhoto]: a new picture ([path]) or removal (`null`).
 class PhotoChange {
@@ -106,7 +113,8 @@ Future<PhotoChange?> choosePhoto(
 }
 
 /// A picked picture clipped to a circle (or rounded square), falling back
-/// to [fallback] when there is no picture or the file can't be read.
+/// to [fallback] when there is no picture or the file can't be read. A
+/// stored picture ([MediaRef], M5) is shown through its signed URL.
 class CePhotoImage extends StatelessWidget {
   const CePhotoImage({
     super.key,
@@ -125,9 +133,16 @@ class CePhotoImage extends StatelessWidget {
   final bool square;
   final double radius;
 
+  Widget _clip(Widget image) =>
+      square ? ClipRRect(borderRadius: BorderRadius.circular(radius), child: image) : ClipOval(child: image);
+
   @override
   Widget build(BuildContext context) {
     if (path == null) return fallback;
+    // M5: a picture kept on the server, through its signed URL.
+    if (MediaRef.isStored(path)) {
+      return StoredPhotoImage(key: ValueKey(path), mediaRef: path!, size: size, fallback: fallback, clip: _clip);
+    }
     final image = Image.file(
       File(path!),
       key: ValueKey(path),
@@ -137,9 +152,7 @@ class CePhotoImage extends StatelessWidget {
       gaplessPlayback: true,
       errorBuilder: (_, _, _) => fallback,
     );
-    return square
-        ? ClipRRect(borderRadius: BorderRadius.circular(radius), child: image)
-        : ClipOval(child: image);
+    return _clip(image);
   }
 }
 

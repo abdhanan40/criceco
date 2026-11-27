@@ -689,6 +689,28 @@ void main() {
       expect(c.read(pushControllerProvider).failure, isNull);
     });
 
+    // Migration 30: register_push_device refuses a phone moved between
+    // accounts too often (P0001) — the existing server failure, no crash.
+    test('too many device moves: shown as the server failure; "Try again" registers', () async {
+      final w = _World()
+        ..prefs = _on
+        ..messaging.current = PushPermission.granted;
+      w.db.failOn['register_push_device'] = const GatewayConstraintException(
+        sqlState: 'P0001',
+        message: 'push: too many device moves',
+      );
+      final c = await w.container();
+      c.listen(pushControllerProvider, (_, _) {});
+      await _settle();
+      expect(c.read(pushControllerProvider).failure, PushFailure.server);
+      expect(c.read(pushControllerProvider).enabled, isTrue);
+      expect(w.db.devices, isEmpty);
+      w.db.failOn.clear();
+      await c.read(pushControllerProvider.notifier).retry();
+      expect(w.db.devices, {_fid});
+      expect(c.read(pushControllerProvider).failure, isNull);
+    });
+
     test('"Push on this device" off: removed at CricEco and at FCM', () async {
       final w = _World()
         ..prefs = _on

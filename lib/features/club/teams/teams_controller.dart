@@ -92,7 +92,7 @@ class TeamsController extends AsyncNotifier<List<Team>> {
     state = AsyncData([...existing, team]);
     if (members.isNotEmpty) {
       try {
-        _replace(await repo.save(team.copyWith(members: members)));
+        await _save(team.copyWith(members: members));
       } on AccountException catch (e) {
         throw TeamSquadNotSavedException(e.message);
       }
@@ -133,12 +133,12 @@ class TeamsController extends AsyncNotifier<List<Team>> {
     if (latest == null) throw const TeamRuleException('This team is no longer available');
     if (fresh.any((t) => t.id != teamId && _sameTeamName(t.name, trimmed))) return CreateTeamError.duplicateName;
 
-    _replace(await repo.save(latest.copyWith(
+    await _save(latest.copyWith(
       name: trimmed,
       format: newFormat,
       customOvers: overs,
       clearCustomOvers: overs == null,
-    )));
+    ));
     return null;
   }
 
@@ -148,12 +148,11 @@ class TeamsController extends AsyncNotifier<List<Team>> {
     // A captain or vice-captain who left the squad loses that role (the
     // database requires both to be squad players).
     final ids = {for (final m in members) m.playerId};
-    final saved = await ref.read(teamRepositoryProvider).save(team.copyWith(
-          members: members,
-          clearCaptain: team.captainId != null && !ids.contains(team.captainId),
-          clearViceCaptain: team.viceCaptainId != null && !ids.contains(team.viceCaptainId),
-        ));
-    _replace(saved);
+    await _save(team.copyWith(
+      members: members,
+      clearCaptain: team.captainId != null && !ids.contains(team.captainId),
+      clearViceCaptain: team.viceCaptainId != null && !ids.contains(team.viceCaptainId),
+    ));
   }
 
   /// Captain / vice-captain (Team Squad). Both optional, both squad players,
@@ -169,13 +168,12 @@ class TeamsController extends AsyncNotifier<List<Team>> {
     if (captainId != null && captainId == viceCaptainId) {
       throw const TeamRuleException('The captain and vice-captain must be different players');
     }
-    final saved = await ref.read(teamRepositoryProvider).save(team.copyWith(
-          captainId: captainId,
-          viceCaptainId: viceCaptainId,
-          clearCaptain: captainId == null,
-          clearViceCaptain: viceCaptainId == null,
-        ));
-    _replace(saved);
+    await _save(team.copyWith(
+      captainId: captainId,
+      viceCaptainId: viceCaptainId,
+      clearCaptain: captainId == null,
+      clearViceCaptain: viceCaptainId == null,
+    ));
   }
 
   /// "Delete team": archived (its name is free again). Gone from My Teams.
@@ -200,6 +198,26 @@ class TeamsController extends AsyncNotifier<List<Team>> {
             clearViceCaptain: team.viceCaptainId == playerId,
           ));
       _replace(saved);
+    }
+  }
+
+  /// Saves [team] (it carries the version it was read at) and lists the
+  /// saved copy. Changed elsewhere since (another device, M4): nothing was
+  /// written — the club's teams are reloaded so the latest copy shows, and
+  /// [TeamChangedElsewhereException] is rethrown; its message asks for the
+  /// change to be made again.
+  Future<void> _save(Team team) async {
+    final repo = ref.read(teamRepositoryProvider);
+    try {
+      _replace(await repo.save(team));
+    } on TeamChangedElsewhereException {
+      try {
+        final fresh = await repo.teams(ref.read(currentClubProvider)?.id ?? team.clubId);
+        if (ref.mounted) state = AsyncData(fresh);
+      } on AccountException {
+        // Not readable now: the next read shows the latest copy.
+      }
+      rethrow;
     }
   }
 

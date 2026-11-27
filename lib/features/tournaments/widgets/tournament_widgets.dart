@@ -103,9 +103,13 @@ class TournamentScaffold extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Server: the tournament's entries, draw and standings are read when
+    // the screen opens.
+    final detail = ref.watch(tournamentsLiveProvider) ? ref.watch(tournamentDetailProvider(tournamentId)) : null;
     final loading = ref.watch(tournamentsProvider).isLoading ||
         ref.watch(tournamentRegistrationsProvider).isLoading ||
-        ref.watch(clubDirectoryProvider).isLoading;
+        ref.watch(clubDirectoryProvider).isLoading ||
+        (detail != null && !detail.hasValue && !detail.hasError);
     final t = ref.watch(tournamentProvider(tournamentId));
     final ownClubId = ref.watch(currentClubProvider.select((c) => c?.id));
     final bar = CeTopBar(title: title, fallbackLocation: fallbackLocation, onBack: onBack, actions: actions);
@@ -255,7 +259,7 @@ class EntrantRow extends ConsumerWidget {
 
 /// Sub-line for a confirmed entrant: its city, then "Confirmed".
 String confirmedSubtitle(WidgetRef ref, TournamentEntrant e) {
-  final city = ref.watch(tournamentClubsProvider)[e.clubId]?.city;
+  final city = ref.watch(tournamentClubsProvider)[e.clubId]?.city ?? e.city;
   return [if (city != null && city.isNotEmpty) city, 'Confirmed'].join(' · ');
 }
 
@@ -332,7 +336,7 @@ class TournamentCardHeader extends ConsumerWidget {
 
 /// Organizer club name for a tournament.
 String organizerName(WidgetRef ref, Tournament t) =>
-    ref.watch(tournamentClubsProvider)[t.organizerClubId]?.name ?? 'Organizer';
+    t.organizerName ?? ref.watch(tournamentClubsProvider)[t.organizerClubId]?.name ?? 'Organizer';
 
 // ---------------------------------------------------------------------------
 // Fixtures, points table, winner
@@ -368,7 +372,8 @@ class _FixtureCardState extends ConsumerState<FixtureCard> {
     final t = widget.tournament;
     final f = widget.fixture;
     final m = f.match;
-    final demo = ref.watch(demoModeProvider);
+    // Demo only: on the server results are read-only.
+    final demo = ref.watch(demoModeProvider) && !ref.watch(tournamentsLiveProvider);
     final canSimulate = demo && m.ready && !m.completed;
     final title = '${entrantLabel(t, m.home)} vs ${entrantLabel(t, m.away)}';
     return Semantics(
@@ -469,7 +474,7 @@ class PointsTable extends ConsumerWidget {
       return const CeEmptyState(
           icon: 'bar-chart', title: 'No teams yet', body: 'Standings will appear once teams register');
     }
-    final demo = ref.watch(demoModeProvider);
+    final demo = ref.watch(demoModeProvider) && !ref.watch(tournamentsLiveProvider);
     const head = TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: CeColors.muted, letterSpacing: 0.3);
     const cell = TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: CeColors.ink);
     final ownClubId = ref.watch(currentClubProvider.select((c) => c?.id));
@@ -507,7 +512,7 @@ class PointsTable extends ConsumerWidget {
       Padding(
         padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 10, CeSpace.gutter, 0),
         child: Text(
-          t.fixtures == null
+          !t.hasFixtures
               ? 'Points table updates once fixtures are generated and results are recorded.'
               : demo
                   ? 'Tap a match in Fixtures to simulate a result and update standings.'
@@ -551,7 +556,7 @@ class WinnerBanner extends StatelessWidget {
 /// "Fixtures will be generated once N more team(s) join." or the
 /// organizer-side note.
 String fixturesPendingNote(Tournament t) {
-  final need = Tournament.minTeamsForFixtures - t.joined.length;
+  final need = Tournament.minTeamsForFixtures - t.joinedCount;
   return need > 0
       ? 'Fixtures will be generated once $need more team${need == 1 ? '' : 's'} join.'
       : 'The organizer has not published fixtures yet.';

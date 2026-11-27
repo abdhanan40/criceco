@@ -10,6 +10,7 @@ import '../../../app/theme/typography.dart';
 import '../../../core/constants/cities.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../data/repositories/repositories.dart' show AccountException;
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_calendar.dart';
 import '../../../shared/widgets/ce_feedback.dart';
@@ -99,9 +100,12 @@ class _CreateTournamentScreenState extends ConsumerState<CreateTournamentScreen>
     final Tournament t;
     try {
       t = await ref.read(tournamentsProvider.notifier).create(_input);
-    } catch (_) {
+    } catch (e) {
       if (mounted) setState(() => _saving = false);
-      if (mounted) showCeToast(context, "Couldn't publish the tournament — please try again");
+      // The server's reason when it refused (its checks are authoritative).
+      if (mounted) {
+        showCeToast(context, e is AccountException ? e.message : "Couldn't publish the tournament — please try again");
+      }
       return;
     }
     if (!mounted) return;

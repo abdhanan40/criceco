@@ -238,7 +238,7 @@ final List<RouteBase> appRoutes = [
               parentNavigatorKey: rootNavigatorKey,
               builder: (_, _) => const OwnershipOffersScreen(),
             ),
-            GoRoute(path: 'open-matches', builder: (_, _) => _gate(BackendModule.matches, 'Playing Opportunities', Routes.playerHome, const OpenMatchesScreen())),
+            GoRoute(path: 'open-matches', builder: (_, _) => _gate(BackendModule.playerHunt, 'Playing Opportunities', Routes.playerHome, const OpenMatchesScreen())),
             // My Profile with inline edit mode (`?edit=1`).
             GoRoute(
               path: 'profile',
@@ -522,7 +522,7 @@ Widget _gate(BackendModule module, String title, String? fallback, Widget screen
 GoRoute _full(String path, Widget Function(GoRouterState s) build, {List<RouteBase> routes = const []}) => GoRoute(
       path: path,
       parentNavigatorKey: rootNavigatorKey,
-      // Tournaments have no backend in Supabase builds yet.
+      // Supabase builds: tournaments only with the tournaments switch (migration 35).
       builder: (_, s) => _gate(BackendModule.tournaments, 'Tournament', Routes.clubHome, build(s)),
       routes: routes,
     );

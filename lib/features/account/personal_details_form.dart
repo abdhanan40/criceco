@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/config/backend_modules.dart';
 import '../../app/session/session_controller.dart';
 import '../../core/constants/city_areas.dart';
 import '../../core/models/models.dart';
@@ -152,7 +153,9 @@ Future<void> savePersonalDetails(
               ),
       );
   // A player listed as available is shown to clubs with the new details.
-  if (ref.read(playerAvailabilityProvider).openToOffers) {
+  // (Player Hunt only: no listing where that module has no backend.)
+  if (ref.read(backendModulesProvider).has(BackendModule.playerHunt) &&
+      ref.read(playerAvailabilityProvider).openToOffers) {
     await ref.read(playerAvailabilityProvider.notifier).setOpenToOffers(true);
   }
 }

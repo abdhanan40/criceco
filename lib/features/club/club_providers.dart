@@ -55,6 +55,15 @@ final clubDirectoryProvider = FutureProvider<Map<String, ClubSummary>>((ref) asy
   return {for (final c in clubs) c.id: c};
 });
 
+/// One other club's profile (Opponent Club Profile, Challenge Status): from
+/// [clubDirectoryProvider], else the club's own public profile — on the
+/// server (M7) a club beyond the directory's pages, or one that only sent a
+/// challenge, is still found. `null` when there is none.
+final clubSummaryProvider = FutureProvider.family<ClubSummary?, String>((ref, clubId) async {
+  final dir = await ref.watch(clubDirectoryProvider.future);
+  return dir[clubId] ?? await ref.read(clubRepositoryProvider).clubSummary(clubId);
+});
+
 /// Grounds by id (next-match ground row + Directions).
 final groundDirectoryProvider = FutureProvider<Map<String, Ground>>((ref) async {
   final grounds = await ref.read(groundRepositoryProvider).grounds();

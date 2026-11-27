@@ -78,6 +78,8 @@ class PlayerAvailabilityController extends Notifier<PlayerAvailabilityRecord> {
     // The server's record (migration 19), once read: nothing stored there
     // means available.
     if (_live) Future.microtask(_load);
+    // The Player Hunt listing the server keeps (M8, migration 33).
+    if (_huntLive) Future.microtask(_loadListing);
     return PlayerAvailabilityRecord(status: PlayerAvailability.available, since: ref.read(clockProvider).now());
   }
 
@@ -87,6 +89,19 @@ class PlayerAvailabilityController extends Notifier<PlayerAvailabilityRecord> {
   bool get _live => ref.read(matchesBackendLiveProvider);
 
   bool _saving = false;
+
+  /// The server keeps the Player Hunt listing (Supabase with the Player
+  /// Hunt switch).
+  bool get _huntLive => ref.read(huntBackendLiveProvider);
+
+  Future<void> _loadListing() async {
+    try {
+      final listing = await ref.read(huntRepositoryProvider).myListing();
+      if (listing != null && ref.mounted) state = state.copyWith(openToOffers: listing.listed);
+    } on AccountException {
+      // Not readable now (offline, no profile yet…): shown as not listed.
+    }
+  }
 
   Future<void> _load() async {
     try {
@@ -144,25 +159,40 @@ class PlayerAvailabilityController extends Notifier<PlayerAvailabilityRecord> {
   /// "List me as available to other clubs" (Open Matches + Availability).
   /// Lists the player in clubs' Available Players using the account city
   /// (fix: the prototype used an empty city, so the player never appeared).
-  Future<void> setOpenToOffers(bool listed) async {
+  ///
+  /// Returns `null` once saved, or why not (on the server: no cricket
+  /// profile, no city…); the switch then goes back.
+  Future<String?> setOpenToOffers(bool listed) async {
     final account = ref.read(currentAccountProvider);
+    final before = state.openToOffers;
     state = state.copyWith(openToOffers: listed);
-    final role = switch (account?.playerProfile.role) {
+    final profile = account?.playerProfile;
+    final role = switch (profile?.role) {
       PlayerRole.bowler => HuntRole.bowler,
       PlayerRole.allRounder => HuntRole.allRounder,
+      // The server lists a batsman who keeps wicket as a Wicket-Keeper.
+      PlayerRole.batsman when _huntLive && (profile?.isWicketkeeper ?? false) => HuntRole.wicketKeeper,
       _ => HuntRole.batsman,
     };
-    await ref.read(huntRepositoryProvider).setListed(
-          OpenPlayer(
-            id: 'op_me',
-            name: account?.fullName ?? 'You',
-            role: role,
-            availabilityLabel: 'Available Now',
-            city: account?.city ?? 'Islamabad',
-            isMe: true,
-          ),
-          listed: listed,
-        );
+    final city = account?.city?.trim() ?? '';
+    try {
+      await ref.read(huntRepositoryProvider).setListed(
+            OpenPlayer(
+              id: 'op_me',
+              name: account?.fullName ?? 'You',
+              role: role,
+              availabilityLabel: 'Available Now',
+              // The server falls back to the saved listing / current address.
+              city: _huntLive ? city : (account?.city ?? 'Islamabad'),
+              isMe: true,
+            ),
+            listed: listed,
+          );
+      return null;
+    } on AccountException catch (e) {
+      if (ref.mounted) state = state.copyWith(openToOffers: before);
+      return e.message;
+    }
   }
 }
 
@@ -178,15 +208,80 @@ final huntPostsProvider = FutureProvider<List<PlayerHuntPost>>((ref) async {
   return ref.read(huntRepositoryProvider).posts();
 });
 
-/// Posts the player has tapped "I'm Interested" on (session feature state).
+/// Posts the player has tapped "I'm Interested" on: the demo keeps them for
+/// the session; the server (M8) remembers them (`interested` on each post)
+/// and tells the club's owner once.
 class HuntInterestController extends Notifier<Set<String>> {
   @override
   Set<String> build() {
     ref.watch(currentAccountProvider.select((a) => a?.id));
-    return const {};
+    if (!_live) return const {};
+    return {
+      for (final p in ref.watch(huntPostsProvider).value ?? const <PlayerHuntPost>[])
+        if (p.interested) p.id,
+    };
   }
 
-  void express(String postId) => state = {...state, postId};
+  bool get _live => ref.read(huntBackendLiveProvider);
+  final _busy = <String>{};
+
+  /// "I'm Interested": `null` once recorded, or why not (the post closed,
+  /// your own club's, the daily limit…).
+  Future<String?> express(String postId) async {
+    if (!_live) {
+      state = {...state, postId};
+      return null;
+    }
+    if (!_busy.add(postId)) return null;
+    try {
+      await ref.read(huntRepositoryProvider).expressInterest(postId);
+      if (ref.mounted) state = {...state, postId};
+      return null;
+    } on AccountException catch (e) {
+      return e.message;
+    } finally {
+      _busy.remove(postId);
+    }
+  }
+
+  /// Takes the interest back (the server only; the club is not told).
+  Future<String?> withdraw(String postId) async {
+    if (!_live) {
+      state = {...state}..remove(postId);
+      return null;
+    }
+    if (!_busy.add(postId)) return null;
+    try {
+      await ref.read(huntRepositoryProvider).withdrawInterest(postId);
+      if (ref.mounted) state = {...state}..remove(postId);
+      return null;
+    } on AccountException catch (e) {
+      return e.message;
+    } finally {
+      _busy.remove(postId);
+    }
+  }
+}
+
+/// The signed-in player's Player Hunt invites (M8, the server), newest
+/// first; none in the demo.
+final myHuntInvitesProvider = FutureProvider<List<PlayerHuntInvite>>((ref) async {
+  ref.watch(currentAccountProvider.select((a) => a?.id));
+  if (!ref.watch(huntBackendLiveProvider)) return const [];
+  return ref.read(huntRepositoryProvider).myInvites();
+});
+
+/// The player answers an invite: `null` once saved, or why not. Accepting
+/// tells the club the player is interested — it never joins the club.
+Future<String?> respondToHuntInvite(WidgetRef ref, String inviteId, {required bool accept}) async {
+  try {
+    await ref.read(huntRepositoryProvider).respondInvite(inviteId, accept: accept);
+    return null;
+  } on AccountException catch (e) {
+    return e.message;
+  } finally {
+    ref.invalidate(myHuntInvitesProvider);
+  }
 }
 
 final huntInterestProvider = NotifierProvider<HuntInterestController, Set<String>>(HuntInterestController.new);

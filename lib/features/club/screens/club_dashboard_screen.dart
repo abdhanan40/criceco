@@ -11,6 +11,7 @@ import '../../../app/theme/tokens.dart';
 import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/pakistan_time.dart';
 import '../../../shared/media/photo_picker.dart';
 import '../../../shared/widgets/ce_dashboard_hero.dart';
 import '../../../shared/widgets/ce_feedback.dart';
@@ -54,7 +55,6 @@ class ClubDashboardScreen extends ConsumerWidget {
     final matchesOn = ref.watch(backendModulesProvider).has(BackendModule.matches);
     final results = matchesOn ? matchListOrNull(ref) : null;
     final memberList = ref.watch(clubMembersProvider).value;
-    final matchList = matchesOn ? ref.watch(clubMatchesProvider).value : null;
     final winRate = results == null || results.total == 0 ? '–' : '${(100 * results.won / results.total).round()}%';
     final notifCount = ref.watch(unreadNotificationCountProvider(UserRole.clubOwner));
     final ownerName = ref.watch(currentAccountProvider)?.fullName.trim() ?? '';
@@ -181,9 +181,9 @@ class ClubDashboardScreen extends ConsumerWidget {
             const CeSectionHeader('Member Growth'),
             MemberGrowthChart(growth: MemberGrowth.of(memberList, ref.read(clockProvider).now())),
           ],
-          if (matchList != null) ...[
+          if (results != null) ...[
             const CeSectionHeader('Match Results'),
-            MatchResultsChart(summary: MatchResultsSummary.of(matchList)),
+            MatchResultsChart(summary: results),
           ],
         ]),
       ),
@@ -191,8 +191,21 @@ class ClubDashboardScreen extends ConsumerWidget {
   }
 }
 
-/// Club stats read from completed club matches (`null` while loading).
+/// The own club's official record (M7: `club_public_profile`, from its
+/// confirmed results); `null` without a club or while loading.
+final ownClubRecordProvider = FutureProvider<ClubSummary?>((ref) async {
+  final id = ref.watch(currentClubProvider.select((c) => c?.id));
+  if (id == null) return null;
+  return ref.read(clubRepositoryProvider).clubSummary(id);
+});
+
+/// Club stats (`null` while loading): with club discovery the official
+/// record; otherwise read from completed club matches.
 MatchResultsSummary? matchListOrNull(WidgetRef ref) {
+  if (ref.watch(discoveryBackendLiveProvider)) {
+    final s = ref.watch(ownClubRecordProvider).value;
+    return s == null ? null : MatchResultsSummary(won: s.wins, lost: s.losses, drawn: s.played - s.wins - s.losses);
+  }
   final list = ref.watch(clubMatchesProvider).value;
   return list == null ? null : MatchResultsSummary.of(list);
 }
@@ -315,7 +328,7 @@ class _NextMatch extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final opponent = ref.watch(clubDirectoryProvider).value?[match.opponentClubId];
     final ground = match.groundId == null ? null : ref.watch(groundDirectoryProvider).value?[match.groundId];
-    final startsAt = match.startsAt;
+    final startsAt = match.startsAt?.inPakistan; // on a Pakistan clock
     // A server match has no demo profile or listed ground: its own opponent
     // name and agreed venue (migration 17).
     final opponentName = opponent?.name ?? match.opponentName;

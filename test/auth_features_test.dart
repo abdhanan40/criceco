@@ -33,14 +33,17 @@ void main() {
       ));
     });
 
-    test('supabase mode: email and password only', () {
-      expect(flags(AuthFeatures.of(supabase)), (
-        phone: false,
-        google: false,
-        reset: false,
-        change: false,
-      ));
-    });
+    test(
+      'supabase mode: email and password only (password change since M6)',
+      () {
+        expect(flags(AuthFeatures.of(supabase)), (
+          phone: false,
+          google: false,
+          reset: false,
+          change: true,
+        ));
+      },
+    );
 
     test('the provider follows the backend config (default: memory)', () {
       final memory = ProviderContainer();
@@ -55,7 +58,7 @@ void main() {
         phone: false,
         google: false,
         reset: false,
-        change: false,
+        change: true,
       ));
     });
 
@@ -90,7 +93,7 @@ void main() {
         phone: false,
         google: false,
         reset: true,
-        change: false,
+        change: true,
       ));
     });
 
@@ -135,7 +138,7 @@ void main() {
           phone: false,
           google: true,
           reset: false,
-          change: false,
+          change: true,
         ));
         final c = ProviderContainer(
           overrides: [

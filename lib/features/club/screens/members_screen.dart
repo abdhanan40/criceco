@@ -115,11 +115,16 @@ List<Widget> memberListChildren(BuildContext context, WidgetRef ref, {required V
   ];
   // Searching keeps the ranked order; otherwise the chosen sort applies.
   if (query.isEmpty) {
-    int score(ClubMember m) => fitnessOf(m)?.score ?? 0;
+    // Members without a score (not shared, not loaded) go last either way.
+    int byScore(ClubMember a, ClubMember b, {required bool high}) {
+      final (x, y) = (fitnessOf(a)?.score, fitnessOf(b)?.score);
+      if (x == null || y == null) return (x == null ? 1 : 0) - (y == null ? 1 : 0);
+      return high ? y.compareTo(x) : x.compareTo(y);
+    }
     players.sort(switch (fitnessOn ? filter.sort : MemberSort.name) {
       MemberSort.name => (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
-      MemberSort.fitnessHigh => (a, b) => score(b).compareTo(score(a)),
-      MemberSort.fitnessLow => (a, b) => score(a).compareTo(score(b)),
+      MemberSort.fitnessHigh => (a, b) => byScore(a, b, high: true),
+      MemberSort.fitnessLow => (a, b) => byScore(a, b, high: false),
     });
   }
   final staff = filter.narrows ? const <ClubMember>[] : [for (final m in searched) if (!m.plays) m];
@@ -151,7 +156,13 @@ List<Widget> memberListChildren(BuildContext context, WidgetRef ref, {required V
         narrowed ? 'Players · ${players.length} of $allPlayers' : 'Players · ${players.length}',
         padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
       ),
-    for (final m in players) MemberRow(member: m, fitness: fitnessOf(m), onTap: () => onOpen(m)),
+    for (final m in players)
+      MemberRow(
+        member: m,
+        fitness: fitnessOf(m),
+        fitnessNotShared: fitnessOn && ref.watch(memberFitnessHiddenProvider(m.id)),
+        onTap: () => onOpen(m),
+      ),
     if (staff.isNotEmpty) ...[
       CeSectionHeader('Club Staff · ${staff.length}',
           padding: const EdgeInsets.fromLTRB(CeSpace.gutter, CeSpace.section, CeSpace.gutter, 0)),
@@ -408,10 +419,20 @@ class _MemberFilterPanelState extends ConsumerState<_MemberFilterPanel> {
 /// Fitness Meter score for players, Owner badge; tap → Member Profile.
 /// [compact] (My Club preview): name + club role only, as before.
 class MemberRow extends StatelessWidget {
-  const MemberRow({super.key, required this.member, this.compact = false, this.fitness, this.onTap});
+  const MemberRow({
+    super.key,
+    required this.member,
+    this.compact = false,
+    this.fitness,
+    this.fitnessNotShared = false,
+    this.onTap,
+  });
   final ClubMember member;
   final bool compact;
   final FitnessReport? fitness;
+
+  /// The member doesn't share their stats (M9): "Not shared", never a score.
+  final bool fitnessNotShared;
   final VoidCallback? onTap;
 
   @override
@@ -420,7 +441,7 @@ class MemberRow extends StatelessWidget {
     final isOwner = m.role == MemberRole.owner;
     if (compact) {
       return CeListRow(
-        leading: CeAvatar(m.name, size: 40, background: CeColors.primary, foreground: Colors.white),
+        leading: CeAvatar(m.name, size: 40, background: CeColors.primary, foreground: Colors.white, photoPath: m.photoPath),
         title: m.name,
         subtitle: m.role.label,
       );
@@ -431,12 +452,21 @@ class MemberRow extends StatelessWidget {
         m.roleLine,
         if (isOwner) 'Owner',
         if (fitness != null) 'Fitness ${fitness!.score} out of 10, ${fitness!.level.label}',
+        if (fitness == null && fitnessNotShared) 'Fitness not shared',
         if (onTap != null) 'View profile',
       ].join(', '),
-      leading: CeAvatar(m.name, size: 40, background: m.plays ? CeColors.primary : CeColors.muted2, foreground: Colors.white),
+      leading: CeAvatar(m.name,
+          size: 40,
+          background: m.plays ? CeColors.primary : CeColors.muted2,
+          foreground: Colors.white,
+          photoPath: m.photoPath),
       title: m.name,
       subtitle: m.roleLine,
-      meta: fitness == null ? null : FitnessBadge(fitness!),
+      meta: fitness != null
+          ? FitnessBadge(fitness!)
+          : fitnessNotShared
+              ? const CeStatusChip('Not shared', tone: CeTone.neutral, icon: 'lock')
+              : null,
       trailing: isOwner ? const CeStatusChip('Owner', icon: 'crown') : null,
       onTap: onTap,
     );

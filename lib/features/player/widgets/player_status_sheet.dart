@@ -21,8 +21,10 @@ import '../screens/availability_screen.dart' show resolveUntil;
 ///    switching ON from them sets Available. Details stay on Availability.
 ///  * Open for Matches: the existing "open to offers" listing (also "Available
 ///    for Playing Opportunities" on Availability) — clubs see you in
-///    Available Players while it is on.
-/// Each switch saves at once and confirms inline.
+///    Available Players while it is on. Player Hunt: shown only where that
+///    module has a backend.
+/// Each switch saves at once and confirms inline once saved (a refusal is a
+/// toast, as on Match Availability).
 Future<void> showPlayerStatusSheet(BuildContext context) => showModuleSheet(
       context,
       BackendModule.availability,
@@ -40,36 +42,51 @@ class _PlayerStatusSheet extends ConsumerStatefulWidget {
 class _PlayerStatusSheetState extends ConsumerState<_PlayerStatusSheet> {
   String? _saved; // inline confirmation of the last change
   bool _listing = false;
+  bool _savingStatus = false;
 
   PlayerAvailabilityController get _availability => ref.read(playerAvailabilityProvider.notifier);
 
-  void _setAvailable(bool on) {
+  /// Saves first; the confirmation shows only once the record is stored. A
+  /// refusal (offline, the server's rules) is shown as a toast, like the
+  /// Match Availability sheet, and the record stays as it was.
+  Future<void> _setAvailable(bool on) async {
+    setState(() => _savingStatus = true);
+    final String? error;
     if (on) {
-      _availability.update(status: PlayerAvailability.available);
+      error = await _availability.update(status: PlayerAvailability.available);
     } else {
       final today = ref.read(clockProvider).now();
-      _availability.update(
+      error = await _availability.update(
         status: PlayerAvailability.unavailable,
         until: AvailabilityUntil.weekend,
         untilDate: resolveUntil(AvailabilityUntil.weekend, today, null),
       );
     }
-    setState(() => _saved = on ? 'You’re available this week' : 'Marked unavailable this week');
+    if (!mounted) return;
+    setState(() {
+      _savingStatus = false;
+      if (error == null) _saved = on ? 'You’re available this week' : 'Marked unavailable this week';
+    });
+    if (error != null) showCeToast(context, error);
   }
 
   Future<void> _setOpen(bool on) async {
     setState(() => _listing = true);
-    await _availability.setOpenToOffers(on);
+    final error = await _availability.setOpenToOffers(on);
     if (!mounted) return;
     setState(() {
       _listing = false;
-      _saved = on ? 'You’re open for matches' : 'You’re no longer listed for matches';
+      if (error == null) _saved = on ? 'You’re open for matches' : 'You’re no longer listed for matches';
     });
+    if (error != null) showCeToast(context, error);
   }
 
   @override
   Widget build(BuildContext context) {
     final record = ref.watch(playerAvailabilityProvider);
+    // "Open for Matches" is the Player Hunt listing: hidden where that has
+    // no backend (Supabase builds) — nothing would be saved.
+    final huntOn = ref.watch(backendModulesProvider).has(BackendModule.playerHunt);
     final available = record.status == PlayerAvailability.available;
     final detailed = record.status != PlayerAvailability.available && record.status != PlayerAvailability.unavailable;
     final availableNote = available
@@ -110,19 +127,21 @@ class _PlayerStatusSheetState extends ConsumerState<_PlayerStatusSheet> {
               title: 'Available This Week',
               subtitle: availableNote,
               value: available,
-              onChanged: _setAvailable,
+              onChanged: _savingStatus ? null : _setAvailable,
             ),
-            const Divider(height: 1, color: CeColors.hairline),
-            _StatusSwitch(
-              key: const Key('status.openForMatches'),
-              icon: 'circle-dot',
-              title: 'Open for Matches',
-              subtitle: record.openToOffers
-                  ? 'Clubs see you in Available Players'
-                  : 'Turn on to be found for playing opportunities',
-              value: record.openToOffers,
-              onChanged: _listing ? null : _setOpen,
-            ),
+            if (huntOn) ...[
+              const Divider(height: 1, color: CeColors.hairline),
+              _StatusSwitch(
+                key: const Key('status.openForMatches'),
+                icon: 'circle-dot',
+                title: 'Open for Matches',
+                subtitle: record.openToOffers
+                    ? 'Clubs see you in Available Players'
+                    : 'Turn on to be found for playing opportunities',
+                value: record.openToOffers,
+                onChanged: _listing ? null : _setOpen,
+              ),
+            ],
           ]),
         ),
         AnimatedSwitcher(

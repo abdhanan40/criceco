@@ -6,6 +6,7 @@ import '../../../app/providers/core_providers.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/pakistan_time.dart';
 import '../../../data/repositories/repositories.dart' show AccountException;
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_calendar.dart';
@@ -65,8 +66,12 @@ abstract final class MatchScheduleRules {
 /// The opponent's name for a server match (the list rows carry it).
 String matchOpponentName(ClubMatch m) => m.opponentName ?? 'the other club';
 
-/// "Sat, 23 Nov · 10:00".
-String matchWhen(DateTime t) => '${CeFormat.dayDate(t)} · ${CeFormat.time(t)}';
+/// "Sat, 23 Nov · 10:00" — the instant [t] on a Pakistan clock (the server's
+/// match rules use Asia/Karachi), whatever the device's time zone.
+String matchWhen(DateTime t) {
+  final pk = t.inPakistan;
+  return '${CeFormat.dayDate(pk)} · ${CeFormat.time(pk)}';
+}
 
 /// "Gaddafi Stadium, Lahore".
 String matchWhere(String venue, String? city) =>
@@ -104,7 +109,8 @@ class _MatchScheduleSheetState extends ConsumerState<_MatchScheduleSheet> {
   _Step _step = _Step.overview;
   String? _error;
 
-  // Proposal form.
+  // Proposal form: a date and a start time in Pakistan (the server's match
+  // rules use Asia/Karachi), whatever the device's time zone.
   DateTime? _date;
   TimeOfDay? _time;
   late DateTime _month = _today;
@@ -116,12 +122,16 @@ class _MatchScheduleSheetState extends ConsumerState<_MatchScheduleSheet> {
   final _reason = TextEditingController();
 
   DateTime get _now => ref.read(clockProvider).now();
-  DateTime get _today => CeFormat.dateOnly(_now);
+
+  /// Today in Pakistan (the calendar's first selectable day).
+  DateTime get _today => PakistanTime.dateOf(_now);
+
+  /// The picked Pakistan date and time, as an instant.
   DateTime? get _startsAt {
     final d = _date, t = _time;
     return d == null || t == null
         ? null
-        : DateTime(d.year, d.month, d.day, t.hour, t.minute);
+        : PakistanTime.instant(d.year, d.month, d.day, t.hour, t.minute);
   }
 
   @override
@@ -134,17 +144,16 @@ class _MatchScheduleSheetState extends ConsumerState<_MatchScheduleSheet> {
 
   void _startProposal(ClubMatch m) {
     final base = m.proposal?.startsAt ?? m.startsAt;
+    final pk = base?.inPakistan;
     setState(() {
       _step = _Step.propose;
       _error = null;
       _venue.text = m.proposal?.venueName ?? m.venueName ?? '';
       _city.text = m.proposal?.city ?? m.city ?? '';
-      _date = base == null || !base.isAfter(_now)
+      _date = pk == null || !base!.isAfter(_now)
           ? null
-          : CeFormat.dateOnly(base);
-      _time = base == null
-          ? null
-          : TimeOfDay(hour: base.hour, minute: base.minute);
+          : DateTime(pk.year, pk.month, pk.day);
+      _time = pk == null ? null : TimeOfDay(hour: pk.hour, minute: pk.minute);
       _month = _date ?? _today;
       _pickerOpen = false;
     });
@@ -281,7 +290,7 @@ class _MatchScheduleSheetState extends ConsumerState<_MatchScheduleSheet> {
                   : 'Cancelled by $opponent',
             ),
             _line('file-text', m.cancellation!.reason),
-            _line('calendar', CeFormat.dayDate(m.cancellation!.at)),
+            _line('calendar', CeFormat.dayDate(m.cancellation!.at.inPakistan)),
           ],
         ),
       if (m.startsAt != null && m.venueName != null)
@@ -459,7 +468,7 @@ class _MatchScheduleSheetState extends ConsumerState<_MatchScheduleSheet> {
             _pickerOpen = false;
           }),
         ),
-      label('Start time'),
+      label('Start time (Pakistan time)'),
       CeButton.soft(
         key: const Key('schedule.time'),
         label: _time == null ? 'Choose a start time' : _time!.format(context),

@@ -28,9 +28,10 @@ class ChallengeStatusScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final loading = ref.watch(challengesProvider).isLoading || ref.watch(clubDirectoryProvider).isLoading;
     final c = ref.watch(challengeProvider(challengeId));
-    final club = c == null ? null : ref.watch(clubDirectoryProvider).value?[c.opponentClubId];
+    final clubAsync = c == null ? null : ref.watch(clubSummaryProvider(c.opponentClubId));
+    final loading = ref.watch(challengesProvider).isLoading || (clubAsync?.isLoading ?? false);
+    final club = clubAsync?.value;
     final status = c?.statusAt(ref.read(clockProvider).now());
 
     Widget body;
@@ -73,7 +74,7 @@ class ChallengeStatusScreen extends ConsumerWidget {
         CeSummaryCard(rows: [
           ('Opponent', CeSummaryCard.value(context, club.name)),
           ('City', CeSummaryCard.value(context, club.city)),
-          ('Preferred Format', CeSummaryCard.value(context, c.format?.display() ?? club.formats)),
+          ('Preferred Format', CeSummaryCard.value(context, c.format?.display() ?? (club.formats.trim().isEmpty ? 'Not listed' : club.formats))),
         ]),
         Padding(
           padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 20, CeSpace.gutter, 0),

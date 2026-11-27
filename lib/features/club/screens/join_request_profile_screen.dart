@@ -82,7 +82,7 @@ class _JoinRequestProfileScreenState extends ConsumerState<JoinRequestProfileScr
       );
     }
 
-    final perf = r.performance;
+    final perf = ref.watch(joinRequestPerformanceProvider(widget.requestId)).value ?? r.performance;
     return Scaffold(
       appBar: bar,
       body: ListView(padding: const EdgeInsets.only(bottom: 28), children: [
@@ -90,13 +90,13 @@ class _JoinRequestProfileScreenState extends ConsumerState<JoinRequestProfileScr
         Padding(
           padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 20, CeSpace.gutter, 0),
           child: Column(children: [
-            CeAvatar(r.name, size: 72, background: CeColors.primary, foreground: Colors.white),
+            CeAvatar(r.name, size: 72, background: CeColors.primary, foreground: Colors.white, photoPath: r.photoPath),
             const SizedBox(height: 10),
             Text(r.name,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.titleLarge!.copyWith(fontWeight: FontWeight.w700)),
             const SizedBox(height: 2),
-            Text('${r.role.label} · ${r.city}',
+            Text([?r.role?.label, if (r.city.isNotEmpty) r.city].join(' · '),
                 textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: CeColors.muted)),
             if (!r.isPending) ...[
               const SizedBox(height: 8),
@@ -110,11 +110,13 @@ class _JoinRequestProfileScreenState extends ConsumerState<JoinRequestProfileScr
         // ---- Details ----
         const SizedBox(height: 16),
         CeSummaryCard(rows: [
-          ('Age', CeSummaryCard.value(context, '${r.age}')),
+          // Unknown (no date of birth): no age row, never a made-up 0.
+          if (r.age case final age?) ('Age', CeSummaryCard.value(context, '$age')),
           ('City', CeSummaryCard.value(context, r.city)),
-          ('Batting Style', CeSummaryCard.value(context, r.battingStyle.label)),
-          ('Bowling Style', CeSummaryCard.value(context, r.bowlingStyle.label)),
-          ('Playing Role', CeSummaryCard.value(context, r.role.label)),
+          // No cricket profile: "Not set", never invented defaults.
+          ('Batting Style', CeSummaryCard.value(context, r.battingStyle?.label ?? 'Not set')),
+          ('Bowling Style', CeSummaryCard.value(context, r.bowlingStyle?.label ?? 'Not set')),
+          ('Playing Role', CeSummaryCard.value(context, r.role?.label ?? 'Not set')),
           // Empty: the player hasn't agreed to share it with clubs.
           ('Phone Number', CeSummaryCard.value(context, r.phone.isEmpty ? 'Not shared' : r.phone)),
         ]),

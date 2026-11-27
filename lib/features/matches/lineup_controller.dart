@@ -122,6 +122,29 @@ class LineupDraftController extends Notifier<LineupDraft> {
     final members = [for (final m in team.members) if (byId[m.playerId]?.locked == false) m];
     final leftOut = team.members.length - members.length;
     final lineup = Lineup(name: team.name, sourceTeamId: team.id, members: members);
+    // A server tournament entry (migration 35) takes exactly 11 + 4 too;
+    // the team's captain and vice-captain go with it when in the XI.
+    if (_serverTournament) {
+      final playing = members.where((m) => m.selection == SelectionRole.playing).toList();
+      if (playing.length != SquadRules.maxPlaying || members.length - playing.length != SquadRules.maxSubs) {
+        throw TournamentRuleException(
+          '${team.name} has ${playing.length} + ${members.length - playing.length} available players'
+          '${leftOut > 0 ? ' ($leftOut injured or unavailable left out)' : ''}. '
+          'A tournament squad needs exactly ${SquadRules.maxPlaying} + ${SquadRules.maxSubs} — build one instead.',
+        );
+      }
+      bool inXi(String? id) => id != null && playing.any((m) => m.playerId == id);
+      final captain = inXi(team.captainId) ? team.captainId : null;
+      final vice = inXi(team.viceCaptainId) && team.viceCaptainId != captain ? team.viceCaptainId : null;
+      await _save(Lineup(
+        name: team.name,
+        sourceTeamId: team.id,
+        members: members,
+        captainId: captain,
+        viceCaptainId: vice,
+      ));
+      return leftOut;
+    }
     if (_serverMatch) {
       final playing = members.where((m) => m.selection == SelectionRole.playing).toList();
       if (playing.length != SquadRules.maxPlaying || members.length - playing.length != SquadRules.maxSubs) {
@@ -143,6 +166,9 @@ class LineupDraftController extends Notifier<LineupDraft> {
 
   /// A server match's line-up (migration 18) rather than the demo's.
   bool get _serverMatch => target is MatchLineupTarget && ref.read(matchesLiveProvider);
+
+  /// A server tournament entry (the tournaments switch) rather than the demo's.
+  bool get _serverTournament => target is TournamentEntryTarget && ref.read(tournamentBackendProvider) != null;
 
   Future<void> _save(Lineup lineup, {String? captainMemberId, String? viceCaptainMemberId}) async {
     switch (target) {

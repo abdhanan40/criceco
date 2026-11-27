@@ -101,6 +101,12 @@ class ChallengeOpponent {
     return ChallengeOpponent(id: c.opponentClubId, name: name, shortName: c.opponentShortName, city: c.opponentCity);
   }
 
+  /// The club behind an open slot (M7): its profile when known, else the
+  /// public name and city the server sent with the slot.
+  factory ChallengeOpponent.forSeeker(MatchSeekerListing s, ClubSummary? summary) => summary != null
+      ? ChallengeOpponent.fromSummary(summary)
+      : ChallengeOpponent(id: s.clubId, name: s.clubName ?? 'Club', shortName: s.clubShortName, city: s.clubCity);
+
   final String id;
   final String name;
   final String? shortName;

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers/core_providers.dart';
+import '../../../app/session/account_error_text.dart';
 import '../../../app/session/session_controller.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../app/theme/typography.dart';
@@ -119,7 +120,15 @@ class _ClubProfileSheetState extends ConsumerState<_ClubProfileSheet> {
   Future<void> _changePicture(Club club) async {
     final change = await choosePhoto(context, ref, title: 'Club picture', hasPhoto: club.logoPath != null);
     if (change == null || !mounted) return;
-    await ref.read(sessionProvider.notifier).updateClub((c) => c.withLogo(change.path));
+    try {
+      await ref.read(sessionProvider.notifier).updateClub((c) => c.withLogo(change.path));
+    } catch (e) {
+      // M5: an upload the server refused (or offline): nothing changed.
+      if (!mounted) return;
+      if (signOutIfNeeded(context, ref, e)) return;
+      showCeToast(context, accountErrorText(e, fallback: "Couldn't update the club picture — please try again"));
+      return;
+    }
     if (mounted) showCeToast(context, change.path == null ? 'Club picture removed' : 'Club picture updated');
   }
 

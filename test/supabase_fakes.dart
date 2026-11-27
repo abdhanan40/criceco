@@ -241,6 +241,16 @@ class FakeAuth implements AuthGateway {
     kind = AuthSessionKind.none;
   }
 
+  /// The OTHER sessions ended ([signOutOthers], M6); this one stays.
+  var otherSignOuts = 0;
+
+  @override
+  Future<void> signOutOthers() async {
+    _maybeFail('signOutOthers');
+    if (current == null) throw const GatewayPermissionException();
+    otherSignOuts++;
+  }
+
   // ---- AUTH-05: Google ----
 
   /// `false`: the browser couldn't be opened.

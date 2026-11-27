@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/pakistan_time.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_match_widgets.dart';
@@ -35,7 +36,7 @@ class MatchScorecardView extends ConsumerWidget {
     if (sc == null || sc.innings.isEmpty) return const ScorecardNotAvailable();
     return ScorecardBody(
       scorecard: sc,
-      meta: '${CeFormat.dayDate(match.startsAt)} · ${match.format.display()} · ${match.ground}',
+      meta: '${CeFormat.dayDate(match.startsAt.inPakistan)} · ${match.format.display()} · ${match.ground}',
       teams: ((match.ownTeamName, match.ownTeamAbbr), (match.opponentName, match.opponentAbbr)),
     );
   }

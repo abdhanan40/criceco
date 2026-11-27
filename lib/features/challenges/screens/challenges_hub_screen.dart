@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/config/backend_modules.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/pakistan_time.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
@@ -24,7 +26,10 @@ import 'my_challenges_screen.dart';
 /// Either way nothing is sent before the setup sheet (format, ground, date)
 /// is reviewed and confirmed.
 class _SendButton extends ConsumerStatefulWidget {
-  const _SendButton({required this.club, required this.label, this.listing, this.expand = true});
+  const _SendButton({required this.club, required this.label, this.listing, this.expand = true, this.date});
+
+  /// The proposed date to prefill (else the listing's start).
+  final DateTime? date;
   final ChallengeOpponent club;
   final String label;
 
@@ -59,7 +64,7 @@ class _SendButtonState extends ConsumerState<_SendButton> {
               await sendChallenge(context, ref, widget.club,
                   matchRequest: widget.listing != null,
                   format: widget.listing?.format,
-                  date: widget.listing?.startsAt,
+                  date: widget.date ?? widget.listing?.startsAt,
                   groundName: widget.listing?.venue,
                   onSending: () => setState(() => _busy = true));
               if (mounted) setState(() => _busy = false);
@@ -144,9 +149,17 @@ class FindOpponentView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Server challenges: search the opponent directory. Availability slots
-    // and "Teams Looking for Opponents" have no server side yet (decision 7).
-    if (ref.watch(challengesLiveProvider)) return const OpponentDirectoryView(searchable: true);
+    // Server challenges: search the opponent directory. With club discovery
+    // (M7, migration 32) the availability slots and "Teams Looking for
+    // Opponents" come first; without it they have no server side.
+    if (ref.watch(challengesLiveProvider)) {
+      if (!ref.watch(discoveryBackendLiveProvider)) return const OpponentDirectoryView(searchable: true);
+      return const OpponentDirectoryView(searchable: true, leading: [
+        AvailabilitySlotCta(),
+        MySlotsList(),
+        _LiveSeekers(),
+      ]);
+    }
     final seekersAsync = ref.watch(matchSeekersProvider);
     final dir = ref.watch(clubDirectoryProvider).value ?? const <String, ClubSummary>{};
     final seekers = [
@@ -195,6 +208,74 @@ class FindOpponentView extends ConsumerWidget {
   }
 }
 
+/// Find Opponent with club discovery (M7): other clubs' open slots, soonest
+/// first — the club's public name and official record come with the slot.
+/// The server stores no rating ("—").
+class _LiveSeekers extends ConsumerWidget {
+  const _LiveSeekers();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(matchSeekersProvider);
+    final dir = ref.watch(clubDirectoryProvider).value ?? const <String, ClubSummary>{};
+    final seekers = async.value ?? const <MatchSeekerListing>[];
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      CeSectionHeader(
+        'Teams Looking for Opponents · ${seekers.length} Team${seekers.length == 1 ? '' : 's'}',
+        padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 20, CeSpace.gutter, 0),
+      ),
+      if (async.isLoading)
+        const Padding(padding: EdgeInsets.all(30), child: Center(child: CircularProgressIndicator()))
+      else if (async.hasError)
+        CeErrorState(
+          key: const Key('seekers.error'),
+          title: 'Couldn’t load open slots',
+          onRetry: () => ref.invalidate(matchSeekersProvider),
+        )
+      else if (seekers.isEmpty)
+        const CeEmptyState(
+          key: Key('seekers.empty'),
+          icon: 'search',
+          title: 'No teams looking right now',
+          body: 'Post an availability slot so clubs can send you requests.',
+        )
+      else
+        for (final s in seekers)
+          _seekerCard(context, s, ChallengeOpponent.forSeeker(s, dir[s.clubId])),
+    ]);
+  }
+
+  Widget _seekerCard(BuildContext context, MatchSeekerListing s, ChallengeOpponent club) {
+    final at = s.startsAt.inPakistan;
+    return ChallengeCard(
+      key: Key('seeker.${s.slotId ?? s.clubId}'),
+      abbr: club.abbr,
+      color: opponentColor(club),
+      name: club.name,
+      nameTrailing: _FormatTag(s.format.display(s.customOvers)),
+      meta: Wrap(spacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
+        Icon(CeIcons.of('map-pin'), size: 11, color: CeColors.muted),
+        Text('${s.clubCity ?? club.city ?? ''} · W${s.clubWins} L${s.clubLosses} ·'),
+        Icon(CeIcons.of('star'), size: 11, color: CeColors.amber),
+        Text(s.rating),
+      ]),
+      details: [
+        InlineInfo(icon: 'calendar', text: '${CeFormat.date(at)} · ${CeFormat.time(at)}'),
+        InlineInfo(icon: 'map-pin', text: s.venue),
+        if (s.notes.isNotEmpty) InlineInfo(icon: 'file-text', text: s.notes, maxLines: 2),
+      ],
+      actions: _SendButton(
+        club: club,
+        label: 'Send Match Request',
+        listing: s,
+        // The slot's day in Pakistan (the server's calendar).
+        date: PakistanTime.dateOf(s.startsAt),
+      ),
+      onTap: () => context.push(Routes.clubProfile(s.clubId, fromFind: true)),
+    );
+  }
+}
+
 class _FormatTag extends StatelessWidget {
   const _FormatTag(this.label);
   final String label;
@@ -215,8 +296,12 @@ const kOpponentSearchDebounce = Duration(milliseconds: 250);
 /// statistics (none are stored). [searchable]: a name search and a city
 /// filter (Find Opponent); otherwise the first clubs listed (Challenges).
 class OpponentDirectoryView extends ConsumerStatefulWidget {
-  const OpponentDirectoryView({super.key, required this.searchable});
+  const OpponentDirectoryView({super.key, required this.searchable, this.leading = const []});
   final bool searchable;
+
+  /// Shown above the search (Find Opponent with club discovery: the slots
+  /// and the clubs looking for opponents).
+  final List<Widget> leading;
 
   @override
   ConsumerState<OpponentDirectoryView> createState() => _OpponentDirectoryViewState();
@@ -250,6 +335,7 @@ class _OpponentDirectoryViewState extends ConsumerState<OpponentDirectoryView> {
     final async = ref.watch(opponentDirectoryProvider(_query));
     final filtered = _query.search.isNotEmpty || _query.city.isNotEmpty;
     return ListView(padding: const EdgeInsets.only(bottom: 24), children: [
+      ...widget.leading,
       if (widget.searchable)
         Padding(
           padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0),
@@ -310,6 +396,8 @@ class _OpponentDirectoryViewState extends ConsumerState<OpponentDirectoryView> {
                     meta: Text(c.meta),
                     actions: _SendButton(club: c, label: 'Challenge', expand: false),
                     inlineActions: true,
+                    // A known club profile opens (M7: every listed club).
+                    onTap: c.summary == null ? null : () => context.push(Routes.clubProfile(c.id, fromFind: widget.searchable)),
                   ),
               ],
       ),

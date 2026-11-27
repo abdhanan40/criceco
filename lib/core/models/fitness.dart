@@ -111,3 +111,30 @@ class FitnessReport {
   final int trainingSessions;
   final double trainingLoad;
 }
+
+/// A club member's fitness inputs for the owner (migration 34,
+/// `club_member_fitness`): the Fitness Meter window's workouts and confirmed
+/// matches. A member who doesn't share their stats ([visible] `false`) has no
+/// figures at all — shown as "not shared", never as 0.
+class MemberFitnessSummary {
+  const MemberFitnessSummary({
+    required this.memberId,
+    required this.visible,
+    this.workoutSessions,
+    this.workoutMinutes,
+    this.trainingLoad,
+    this.lastWorkoutDate,
+    this.matches,
+    this.lastMatchDate,
+  });
+
+  /// The membership id in the owner's club ([ClubMember.id]).
+  final String memberId;
+  final bool visible;
+  final int? workoutSessions;
+  final int? workoutMinutes;
+  final double? trainingLoad;
+  final DateTime? lastWorkoutDate;
+  final int? matches;
+  final DateTime? lastMatchDate;
+}

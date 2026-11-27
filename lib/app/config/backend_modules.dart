@@ -46,6 +46,54 @@ const bool kNotificationsBuild = bool.fromEnvironment('CRICECO_NOTIFICATIONS');
 /// The notifications switch: [kNotificationsBuild], overridden in tests.
 final notificationsEnabledProvider = Provider<bool>((ref) => kNotificationsBuild);
 
+/// The fitness switch as built: `--dart-define=CRICECO_FITNESS=true` once
+/// migration 34 (logged workouts and the owner's squad fitness view) is live
+/// on the Supabase project. OFF by default — and it needs the memberships,
+/// matches and results switches too: the Fitness Meter is worked out from the
+/// player's official match log (results), their availability (matches) and
+/// their logged workouts, and the owner's view is per club member. It selects
+/// the fitness data layer ([fitnessBackendLiveProvider]) and the
+/// [BackendModule.playerStats] screens (docs/M9_FITNESS.md).
+const bool kFitnessBuild = bool.fromEnvironment('CRICECO_FITNESS');
+
+/// The fitness switch: [kFitnessBuild], overridden in tests.
+final fitnessEnabledProvider = Provider<bool>((ref) => kFitnessBuild);
+
+/// The club-discovery switch as built: `--dart-define=CRICECO_DISCOVERY=true`
+/// once migration 32 (public club profiles and directory, availability
+/// slots, the shared player rankings and the applicants' statistics) is live
+/// on the Supabase project. OFF by default — and it needs the memberships and
+/// matches switches too: Find Opponent, the club profile and the slots belong
+/// to the challenge screens (docs/M7_CLUB_DISCOVERY.md). It adds no module: it
+/// selects the server data behind screens that already exist
+/// ([discoveryBackendLiveProvider]).
+const bool kDiscoveryBuild = bool.fromEnvironment('CRICECO_DISCOVERY');
+
+/// The club-discovery switch: [kDiscoveryBuild], overridden in tests.
+final discoveryEnabledProvider = Provider<bool>((ref) => kDiscoveryBuild);
+
+/// The Player Hunt switch as built: `--dart-define=CRICECO_PLAYER_HUNT=true`
+/// once migration 33 (player listings, requirement posts, interest and
+/// invites) is live on the Supabase project. OFF by default — and it needs
+/// the memberships switch too. It selects the hunt data layer
+/// ([huntBackendLiveProvider]) and the [BackendModule.playerHunt] screens
+/// (docs/M8_PLAYER_HUNT.md).
+const bool kPlayerHuntBuild = bool.fromEnvironment('CRICECO_PLAYER_HUNT');
+
+/// The Player Hunt switch: [kPlayerHuntBuild], overridden in tests.
+final playerHuntEnabledProvider = Provider<bool>((ref) => kPlayerHuntBuild);
+
+/// The tournaments switch as built: `--dart-define=CRICECO_TOURNAMENTS=true`
+/// once migration 35 (tournaments, entries and squads, the draw, the points
+/// table and the awards) is live on the Supabase project. OFF by default —
+/// and it needs the memberships switch too (an entry is a club's squad). It
+/// selects the tournament data layer ([tournamentsBackendLiveProvider]) and
+/// the [BackendModule.tournaments] screens (docs/M10_TOURNAMENTS.md).
+const bool kTournamentsBuild = bool.fromEnvironment('CRICECO_TOURNAMENTS');
+
+/// The tournaments switch: [kTournamentsBuild], overridden in tests.
+final tournamentsEnabledProvider = Provider<bool>((ref) => kTournamentsBuild);
+
 /// App areas whose data needs a backend.
 enum BackendModule {
   memberships('Club memberships'),
@@ -55,7 +103,8 @@ enum BackendModule {
   /// 20–23, the results switch). Read-only: they come from a trusted
   /// source, never typed in the app.
   matchStats('Match results and statistics'),
-  /// Fitness records and the player's own stats settings (no backend yet).
+  /// Fitness records and the player's own stats settings (migration 34, the
+  /// fitness switch).
   playerStats('Player statistics'),
   grounds('Ground booking'),
   payments('Payments and wallet'),
@@ -88,6 +137,9 @@ class BackendModules {
     bool matches = kMatchesBuild,
     bool results = kResultsBuild,
     bool notifications = kNotificationsBuild,
+    bool fitness = kFitnessBuild,
+    bool playerHunt = kPlayerHuntBuild,
+    bool tournaments = kTournamentsBuild,
   }) =>
       config.isSupabase
           ? BackendModules._(
@@ -100,6 +152,9 @@ class BackendModules {
                 },
                 if (memberships && matches && results) BackendModule.matchStats,
                 if (memberships && notifications) ...{BackendModule.notifications, BackendModule.announcements},
+                if (memberships && matches && results && fitness) BackendModule.playerStats,
+                if (memberships && playerHunt) BackendModule.playerHunt,
+                if (memberships && tournaments) BackendModule.tournaments,
               },
               isDemo: false,
             )
@@ -128,6 +183,45 @@ class BackendModules {
   }) =>
       config.isSupabase && memberships && notifications;
 
+  /// Supabase with the memberships, matches, results AND fitness switches:
+  /// migration 34 is used.
+  static bool fitnessLive(
+    BackendConfig config, {
+    required bool memberships,
+    required bool matches,
+    required bool results,
+    required bool fitness,
+  }) =>
+      resultsLive(config, memberships: memberships, matches: matches, results: results) && fitness;
+
+  /// Supabase with the memberships, matches AND discovery switches:
+  /// migration 32 is used.
+  static bool discoveryLive(
+    BackendConfig config, {
+    required bool memberships,
+    required bool matches,
+    required bool discovery,
+  }) =>
+      matchesLive(config, memberships: memberships, matches: matches) && discovery;
+
+  /// Supabase with the memberships AND Player Hunt switches: migration 33 is
+  /// used.
+  static bool playerHuntLive(
+    BackendConfig config, {
+    required bool memberships,
+    required bool playerHunt,
+  }) =>
+      config.isSupabase && memberships && playerHunt;
+
+  /// Supabase with the memberships AND tournaments switches: migration 35 is
+  /// used.
+  static bool tournamentsLive(
+    BackendConfig config, {
+    required bool memberships,
+    required bool tournaments,
+  }) =>
+      config.isSupabase && memberships && tournaments;
+
   final Set<BackendModule> _available;
 
   /// Memory mode: everything shown is the demo's sample data.
@@ -151,6 +245,53 @@ final backendModulesProvider = Provider<BackendModules>(
     matches: ref.watch(matchesEnabledProvider),
     results: ref.watch(resultsEnabledProvider),
     notifications: ref.watch(notificationsEnabledProvider),
+    fitness: ref.watch(fitnessEnabledProvider),
+    playerHunt: ref.watch(playerHuntEnabledProvider),
+    tournaments: ref.watch(tournamentsEnabledProvider),
+  ),
+);
+
+/// `true` when the tournament screens use the server (Supabase + the
+/// memberships and tournaments switches).
+final tournamentsBackendLiveProvider = Provider<bool>(
+  (ref) => BackendModules.tournamentsLive(
+    ref.watch(backendConfigProvider),
+    memberships: ref.watch(membershipsEnabledProvider),
+    tournaments: ref.watch(tournamentsEnabledProvider),
+  ),
+);
+
+/// `true` when the club directory and profiles, the availability slots, the
+/// player rankings and the applicants' statistics use the server (Supabase +
+/// the memberships, matches and discovery switches).
+final discoveryBackendLiveProvider = Provider<bool>(
+  (ref) => BackendModules.discoveryLive(
+    ref.watch(backendConfigProvider),
+    memberships: ref.watch(membershipsEnabledProvider),
+    matches: ref.watch(matchesEnabledProvider),
+    discovery: ref.watch(discoveryEnabledProvider),
+  ),
+);
+
+/// `true` when Player Hunt / Playing Opportunities use the server (Supabase
+/// + the memberships and Player Hunt switches).
+final huntBackendLiveProvider = Provider<bool>(
+  (ref) => BackendModules.playerHuntLive(
+    ref.watch(backendConfigProvider),
+    memberships: ref.watch(membershipsEnabledProvider),
+    playerHunt: ref.watch(playerHuntEnabledProvider),
+  ),
+);
+
+/// `true` when workouts and the owner's squad fitness use the server
+/// (Supabase + the memberships, matches, results and fitness switches).
+final fitnessBackendLiveProvider = Provider<bool>(
+  (ref) => BackendModules.fitnessLive(
+    ref.watch(backendConfigProvider),
+    memberships: ref.watch(membershipsEnabledProvider),
+    matches: ref.watch(matchesEnabledProvider),
+    results: ref.watch(resultsEnabledProvider),
+    fitness: ref.watch(fitnessEnabledProvider),
   ),
 );
 

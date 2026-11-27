@@ -62,6 +62,7 @@ class _JoinedClubCard extends ConsumerWidget {
     return _MyClubCard(
       key: Key('club.sheet.joined.${m.clubCode}'),
       name: m.clubName,
+      logoPath: m.clubLogoPath,
       subtitle: [if (preview?.city != null) preview!.city!, if (preview?.type != null) preview!.type!.label].join(' · '),
       rows: [
         ('user', 'Your role', m.role.label),

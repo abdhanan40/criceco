@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/config/backend_modules.dart';
 import '../../../app/providers/core_providers.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
@@ -10,6 +11,7 @@ import '../../../core/constants/cities.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/validators.dart';
+import '../../../data/repositories/repositories.dart' show AccountException;
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_calendar.dart';
 import '../../../shared/widgets/ce_feedback.dart';
@@ -45,6 +47,13 @@ class _CreateSlotScreenState extends ConsumerState<CreateSlotScreen> {
 
   DateTime get _today => CeFormat.dateOnly(ref.read(clockProvider).now());
 
+  /// The server's slots (M7, migration 32) start from tomorrow in Pakistan,
+  /// up to a year ahead; the demo's from today.
+  late final bool _live = ref.read(discoveryBackendLiveProvider);
+  DateTime get _first => _live ? ChallengeRules.firstDate(ref.read(clockProvider).now()) : _today;
+  DateTime get _last => ChallengeRules.lastDate(ref.read(clockProvider).now());
+  bool _dateEnabled(DateTime d) => !d.isBefore(_first) && (!_live || !d.isAfter(_last));
+
   @override
   void initState() {
     super.initState();
@@ -67,7 +76,11 @@ class _CreateSlotScreenState extends ConsumerState<CreateSlotScreen> {
       if (oversError != null) _errors['overs'] = oversError;
     }
     if (_city == null) _errors['city'] = 'Please select a city';
-    if (_date == null) _errors['date'] = 'Please pick a date';
+    if (_date == null) {
+      _errors['date'] = 'Please pick a date';
+    } else if (!_dateEnabled(_date!)) {
+      _errors['date'] = 'Choose a date from tomorrow (Pakistan time), up to a year ahead.';
+    }
     if (_slot == null) _errors['slot'] = 'Please pick a time slot';
     if (_date != null && _slot != null && _errors['date'] == null && _errors['slot'] == null) {
       final now = ref.read(clockProvider).now();
@@ -100,6 +113,11 @@ class _CreateSlotScreenState extends ConsumerState<CreateSlotScreen> {
           slot: _slot!,
           notes: _notes.text.trim(),
           ));
+    } on AccountException catch (e) {
+      // The server refused it (date, overlap, the 10-slot cap…): say why.
+      if (mounted) setState(() => _saving = false);
+      if (mounted) showCeToast(context, e.message);
+      return;
     } catch (_) {
       if (mounted) setState(() => _saving = false);
       if (mounted) showCeToast(context, "Couldn't post the slot — please try again");
@@ -204,7 +222,7 @@ class _CreateSlotScreenState extends ConsumerState<CreateSlotScreen> {
               hasError: _errors.containsKey('date'),
               onTap: () => setState(() {
                 _pickerOpen = !_pickerOpen;
-                if (_pickerOpen) _month = _date ?? _today;
+                if (_pickerOpen) _month = _date ?? _first;
               }),
             ),
             CeInlineError(_errors['date']),
@@ -214,7 +232,7 @@ class _CreateSlotScreenState extends ConsumerState<CreateSlotScreen> {
                 visibleMonth: _month,
                 today: _today,
                 selected: _date,
-                isEnabled: (d) => !d.isBefore(_today),
+                isEnabled: _dateEnabled,
                 onMonthChanged: (m) => setState(() => _month = m),
                 onSelected: (d) => setState(() {
                   _date = d;

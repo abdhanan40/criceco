@@ -42,7 +42,7 @@ class _ChallengeSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = ref.watch(challengeProvider(challengeId));
-    final summary = c == null ? null : ref.watch(clubDirectoryProvider).value?[c.opponentClubId];
+    final summary = c == null ? null : ref.watch(clubSummaryProvider(c.opponentClubId)).value;
     final club = c == null ? null : ChallengeOpponent.forChallenge(c, summary);
     final live = ref.watch(challengesLiveProvider);
     final busy = ref.watch(respondingChallengesProvider).contains(challengeId);
@@ -124,7 +124,8 @@ class _ChallengeSheet extends ConsumerWidget {
           ]),
           const SizedBox(height: 8),
         ],
-        // Club profiles exist only for the demo's clubs (no server profiles yet).
+        // A club profile is shown once it is known (the demo's clubs; on the
+        // server, with club discovery — M7).
         if (club.summary != null)
           CeButton.soft(label: 'View Club Profile', onPressed: () => close(_ChallengeAction.viewClub)),
       ],

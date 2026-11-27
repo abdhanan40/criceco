@@ -1062,12 +1062,15 @@ void main() {
   });
 
   test(
-    'password change is not supported yet (D13); reset is (AUTH-04)',
+    'password change (M6) is for the signed-in account only; reset (AUTH-04)',
     () async {
-      expect(
-        () => repo.changePassword('x', current: 'a', next: 'b'),
-        throwsUnsupportedError,
+      // M6: supported now (test/profile_media_test.dart); another or no
+      // signed-in account is refused before any call.
+      await expectLater(
+        repo.changePassword('x', current: 'a', next: 'b'),
+        throwsA(isA<AccountException>()),
       );
+      expect(auth.calls, isNot(contains('updatePassword')));
       final ticket = await repo.requestPasswordReset(email, at: today);
       expect(ticket!.accountMayNotExist, isTrue);
     },

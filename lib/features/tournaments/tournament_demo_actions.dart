@@ -13,7 +13,9 @@ class TournamentDemoActions {
   final Ref _ref;
   final _results = DemoMatchResults();
 
-  bool get _on => _ref.read(demoModeProvider);
+  /// Never on the server (the tournaments switch): decisions are the real
+  /// organizer's and results come only from the trusted scorer.
+  bool get _on => _ref.read(demoModeProvider) && !_ref.read(tournamentsLiveProvider);
 
   /// "Simulate Organizer Decision" on My Registrations → Registration
   /// Details. The other club's organizer decides; on approval with enough

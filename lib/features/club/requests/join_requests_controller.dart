@@ -1,8 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app/config/backend_modules.dart';
 import '../../../app/providers/core_providers.dart';
 import '../../../app/session/session_controller.dart';
 import '../../../core/models/models.dart';
+import '../../../data/repositories/repositories.dart' show AccountException;
 import '../club_providers.dart';
 
 /// Club roles an owner can give when approving a request. Never
@@ -77,4 +79,19 @@ final pendingJoinRequestCountProvider = Provider<int?>((ref) {
   final async = ref.watch(joinRequestsProvider);
   if (!async.hasValue) return null;
   return async.value!.where((r) => r.isPending).length;
+});
+
+/// A request's Performance figures: the request's own (the demo), else —
+/// with club discovery (M7, migration 32) and while it is pending — the
+/// applicant's official career figures from `club_applicant_stats`. `null`
+/// when they don't share their stats, never played, or can't be read.
+final joinRequestPerformanceProvider = FutureProvider.family<JoinRequestPerformance?, String>((ref, requestId) async {
+  final r = ref.watch(joinRequestProvider(requestId));
+  if (r == null) return null;
+  if (r.performance != null || !r.isPending || !ref.watch(discoveryBackendLiveProvider)) return r.performance;
+  try {
+    return await ref.read(discoveryRepositoryProvider).applicantPerformance(requestId);
+  } on AccountException {
+    return null; // decided meanwhile, offline: no figures rather than a guess
+  }
 });

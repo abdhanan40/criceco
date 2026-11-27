@@ -987,6 +987,26 @@ class InMemoryHuntRepository implements HuntRepository {
   @override
   Future<void> invite(String clubId, String playerId) async =>
       (_invites[clubId] ??= <String>{}).add(playerId);
+
+  // The demo keeps interest and invites in the session only (its screens
+  // track them): nothing is listed or sent here.
+  @override
+  Future<List<PlayerHuntPost>> clubPosts(String clubId) async => [for (final p in _posts) if (p.clubId == clubId) p];
+  @override
+  Future<void> expressInterest(String postId) async {}
+  @override
+  Future<void> withdrawInterest(String postId) async {}
+  @override
+  Future<List<HuntInterest>> clubInterests(String clubId) async => const [];
+  @override
+  Future<List<ClubHuntInvite>> clubInvites(String clubId) async => const [];
+  @override
+  Future<List<PlayerHuntInvite>> myInvites() async => const [];
+  @override
+  Future<HuntInviteStatus> respondInvite(String inviteId, {required bool accept}) async =>
+      throw const ModuleUnavailableException();
+  @override
+  Future<HuntListing?> myListing() async => null;
 }
 
 class InMemoryTournamentRepository implements TournamentRepository {

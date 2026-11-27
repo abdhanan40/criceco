@@ -44,7 +44,39 @@ class LocalAccountOverlay {
   }
 
   /// Forgets this device's photo and settings for [userId] (account deleted).
-  Future<void> clear(String userId) => _prefs.remove(keyFor(userId));
+  Future<void> clear(String userId) async {
+    await _prefs.remove(keyFor(userId));
+    await _prefs.remove(refusedPhotoKeyFor(userId));
+  }
+
+  /// M5: the device photo the server refused to take over (too large, not a
+  /// JPG / PNG / WebP) — not tried again.
+  static String refusedPhotoKeyFor(String userId) =>
+      'criceco.local.$userId.photoRefused';
+
+  String? refusedPhoto(String userId) =>
+      _prefs.getString(refusedPhotoKeyFor(userId));
+
+  Future<void> markPhotoRefused(String userId, String path) =>
+      _prefs.setString(refusedPhotoKeyFor(userId), path);
+
+  /// M5: forgets only the device photo of [userId] (it is on the server now,
+  /// or the file is gone); the settings stay.
+  Future<void> clearPhoto(String userId) async {
+    final raw = _prefs.getString(keyFor(userId));
+    if (raw == null) return;
+    final Object? m;
+    try {
+      m = jsonDecode(raw);
+    } on FormatException {
+      return;
+    }
+    if (m is! Map<String, dynamic>) return;
+    await _prefs.setString(
+      keyFor(userId),
+      jsonEncode({...m, 'hasPhoto': false, 'photoPath': null}),
+    );
+  }
 
   /// Saves [account]'s photo and settings for its user id.
   Future<void> save(UserAccount account) => _prefs.setString(

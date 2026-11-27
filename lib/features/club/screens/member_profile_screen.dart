@@ -10,6 +10,7 @@ import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/fitness_meter.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../shared/media/photo_picker.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
@@ -132,11 +133,20 @@ List<Widget> memberProfileChildren(BuildContext context, WidgetRef ref, ClubMemb
       // Empty: the member hasn't agreed to share it (or it isn't set).
       ('Phone', CeSummaryCard.value(context, m.phone.isEmpty ? 'Not shared' : m.phone)),
     ]),
+    // M9: a member who doesn't share their stats — no Fitness Meter, never a 0/10.
+    if (fitness == null && m.plays && ref.watch(fitnessRecordedProvider) && ref.watch(memberFitnessHiddenProvider(memberId)))
+      const CeInfoNote(
+        key: Key('member.fitnessNotShared'),
+        icon: 'lock',
+        text: 'Fitness not shared — this player keeps their stats private.',
+        margin: EdgeInsets.fromLTRB(CeSpace.gutter, CeSpace.section, CeSpace.gutter, 0),
+      ),
     if (fitness != null) ...[
       FitnessMeterView(
         report: fitness,
         log: ref.watch(memberRecentMatchesProvider(memberId)),
         now: ref.read(clockProvider).now(),
+        workouts: ref.watch(memberWorkoutsProvider(memberId)),
       ),
       _RecentMatches(memberId: memberId),
       if (isOwner) const _OwnCareer() else _Scouting(member: m),
@@ -179,17 +189,22 @@ class _Identity extends StatelessWidget {
       radius: CeRadius.lg,
       padding: const EdgeInsets.all(16),
       child: Row(children: [
-        Container(
-          width: 56,
-          height: 56,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.white.withValues(alpha: 0.18),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 2),
+        // M5: the member's picture in the same circle; the initial without one.
+        CePhotoImage(
+          path: m.photoPath,
+          size: 56,
+          fallback: Container(
+            width: 56,
+            height: 56,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withValues(alpha: 0.18),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 2),
+            ),
+            child: Text(m.name.trim().isEmpty ? '?' : m.name.trim()[0].toUpperCase(),
+                style: const TextStyle(fontFamily: CeType.display, fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white)),
           ),
-          child: Text(m.name.trim().isEmpty ? '?' : m.name.trim()[0].toUpperCase(),
-              style: const TextStyle(fontFamily: CeType.display, fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white)),
         ),
         const SizedBox(width: 14),
         Expanded(

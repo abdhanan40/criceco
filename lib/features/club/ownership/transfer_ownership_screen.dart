@@ -254,7 +254,7 @@ class _CandidateRow extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                CeAvatar(member.name, size: 36),
+                CeAvatar(member.name, size: 36, photoPath: member.photoPath),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(

@@ -262,8 +262,117 @@ abstract final class ServerNotificationAdapter {
         _join(['$person offered you $club', _answerBy(n)]),
         const OwnershipOffersTarget(),
       ),
+      // Player Hunt (migration 33, M8) — the push templates' wording.
+      ServerNotificationType.huntInviteReceived => (
+        'user-plus',
+        NotificationTone.green,
+        'Playing invite from ${n.text('club_name') ?? 'a club'}',
+        _or(_huntTerms(n), 'Open Playing Opportunities to answer'),
+        const PlayingOpportunitiesTarget(),
+      ),
+      ServerNotificationType.huntInterestReceived => (
+        'user-check',
+        NotificationTone.green,
+        '${_huntPerson(n)} is interested in playing',
+        _or(_huntTerms(n), club),
+        const PlayerHuntTarget(),
+      ),
+      ServerNotificationType.huntInviteAccepted => (
+        'check-circle',
+        NotificationTone.green,
+        '${_huntPerson(n)} accepted your invite',
+        _join([club, 'See Player Hunt']),
+        const PlayerHuntTarget(availablePlayers: true),
+      ),
+      // Tournaments (migration 35, M10): the club owner's inbox.
+      ServerNotificationType.tournamentRegistrationReceived => (
+        'trophy',
+        NotificationTone.amber,
+        'Tournament entry from ${n.text('applicant_name') ?? 'a club'}',
+        _or(_entry(n), 'Open Team Requests to answer'),
+        switch ((n.text('tournament_id'), subjectId)) {
+          (final String t, final String r) => TournamentRequestTarget(t, r),
+          _ => null,
+        },
+      ),
+      ServerNotificationType.tournamentRegistrationApproved => (
+        'trophy',
+        NotificationTone.green,
+        'Tournament entry approved',
+        _or(_entry(n), 'See My Registrations'),
+        subjectId == null
+            ? const MyRegistrationsTarget(RegistrationStatus.approved)
+            : RegistrationTarget(subjectId),
+      ),
+      ServerNotificationType.tournamentRegistrationRejected => (
+        'x-circle',
+        NotificationTone.amber,
+        'Tournament entry not accepted',
+        _or(_entry(n), 'See My Registrations'),
+        subjectId == null
+            ? const MyRegistrationsTarget(RegistrationStatus.rejected)
+            : RegistrationTarget(subjectId),
+      ),
+      ServerNotificationType.tournamentTeamRemoved => (
+        'x-circle',
+        NotificationTone.amber,
+        'Team removed from tournament',
+        _or(_entry(n), 'See My Registrations'),
+        subjectId == null
+            ? const MyRegistrationsTarget(RegistrationStatus.approved)
+            : RegistrationTarget(subjectId),
+      ),
+      ServerNotificationType.tournamentFixturesPublished => (
+        'calendar',
+        NotificationTone.blue,
+        'Tournament fixtures published',
+        _or(
+          _join([
+            n.text('tournament_name'),
+            n.text('round_name'),
+            switch (n.date('start_date')) {
+              final DateTime d => 'Starts ${CeFormat.dayMonth(d)}',
+              null => null,
+            },
+          ]),
+          'See the tournament’s fixtures',
+        ),
+        const MyRegistrationsTarget(RegistrationStatus.approved),
+      ),
     };
   }
+
+  /// [text], or [fallback] when it is empty.
+  static String _or(String text, String fallback) =>
+      text.isEmpty ? fallback : text;
+
+  /// The player named in a Player Hunt notification.
+  static String _huntPerson(ServerNotification n) =>
+      n.personDeleted ? deletedPerson : (n.text('person_name') ?? 'A player');
+
+  /// "Batsman · T20 · 2 Dec" — the parts the notification has.
+  static String _huntTerms(ServerNotification n) {
+    final role = HuntRole.values
+        .where((r) => r.name == _camel(n.text('hunt_role')))
+        .firstOrNull;
+    final format = MatchFormat.values
+        .where((f) => f.name == n.text('format'))
+        .firstOrNull;
+    final date = n.date('match_date');
+    return _join([
+      role?.label,
+      format?.display(n.integer('custom_overs')),
+      date == null ? null : CeFormat.dayMonth(date),
+    ]);
+  }
+
+  /// `all_rounder` → `allRounder`.
+  static String? _camel(String? code) =>
+      code?.replaceAllMapped(RegExp(r'_([a-z])'), (m) => m[1]!.toUpperCase());
+
+  /// "Summer Cup · Lions XI".
+  static String _entry(ServerNotification n) =>
+      _join([n.text('tournament_name'), n.text('team_name')]);
 
   // ---- Pieces ----
 

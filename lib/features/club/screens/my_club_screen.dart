@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../app/config/account_privacy.dart';
 import '../../../app/config/backend_modules.dart';
 import '../../../app/router/routes.dart';
+import '../../../app/session/account_error_text.dart';
 import '../../../app/session/session_controller.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../app/theme/typography.dart';
@@ -32,7 +33,15 @@ class MyClubScreen extends ConsumerWidget {
     final hasPicture = ref.read(currentClubProvider)?.logoPath != null;
     final change = await choosePhoto(context, ref, title: 'Club picture', hasPhoto: hasPicture);
     if (change == null || !context.mounted) return;
-    await ref.read(sessionProvider.notifier).updateClub((c) => c.withLogo(change.path));
+    try {
+      await ref.read(sessionProvider.notifier).updateClub((c) => c.withLogo(change.path));
+    } catch (e) {
+      // M5: an upload the server refused (or offline): nothing changed.
+      if (!context.mounted) return;
+      if (signOutIfNeeded(context, ref, e)) return;
+      showCeToast(context, accountErrorText(e, fallback: "Couldn't update the club picture — please try again"));
+      return;
+    }
     if (context.mounted) showCeToast(context, change.path == null ? 'Club picture removed' : 'Club picture updated');
   }
 

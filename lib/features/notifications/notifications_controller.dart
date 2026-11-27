@@ -20,6 +20,8 @@ String? notificationLocation(NotificationTarget? target) => switch (target) {
       PlayerMatchTarget(:final matchId) => Routes.playerMatchDetails(matchId),
       PlayerProfileTarget() => Routes.playerProfile,
       AvailabilityTarget() => Routes.availability,
+      PlayingOpportunitiesTarget() => Routes.openMatches,
+      PlayerHuntTarget(:final availablePlayers) => availablePlayers ? '${Routes.playerHunt}?tab=available' : Routes.playerHunt,
       OwnershipOffersTarget() => Routes.ownershipOffers,
       PlayerScorecardTarget(:final matchId) => Routes.matchScorecard(matchId),
       JoinRequestTarget(:final requestId) => Routes.joinRequestProfile(requestId),

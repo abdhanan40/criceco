@@ -72,5 +72,15 @@ Future<List<Override>> backendOverrides(
     resultsGatewayProvider.overrideWithValue(SupabaseResultsGateway(client)),
     // Used only with the notifications switch (migration 25 live).
     notificationsGatewayProvider.overrideWithValue(SupabaseNotificationsGateway(client)),
+    // Used only with the profile-media switch (migration 31 live).
+    mediaGatewayProvider.overrideWithValue(SupabaseMediaGateway(client)),
+    // Used only with the fitness switch (migration 34 live).
+    fitnessGatewayProvider.overrideWithValue(SupabaseFitnessGateway(client)),
+    // Used only with the discovery switch (migration 32 live).
+    discoveryGatewayProvider.overrideWithValue(SupabaseDiscoveryGateway(client)),
+    // Used only with the Player Hunt switch (migration 33 live).
+    huntGatewayProvider.overrideWithValue(SupabaseHuntGateway(client)),
+    // Used only with the tournaments switch (migration 35 live).
+    tournamentGatewayProvider.overrideWithValue(SupabaseTournamentGateway(client)),
   ];
 }

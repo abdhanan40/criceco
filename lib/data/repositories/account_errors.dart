@@ -115,6 +115,15 @@ class TeamRuleException extends AccountException {
   const TeamRuleException(super.message);
 }
 
+/// The team was saved elsewhere (another device) after this copy was read:
+/// `save_team` refused the stale save (SQLSTATE 40001, `team: changed
+/// elsewhere`). Nothing was written; the teams are reloaded and the change
+/// has to be made again.
+class TeamChangedElsewhereException extends TeamRuleException {
+  const TeamChangedElsewhereException()
+      : super('This team was changed on another device — it has been reloaded. Please make your change again.');
+}
+
 /// A challenge, match, lineup or availability change the server refused
 /// (migrations 17–19): a duplicate challenge, a replaced proposal, a clash,
 /// an incomplete lineup, an invalid date… [message] says what to do next.
@@ -128,6 +137,58 @@ class MatchRuleException extends AccountException {
 class NotificationRuleException extends AccountException {
   const NotificationRuleException(super.message);
 }
+
+/// A Player Hunt change the server refused (migration 33): a duplicate or
+/// closed post, a player who isn't available any more, an invite already
+/// answered, one of the daily limits… [message] says what to do next.
+class HuntRuleException extends AccountException {
+  const HuntRuleException(super.message);
+}
+
+/// A tournament change the server refused or couldn't find (migration 35):
+/// an invalid field, the club limits, a closed or full registration, a squad
+/// that isn't 11 + 4, a request already decided, a draw already made…
+/// [message] says what to do next; [reason] is the server's own reason
+/// (`registration full`, `not pending`…), for the screens that react to one.
+class TournamentRuleException extends AccountException {
+  const TournamentRuleException(super.message, {this.reason});
+  final String? reason;
+}
+
+/// A workout the server refused or couldn't find (migration 34): a future
+/// or too old date, minutes out of range, too long notes, the daily limits,
+/// a workout already deleted… [message] says what to do next.
+class FitnessRuleException extends AccountException {
+  const FitnessRuleException(super.message);
+}
+
+/// A profile or club picture that couldn't be saved on the server (M5,
+/// migration 31): too large, not a JPG / PNG / WebP, unreadable, or refused
+/// by the server. Nothing changed; [message] says what to do next.
+class MediaException extends AccountException {
+  const MediaException.tooLarge()
+    : kind = MediaFailure.tooLarge,
+      super('That picture is too large. Choose one under 2 MB.');
+  const MediaException.unsupported()
+    : kind = MediaFailure.unsupported,
+      super('Use a JPG, PNG or WebP picture.');
+  const MediaException.unreadable()
+    : kind = MediaFailure.unreadable,
+      super("That picture couldn't be read. Try another one.");
+  const MediaException.notAllowed()
+    : kind = MediaFailure.notAllowed,
+      super('Only the owner can change this picture.');
+  const MediaException.failed()
+    : kind = MediaFailure.failed,
+      super("Couldn't save the picture — please try again.");
+
+  final MediaFailure kind;
+
+  /// The same picture would be refused again (size, type, unreadable file).
+  bool get isPermanent => kind == MediaFailure.tooLarge || kind == MediaFailure.unsupported;
+}
+
+enum MediaFailure { tooLarge, unsupported, unreadable, notAllowed, failed }
 
 /// This part of the app has no backend in this build (Supabase mode,
 /// docs/PRODUCTION_DEMO_MODE.md): nothing is saved, so nothing is pretended.

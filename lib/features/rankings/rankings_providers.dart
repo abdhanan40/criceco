@@ -23,6 +23,17 @@ import '../player/player_providers.dart';
 final rankingInputsProvider = FutureProvider<List<RankingInput>>((ref) async {
   final account = ref.watch(currentAccountProvider);
   final ownClub = ref.watch(currentClubProvider);
+  // Club discovery (M7, migration 32): the shared leaderboard — every
+  // player who allows it, from their official career figures; the
+  // signed-in player's own row always. The ranking math stays here.
+  if (ref.watch(discoveryBackendLiveProvider)) {
+    if (account == null) return const [];
+    try {
+      return await ref.read(discoveryRepositoryProvider).playerRankings();
+    } on AccountException {
+      return const []; // offline: no board rather than a partial one
+    }
+  }
   // The demo ranks the demo club's roster. A Supabase build ranks only the
   // signed-in owner's own club (its stored members) — never the demo's.
   final demo = ref.read(backendModulesProvider).isDemo;

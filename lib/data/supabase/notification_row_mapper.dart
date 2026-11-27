@@ -34,6 +34,18 @@ abstract final class NotificationRowMapper {
     'match_reminder': ServerNotificationType.matchReminder,
     'challenge_expiring': ServerNotificationType.challengeExpiring,
     'ownership_expiring': ServerNotificationType.ownershipExpiring,
+    'hunt_invite_received': ServerNotificationType.huntInviteReceived,
+    'hunt_interest_received': ServerNotificationType.huntInterestReceived,
+    'hunt_invite_accepted': ServerNotificationType.huntInviteAccepted,
+    'tournament_registration_received':
+        ServerNotificationType.tournamentRegistrationReceived,
+    'tournament_registration_approved':
+        ServerNotificationType.tournamentRegistrationApproved,
+    'tournament_registration_rejected':
+        ServerNotificationType.tournamentRegistrationRejected,
+    'tournament_team_removed': ServerNotificationType.tournamentTeamRemoved,
+    'tournament_fixtures_published':
+        ServerNotificationType.tournamentFixturesPublished,
   };
 
   /// The database code of [type].

@@ -8,6 +8,7 @@ import '../../../app/theme/tokens.dart';
 import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/pakistan_time.dart';
 import '../../../shared/widgets/ce_availability.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_icons.dart';
@@ -80,8 +81,8 @@ class MatchDetailsView extends ConsumerWidget {
           margin: const EdgeInsets.symmetric(horizontal: CeSpace.gutter),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Wrap(spacing: 8, runSpacing: 8, children: [
-              CeInfoChip(icon: 'calendar', label: CeFormat.dayDate(m.startsAt)),
-              CeInfoChip(icon: 'clock', label: CeFormat.time(m.startsAt)),
+              CeInfoChip(icon: 'calendar', label: CeFormat.dayDate(m.startsAt.inPakistan)),
+              CeInfoChip(icon: 'clock', label: CeFormat.time(m.startsAt.inPakistan)),
               CeInfoChip(icon: 'circle-dot', label: m.format.display()),
             ]),
             const SizedBox(height: 10),

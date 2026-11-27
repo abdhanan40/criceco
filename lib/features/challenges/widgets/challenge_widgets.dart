@@ -242,7 +242,7 @@ class _ChallengeSetupSheetState extends ConsumerState<_ChallengeSetupSheet> {
           style: Theme.of(context).textTheme.titleLarge),
       const SizedBox(height: 4),
       Text(
-          formats != null
+          formats != null && formats.trim().isNotEmpty
               ? 'Choose the match format, ground and date. ${club.name} plays '
                   '${formats.trim().toLowerCase() == 'any' ? 'any format' : formats}.'
               : 'Choose the match format, venue and date. ${club.name} can accept or decline.',

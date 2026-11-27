@@ -1,4 +1,5 @@
 import '../../core/models/models.dart';
+import '../../core/utils/pakistan_time.dart';
 import 'membership_row_mapper.dart';
 
 /// A row from migrations 17–19 that this app can't read: a required field
@@ -15,21 +16,19 @@ class MatchRowFormatException implements Exception {
 /// Rows of migrations 17–19 ↔ the app's models. Domain models never see a
 /// response map.
 ///
-/// Time: timestamps (`timestamptz`) are instants — parsed as UTC and shown
-/// in the device's local time; sent as UTC ISO-8601. Dates (`proposed_date`,
+/// Time: timestamps (`timestamptz`) are instants — parsed as UTC, kept as
+/// instants and shown on a Pakistan clock ([PakistanTime], whatever the
+/// device's zone); sent as UTC ISO-8601. Dates (`proposed_date`,
 /// `until_date`) are calendar dates in Pakistan (the database applies its
 /// rules in Asia/Karachi): read as a local midnight with the same
 /// year-month-day, and sent as that `YYYY-MM-DD`, never shifted.
 abstract final class MatchRowMapper {
   /// Pakistan Standard Time: UTC+5 all year (no daylight saving).
-  static const karachiOffset = Duration(hours: 5);
+  static const karachiOffset = PakistanTime.offset;
 
   /// The calendar date in Pakistan at [instant] — what the database calls
   /// "today" (`now() at time zone 'Asia/Karachi'`).
-  static DateTime karachiDate(DateTime instant) {
-    final pk = instant.toUtc().add(karachiOffset);
-    return DateTime(pk.year, pk.month, pk.day);
-  }
+  static DateTime karachiDate(DateTime instant) => PakistanTime.dateOf(instant);
 
   // ---- Field readers ----
 
@@ -83,6 +82,8 @@ abstract final class MatchRowMapper {
   static String dateCode(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
+  /// An instant as UTC ISO-8601 (a proposal's start: built from the Pakistan
+  /// time picked, [PakistanTime.instantOf]).
   static String instantCode(DateTime t) => t.toUtc().toIso8601String();
 
   // ---- Codes ----

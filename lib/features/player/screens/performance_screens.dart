@@ -5,6 +5,7 @@ import '../../../app/theme/tokens.dart';
 import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/pakistan_time.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
@@ -397,7 +398,7 @@ class MatchLogCard extends StatelessWidget {
                 Icon(CeIcons.of('calendar'), size: 12, color: CeColors.muted),
                 const SizedBox(width: 4),
                 Flexible(
-                  child: Text(CeFormat.date(m.date),
+                  child: Text(CeFormat.date(m.date.inPakistan),
                       maxLines: 1, overflow: TextOverflow.ellipsis, style: CeType.bodySmall.copyWith(fontSize: 12)),
                 ),
               ]),

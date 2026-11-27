@@ -5,6 +5,7 @@ import '../../../app/session/session_controller.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
+import '../../../core/utils/media_ref.dart';
 import '../../../shared/media/photo_picker.dart';
 import '../../../shared/media/share_service.dart';
 import '../../../shared/widgets/ce_buttons.dart';
@@ -165,7 +166,8 @@ class _ShareProfileSheetState extends ConsumerState<_ShareProfileSheet> {
             label: 'Share Profile',
             icon: CeIcons.of('share-2'),
             loading: _sharing,
-            onPressed: _sharing ? null : () => _share(text, account.photoPath),
+            // A stored picture (M5) isn't a file on this phone: text only.
+            onPressed: _sharing ? null : () => _share(text, MediaRef.isStored(account.photoPath) ? null : account.photoPath),
           ),
         ),
       ]),

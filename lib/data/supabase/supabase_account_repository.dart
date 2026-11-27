@@ -1,9 +1,12 @@
 import 'package:clock/clock.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import '../../core/models/models.dart';
+import '../../core/utils/media_ref.dart';
 import '../../core/utils/validators.dart';
 import '../repositories/repositories.dart';
 import 'local_account_overlay.dart';
+import 'media_uploader.dart';
 import 'profile_row_mapper.dart';
 import 'supabase_error_mapper.dart';
 import 'supabase_gateways.dart';
@@ -19,9 +22,15 @@ import 'supabase_gateways.dart';
 /// - The Club Owner profile is the user's own `clubs` row (Stage 3B), read
 ///   with the account. D6: memberships stay in memory. D9: photo and
 ///   settings stay on the device ([LocalAccountOverlay]).
-/// - Password change is not supported yet (D13). Password reset (AUTH-04)
-///   and Google sign-in (AUTH-05) go through the backend's email and OAuth
-///   flows, which come back to [authCallbackUrl].
+/// - M5 / M6 with [media] (the `CRICECO_PROFILE_MEDIA` switch, migration
+///   31): the profile picture is in Storage (`avatars/<uid>/…`, set with
+///   `set_my_avatar`) and the profile visibility on the server
+///   (`my_privacy_settings` / `set_profile_visibility`). Without it both stay
+///   on the device, as before.
+/// - Password change (M6) re-checks the current password by signing in
+///   again, sets the new one and ends the account's other sessions.
+///   Password reset (AUTH-04) and Google sign-in (AUTH-05) go through the
+///   backend's email and OAuth flows, which come back to [authCallbackUrl].
 class SupabaseAccountRepository implements AccountRepository {
   SupabaseAccountRepository({
     required this.auth,
@@ -30,12 +39,40 @@ class SupabaseAccountRepository implements AccountRepository {
     this.clock = const Clock(),
     this.authCallbackUrl,
     this.privacy,
-  });
+    this.media,
+    LocalMediaFiles files = const LocalMediaFiles(),
+    String Function()? newObjectId,
+  }) : _uploader = media == null ? null : MediaUploader(gateway: media, files: files, newId: newObjectId);
 
   final AuthGateway auth;
   final ProfileGateway db;
   final LocalAccountOverlay overlay;
   final Clock clock;
+
+  /// Profile picture in Storage and profile visibility on the server (the
+  /// `CRICECO_PROFILE_MEDIA` switch, migration 31). `null`: both stay on
+  /// this device ([LocalAccountOverlay]), exactly as before.
+  final MediaGateway? media;
+  final MediaUploader? _uploader;
+
+  /// With [media]: the stored `profiles.avatar_path` per user id (`null` =
+  /// no picture on the server).
+  final Map<String, String?> _avatar = {};
+
+  /// With [media]: the server's visibility settings per user id.
+  final Map<String, ProfileVisibility> _visibility = {};
+
+  /// The picture of the account last returned per user id — a different
+  /// one in [update] / [saveProfileSetup] is a picture change.
+  final Map<String, String?> _shownPhoto = {};
+
+  /// Users whose device photo was offered to the server this app run (M5's
+  /// one-time move of a device photo).
+  final Set<String> _photoMoveTried = {};
+
+  /// The device photo being moved to the server, if any (tests wait for it).
+  @visibleForTesting
+  Future<void>? pendingPhotoMove;
 
   /// Where recovery links and Google sign-in return to: the web app's own
   /// address, or the Android app's `com.criceco.criceco://login-callback`.
@@ -182,19 +219,65 @@ class SupabaseAccountRepository implements AccountRepository {
     }
     _remote[user.id] = remote;
     final gateway = privacy;
+    final m = media;
+    if (m != null) {
+      // M5 / M6: the picture column and the visibility (migration 31).
+      final avatar = rows.profile['avatar_path'];
+      _avatar[user.id] = avatar is String && avatar.trim().isNotEmpty ? avatar.trim() : null;
+      // `my_profile_visibility()`; unreadable → the profile row's columns
+      // (never blocks signing in).
+      ProfileVisibility? v;
+      try {
+        v = await _call(m.fetchProfileVisibility);
+      } on AccountException {
+        v = null;
+      }
+      _visibility[user.id] = ProfileVisibility(
+        publicProfile: v?.publicProfile ?? _flag(rows.profile['public_profile']),
+        showStats: v?.showStats ?? _flag(rows.profile['show_stats']),
+      );
+    }
+    // The phone consent stays `my_privacy_settings()` (migration 13).
     if (gateway != null) _phoneSharing[user.id] = await _call(gateway.fetchPhoneSharing);
-    return _withLocal(remote);
+    return _afterRead(remote);
+  }
+
+  static bool? _flag(Object? v) => v is bool ? v : null;
+
+  /// The account as shown, and (M5) the one-time move of a device photo.
+  UserAccount _afterRead(UserAccount remote) {
+    final account = _withLocal(remote);
+    _maybeMovePhoto(account);
+    return account;
   }
 
   /// The club flags always come from the database ([remote]); only the
   /// memberships are this run's (D6).
   UserAccount _withLocal(UserAccount remote) {
     var local = overlay.applyTo(remote);
+    if (media != null) {
+      // M5: the server's picture wins; without one, a device photo not
+      // moved to the server yet is still shown.
+      final stored = MediaRef.of(MediaRef.avatarsBucket, _avatar[remote.id]);
+      if (stored != null) local = local.copyWith(hasPhoto: true, photoPath: stored);
+      // M6: the server's visibility wins over this device's copy.
+      final v = _visibility[remote.id];
+      if (v != null) {
+        local = local.copyWith(
+          settings: local.settings.copyWith(
+            publicProfile: v.publicProfile ?? local.settings.publicProfile,
+            showStats: v.showStats ?? local.settings.showStats,
+          ),
+        );
+      }
+    }
     // The server's consent wins over this device's copy of the setting.
     final sharing = _phoneSharing[remote.id];
     if (sharing != null) local = local.copyWith(settings: local.settings.copyWith(showPhone: sharing));
     final run = _inMemory[remote.id];
-    return run == null ? local : local.copyWith(memberships: run.memberships);
+    final shown = run == null ? local : local.copyWith(memberships: run.memberships);
+    _shownPhoto[remote.id] = shown.photoPath;
+    return shown;
   }
 
   // ---------------------------------------------------------------------------
@@ -219,6 +302,16 @@ class SupabaseAccountRepository implements AccountRepository {
     } else {
       final params = ProfileRowMapper.saveProfileSetupParams(stored);
       await _call(() => db.saveProfileSetup(params));
+    }
+    if (media != null) {
+      // M5: the setup's picture goes to the server. The profile is saved
+      // already, so a picture that can't be uploaded now never fails the
+      // setup: it stays on this device and moves to the server later.
+      try {
+        await _savePhoto(user.id, account.photoPath);
+      } on AccountException {
+        // Kept on the device ([_keepLocal]); moved once on a later read.
+      }
     }
     await _keepLocal(account);
     return _read(user);
@@ -340,6 +433,11 @@ class SupabaseAccountRepository implements AccountRepository {
       await _call(() => gateway.setPhoneSharing(share));
       _phoneSharing[user.id] = share;
     }
+    if (media != null) {
+      // M6: the visibility, sent only when it changed; M5: the picture.
+      await _saveVisibility(user.id, account.settings);
+      await _savePhoto(user.id, account.photoPath);
+    }
     await _keepLocal(account);
 
     // A club was just created (or is gone): read the flags back from the
@@ -394,15 +492,170 @@ class SupabaseAccountRepository implements AccountRepository {
     return canonical(before) != canonical(after);
   }
 
-  /// D9 photo / settings on the device; D6 memberships in memory.
+  /// D9 photo / settings on the device; D6 memberships in memory. With
+  /// [media], a picture the server holds isn't kept on the device (only a
+  /// device photo not moved to the server yet is).
   Future<void> _keepLocal(UserAccount account) async {
-    await overlay.save(account);
+    final onServer =
+        media != null && (_avatar[account.id] != null || MediaRef.isStored(account.photoPath));
+    await overlay.save(onServer ? account.copyWith(hasPhoto: false, clearPhoto: true) : account);
     _inMemory[account.id] = account;
   }
 
   // ---------------------------------------------------------------------------
-  // Password change: not supported yet (D13 — Settings hides it)
+  // M5: the profile picture in Storage (with [media])
   // ---------------------------------------------------------------------------
+
+  /// [next] is the picture of the account being saved: a new device photo
+  /// is uploaded to `avatars/<uid>/<uuid>.<ext>` and set with
+  /// `set_my_avatar`; none removes the stored one. The replaced object is
+  /// deleted afterwards (best effort). Unchanged → no call.
+  Future<void> _savePhoto(String userId, String? next) async {
+    final m = media!;
+    final uploader = _uploader!;
+    if (next == _shownPhoto[userId] || MediaRef.isStored(next)) return;
+    final old = _avatar[userId];
+    if (next == null) {
+      if (old == null) return; // a device photo only: removed on the device
+      await _call(() => m.setMyAvatar(null));
+      _avatar[userId] = null;
+      await uploader.removeQuietly(MediaRef.avatarsBucket, old);
+      return;
+    }
+    final path = await uploader.upload(bucket: MediaRef.avatarsBucket, folder: userId, localPath: next);
+    try {
+      await _call(() => m.setMyAvatar(path));
+    } on Exception {
+      await uploader.removeQuietly(MediaRef.avatarsBucket, path); // never left unused
+      rethrow;
+    }
+    _avatar[userId] = path;
+    _shownPhoto[userId] = MediaRef.of(MediaRef.avatarsBucket, path);
+    await uploader.removeQuietly(MediaRef.avatarsBucket, old);
+  }
+
+  /// M6: `set_profile_visibility` with only the settings that changed.
+  /// Refused → nothing is kept (the screen shows the stored value again).
+  Future<void> _saveVisibility(String userId, AccountSettings next) async {
+    final m = media!;
+    final v = _visibility[userId];
+    // Not known from the server: its default (visible).
+    final public = next.publicProfile != (v?.publicProfile ?? true) ? next.publicProfile : null;
+    final stats = next.showStats != (v?.showStats ?? true) ? next.showStats : null;
+    if (public == null && stats == null) return;
+    await _call(() => m.setProfileVisibility(publicProfile: public, showStats: stats));
+    _visibility[userId] = ProfileVisibility(publicProfile: next.publicProfile, showStats: next.showStats);
+  }
+
+  /// M5's one-time move: with [media], no picture on the server and a
+  /// device photo from before ([LocalAccountOverlay]) — it is uploaded
+  /// silently in the background (never blocking the screen), then the
+  /// device copy is forgotten. Tried once per app run; a picture the server
+  /// refuses for good (size, type) is never tried again, a file that is gone
+  /// is forgotten.
+  void _maybeMovePhoto(UserAccount account) {
+    final m = media;
+    final id = account.id;
+    final local = account.photoPath;
+    if (m == null || _avatar[id] != null || local == null || MediaRef.isStored(local)) return;
+    if (_photoMoveTried.contains(id) || overlay.refusedPhoto(id) == local) return;
+    _photoMoveTried.add(id);
+    pendingPhotoMove = _movePhoto(m, id, local);
+  }
+
+  Future<void> _movePhoto(MediaGateway m, String userId, String local) async {
+    final uploader = _uploader!;
+    try {
+      final path = await uploader.upload(bucket: MediaRef.avatarsBucket, folder: userId, localPath: local);
+      try {
+        await _call(() => m.setMyAvatar(path));
+      } on Exception {
+        await uploader.removeQuietly(MediaRef.avatarsBucket, path);
+        rethrow;
+      }
+      // Changed meanwhile (another picture saved)? Then that one stays.
+      if (_avatar[userId] != null) {
+        await uploader.removeQuietly(MediaRef.avatarsBucket, path);
+        return;
+      }
+      _avatar[userId] = path;
+      await overlay.clearPhoto(userId);
+    } on MediaException catch (e) {
+      if (e.kind == MediaFailure.unreadable) {
+        await overlay.clearPhoto(userId); // the file is gone
+      } else if (e.isPermanent) {
+        await overlay.markPhotoRefused(userId, local);
+      }
+    } on Exception {
+      // Offline, signed out meanwhile…: tried again on the next app run.
+    }
+  }
+
+  /// Before Delete Account (with [media]): the password is checked by
+  /// signing in again (wrong → [WrongPasswordException], nothing removed),
+  /// then the picture is cleared and every object in the user's own
+  /// `avatars/<uid>/` folder is deleted — best effort: a failure never
+  /// blocks the deletion.
+  Future<void> _removeOwnPictures(AuthUser user, String password) async {
+    final email = user.email;
+    if (email == null) return;
+    final again = await _call(() => auth.signInWithPassword(email: email, password: password));
+    if (again == null) throw const WrongPasswordException();
+    final m = media!;
+    final folder = user.id.toLowerCase();
+    final paths = <String>{?_avatar[user.id]};
+    try {
+      paths.addAll(await m.list(MediaRef.avatarsBucket, folder));
+    } on GatewayException {
+      // Listing failed: at least the known picture.
+    }
+    try {
+      if (_avatar[user.id] != null) await m.setMyAvatar(null);
+    } on GatewayException {
+      // The row goes with the account anyway.
+    }
+    if (paths.isEmpty) return;
+    try {
+      await m.remove(MediaRef.avatarsBucket, paths.toList());
+    } on GatewayException {
+      // Left behind; the account is deleted regardless.
+    }
+    _avatar[user.id] = null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // M6: password change (signed in)
+  // ---------------------------------------------------------------------------
+
+  /// Settings → Password & security → Update Password. [current] is checked
+  /// by signing in again with the account's email (wrong → `false`, nothing
+  /// changes); then the new password is set and the account's OTHER sessions
+  /// are ended (this one stays). The backend's password rules: a weak one is
+  /// [ProfileValidationException] ("Choose a stronger password"), the same
+  /// one [SamePasswordException].
+  @override
+  Future<bool> changePassword(
+    String accountId, {
+    required String current,
+    required String next,
+  }) async {
+    final user = _signedIn(accountId);
+    final email = user.email;
+    if (email == null || current.isEmpty) return false;
+    final again = await _call(
+      () => auth.signInWithPassword(email: email, password: current),
+    );
+    if (again == null) return false;
+    if (again.id != user.id) throw const AccountMismatchException();
+    await _call(() => auth.updatePassword(next));
+    try {
+      await _call(auth.signOutOthers);
+    } on AccountException {
+      // The password is changed; the other sessions end when their tokens
+      // can't be refreshed any more.
+    }
+    return true;
+  }
 
   // ---------------------------------------------------------------------------
   // Account deletion (the `delete-account` Edge Function, with [privacy])
@@ -423,6 +676,10 @@ class SupabaseAccountRepository implements AccountRepository {
       throw const ClubOwnershipTransferRequiredException();
     }
     if (password.isEmpty) throw const WrongPasswordException();
+    // M5: the server doesn't remove the user's pictures (migration 31), so
+    // the app does, first — after checking the password, so a typo never
+    // costs the picture.
+    if (media != null) await _removeOwnPictures(user, password);
     await _call(() => gateway.deleteAccount(password: password));
     try {
       await auth.signOut();
@@ -433,16 +690,10 @@ class SupabaseAccountRepository implements AccountRepository {
     _remote.remove(user.id);
     _inMemory.remove(user.id);
     _phoneSharing.remove(user.id);
+    _avatar.remove(user.id);
+    _visibility.remove(user.id);
+    _shownPhoto.remove(user.id);
   }
-
-  @override
-  Future<bool> changePassword(
-    String accountId, {
-    required String current,
-    required String next,
-  }) => throw UnsupportedError(
-    'Password change is not supported in Supabase mode yet',
-  );
 
   // ---------------------------------------------------------------------------
   // AUTH-04: password recovery

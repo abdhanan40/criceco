@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/router/routes.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/pakistan_time.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_top_bar.dart';
 import '../../player/player_providers.dart' show scorecardProvider;
@@ -56,7 +57,7 @@ class ClubMatchResultScreen extends ConsumerWidget {
             );
           }
           final meta = [
-            if (match?.startsAt case final at?) CeFormat.dayDate(at),
+            if (match?.startsAt case final at?) CeFormat.dayDate(at.inPakistan),
             if (match?.format case final f?) f.display(match?.customOvers),
             ?match?.venueName,
           ].join(' · ');

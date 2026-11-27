@@ -4,10 +4,14 @@ import 'team.dart';
 /// A tournament entry is either a club (seeded tournaments) or a registration
 /// of one of the owner's teams. Stored as ids only — no name/abbr mixing.
 class TournamentEntrant {
-  const TournamentEntrant({required this.id, required this.displayName, this.clubId});
+  const TournamentEntrant({required this.id, required this.displayName, this.clubId, this.city});
   final String id; // clubId or registrationId
   final String displayName;
   final String? clubId;
+
+  /// The club's city as the server sent it (`null` in the demo, whose
+  /// clubs come from the directory).
+  final String? city;
 
   @override
   bool operator ==(Object other) => other is TournamentEntrant && other.id == id;
@@ -77,6 +81,11 @@ class Tournament {
     this.fixtures,
     this.standings = const {},
     this.winnerId,
+    this.approvedCount,
+    this.pendingCount,
+    this.fixturesGenerated,
+    this.organizerName,
+    this.winnerName,
   });
 
   static const minTeamsForFixtures = 2;
@@ -104,9 +113,25 @@ class Tournament {
   final Map<String, Standing> standings;
   final String? winnerId;
 
-  int get availableSlots => (maxTeams - joined.length).clamp(0, maxTeams);
-  bool get canGenerateFixtures => joined.length >= minTeamsForFixtures;
-  bool get isFull => joined.length >= maxTeams;
+  /// Server rows only (migration 35; `null` in the demo, which counts its
+  /// lists): the confirmed teams (`approved_count`), the requests waiting
+  /// (`pending_count`, the organizer's owner only), whether the draw exists,
+  /// and the organizer's and champion's club names.
+  final int? approvedCount;
+  final int? pendingCount;
+  final bool? fixturesGenerated;
+  final String? organizerName;
+  final String? winnerName;
+
+  /// Confirmed teams: the server's count, else the [joined] list.
+  int get joinedCount => approvedCount ?? joined.length;
+
+  /// The draw exists (a server row says so even before its fixtures load).
+  bool get hasFixtures => fixturesGenerated ?? fixtures != null;
+
+  int get availableSlots => (maxTeams - joinedCount).clamp(0, maxTeams);
+  bool get canGenerateFixtures => joinedCount >= minTeamsForFixtures;
+  bool get isFull => joinedCount >= maxTeams;
 
   /// Status as of [now]: an open tournament whose registration deadline day
   /// has passed is closed (the stored status is not rewritten).
@@ -119,7 +144,7 @@ class Tournament {
 
   /// A club can still submit a registration.
   bool acceptsRegistrationsAt(DateTime now) =>
-      statusAt(now) == TournamentStatus.registrationOpen && !isFull && fixtures == null;
+      statusAt(now) == TournamentStatus.registrationOpen && !isFull && !hasFixtures;
 
   TournamentEntrant? entrant(String id) =>
       joined.where((e) => e.id == id).firstOrNull ?? pending.where((e) => e.id == id).firstOrNull;
@@ -131,6 +156,9 @@ class Tournament {
     List<FixtureRound>? fixtures,
     Map<String, Standing>? standings,
     String? winnerId,
+    int? approvedCount,
+    int? pendingCount,
+    bool? fixturesGenerated,
   }) =>
       Tournament(
         id: id,
@@ -155,6 +183,11 @@ class Tournament {
         fixtures: fixtures ?? this.fixtures,
         standings: standings ?? this.standings,
         winnerId: winnerId ?? this.winnerId,
+        approvedCount: approvedCount ?? this.approvedCount,
+        pendingCount: pendingCount ?? this.pendingCount,
+        fixturesGenerated: fixturesGenerated ?? this.fixturesGenerated,
+        organizerName: organizerName,
+        winnerName: winnerName,
       );
 }
 
@@ -171,6 +204,9 @@ class TournamentRegistration {
     this.teamId,
     this.lineup,
     this.decidedAt,
+    this.clubName,
+    this.clubCity,
+    this.removed = false,
   });
   final String id;
   final String tournamentId;
@@ -189,18 +225,31 @@ class TournamentRegistration {
   final DateTime submittedAt;
   final DateTime? decidedAt;
 
+  /// The entering club's name and city as the server sent them (`null` in
+  /// the demo, whose clubs come from the directory).
+  final String? clubName;
+  final String? clubCity;
+
+  /// The organizer removed this confirmed team (server status `removed`,
+  /// migration 35). It is listed as [RegistrationStatus.rejected].
+  final bool removed;
+
   bool get isPending => status == RegistrationStatus.pending;
 
-  TournamentRegistration copyWith({RegistrationStatus? status, DateTime? decidedAt}) => TournamentRegistration(
+  TournamentRegistration copyWith({RegistrationStatus? status, DateTime? decidedAt, Lineup? lineup}) =>
+      TournamentRegistration(
         id: id,
         tournamentId: tournamentId,
         clubId: clubId,
         teamId: teamId,
         teamName: teamName,
-        lineup: lineup,
+        lineup: lineup ?? this.lineup,
         status: status ?? this.status,
         submittedAt: submittedAt,
         decidedAt: decidedAt ?? this.decidedAt,
+        clubName: clubName,
+        clubCity: clubCity,
+        removed: removed,
       );
 }
 
@@ -212,6 +261,8 @@ class TournamentAward {
   final int value; // runs / wickets / dismissals / catches
 }
 
+/// The four awards. On the server (migration 35) an award with nothing to
+/// count yet is absent (`null`); the demo always has all four.
 class TournamentAwards {
   const TournamentAwards({
     required this.topScorer,
@@ -219,8 +270,8 @@ class TournamentAwards {
     required this.bestKeeper,
     required this.bestFielder,
   });
-  final TournamentAward topScorer;
-  final TournamentAward topWicketTaker;
-  final TournamentAward bestKeeper;
-  final TournamentAward bestFielder;
+  final TournamentAward? topScorer;
+  final TournamentAward? topWicketTaker;
+  final TournamentAward? bestKeeper;
+  final TournamentAward? bestFielder;
 }

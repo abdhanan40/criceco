@@ -201,6 +201,7 @@ void main() {
       ],
     );
     final p = MembershipRowMapper.saveParams(team);
+    expect(p['p_expected_version'], 1, reason: 'the copy it was made from (M4)');
     expect(p['p_format'], 'odi');
     expect(p['p_custom_overs'], isNull);
     expect(p['p_captain_member_id'], 'm1');

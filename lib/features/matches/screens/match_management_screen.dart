@@ -9,6 +9,7 @@ import '../../../app/session/session_controller.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/pakistan_time.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
@@ -237,7 +238,7 @@ class _WaitingCard extends ConsumerWidget {
 
     // Reserved: ground held and payment(s) in progress, or expired awaiting a refund choice.
     final ground = m.groundId == null ? null : ref.watch(groundDirectoryProvider).value?[m.groundId];
-    final start = m.startsAt;
+    final start = m.startsAt?.inPakistan;
     final slot = booking?.draft.slot;
     final meta = [
       ground?.name ?? 'Ground',
@@ -287,7 +288,7 @@ class _ScheduledCard extends ConsumerWidget {
     final club = ref.watch(currentClubProvider);
     final home = club?.displayShortName ?? 'My Club';
     final ground = m.groundId == null ? null : ref.watch(groundDirectoryProvider).value?[m.groundId];
-    final start = m.startsAt;
+    final start = m.startsAt?.inPakistan;
     return CeMatchCard(
       homeAbbr: clubAbbr(home),
       awayAbbr: opponent.abbr,
@@ -346,7 +347,7 @@ class _HistoryCard extends ConsumerWidget {
         ]),
         const SizedBox(height: 6),
         Wrap(spacing: 10, runSpacing: 4, children: [
-          _Meta(icon: 'calendar', text: m.startsAt == null ? 'Date TBD' : CeFormat.date(m.startsAt!)),
+          _Meta(icon: 'calendar', text: m.startsAt == null ? 'Date TBD' : CeFormat.date(m.startsAt!.inPakistan)),
           _Meta(icon: 'flag', text: [ground?.name ?? 'Ground TBD', ?m.city].join(', ')),
         ]),
         if (m.resultText != null) ...[

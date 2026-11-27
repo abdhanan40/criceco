@@ -23,6 +23,7 @@ class TournamentHubScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(tournamentsSyncProvider('hub'));
     final stats = ref.watch(tournamentHubStatsProvider);
     final confirmed =
         (ref.watch(clubMatchesProvider).value ?? const <ClubMatch>[]).where((m) => m.status == MatchStatus.confirmed).length;

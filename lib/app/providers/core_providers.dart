@@ -14,13 +14,17 @@ import '../../data/supabase/supabase_account_repository.dart';
 import '../../data/supabase/supabase_availability_repository.dart';
 import '../../data/supabase/supabase_challenge_repository.dart';
 import '../../data/supabase/supabase_club_repository.dart';
+import '../../data/supabase/supabase_discovery_repository.dart';
+import '../../data/supabase/supabase_fitness_repository.dart';
 import '../../data/supabase/supabase_gateways.dart';
+import '../../data/supabase/supabase_hunt_repository.dart';
 import '../../data/supabase/supabase_location_repository.dart';
 import '../../data/supabase/supabase_match_repository.dart';
 import '../../data/supabase/supabase_notification_repository.dart';
 import '../../data/supabase/supabase_ownership_repository.dart';
 import '../../data/supabase/supabase_results_repository.dart';
 import '../../data/supabase/supabase_team_repository.dart';
+import '../../data/supabase/supabase_tournament_repository.dart';
 import '../../demo/demo_stats.dart';
 import '../../demo/seed_data.dart';
 import '../config/account_privacy.dart';
@@ -28,6 +32,7 @@ import '../config/auth_features.dart';
 import '../config/auth_redirects.dart';
 import '../config/backend_config.dart';
 import '../config/backend_modules.dart';
+import '../config/profile_media.dart';
 
 /// Injectable time source. Tests override with a fixed/fake [Clock].
 final clockProvider = Provider<Clock>((ref) => const Clock());
@@ -82,6 +87,9 @@ final accountRepositoryProvider = Provider<AccountRepository>((ref) {
         // Phone consent and account deletion on the server: only with the
         // account-privacy switch (migrations 13–14 and the Edge Function live).
         privacy: ref.watch(accountPrivacyEnabledProvider) ? ref.watch(accountPrivacyGatewayProvider) : null,
+        // M5 / M6: the profile picture and visibility on the server, only
+        // with the profile-media switch (migration 31 live).
+        media: ref.watch(profileMediaLiveProvider) ? ref.watch(mediaGatewayProvider) : null,
       ),
   };
 });
@@ -102,6 +110,12 @@ final clubRepositoryProvider = Provider<ClubRepository>((ref) {
         // Migration 17's opponent directory, only with the matches switch.
         matches: ref.watch(matchesBackendLiveProvider) ? ref.watch(matchGatewayProvider) : null,
         clock: ref.watch(clockProvider),
+        // M5: club pictures (and members' pictures) with the profile-media switch.
+        media: ref.watch(profileMediaLiveProvider) ? ref.watch(mediaGatewayProvider) : null,
+        // M9: the members' recent matches for the Fitness Meter, with the fitness switch.
+        fitness: ref.watch(fitnessBackendLiveProvider) ? ref.watch(fitnessRepositoryProvider) : null,
+        // M7: other clubs' directory and public profiles, with the discovery switch.
+        discovery: ref.watch(discoveryBackendLiveProvider) ? ref.watch(discoveryGatewayProvider) : null,
       ),
   };
 });
@@ -163,7 +177,12 @@ final challengeRepositoryProvider = Provider<ChallengeRepository>((ref) {
     );
   }
   return ref.watch(matchesBackendLiveProvider)
-      ? SupabaseChallengeRepository(db: ref.watch(matchGatewayProvider), ownClub: ref.watch(ownClubLookupProvider))
+      ? SupabaseChallengeRepository(
+          db: ref.watch(matchGatewayProvider),
+          ownClub: ref.watch(ownClubLookupProvider),
+          // M7: availability slots and Find Opponent's listings (migration 32).
+          discovery: ref.watch(discoveryBackendLiveProvider) ? ref.watch(discoveryGatewayProvider) : null,
+        )
       : InMemoryChallengeRepository.empty();
 });
 
@@ -176,6 +195,15 @@ final resultsRepositoryProvider = Provider<ResultsRepository>((ref) => ref.watch
     ? SupabaseResultsRepository(db: ref.watch(resultsGatewayProvider))
     : const UnavailableResultsRepository());
 
+/// Logged workouts and the owner's squad fitness: migration 34 in Supabase
+/// mode with the memberships, matches, results AND fitness switches
+/// ([fitnessBackendLiveProvider]). Everywhere else — the demo included, whose
+/// workouts stay in the session — nothing is listed and no network call is
+/// made.
+final fitnessRepositoryProvider = Provider<FitnessRepository>((ref) => ref.watch(fitnessBackendLiveProvider)
+    ? SupabaseFitnessRepository(db: ref.watch(fitnessGatewayProvider), clock: ref.watch(clockProvider))
+    : const UnavailableFitnessRepository());
+
 /// The signed-in person's availability and the owner's view of the club's.
 final playerAvailabilityRepositoryProvider = Provider<PlayerAvailabilityRepository>((ref) {
   if (_demo(ref)) return InMemoryPlayerAvailabilityRepository();
@@ -183,10 +211,43 @@ final playerAvailabilityRepositoryProvider = Provider<PlayerAvailabilityReposito
       ? SupabaseAvailabilityRepository(db: ref.watch(matchGatewayProvider))
       : const UnavailablePlayerAvailabilityRepository();
 });
-final huntRepositoryProvider = Provider<HuntRepository>(
-    (ref) => _demo(ref) ? InMemoryHuntRepository(ref.watch(seedDataProvider)) : InMemoryHuntRepository.empty());
-final tournamentRepositoryProvider = Provider<TournamentRepository>((ref) =>
-    _demo(ref) ? InMemoryTournamentRepository(ref.watch(seedDataProvider)) : InMemoryTournamentRepository.empty());
+/// Player Hunt / Playing Opportunities: the demo's seeded data in memory
+/// mode; migration 33 in Supabase mode with the memberships AND Player Hunt
+/// switches ([huntBackendLiveProvider]); otherwise empty (its screens say it
+/// isn't available yet) — no network call is made then.
+final huntRepositoryProvider = Provider<HuntRepository>((ref) {
+  if (_demo(ref)) return InMemoryHuntRepository(ref.watch(seedDataProvider));
+  return ref.watch(huntBackendLiveProvider)
+      ? SupabaseHuntRepository(db: ref.watch(huntGatewayProvider), ownClub: ref.watch(ownClubLookupProvider))
+      : InMemoryHuntRepository.empty();
+});
+
+/// The shared player leaderboard and applicants' statistics: migration 32
+/// with the discovery switch ([discoveryBackendLiveProvider]); elsewhere —
+/// the demo included — nothing, and no network call.
+final discoveryRepositoryProvider = Provider<DiscoveryRepository>((ref) => ref.watch(discoveryBackendLiveProvider)
+    ? SupabaseDiscoveryRepository(db: ref.watch(discoveryGatewayProvider))
+    : const UnavailableDiscoveryRepository());
+/// Tournaments: the demo's seeded data in memory mode; migration 35 in
+/// Supabase mode with the memberships AND tournaments switches
+/// ([tournamentsBackendLiveProvider]); otherwise empty (its screens say it
+/// isn't available yet) — no network call is made then.
+final tournamentRepositoryProvider = Provider<TournamentRepository>((ref) {
+  if (_demo(ref)) return InMemoryTournamentRepository(ref.watch(seedDataProvider));
+  return ref.watch(tournamentsBackendLiveProvider)
+      ? SupabaseTournamentRepository(db: ref.watch(tournamentGatewayProvider), ownClub: ref.watch(ownClubLookupProvider))
+      : InMemoryTournamentRepository.empty();
+});
+
+/// The server's tournament functions ([TournamentBackend]) when the
+/// tournament repository is the server's; `null` in the demo and without the
+/// switch, where the controllers keep their in-app rules.
+final tournamentBackendProvider = Provider<TournamentBackend?>((ref) {
+  return switch (ref.watch(tournamentRepositoryProvider)) {
+    final TournamentBackend server => server,
+    _ => null,
+  };
+});
 final notificationRepositoryProvider = Provider<NotificationRepository>((ref) =>
     _demo(ref) ? InMemoryNotificationRepository(ref.watch(seedDataProvider)) : InMemoryNotificationRepository.empty());
 final announcementRepositoryProvider =

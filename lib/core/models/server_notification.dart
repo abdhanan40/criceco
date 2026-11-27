@@ -33,6 +33,18 @@ enum ServerNotificationType {
   matchReminder,
   challengeExpiring,
   ownershipExpiring,
+
+  // Player Hunt (migration 33, M8).
+  huntInviteReceived,
+  huntInterestReceived,
+  huntInviteAccepted,
+
+  // Tournaments (migration 35, M10): the club owner's inbox.
+  tournamentRegistrationReceived,
+  tournamentRegistrationApproved,
+  tournamentRegistrationRejected,
+  tournamentTeamRemoved,
+  tournamentFixturesPublished,
 }
 
 /// One notification from the server inbox (migration 25): immutable except
@@ -243,7 +255,14 @@ enum NotificationCategory {
 
   /// The category of [type] (as the server's `notification_category`).
   static NotificationCategory of(ServerNotificationType type) => switch (type) {
-    ServerNotificationType.joinRequestReceived => joinRequests,
+    ServerNotificationType.joinRequestReceived ||
+    ServerNotificationType.huntInterestReceived ||
+    ServerNotificationType.huntInviteAccepted ||
+    ServerNotificationType.tournamentRegistrationReceived => joinRequests,
+    ServerNotificationType.tournamentRegistrationApproved ||
+    ServerNotificationType.tournamentRegistrationRejected ||
+    ServerNotificationType.tournamentTeamRemoved => challenges,
+    ServerNotificationType.tournamentFixturesPublished => matches,
     ServerNotificationType.challengeReceived ||
     ServerNotificationType.challengeAccepted ||
     ServerNotificationType.challengeDeclined ||

@@ -1,3 +1,4 @@
+import '../../core/domain/player_ranking.dart' show RankingInput;
 import '../../core/models/models.dart';
 import 'account_errors.dart';
 import 'auth_events.dart';
@@ -320,10 +321,61 @@ abstract interface class HuntRepository {
   /// "Invited" state is known on first build.
   Set<String> invitedPlayerIds(String clubId);
 
-  /// Records an invite. FRONTEND-ONLY in this build: the mock repository just
-  /// remembers it for the session — no message reaches the player until a
-  /// backend (push / SMS / in-app inbox) implements this.
+  /// Records an invite. The demo only remembers it for the session (no
+  /// message reaches the player); the server (migration 33) notifies the
+  /// player and refuses a duplicate, a player who isn't listed, a member,
+  /// the daily limit ([HuntRuleException]).
   Future<void> invite(String clubId, String playerId);
+
+  // ---- Server Player Hunt (migration 33); the demo keeps none of these ----
+
+  /// [clubId]'s own posts (owner only): open ones and those of the last 90
+  /// days. The demo: its posts of that club.
+  Future<List<PlayerHuntPost>> clubPosts(String clubId);
+
+  /// "I'm Interested" (the club's owner is notified once) / withdrawn.
+  Future<void> expressInterest(String postId);
+  Future<void> withdrawInterest(String postId);
+
+  /// Players interested in [clubId]'s posts (owner only), newest first.
+  Future<List<HuntInterest>> clubInterests(String clubId);
+
+  /// [clubId]'s invites (owner only), newest first.
+  Future<List<ClubHuntInvite>> clubInvites(String clubId);
+
+  /// The signed-in player's invites, newest first.
+  Future<List<PlayerHuntInvite>> myInvites();
+
+  /// The player answers an invite. Accepting means "contact me" — the owner
+  /// is told; it never joins the club. Returns the new status.
+  Future<HuntInviteStatus> respondInvite(String inviteId, {required bool accept});
+
+  /// The signed-in player's listing as the server keeps it; `null` where
+  /// none is kept (the demo: session only).
+  Future<HuntListing?> myListing();
+}
+
+/// Club discovery data that isn't a club, challenge or slot (migration 32,
+/// the discovery switch): the shared player leaderboard and a join-request
+/// applicant's statistics.
+abstract interface class DiscoveryRepository {
+  /// The leaderboard's inputs — every listed player (their consent, a club),
+  /// the signed-in player's own row always. Ranked by the app.
+  Future<List<RankingInput>> playerRankings({int limit = 200});
+
+  /// The applicant's career figures for the owner of the club they applied
+  /// to; `null` when they don't share them or never played.
+  Future<JoinRequestPerformance?> applicantPerformance(String requestId);
+}
+
+/// Builds without migration 32: nothing is listed, and no call is made.
+class UnavailableDiscoveryRepository implements DiscoveryRepository {
+  const UnavailableDiscoveryRepository();
+
+  @override
+  Future<List<RankingInput>> playerRankings({int limit = 200}) async => const [];
+  @override
+  Future<JoinRequestPerformance?> applicantPerformance(String requestId) async => null;
 }
 
 abstract interface class TournamentRepository {
@@ -332,6 +384,68 @@ abstract interface class TournamentRepository {
   Future<Tournament> create(Tournament draft);
   Future<List<TournamentRegistration>> registrations();
   Future<TournamentRegistration> saveRegistration(TournamentRegistration registration);
+}
+
+/// Tournament Center counts from the server (`tournament_hub_stats`).
+typedef TournamentServerStats = ({int hosted, int open, int registered, int approved, int pending});
+
+/// Tournaments on the server (migration 35, the tournaments switch): every
+/// change is a database function that checks the caller, the tournament's
+/// state and the squad rules itself, so the app never writes a tournament,
+/// entry or fixture of its own (docs/M10_TOURNAMENTS.md). Refusals are
+/// [TournamentRuleException]s. Results stay read-only: a fixture's winner
+/// comes only from the trusted scorer. There are no payments.
+///
+/// [TournamentRepository.tournaments] lists the own club's hosted
+/// tournaments and every other club's ([browse]);
+/// [TournamentRepository.registrations] the own club's entries;
+/// [TournamentRepository.create] publishes. `save` and `saveRegistration`
+/// are refused (UnsupportedError): the server owns that state.
+abstract interface class TournamentBackend {
+  /// Other clubs' tournaments, soonest start first; [city] matched
+  /// case-insensitively (`null`: every city).
+  Future<List<Tournament>> browse({String? city});
+
+  /// One tournament (its effective status and counts).
+  Future<Tournament> detail(String tournamentId);
+
+  /// The own club's Tournament Center counts.
+  Future<TournamentServerStats> hubStats();
+
+  /// The entries the caller may see: approved ones in approval order (the
+  /// draw's seeding), then pending oldest first, then rejected / removed.
+  Future<List<TournamentRegistration>> teams(String tournamentId);
+
+  /// An entry's squad in pick order (the entering club's and the
+  /// organizer's owners only).
+  Future<Lineup> squad(String registrationId, {required String teamName});
+
+  /// "Submit Registration": exactly 11 + 4, pending until the organizer
+  /// decides.
+  Future<TournamentRegistration> submit({
+    required String tournamentId,
+    required String clubId,
+    required Lineup lineup,
+    required bool agreedToRules,
+  });
+
+  /// The organizer's decision on a pending entry.
+  Future<TournamentRegistration> decide(String registrationId, {required bool approve});
+
+  /// The organizer removes a confirmed team (before the draw only).
+  Future<TournamentRegistration> remove(String registrationId);
+
+  /// The draw: `true` when made now, `false` when it already existed.
+  Future<bool> generateFixtures(String tournamentId);
+
+  /// The draw by round (`null` before it is made).
+  Future<List<FixtureRound>?> fixtures(String tournamentId);
+
+  /// Standings per entry (registration id), in table order.
+  Future<Map<String, Standing>> pointsTable(String tournamentId);
+
+  /// The awards from official scorecards only; `null` while there is none.
+  Future<TournamentAwards?> awards(String tournamentId);
 }
 
 abstract interface class NotificationRepository {
@@ -594,6 +708,69 @@ class UnavailableResultsRepository implements ResultsRepository {
   Future<List<PlayerMatchLogRow>> matchLog({String? userId, int limit = 50}) async => const [];
   @override
   Future<List<MyMatch>> myMatches() async => const [];
+}
+
+/// Logged workouts and the club owner's view of the squad's fitness
+/// (migration 34, the fitness switch). "Today" is the date in Pakistan, as
+/// on the server; the owner's figures cover the Fitness Meter's window
+/// (today − 6 … today). Members who don't share their stats are listed by
+/// [clubMemberFitness] as not visible and are absent from the other two.
+abstract interface class FitnessRepository {
+  /// How far back the player's own workouts are loaded (days, today included).
+  static const historyDays = 30;
+
+  /// The signed-in player's workouts of the last [historyDays] days, oldest
+  /// first (newest last).
+  Future<List<WorkoutEntry>> myWorkouts();
+
+  /// Logs a workout and returns it as stored (notes trimmed).
+  Future<WorkoutEntry> logWorkout({
+    required DateTime date,
+    required WorkoutType type,
+    required int minutes,
+    required WorkoutIntensity intensity,
+    String notes = '',
+  });
+
+  /// Deletes one of the signed-in player's workouts.
+  Future<void> deleteWorkout(String id);
+
+  /// One summary per active member of [clubId] (owners only).
+  Future<List<MemberFitnessSummary>> clubMemberFitness(String clubId);
+
+  /// The visible members' workouts in the window, by membership id (notes
+  /// are never sent to the owner: `''`).
+  Future<Map<String, List<WorkoutEntry>>> clubMemberWorkouts(String clubId);
+
+  /// The visible members' confirmed matches in the window, newest first, by
+  /// membership id.
+  Future<Map<String, List<MatchLogEntry>>> clubMemberMatchActivity(String clubId);
+}
+
+/// Builds without the fitness server side: nothing is listed, and a change
+/// says it isn't available. No network call is made.
+class UnavailableFitnessRepository implements FitnessRepository {
+  const UnavailableFitnessRepository();
+
+  @override
+  Future<List<WorkoutEntry>> myWorkouts() async => const [];
+  @override
+  Future<WorkoutEntry> logWorkout({
+    required DateTime date,
+    required WorkoutType type,
+    required int minutes,
+    required WorkoutIntensity intensity,
+    String notes = '',
+  }) async =>
+      throw const ModuleUnavailableException();
+  @override
+  Future<void> deleteWorkout(String id) async => throw const ModuleUnavailableException();
+  @override
+  Future<List<MemberFitnessSummary>> clubMemberFitness(String clubId) async => const [];
+  @override
+  Future<Map<String, List<WorkoutEntry>>> clubMemberWorkouts(String clubId) async => const {};
+  @override
+  Future<Map<String, List<MatchLogEntry>>> clubMemberMatchActivity(String clubId) async => const {};
 }
 
 /// Builds without the server side (the demo, or Supabase before migration 16):

@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// The two narrow seams between [SupabaseAccountRepository] and Supabase.
@@ -81,6 +83,10 @@ abstract interface class AuthGateway {
   /// Ends every session of the signed-in user, on all devices (after a
   /// password reset).
   Future<void> signOutEverywhere();
+
+  /// Ends the signed-in user's OTHER sessions (other devices and browsers);
+  /// this one stays (after a password change, M6).
+  Future<void> signOutOthers();
 
   // ---- AUTH-05: Google ----
 
@@ -420,6 +426,271 @@ final resultsGatewayProvider = Provider<ResultsGateway>(
 final notificationsGatewayProvider = Provider<NotificationsGateway>(
   (ref) => throw StateError(_notInitialized),
 );
+final mediaGatewayProvider = Provider<MediaGateway>(
+  (ref) => throw StateError(_notInitialized),
+);
+final fitnessGatewayProvider = Provider<FitnessGateway>(
+  (ref) => throw StateError(_notInitialized),
+);
+final discoveryGatewayProvider = Provider<DiscoveryGateway>(
+  (ref) => throw StateError(_notInitialized),
+);
+final huntGatewayProvider = Provider<HuntGateway>(
+  (ref) => throw StateError(_notInitialized),
+);
+final tournamentGatewayProvider = Provider<TournamentGateway>(
+  (ref) => throw StateError(_notInitialized),
+);
+
+/// Tournaments (migration 35, with the `CRICECO_TOURNAMENTS` switch):
+/// hosting, entries and squads, the draw, the points table and the awards.
+/// Every call is a database function that identifies the caller by
+/// `auth.uid()` and checks ownership and state itself; results are never
+/// written here (docs/M10_TOURNAMENTS.md).
+abstract interface class TournamentGateway {
+  /// `rpc('create_tournament', {p_club_id, p_name, p_city, p_ground,
+  /// p_format, p_custom_overs, p_tournament_type, p_start_date, p_end_date,
+  /// p_registration_deadline, p_max_teams, p_entry_fee, p_prize,
+  /// p_description, p_rules})` — the new tournament row.
+  Future<Map<String, dynamic>> createTournament(Map<String, Object?> params);
+
+  /// `rpc('my_hosted_tournaments', {p_club_id})` — newest first.
+  Future<List<Map<String, dynamic>>> myHostedTournaments(String clubId);
+
+  /// `rpc('browse_tournaments', {p_city})` — other clubs', soonest first.
+  Future<List<Map<String, dynamic>>> browseTournaments({String? city});
+
+  /// `rpc('tournament_detail', {p_tournament_id})` — one row.
+  Future<Map<String, dynamic>> tournamentDetail(String tournamentId);
+
+  /// `rpc('tournament_hub_stats', {p_club_id})` — one row.
+  Future<Map<String, dynamic>> tournamentHubStats(String clubId);
+
+  /// `rpc('tournament_teams', {p_tournament_id})` — entry rows.
+  Future<List<Map<String, dynamic>>> tournamentTeams(String tournamentId);
+
+  /// `rpc('tournament_registration_squad', {p_registration_id})` — in pick
+  /// order.
+  Future<List<Map<String, dynamic>>> registrationSquad(String registrationId);
+
+  /// `rpc('submit_tournament_registration', {p_tournament_id, p_club_id,
+  /// p_team_name, p_team_id, p_players, p_captain_member_id,
+  /// p_vice_member_id, p_keeper_member_id, p_agree_rules})` — the entry row.
+  Future<Map<String, dynamic>> submitRegistration(Map<String, Object?> params);
+
+  /// `rpc('decide_tournament_registration', {p_registration_id, p_approve})`.
+  Future<Map<String, dynamic>> decideRegistration(
+    String registrationId, {
+    required bool approve,
+  });
+
+  /// `rpc('remove_tournament_team', {p_registration_id})`.
+  Future<Map<String, dynamic>> removeTeam(String registrationId);
+
+  /// `rpc('my_tournament_registrations', {p_club_id, p_status})` — newest
+  /// first.
+  Future<List<Map<String, dynamic>>> myRegistrations(
+    String clubId, {
+    String? status,
+  });
+
+  /// `rpc('generate_tournament_fixtures', {p_tournament_id})` — one row:
+  /// `outcome`, `fixture_count`.
+  Future<Map<String, dynamic>> generateFixtures(String tournamentId);
+
+  /// `rpc('tournament_fixtures', {p_tournament_id})` — in draw order.
+  Future<List<Map<String, dynamic>>> tournamentFixtures(String tournamentId);
+
+  /// `rpc('tournament_points_table', {p_tournament_id})` — in table order.
+  Future<List<Map<String, dynamic>>> pointsTable(String tournamentId);
+
+  /// `rpc('tournament_awards', {p_tournament_id})` — one row per award.
+  Future<List<Map<String, dynamic>>> awards(String tournamentId);
+}
+
+/// Club discovery, availability slots, player rankings and applicant
+/// statistics (migration 32, with the `CRICECO_DISCOVERY` switch). Every call
+/// is a database function that identifies the caller by `auth.uid()` and
+/// checks ownership itself; no owner or coach name, phone or e-mail is ever
+/// returned (docs/M7_CLUB_DISCOVERY.md).
+abstract interface class DiscoveryGateway {
+  /// `rpc('club_public_profile', {p_club_id})` — one row.
+  Future<Map<String, dynamic>> clubPublicProfile(String clubId);
+
+  /// `rpc('club_directory', {p_search, p_city, p_limit, p_offset})` — other
+  /// clubs (never the caller's own), by name.
+  Future<List<Map<String, dynamic>>> clubDirectory({
+    String? search,
+    String? city,
+    int limit = 50,
+    int offset = 0,
+  });
+
+  /// `rpc('post_match_slot', {p_club_id, p_format, p_custom_overs, p_city,
+  /// p_slot_date, p_start_time, p_end_time, p_ground_id, p_venue_name,
+  /// p_notes})` — the new slot row.
+  Future<Map<String, dynamic>> postMatchSlot(Map<String, Object?> params);
+
+  /// `rpc('withdraw_match_slot', {p_slot_id})` — the slot row (withdrawn).
+  Future<Map<String, dynamic>> withdrawMatchSlot(String slotId);
+
+  /// `rpc('my_club_slots', {p_club_id, p_include_closed})` — by start.
+  Future<List<Map<String, dynamic>>> myClubSlots(
+    String clubId, {
+    bool includeClosed = false,
+  });
+
+  /// `rpc('open_match_slots', {p_city, p_format, p_from_date, p_to_date,
+  /// p_limit, p_offset})` — other clubs' open slots, soonest first.
+  Future<List<Map<String, dynamic>>> openMatchSlots(
+    Map<String, Object?> params,
+  );
+
+  /// `rpc('player_rankings', {p_role, p_club_id, p_search, p_limit})`.
+  Future<List<Map<String, dynamic>>> playerRankings(
+    Map<String, Object?> params,
+  );
+
+  /// `rpc('club_applicant_stats', {p_request_id})` — one row.
+  Future<Map<String, dynamic>> clubApplicantStats(String requestId);
+}
+
+/// Player Hunt / Playing Opportunities (migration 33, with the
+/// `CRICECO_PLAYER_HUNT` switch): listings, requirement posts, interest and
+/// invites. Every call is a database function that identifies the caller by
+/// `auth.uid()`; owner checks are the server's (docs/M8_PLAYER_HUNT.md).
+abstract interface class HuntGateway {
+  /// `rpc('my_hunt_listing')` — always one row.
+  Future<Map<String, dynamic>> myListing();
+
+  /// `rpc('set_my_hunt_listing', {p_listed, p_role, p_city})` — the listing
+  /// after the change.
+  Future<Map<String, dynamic>> setListing({
+    required bool listed,
+    String? role,
+    String? city,
+  });
+
+  /// `rpc('publish_hunt_post', {p_club_id, p_role, p_format,
+  /// p_players_needed, p_city, p_match_date, p_match_time, p_budget,
+  /// p_notes})` — the new post.
+  Future<Map<String, dynamic>> publishPost(Map<String, Object?> params);
+
+  /// `rpc('close_hunt_post', {p_post_id})`.
+  Future<void> closePost(String postId);
+
+  /// `rpc('club_hunt_posts', {p_club_id})` — newest first.
+  Future<List<Map<String, dynamic>>> clubPosts(String clubId);
+
+  /// `rpc('hunt_open_posts', {p_role, p_city})` — every club's open posts.
+  Future<List<Map<String, dynamic>>> openPosts({String? role, String? city});
+
+  /// `rpc('express_hunt_interest', {p_post_id})`.
+  Future<void> expressInterest(String postId);
+
+  /// `rpc('withdraw_hunt_interest', {p_post_id})`.
+  Future<void> withdrawInterest(String postId);
+
+  /// `rpc('club_hunt_interests', {p_club_id, p_post_id})` — newest first.
+  Future<List<Map<String, dynamic>>> clubInterests(
+    String clubId, {
+    String? postId,
+  });
+
+  /// `rpc('hunt_open_players', {p_city, p_role})` — club owners only.
+  Future<List<Map<String, dynamic>>> openPlayers({String? city, String? role});
+
+  /// `rpc('invite_hunt_player', {p_club_id, p_user_id, p_post_id})` — one
+  /// row: `invite_id`, `status`, `created_at`, `expires_at`.
+  Future<Map<String, dynamic>> invitePlayer({
+    required String clubId,
+    required String userId,
+    String? postId,
+  });
+
+  /// `rpc('club_hunt_invites', {p_club_id})` — newest first.
+  Future<List<Map<String, dynamic>>> clubInvites(String clubId);
+
+  /// `rpc('my_hunt_invites')` — the caller's invites, newest first.
+  Future<List<Map<String, dynamic>>> myInvites();
+
+  /// `rpc('respond_hunt_invite', {p_invite_id, p_accept})` — one row:
+  /// `invite_id`, `status`, `responded_at`.
+  Future<Map<String, dynamic>> respondInvite(
+    String inviteId, {
+    required bool accept,
+  });
+}
+
+/// The profile visibility (migration 31, `my_profile_visibility()`): one
+/// row `{public_profile, show_stats}`. A part the server doesn't send stays
+/// `null` (the app then keeps its default: visible).
+class ProfileVisibility {
+  const ProfileVisibility({this.publicProfile, this.showStats});
+
+  /// Tolerates an object or a one-row list.
+  factory ProfileVisibility.parse(Object? result) {
+    final Map<dynamic, dynamic> row = switch (result) {
+      final Map<dynamic, dynamic> m => m,
+      final List<dynamic> l when l.isNotEmpty && l.first is Map =>
+        l.first as Map,
+      _ => const {},
+    };
+    bool? flag(String key) => row[key] is bool ? row[key] as bool : null;
+    return ProfileVisibility(
+      publicProfile: flag('public_profile'),
+      showStats: flag('show_stats'),
+    );
+  }
+
+  final bool? publicProfile;
+  final bool? showStats;
+}
+
+/// Profile and club pictures in Supabase Storage and the profile
+/// visibility (migration 31, with the `CRICECO_PROFILE_MEDIA` switch). The
+/// buckets are private: pictures are shown through signed URLs. The picture
+/// columns are set only through `set_my_avatar` / `set_club_logo`, which
+/// check that the object is in the caller's (or the owned club's) folder and
+/// exists. Every method throws a [GatewayException] on failure.
+abstract interface class MediaGateway {
+  /// Uploads a new object (never overwrites). The bucket's size and type
+  /// limits come back as a [GatewayConstraintException] (`media: too
+  /// large` / `media: unsupported type`).
+  Future<void> upload(
+    String bucket,
+    String path,
+    Uint8List bytes, {
+    required String contentType,
+  });
+
+  /// Deletes objects (a missing one is not an error).
+  Future<void> remove(String bucket, List<String> paths);
+
+  /// The object paths directly in [folder] of [bucket] (e.g. the user's
+  /// own `avatars/<uid>/`, before the account is deleted).
+  Future<List<String>> list(String bucket, String folder);
+
+  /// A signed URL for one object, valid for [expiresIn].
+  Future<String> signedUrl(
+    String bucket,
+    String path, {
+    required Duration expiresIn,
+  });
+
+  /// `rpc('set_my_avatar', {p_path})` — `null` clears the picture.
+  Future<void> setMyAvatar(String? path);
+
+  /// `rpc('set_club_logo', {p_club_id, p_path})` — owner only; `null` clears.
+  Future<void> setClubLogo(String clubId, String? path);
+
+  /// `rpc('my_profile_visibility')` — one row (migration 31).
+  Future<ProfileVisibility> fetchProfileVisibility();
+
+  /// `rpc('set_profile_visibility', {p_public_profile, p_show_stats})` —
+  /// `null` leaves that setting unchanged.
+  Future<void> setProfileVisibility({bool? publicProfile, bool? showStats});
+}
 
 /// The server inbox and club announcements (migration 25, with the
 /// `CRICECO_NOTIFICATIONS` switch). Notifications are written only by the
@@ -512,6 +783,47 @@ abstract interface class ResultsGateway {
 
   /// `rpc('my_matches')` — the caller's scheduled matches, newest first.
   Future<List<Map<String, dynamic>>> myMatches();
+}
+
+/// Logged workouts and the owner's squad fitness (migration 34, with the
+/// `CRICECO_FITNESS` switch). Every call is a database function that
+/// identifies the caller by `auth.uid()`; the owner views check club
+/// ownership themselves. Dates are sent as `YYYY-MM-DD` (docs/M9_FITNESS.md).
+abstract interface class FitnessGateway {
+  /// `rpc('log_workout', {p_workout_date, p_workout_type, p_minutes,
+  /// p_intensity, p_notes})` — the stored workout (one row).
+  Future<Map<String, dynamic>> logWorkout(Map<String, Object?> params);
+
+  /// `rpc('my_workouts', {p_from, p_to})` — oldest first.
+  Future<List<Map<String, dynamic>>> myWorkouts({
+    required String from,
+    required String to,
+  });
+
+  /// `rpc('delete_workout', {p_id})`.
+  Future<void> deleteWorkout(String id);
+
+  /// `rpc('club_member_fitness', {p_club_id, p_from, p_to})` — one row per
+  /// active member.
+  Future<List<Map<String, dynamic>>> clubMemberFitness(
+    String clubId, {
+    required String from,
+    required String to,
+  });
+
+  /// `rpc('club_member_workouts', {p_club_id, p_from, p_to})`.
+  Future<List<Map<String, dynamic>>> clubMemberWorkouts(
+    String clubId, {
+    required String from,
+    required String to,
+  });
+
+  /// `rpc('club_member_match_activity', {p_club_id, p_from, p_to})`.
+  Future<List<Map<String, dynamic>>> clubMemberMatchActivity(
+    String clubId, {
+    required String from,
+    required String to,
+  });
 }
 
 /// Challenges, matches, lineups and player availability (migrations 17–19,

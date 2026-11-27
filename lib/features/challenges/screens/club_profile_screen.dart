@@ -61,8 +61,8 @@ class _ClubProfileScreenState extends ConsumerState<ClubProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final dirAsync = ref.watch(clubDirectoryProvider);
-    final c = dirAsync.value?[widget.clubId];
+    final dirAsync = ref.watch(clubSummaryProvider(widget.clubId));
+    final c = dirAsync.value;
     const bar = CeTopBar(title: 'Club Profile', fallbackLocation: Routes.challenges);
     if (dirAsync.isLoading) return const Scaffold(appBar: bar, body: Center(child: CircularProgressIndicator()));
     if (c == null) {
@@ -177,7 +177,7 @@ class _ClubProfileScreenState extends ConsumerState<ClubProfileScreen> {
                   Text(c.name, style: const TextStyle(fontFamily: CeType.display, fontSize: 16, fontWeight: FontWeight.w700, color: CeColors.ink)),
                   const SizedBox(height: 2),
                   Text(c.meta, style: const TextStyle(fontSize: 12, color: CeColors.muted)),
-                  Text('Est. ${c.established} · Squad of ${c.squadSize}',
+                  Text([if (c.established > 0) 'Est. ${c.established}', 'Squad of ${c.squadSize}'].join(' · '),
                       style: const TextStyle(fontSize: 11.5, color: CeColors.muted)),
                 ]),
               ),
@@ -225,13 +225,14 @@ class _ClubProfileScreenState extends ConsumerState<ClubProfileScreen> {
         ]),
         const CeSectionHeader('Match Preferences'),
         CeSummaryCard(rows: [
-          ('Formats', CeSummaryCard.value(context, c.formats)),
+          ('Formats', CeSummaryCard.value(context, c.formats.trim().isEmpty ? 'Not listed' : c.formats)),
           ('Home Ground', CeSummaryCard.value(context, c.homeGround)),
           ('City', CeSummaryCard.value(context, c.city)),
           ('Level', CeSummaryCard.value(context, c.level)),
         ]),
 
-        // ---- Captain ----
+        // ---- Captain (the demo's clubs only: the server lists none) ----
+        if (c.captain case final captain?) ...[
         const CeSectionHeader('Club Captain'),
         CeCard(
           margin: const EdgeInsets.symmetric(horizontal: CeSpace.gutter),
@@ -239,23 +240,24 @@ class _ClubProfileScreenState extends ConsumerState<ClubProfileScreen> {
             CircleAvatar(
               radius: 21,
               backgroundColor: c.color,
-              child: Text(_initials(c.captain.name),
+              child: Text(_initials(captain.name),
                   style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(c.captain.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                Text(captain.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
                 Text('Captain · ${c.name}', style: const TextStyle(fontSize: 11.5, color: CeColors.muted)),
-                Text(c.captain.phone, style: const TextStyle(fontSize: 11.5, color: CeColors.muted)),
+                Text(captain.phone, style: const TextStyle(fontSize: 11.5, color: CeColors.muted)),
               ]),
             ),
             Icon(CeIcons.of('shield'), size: 18, color: CeColors.primaryDark),
           ]),
         ),
+        ],
 
         // ---- Key players ----
-        CeSectionHeader('Key Players · Squad of ${c.squadSize}'),
+        if (c.keyPlayers.isNotEmpty) CeSectionHeader('Key Players · Squad of ${c.squadSize}'),
         for (final p in c.keyPlayers)
           Container(
             margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 0, CeSpace.gutter, 8),

@@ -27,6 +27,16 @@ class LocalClubOverlay {
     return club.withLogo(path is String ? path : null);
   }
 
+  /// M5: the device picture the server refused to take over (too large, not
+  /// a JPG / PNG / WebP) — not tried again.
+  static String refusedKeyFor(String clubId) =>
+      'criceco.local.club.$clubId.logoRefused';
+
+  String? refusedLogo(String clubId) => _prefs.getString(refusedKeyFor(clubId));
+
+  Future<void> markLogoRefused(String clubId, String path) =>
+      _prefs.setString(refusedKeyFor(clubId), path);
+
   /// Saves [club]'s picture for this device (removes it when there is none).
   Future<void> save(Club club) async {
     final path = club.logoPath;

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/config/backend_modules.dart';
 import '../../../app/providers/core_providers.dart';
 import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
@@ -83,13 +84,14 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
   }
 
   Future<void> _toggleListed(bool listed) async {
-    await ref.read(playerAvailabilityProvider.notifier).setOpenToOffers(listed);
+    final error = await ref.read(playerAvailabilityProvider.notifier).setOpenToOffers(listed);
     if (!mounted) return;
     showCeToast(
       context,
-      listed
-          ? "You're now listed — other clubs can see you in Available Players"
-          : "You're no longer listed as available to other clubs",
+      error ??
+          (listed
+              ? "You're now listed — other clubs can see you in Available Players"
+              : "You're no longer listed as available to other clubs"),
     );
   }
 
@@ -152,6 +154,10 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
       });
     });
     final record = ref.watch(playerAvailabilityProvider);
+    // Listing yourself for other clubs is Player Hunt: hidden where that has
+    // no backend (Supabase without the Player Hunt switch), so nothing
+    // pretends to be saved.
+    final huntOn = ref.watch(backendModulesProvider).has(BackendModule.playerHunt);
     final (curColor, curIcon) = availabilityStyle(record.status);
     final resolved = resolveUntil(_until, _today, _customDate);
 
@@ -163,7 +169,7 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
           IconButton(
             tooltip: 'About availability',
             icon: Icon(CeIcons.of('info'), size: 19),
-            onPressed: () => showCeSheet<void>(context, builder: (ctx) => const _AboutAvailability()),
+            onPressed: () => showCeSheet<void>(context, builder: (ctx) => _AboutAvailability(huntOn: huntOn)),
           ),
         ],
       ),
@@ -230,15 +236,17 @@ class _AvailabilityScreenState extends ConsumerState<AvailabilityScreen> {
               ]),
             ),
 
-            CeToggleCard(
-              icon: 'circle-dot',
-              title: 'Available for Playing Opportunities',
-              subtitle: record.openToOffers
-                  ? "You're visible in other clubs' Available Players list"
-                  : "Turn this on to appear in other clubs' Available Players list",
-              value: record.openToOffers,
-              onChanged: _toggleListed,
-            ),
+            if (huntOn)
+              CeToggleCard(
+                key: const Key('availability.listed'),
+                icon: 'circle-dot',
+                title: 'Available for Playing Opportunities',
+                subtitle: record.openToOffers
+                    ? "You're visible in other clubs' Available Players list"
+                    : "Turn this on to appear in other clubs' Available Players list",
+                value: record.openToOffers,
+                onChanged: _toggleListed,
+              ),
 
             // ---- Choose status ----
             _SectionTitle('Choose your Status', key: _chooseKey),
@@ -539,7 +547,10 @@ class _QuickButton extends StatelessWidget {
 /// "About availability" sheet (was a toast): what the status does and who
 /// sees it.
 class _AboutAvailability extends StatelessWidget {
-  const _AboutAvailability();
+  const _AboutAvailability({required this.huntOn});
+
+  /// Player Hunt has a backend in this build (the Find Player listing).
+  final bool huntOn;
 
   @override
   Widget build(BuildContext context) {
@@ -557,7 +568,7 @@ class _AboutAvailability extends StatelessWidget {
       Text('Set your status so your coach can plan squads around you', style: CeType.bodySmall),
       point('users', 'Your club sees it when picking the Playing XI; injured or unavailable players can\'t be selected.'),
       point('calendar', 'For any status other than Available, set how long it applies with Unavailable Until.'),
-      point('eye', 'Clubs outside yours only see you under Find Player when you list yourself and your profile is public.'),
+      if (huntOn) point('eye', 'Clubs outside yours only see you under Find Player when you list yourself and your profile is public.'),
       const SizedBox(height: 18),
       CeButton(label: 'Got it', onPressed: () => Navigator.of(context).pop()),
     ]);

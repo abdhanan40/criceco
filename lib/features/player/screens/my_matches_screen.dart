@@ -7,6 +7,7 @@ import '../../../app/theme/tokens.dart';
 import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/pakistan_time.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
 import '../../../shared/widgets/ce_indicators.dart';
@@ -104,8 +105,8 @@ class PlayerMatchCard extends StatelessWidget {
         awayAbbr: m.opponentAbbr,
         title: '${m.ownTeamName} vs ${m.opponentName}',
         // Reference match card: date block, time · format, ground in the footer.
-        date: m.startsAt,
-        meta: '${CeFormat.time(m.startsAt)} · ${m.format.display()}',
+        date: m.startsAt.inPakistan,
+        meta: '${CeFormat.time(m.startsAt.inPakistan)} · ${m.format.display()}',
         dimmed: m.status == PlayerMatchStatus.cancelled,
         status: playerMatchStatusChip(m.status),
         infoChips: const [],

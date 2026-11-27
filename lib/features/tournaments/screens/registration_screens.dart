@@ -116,6 +116,7 @@ class _MyRegistrationsScreenState extends ConsumerState<MyRegistrationsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(tournamentsSyncProvider('registrations'));
     final RegistrationStatus tab = widget.tab ?? ref.watch(myRegistrationsTabProvider);
     final loading = ref.watch(tournamentRegistrationsProvider).isLoading || ref.watch(tournamentsProvider).isLoading;
     final list = ref.watch(myRegistrationsByStatusProvider(tab));
@@ -153,7 +154,11 @@ class _RegistrationCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final r = registration;
     final t = ref.watch(tournamentProvider(r.tournamentId));
-    if (t == null) return const SizedBox.shrink();
+    if (t == null) {
+      // Server: a tournament the list doesn't hold is read on its own.
+      if (ref.watch(tournamentsLiveProvider)) ref.watch(tournamentDetailProvider(r.tournamentId));
+      return const SizedBox.shrink();
+    }
     return CeCard(
       margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 0, CeSpace.gutter, 12),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -218,9 +223,14 @@ class _RegistrationDetailsScreenState extends ConsumerState<RegistrationDetailsS
         ref.watch(clubDirectoryProvider).isLoading;
     final r = ref.watch(registrationProvider(widget.registrationId));
     final ownClubId = ref.watch(currentClubProvider.select((c) => c?.id));
+    // Server: the tournament's entries (this one's status included), draw
+    // and standings are read when the screen opens; the squad on its own.
+    final live = ref.watch(tournamentsLiveProvider);
+    final detail = live && r != null ? ref.watch(tournamentDetailProvider(r.tournamentId)) : null;
+    final squad = r?.lineup ?? (live && r != null ? ref.watch(registrationSquadProvider(r.id)).value : null);
     final t = r == null ? null : ref.watch(tournamentProvider(r.tournamentId));
     const bar = CeTopBar(title: 'Registration Details', fallbackLocation: Routes.myRegistrations);
-    if (loading) return const Scaffold(appBar: bar, body: Center(child: CircularProgressIndicator()));
+    if (loading || (detail != null && !detail.hasValue && !detail.hasError)) return const Scaffold(appBar: bar, body: Center(child: CircularProgressIndicator()));
     if (r == null || t == null || r.clubId != ownClubId) {
       return Scaffold(
         appBar: bar,
@@ -253,27 +263,33 @@ class _RegistrationDetailsScreenState extends ConsumerState<RegistrationDetailsS
             title: 'Pending Approval',
             body: "The organizer is reviewing your registration. You'll be notified once it's approved.",
           ),
-          DemoPanel(
-            margin: const EdgeInsets.symmetric(horizontal: CeSpace.gutter),
-            note: 'Simulate Organizer Decision',
-            actions: [
-              DemoAction('Reject', () => _simulateDecision(approve: false)),
-              DemoAction('Approve', () => _simulateDecision(approve: true)),
-            ],
-          ),
-          if (r.lineup != null) ...[const CeSectionHeader('Your Squad'), LineupCard(lineup: r.lineup!)],
+          // Demo only: on the server the real organizer decides.
+          if (!live)
+            DemoPanel(
+              margin: const EdgeInsets.symmetric(horizontal: CeSpace.gutter),
+              note: 'Simulate Organizer Decision',
+              actions: [
+                DemoAction('Reject', () => _simulateDecision(approve: false)),
+                DemoAction('Approve', () => _simulateDecision(approve: true)),
+              ],
+            ),
+          if (squad != null) ...[const CeSectionHeader('Your Squad'), LineupCard(lineup: squad)],
         ],
       RegistrationStatus.rejected => [
           CeEmptyState(
             icon: 'x-circle',
             title: 'Registration Rejected',
-            body: 'The organizer did not approve this registration. '
-                'You can register a different team or explore other tournaments.',
+            // A confirmed team the organizer removed (server) is listed here too.
+            body: r.removed
+                ? 'The organizer removed your team from this tournament. '
+                    'You can register a different team or explore other tournaments.'
+                : 'The organizer did not approve this registration. '
+                    'You can register a different team or explore other tournaments.',
             primaryLabel: 'Browse Tournaments',
             onPrimary: () => context.go(Routes.browseTournamentsIn(t.city)),
           ),
         ],
-      RegistrationStatus.approved => _approved(t, r),
+      RegistrationStatus.approved => _approved(t, r, squad),
     };
 
     return Scaffold(
@@ -282,13 +298,13 @@ class _RegistrationDetailsScreenState extends ConsumerState<RegistrationDetailsS
     );
   }
 
-  List<Widget> _approved(Tournament t, TournamentRegistration r) {
+  List<Widget> _approved(Tournament t, TournamentRegistration r, Lineup? squad) {
     final all = flattenFixtures(t);
     final upcoming = [for (final f in all) if (!f.match.completed) f];
     final completed = [for (final f in all) if (f.match.completed) f];
     return [
       if (t.winnerId != null) WinnerBanner(name: entrantLabel(t, t.winnerId)),
-      if (r.lineup != null) ...[const CeSectionHeader('Your Squad'), LineupCard(lineup: r.lineup!)],
+      if (squad != null) ...[const CeSectionHeader('Your Squad'), LineupCard(lineup: squad)],
       CeSectionHeader('Teams · ${t.joined.length}'),
       for (final e in t.joined)
         EntrantRow(
@@ -298,7 +314,7 @@ class _RegistrationDetailsScreenState extends ConsumerState<RegistrationDetailsS
           trailing: e.id == r.id ? const CeStatusChip('You', icon: 'user') : null,
         ),
       const CeSectionHeader('Fixtures / Schedule'),
-      if (t.fixtures == null)
+      if (!t.hasFixtures)
         TournamentEmptyNote(fixturesPendingNote(t))
       else ...[
         // Every match appears once, by round (results included); the old

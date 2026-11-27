@@ -10,6 +10,7 @@ import '../../../core/constants/cities.dart';
 import '../../../core/domain/player_ranking.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../data/repositories/repositories.dart' show AccountException;
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_calendar.dart';
 import '../../../shared/widgets/ce_feedback.dart';
@@ -441,6 +442,7 @@ class _PublishedSlot extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final p = post;
+    final interested = ref.watch(huntInterestsProvider).value?[p.id] ?? const <HuntInterest>[];
     Widget detail(String icon, String value) => Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(CeIcons.of(icon), size: 13, color: CeColors.muted),
           const SizedBox(width: 4),
@@ -472,6 +474,13 @@ class _PublishedSlot extends ConsumerWidget {
           detail('clock', p.time == null ? 'Anytime' : _time(p.time!)),
           detail('banknote', p.budget == HuntBudget.any ? 'Any budget' : p.budget.label),
         ]),
+        // The server (M8): players who tapped "I'm Interested" — contact them
+        // (the phone only when they share it with clubs).
+        if (p.interestCount != null) ...[
+          const SizedBox(height: 10),
+          detail('users', '${p.interestCount} interested'),
+        ],
+        for (final i in interested) _InterestedRow(interest: i),
         const SizedBox(height: 12),
         CeButton.danger(
           label: 'Remove Slot',
@@ -486,7 +495,12 @@ class _PublishedSlot extends ConsumerWidget {
               icon: 'x-circle',
             );
             if (!ok) return;
-            await ref.read(playerHuntProvider.notifier).remove(p.id);
+            try {
+              await ref.read(playerHuntProvider.notifier).remove(p.id);
+            } on AccountException catch (e) {
+              if (context.mounted) showCeToast(context, e.message);
+              return;
+            }
             if (context.mounted) showCeToast(context, 'Slot removed');
           },
         ),
@@ -510,6 +524,7 @@ class _AvailablePlayersTab extends ConsumerWidget {
     final role = ref.watch(openPlayersRoleProvider);
     final invited = ref.watch(invitedPlayersProvider);
     final board = ref.watch(rankingBoardProvider).value;
+    final accepted = ref.watch(acceptedHuntInvitesProvider).value ?? const <ClubHuntInvite>[];
     final players = [
       for (final p in async.value ?? const <OpenPlayer>[])
         if (p.city == city && p.role == role) p,
@@ -523,6 +538,12 @@ class _AvailablePlayersTab extends ConsumerWidget {
           child: Text('Players who are free and available for matches',
               style: TextStyle(fontSize: 12, color: CeColors.muted)),
         ),
+        // The server (M8): players who accepted an invite — contact them.
+        if (accepted.isNotEmpty) ...[
+          CeSectionHeader('Accepted Invites · ${accepted.length}', padding: const EdgeInsets.only(bottom: 8)),
+          for (final i in accepted) _AcceptedInviteRow(invite: i),
+          const SizedBox(height: 6),
+        ],
         const CeFieldLabel('City'),
         CeSelectField<String>(
           fieldKey: const Key('hunt.city'),
@@ -566,11 +587,10 @@ class _AvailablePlayersTab extends ConsumerWidget {
             _OpenPlayerRow(
               player: p,
               ranking: board == null ? null : rankingForOpenPlayer(board, p),
-              invited: invited.contains(p.id),
-              onInvite: () {
-                if (ref.read(invitedPlayersProvider.notifier).invite(p.id)) {
-                  showCeToast(context, 'Invite sent to ${p.name}');
-                }
+              invited: invited.contains(p.id) || (p.inviteStatus != null && p.inviteStatus != HuntInviteStatus.expired),
+              onInvite: () async {
+                final error = await ref.read(invitedPlayersProvider.notifier).send(p.id);
+                if (context.mounted) showCeToast(context, error ?? 'Invite sent to ${p.name}');
               },
             ),
           // Same honesty as the simulated-payments note: invites are only
@@ -602,7 +622,7 @@ class _OpenPlayerRow extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
       child: Row(children: [
-        CeAvatar(p.name, size: 42, background: CeColors.primary, foreground: Colors.white),
+        CeAvatar(p.name, size: 42, background: CeColors.primary, foreground: Colors.white, photoPath: p.photoPath),
         const SizedBox(width: 12),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -620,10 +640,17 @@ class _OpenPlayerRow extends StatelessWidget {
             if (ranking != null) ...[const SizedBox(height: 5), RankingBadge(ranking: ranking!)],
           ]),
         ),
-        if (!p.isMe) ...[
+        if (!p.isMe && p.isMember) ...[
+          const SizedBox(width: 8),
+          const CeStatusChip('Member', tone: CeTone.neutral),
+        ] else if (!p.isMe) ...[
           const SizedBox(width: 8),
           invited
-              ? const CeStatusChip('Invited', icon: 'check')
+              ? CeStatusChip(
+                  p.inviteStatus == null || p.inviteStatus == HuntInviteStatus.expired ? 'Invited' : p.inviteStatus!.label,
+                  icon: 'check',
+                  tone: p.inviteStatus == HuntInviteStatus.declined ? CeTone.neutral : CeTone.green,
+                )
               : FilledButton(
                   onPressed: onInvite,
                   style: FilledButton.styleFrom(
@@ -634,6 +661,69 @@ class _OpenPlayerRow extends StatelessWidget {
                   child: const Text('Invite'),
                 ),
         ],
+      ]),
+    );
+  }
+}
+
+/// A player interested in one of the owner's posts (M8).
+class _InterestedRow extends StatelessWidget {
+  const _InterestedRow({required this.interest});
+  final HuntInterest interest;
+
+  @override
+  Widget build(BuildContext context) {
+    final i = interest;
+    final line = [i.role?.label, i.city, i.phone ?? 'Phone not shared'].whereType<String>().join(' · ');
+    return Padding(
+      key: Key('hunt.interest.${i.id}'),
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(children: [
+        CeAvatar(i.name, size: 32, background: CeColors.primary, foreground: Colors.white, photoPath: i.photoPath),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(i.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: CeColors.ink)),
+            Text(line, style: const TextStyle(fontSize: 11.5, color: CeColors.muted)),
+          ]),
+        ),
+      ]),
+    );
+  }
+}
+
+/// A player who accepted the club's invite (M8): "contact me" — the phone
+/// only when they share it with clubs. They don't join the club this way.
+class _AcceptedInviteRow extends StatelessWidget {
+  const _AcceptedInviteRow({required this.invite});
+  final ClubHuntInvite invite;
+
+  @override
+  Widget build(BuildContext context) {
+    final i = invite;
+    final line = [i.role?.label, i.city, i.phone ?? 'Phone not shared'].whereType<String>().join(' · ');
+    return CeCard(
+      key: Key('hunt.accepted.${i.id}'),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+      child: Row(children: [
+        CeAvatar(i.name, size: 42, background: CeColors.primary, foreground: Colors.white),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(i.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: CeColors.ink)),
+            const SizedBox(height: 2),
+            Text(line, style: const TextStyle(fontSize: 12, color: CeColors.muted)),
+          ]),
+        ),
+        const SizedBox(width: 8),
+        const CeStatusChip('Accepted', icon: 'check'),
       ]),
     );
   }

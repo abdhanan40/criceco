@@ -8,6 +8,7 @@ import '../../../app/theme/tokens.dart';
 import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../data/repositories/repositories.dart' show AccountException;
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
@@ -28,10 +29,11 @@ class MyTournamentsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(tournamentsSyncProvider('hosted'));
     final loading = ref.watch(tournamentsProvider).isLoading;
     final hosted = ref.watch(hostedTournamentsProvider);
     final now = ref.read(clockProvider).now();
-    final teams = hosted.fold<int>(0, (sum, t) => sum + t.joined.length);
+    final teams = hosted.fold<int>(0, (sum, t) => sum + t.joinedCount);
     final open = hosted.where((t) => t.statusAt(now) == TournamentStatus.registrationOpen).length;
     return Scaffold(
       appBar: CeTopBar(
@@ -72,7 +74,7 @@ class _HostedCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = tournament;
-    final joined = t.joined.length;
+    final joined = t.joinedCount;
     return CeCard(
       margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 0, CeSpace.gutter, 12),
       onTap: () => context.go(Routes.tournamentDetails(t.id)),
@@ -160,17 +162,23 @@ enum TournamentTab {
 /// opens the Fixtures tab once the draw exists.
 Future<void> generateFixturesFlow(BuildContext context, WidgetRef ref, Tournament t) async {
   // The draw closes registration and can't be undone, so it asks first.
-  if (t.fixtures == null && t.canGenerateFixtures) {
+  if (!t.hasFixtures && t.canGenerateFixtures) {
     final ok = await showCeConfirmSheet(
       context,
       title: 'Generate fixtures?',
-      body: 'Registration closes and the draw is fixed for the ${t.joined.length} joined teams.',
+      body: 'Registration closes and the draw is fixed for the ${t.joinedCount} joined teams.',
       confirmLabel: 'Generate Fixtures',
       icon: 'trophy',
     );
     if (!ok || !context.mounted) return;
   }
-  final outcome = await ref.read(tournamentsProvider.notifier).generateFixtures(t.id);
+  final FixturesOutcome outcome;
+  try {
+    outcome = await ref.read(tournamentsProvider.notifier).generateFixtures(t.id);
+  } on AccountException catch (e) {
+    if (context.mounted) showCeToast(context, e.message);
+    return;
+  }
   if (!context.mounted) return;
   switch (outcome) {
     case FixturesOutcome.generated:
@@ -187,7 +195,13 @@ Future<void> generateFixturesFlow(BuildContext context, WidgetRef ref, Tournamen
 
 /// Organizer "Remove" on a confirmed team (before fixtures only).
 Future<void> removeTeamFlow(BuildContext context, WidgetRef ref, Tournament t, TournamentEntrant e) async {
-  final ok = await ref.read(tournamentsProvider.notifier).removeTeam(t.id, e.id);
+  final bool ok;
+  try {
+    ok = await ref.read(tournamentsProvider.notifier).removeTeam(t.id, e.id);
+  } on AccountException catch (err) {
+    if (context.mounted) showCeToast(context, err.message);
+    return;
+  }
   if (!context.mounted) return;
   showCeToast(context, ok ? '${e.displayName} removed' : 'Teams are locked once fixtures are generated');
 }
@@ -246,7 +260,7 @@ class TournamentDetailsScreen extends ConsumerWidget {
     final upcoming = [for (final f in all) if (!f.match.completed) f];
     final completed = [for (final f in all) if (f.match.completed) f];
     final awards = ref.watch(tournamentAwardsProvider(t.id));
-    final joined = t.joined.length;
+    final joined = t.joinedCount;
     return [
       // The hero already shows the name; the summary starts at the organizer.
       CeSummaryCard(margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0), rows: [
@@ -289,7 +303,7 @@ class TournamentDetailsScreen extends ConsumerWidget {
             onPressed: () => context.go(TournamentTab.teams.location(t.id)),
           ),
           const SizedBox(height: 10),
-          if (t.fixtures != null)
+          if (t.hasFixtures)
             CeButton(label: 'View Fixtures', onPressed: () => context.go(TournamentTab.fixtures.location(t.id)))
           else if (t.canGenerateFixtures)
             CeButton(label: 'Generate Fixtures', onPressed: () => generateFixturesFlow(context, ref, t))
@@ -305,7 +319,7 @@ class TournamentDetailsScreen extends ConsumerWidget {
       // ---- Former Tournament Dashboard ----
       const CeSectionHeader('Upcoming Matches'),
       if (upcoming.isEmpty)
-        TournamentEmptyNote(t.fixtures == null ? 'Fixtures have not been generated yet' : 'No upcoming matches')
+        TournamentEmptyNote(!t.hasFixtures ? 'Fixtures have not been generated yet' : 'No upcoming matches')
       else
         for (final f in upcoming) FixtureCard(tournament: t, fixture: f),
       const CeSectionHeader('Completed Matches'),
@@ -315,7 +329,10 @@ class TournamentDetailsScreen extends ConsumerWidget {
         for (final f in completed) FixtureCard(tournament: t, fixture: f),
       const CeSectionHeader('Tournament Awards'),
       if (awards == null)
-        const TournamentEmptyNote('Awards will appear once teams are registered')
+        // Server: awards come only from official scorecards.
+        TournamentEmptyNote(ref.watch(tournamentsLiveProvider)
+            ? 'Awards will appear once results are official'
+            : 'Awards will appear once teams are registered')
       else
         _AwardGrid(tournament: t, awards: awards),
     ];
@@ -328,7 +345,7 @@ class TournamentDetailsScreen extends ConsumerWidget {
     return [
       Padding(
         padding: const EdgeInsets.fromLTRB(CeSpace.gutter, 14, CeSpace.gutter, 0),
-        child: Text('${t.joined.length}/${t.maxTeams} teams registered',
+        child: Text('${t.joinedCount}/${t.maxTeams} teams registered',
             style: const TextStyle(fontSize: 12, color: CeColors.muted)),
       ),
       CeSectionHeader('Clubs Requesting Registration · ${requests.length}'),
@@ -338,9 +355,9 @@ class TournamentDetailsScreen extends ConsumerWidget {
         for (final r in requests)
           EntrantRow(
             clubId: r.clubId,
-            name: clubs[r.clubId]?.name ?? r.teamName,
+            name: clubs[r.clubId]?.name ?? r.clubName ?? r.teamName,
             subtitle: [
-              if ((clubs[r.clubId]?.city ?? '').isNotEmpty) clubs[r.clubId]!.city,
+              if ((clubs[r.clubId]?.city ?? r.clubCity ?? '').isNotEmpty) clubs[r.clubId]?.city ?? r.clubCity!,
               'Tap to review',
             ].join(' · '),
             trailing: Icon(CeIcons.of('chevron-right'), size: 18, color: CeColors.muted),
@@ -355,8 +372,8 @@ class TournamentDetailsScreen extends ConsumerWidget {
   }
 
   List<Widget> _fixtures(BuildContext context, WidgetRef ref, Tournament t) {
-    if (t.fixtures == null) {
-      final joined = t.joined.length;
+    if (!t.hasFixtures) {
+      final joined = t.joinedCount;
       if (!t.canGenerateFixtures) {
         return [
           CeEmptyState(
@@ -384,7 +401,7 @@ class TournamentDetailsScreen extends ConsumerWidget {
 
 /// Confirmed teams with Remove (only before fixtures exist).
 List<Widget> confirmedTeamRows(BuildContext context, WidgetRef ref, Tournament t) {
-  final locked = t.fixtures != null;
+  final locked = t.hasFixtures;
   return [
     for (final e in t.joined)
       EntrantRow(
@@ -422,7 +439,8 @@ class _AwardGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = tournament;
-    Widget card(String icon, String label, TournamentAward a, String unit) => CeCard(
+    // A server award with nothing to count yet is absent: shown as "—".
+    Widget card(String icon, String label, TournamentAward? a, String unit) => CeCard(
           padding: const EdgeInsets.all(12),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             CeIconWell(icon, size: 34, iconSize: 16),
@@ -430,10 +448,13 @@ class _AwardGrid extends StatelessWidget {
             Text(label.toUpperCase(),
                 style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.4, color: CeColors.muted)),
             const SizedBox(height: 4),
-            Text(a.playerName, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: CeColors.ink)),
-            const SizedBox(height: 2),
-            Text('${a.value} $unit · ${entrantLabel(t, a.entrantId)}',
-                style: const TextStyle(fontSize: 11.5, color: CeColors.muted)),
+            Text(a?.playerName ?? '—',
+                style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: CeColors.ink)),
+            if (a != null) ...[
+              const SizedBox(height: 2),
+              Text('${a.value} $unit · ${entrantLabel(t, a.entrantId)}',
+                  style: const TextStyle(fontSize: 11.5, color: CeColors.muted)),
+            ],
           ]),
         );
     Widget pair(Widget a, Widget b) => IntrinsicHeight(
@@ -480,8 +501,15 @@ class _TeamRequestDetailScreenState extends ConsumerState<TeamRequestDetailScree
   Future<void> _decide(String name, {required bool approve}) async {
     if (_busy) return;
     setState(() => _busy = true);
-    final decision =
-        await ref.read(tournamentRegistrationsProvider.notifier).decide(widget.registrationId, approve: approve);
+    final RegistrationDecision decision;
+    try {
+      decision = await ref.read(tournamentRegistrationsProvider.notifier).decide(widget.registrationId, approve: approve);
+    } on AccountException catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      showCeToast(context, e.message);
+      return;
+    }
     if (!mounted) return;
     setState(() => _busy = false);
     showCeToast(context, switch (decision) {
@@ -520,7 +548,7 @@ class _TeamRequestDetailScreenState extends ConsumerState<TeamRequestDetailScree
         }
         final club = ref.watch(tournamentClubsProvider)[r.clubId];
         final s = club?.summary;
-        final name = club?.name ?? r.teamName;
+        final name = club?.name ?? r.clubName ?? r.teamName;
         return ListView(padding: const EdgeInsets.only(bottom: 28), children: [
           CeCard(
             margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 16, CeSpace.gutter, 0),
@@ -535,7 +563,8 @@ class _TeamRequestDetailScreenState extends ConsumerState<TeamRequestDetailScree
                     Icon(CeIcons.of('map-pin'), size: 13, color: CeColors.muted),
                     const SizedBox(width: 4),
                     Flexible(
-                      child: Text(club?.city ?? '—', style: const TextStyle(fontSize: 12, color: CeColors.muted)),
+                      child: Text(club?.city ?? r.clubCity ?? '—',
+                          style: const TextStyle(fontSize: 12, color: CeColors.muted)),
                     ),
                   ]),
                 ]),
@@ -544,8 +573,8 @@ class _TeamRequestDetailScreenState extends ConsumerState<TeamRequestDetailScree
           ),
           CeSummaryCard(margin: const EdgeInsets.fromLTRB(CeSpace.gutter, 12, CeSpace.gutter, 0), rows: [
             ('Club Name', CeSummaryCard.value(context, name)),
-            ('City', CeSummaryCard.value(context, club?.city ?? '—')),
-            ('Captain', CeSummaryCard.value(context, s?.captain.name ?? '—')),
+            ('City', CeSummaryCard.value(context, club?.city ?? r.clubCity ?? '—')),
+            ('Captain', CeSummaryCard.value(context, s?.captain?.name ?? '—')),
             ('Win %', CeSummaryCard.value(context, s == null ? '—' : '${s.winRate}%')),
             ('Requested', CeSummaryCard.value(context, CeFormat.date(r.submittedAt))),
           ]),

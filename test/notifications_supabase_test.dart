@@ -121,10 +121,10 @@ void main() {
     );
 
     test(
-      'knows exactly the database types (26 since migration 28), both ways',
+      'knows exactly the database types (34 since migration 35), both ways',
       () {
         final codes = migrationTypeCodes();
-        expect(codes, hasLength(26));
+        expect(codes, hasLength(34));
         expect(codes.toSet(), hasLength(ServerNotificationType.values.length));
         for (final code in codes) {
           final n = NotificationRowMapper.notification(

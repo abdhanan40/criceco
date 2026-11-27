@@ -1,5 +1,6 @@
 // Phase 2 Step 5: the auth and onboarding screens in Supabase mode (email
-// only; Google, password reset and change hidden; typed errors), on the
+// only; Google and password reset hidden, password change since M6; typed
+// errors), on the
 // in-memory gateway fakes — no live project. Memory mode must look exactly
 // as before.
 import 'dart:async';
@@ -774,25 +775,71 @@ void main() {
       expect(toggle('Login alerts'), findsOneWidget);
     });
 
-    testWidgets('supabase: no password controls; no pretend sign-in switches', (
-      tester,
-    ) async {
-      final c = await _profiled(tester);
-      await _go(tester, c, Routes.settings);
-      expect(find.text('Sign-in security'), findsOneWidget);
-      expect(find.text('Change password, sign-in alerts'), findsNothing);
-      await _go(tester, c, Routes.securitySettings);
-      expect(_loc(c), Routes.securitySettings);
-      expect(find.byKey(const Key('security.current')), findsNothing);
-      expect(find.byKey(const Key('security.new')), findsNothing);
-      expect(find.byKey(const Key('security.forgot')), findsNothing);
-      expect(_button('Update Password'), findsNothing);
-      // Two-step verification and login alerts have no server support: no
-      // switches that would protect nothing, a plain note instead.
-      expect(toggle('Two-step verification'), findsNothing);
-      expect(toggle('Login alerts'), findsNothing);
-      expect(find.byKey(const Key('security.signInPending')), findsOneWidget);
-    });
+    testWidgets(
+      'supabase: password change (M6), no Forgot without the reset; no pretend sign-in switches',
+      (tester) async {
+        final c = await _profiled(tester);
+        await _go(tester, c, Routes.settings);
+        expect(find.text('Change password, sign-in security'), findsOneWidget);
+        await _go(tester, c, Routes.securitySettings);
+        expect(_loc(c), Routes.securitySettings);
+        expect(find.byKey(const Key('security.current')), findsOneWidget);
+        expect(find.byKey(const Key('security.new')), findsOneWidget);
+        // "Forgot current password?" follows the reset (the email-codes switch).
+        expect(find.byKey(const Key('security.forgot')), findsNothing);
+        expect(_button('Update Password'), findsOneWidget);
+        // Two-step verification and login alerts have no server support: no
+        // switches that would protect nothing, a plain note instead.
+        expect(toggle('Two-step verification'), findsNothing);
+        expect(toggle('Login alerts'), findsNothing);
+        expect(find.byKey(const Key('security.signInPending')), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'supabase: Update Password end to end (wrong current, server rule, success)',
+      (tester) async {
+        final c = await _profiled(tester);
+        await _go(tester, c, Routes.securitySettings);
+        const next = 'Newpass@456';
+
+        // A wrong current password: checked by signing in again; nothing changes.
+        await _enter(tester, 'security.current', 'Wrong@123');
+        await _enter(tester, 'security.new', next);
+        await _tap(tester, _button('Update Password'));
+        expect(find.text('Current password is incorrect'), findsOneWidget);
+        expect(auth.passwordOf(_email), _password);
+        expect(_count(auth.calls, 'updatePassword'), 0);
+        expect(_loc(c), Routes.securitySettings);
+
+        // The server's password rules: its weak-password answer, in plain words.
+        await _enter(tester, 'security.current', _password);
+        auth.addFailure(
+          'updatePassword',
+          const GatewayConstraintException(
+            sqlState: '23514',
+            message: 'weak password',
+          ),
+        );
+        await _tap(tester, _button('Update Password'));
+        expect(find.text('Choose a stronger password'), findsOneWidget);
+        expect(auth.passwordOf(_email), _password);
+        await _toastGone(tester);
+
+        // Success: the new password is set, the OTHER sessions end, this one stays.
+        await _tap(tester, _button('Update Password'));
+        expect(_loc(c), Routes.settings);
+        expect(find.text('Password updated'), findsOneWidget);
+        expect(auth.passwordOf(_email), next);
+        expect(auth.otherSignOuts, 1);
+        expect(auth.globalSignOuts, 0);
+        expect(c.read(sessionProvider).isAuthenticated, isTrue);
+        expect(
+          c.read(currentAccountProvider)!.settings.passwordChangedAt,
+          isNotNull,
+        );
+      },
+    );
   });
 
   group('M1: an RLS refusal keeps the user signed in', () {

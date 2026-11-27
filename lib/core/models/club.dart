@@ -135,7 +135,7 @@ class ClubSummary {
     required this.squadSize,
     required this.formats,
     required this.homeGround,
-    required this.captain,
+    this.captain,
     required this.keyPlayers,
     required this.recentForm,
     required this.winRate,
@@ -158,7 +158,8 @@ class ClubSummary {
   final int squadSize;
   final String formats; // "T20 / ODI"
   final String homeGround;
-  final ClubCaptain captain;
+  /// The club captain (the demo only: the server lists none, never a phone).
+  final ClubCaptain? captain;
   final List<KeyPlayer> keyPlayers;
   final List<MatchResult> recentForm; // last 5
   final int winRate;
@@ -194,11 +195,15 @@ class ClubMember {
     this.bowlingStyle,
     this.poolPlayerId,
     this.joinedAt,
+    this.photoPath,
   });
 
   final String id;
   final String name;
   final String phone;
+
+  /// The member's profile picture (a stored picture, M5); `null` = initials.
+  final String? photoPath;
 
   /// When the member joined the club (`null` = unknown, counted as a founding
   /// member). Drives the Club Dashboard's Member Growth chart.
@@ -258,15 +263,24 @@ class JoinRequest {
     this.assignedRole,
     this.decidedAt,
     this.declineReason,
+    this.photoPath,
   });
 
   final String id;
   final String name;
-  final int age;
+
+  /// The applicant's profile picture (a stored picture, M5); `null` = initials.
+  final String? photoPath;
+
+  /// `null`: not known (no date of birth on the applicant's profile).
+  final int? age;
   final String city;
-  final BattingStyle battingStyle;
-  final BowlingStyle bowlingStyle;
-  final PlayerRole role;
+
+  /// The applicant's cricket profile; each `null` when they have none
+  /// ("Not set" — never invented).
+  final BattingStyle? battingStyle;
+  final BowlingStyle? bowlingStyle;
+  final PlayerRole? role;
   final String phone;
   final String appliedLabel; // "Applied 2 days ago"
   final JoinRequestPerformance? performance;
@@ -303,5 +317,6 @@ class JoinRequest {
         assignedRole: role,
         decidedAt: at,
         declineReason: review == JoinRequestReview.declined && (reason ?? '').trim().isNotEmpty ? reason!.trim() : null,
+        photoPath: photoPath,
       );
 }

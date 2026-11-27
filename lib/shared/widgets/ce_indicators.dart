@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/theme/tokens.dart';
 import '../../app/theme/typography.dart';
 import '../../core/enums/enums.dart';
+import '../media/photo_picker.dart' show CePhotoImage;
 import 'ce_icons.dart';
 
 enum CeTone { green, amber, red, blue, neutral }
@@ -132,16 +133,23 @@ class CeChipRow<T> extends StatelessWidget {
   }
 }
 
-/// Initial avatar (`.avatar`).
+/// Initial avatar (`.avatar`) — or the person's picture ([photoPath], M5),
+/// with the initial while it loads or when there is none.
 class CeAvatar extends StatelessWidget {
-  const CeAvatar(this.name, {super.key, this.size = 40, this.background, this.foreground});
+  const CeAvatar(this.name, {super.key, this.size = 40, this.background, this.foreground, this.photoPath});
   final String name;
   final double size;
   final Color? background;
   final Color? foreground;
+  final String? photoPath;
 
   @override
   Widget build(BuildContext context) {
+    final initials = _initials();
+    return photoPath == null ? initials : CePhotoImage(path: photoPath, size: size, fallback: initials);
+  }
+
+  Widget _initials() {
     final initial = name.trim().isEmpty ? '?' : name.trim()[0].toUpperCase();
     return Container(
       width: size,

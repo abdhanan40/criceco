@@ -23,6 +23,7 @@ class Team {
     this.viceCaptainId,
     this.status = TeamStatus.active,
     this.members = const [],
+    this.version = 1,
   });
 
   final String id;
@@ -36,6 +37,11 @@ class Team {
   final TeamStatus status;
   final List<TeamMember> members;
   final DateTime createdAt;
+
+  /// The stored row's version (M4 hardening migration): `save_team` refuses a save
+  /// made from an older copy ("changed elsewhere"). `null` when the server
+  /// doesn't keep one — nothing is checked then. Memory mode: 1.
+  final int? version;
 
   int get playerCount => members.length;
   int get playingCount =>
@@ -55,6 +61,7 @@ class Team {
     bool clearCaptain = false,
     bool clearViceCaptain = false,
     bool clearCustomOvers = false,
+    int? version,
   }) =>
       Team(
         id: id,
@@ -68,6 +75,7 @@ class Team {
         status: status ?? this.status,
         members: members ?? this.members,
         createdAt: createdAt,
+        version: version ?? this.version,
       );
 }
 
@@ -111,6 +119,8 @@ class Lineup {
     required this.name,
     required this.members,
     this.sourceTeamId,
+    this.captainId,
+    this.viceCaptainId,
   });
 
   static const newMatchDaySquadName = 'New Match-Day Squad';
@@ -118,4 +128,10 @@ class Lineup {
   final String name;
   final String? sourceTeamId;
   final List<TeamMember> members;
+
+  /// A server tournament entry (migration 35) taken from a team: the team's
+  /// captain and vice-captain when both are in the Playing XI. `null`
+  /// otherwise (a built squad has none).
+  final String? captainId;
+  final String? viceCaptainId;
 }

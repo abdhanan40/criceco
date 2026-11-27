@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart' as sb;
@@ -122,6 +123,10 @@ class SupabaseAuthGateway implements AuthGateway {
     await _auth.signOut(scope: sb.SignOutScope.global);
     _recovering = false;
   });
+
+  @override
+  Future<void> signOutOthers() =>
+      _guardAuth(() => _auth.signOut(scope: sb.SignOutScope.others));
 
   // ---- AUTH-05: Google ----
 
@@ -787,6 +792,87 @@ class SupabaseAccountPrivacyGateway implements AccountPrivacyGateway {
   }
 }
 
+/// [MediaGateway] on `supabase_flutter` (migration 31): Storage for the
+/// picture objects, database functions for the picture columns and the
+/// profile visibility. Storage refusals become [GatewayException]s here; the
+/// SDK's types never leave this file.
+class SupabaseMediaGateway implements MediaGateway {
+  SupabaseMediaGateway(this._client, {this.timeout = kGatewayTimeout});
+  final sb.SupabaseClient _client;
+  final Duration timeout;
+
+  @override
+  Future<void> upload(String bucket, String path, Uint8List bytes, {required String contentType}) => _guard(
+    () => _client.storage
+        .from(bucket)
+        .uploadBinary(path, bytes, fileOptions: sb.FileOptions(contentType: contentType, upsert: false)),
+  );
+
+  @override
+  Future<void> remove(String bucket, List<String> paths) => _guard(() => _client.storage.from(bucket).remove(paths));
+
+  @override
+  Future<List<String>> list(String bucket, String folder) => _guard(() async {
+    final objects = await _client.storage.from(bucket).list(path: folder);
+    return [
+      for (final o in objects)
+        if (o.id != null && o.name.isNotEmpty) '$folder/${o.name}',
+    ];
+  });
+
+  @override
+  Future<String> signedUrl(String bucket, String path, {required Duration expiresIn}) =>
+      _guard(() => _client.storage.from(bucket).createSignedUrl(path, expiresIn.inSeconds));
+
+  @override
+  Future<void> setMyAvatar(String? path) =>
+      _guard(() => _client.rpc<dynamic>('set_my_avatar', params: {'p_path': path}));
+
+  @override
+  Future<void> setClubLogo(String clubId, String? path) =>
+      _guard(() => _client.rpc<dynamic>('set_club_logo', params: {'p_club_id': clubId, 'p_path': path}));
+
+  @override
+  Future<ProfileVisibility> fetchProfileVisibility() =>
+      _guard(() async => ProfileVisibility.parse(await _client.rpc<dynamic>('my_profile_visibility')));
+
+  @override
+  Future<void> setProfileVisibility({bool? publicProfile, bool? showStats}) => _guard(
+    () => _client.rpc<dynamic>(
+      'set_profile_visibility',
+      params: {'p_public_profile': publicProfile, 'p_show_stats': showStats},
+    ),
+  );
+
+  /// Storage API errors → [GatewayException] (the raw text is never shown).
+  static GatewayException translate(Object e) {
+    if (e is sb.StorageException) {
+      final status = int.tryParse(e.statusCode ?? '');
+      final text = '${e.error ?? ''} ${e.message}'.toLowerCase();
+      if (status == 413 || text.contains('too large') || text.contains('maximum allowed size') ||
+          text.contains('payload too large')) {
+        return const GatewayConstraintException(sqlState: '22023', message: 'media: too large');
+      }
+      if (status == 415 || text.contains('mime type') || text.contains('invalid_mime_type')) {
+        return const GatewayConstraintException(sqlState: '22023', message: 'media: unsupported type');
+      }
+      if (text.contains('row-level security') || text.contains('unauthorized') || status == 403) {
+        return const GatewayConstraintException(sqlState: '42501', message: 'media: not allowed');
+      }
+      if (status == 401) return const GatewayPermissionException();
+      if (status == 429) return const GatewayRateLimitedException();
+      if (status != null && status >= 500) return const GatewayNetworkException();
+      if (text.contains('already exists') || text.contains('duplicate') || status == 409) {
+        return const GatewayConstraintException(sqlState: '23505', message: 'media: already exists');
+      }
+      return GatewayUnexpectedException('storage:${status ?? 'unknown'}');
+    }
+    return SupabaseProfileGateway.translate(e);
+  }
+
+  Future<T> _guard<T>(Future<T> Function() run) => _guarded(run, timeout, translate);
+}
+
 /// [OwnershipGateway] on `supabase_flutter` (migration 16): database
 /// functions only — the caller is always the session's user.
 class SupabaseOwnershipGateway implements OwnershipGateway {
@@ -948,6 +1034,54 @@ class SupabaseResultsGateway implements ResultsGateway {
       );
 }
 
+/// Migration 34 (the `CRICECO_FITNESS` switch): the player's own workouts
+/// and the club owner's read-only view of the squad's fitness.
+class SupabaseFitnessGateway implements FitnessGateway {
+  SupabaseFitnessGateway(this._client, {this.timeout = kGatewayTimeout});
+  final sb.SupabaseClient _client;
+  final Duration timeout;
+
+  @override
+  Future<Map<String, dynamic>> logWorkout(Map<String, Object?> params) => _guarded(() async {
+        final row = SupabaseClubGateway._row(await _client.rpc<dynamic>('log_workout', params: params));
+        if (row == null) throw const GatewayUnexpectedException('log_workout-no-row');
+        return row;
+      }, timeout, SupabaseProfileGateway.translate);
+
+  @override
+  Future<List<Map<String, dynamic>>> myWorkouts({required String from, required String to}) =>
+      _list('my_workouts', {'p_from': from, 'p_to': to});
+
+  @override
+  Future<void> deleteWorkout(String id) => _guarded(
+        () => _client.rpc<dynamic>('delete_workout', params: {'p_id': id}),
+        timeout,
+        SupabaseProfileGateway.translate,
+      );
+
+  @override
+  Future<List<Map<String, dynamic>>> clubMemberFitness(String clubId, {required String from, required String to}) =>
+      _list('club_member_fitness', {'p_club_id': clubId, 'p_from': from, 'p_to': to});
+
+  @override
+  Future<List<Map<String, dynamic>>> clubMemberWorkouts(String clubId, {required String from, required String to}) =>
+      _list('club_member_workouts', {'p_club_id': clubId, 'p_from': from, 'p_to': to});
+
+  @override
+  Future<List<Map<String, dynamic>>> clubMemberMatchActivity(
+    String clubId, {
+    required String from,
+    required String to,
+  }) =>
+      _list('club_member_match_activity', {'p_club_id': clubId, 'p_from': from, 'p_to': to});
+
+  Future<List<Map<String, dynamic>>> _list(String fn, Map<String, Object?> params) => _guarded(
+        () async => _rowsOf(await _client.rpc<dynamic>(fn, params: params)),
+        timeout,
+        SupabaseProfileGateway.translate,
+      );
+}
+
 /// Migration 25 (the `CRICECO_NOTIFICATIONS` switch): the server inbox and
 /// club announcements. Notifications themselves are written only by the
 /// server; the app reads its own and marks them read.
@@ -1020,6 +1154,194 @@ class SupabaseNotificationsGateway implements NotificationsGateway {
         timeout,
         SupabaseProfileGateway.translate,
       );
+}
+
+/// One-row / row-list / no-result database function calls, shared by the
+/// migration 32 and 33 gateways.
+mixin _RpcCalls {
+  sb.SupabaseClient get _client;
+  Duration get timeout;
+
+  Future<Map<String, dynamic>> _one(String fn, [Map<String, Object?> params = const {}]) => _guarded(() async {
+        final row = SupabaseClubGateway._row(await _client.rpc<dynamic>(fn, params: params));
+        if (row == null) throw GatewayUnexpectedException('$fn-no-row');
+        return row;
+      }, timeout, SupabaseProfileGateway.translate);
+
+  Future<List<Map<String, dynamic>>> _list(String fn, [Map<String, Object?> params = const {}]) => _guarded(
+        () async => _rowsOf(await _client.rpc<dynamic>(fn, params: params)),
+        timeout,
+        SupabaseProfileGateway.translate,
+      );
+
+  Future<void> _void(String fn, Map<String, Object?> params) => _guarded(
+        () => _client.rpc<dynamic>(fn, params: params),
+        timeout,
+        SupabaseProfileGateway.translate,
+      );
+}
+
+/// Migration 32 (the `CRICECO_DISCOVERY` switch): club discovery,
+/// availability slots, player rankings and applicant statistics.
+class SupabaseDiscoveryGateway with _RpcCalls implements DiscoveryGateway {
+  SupabaseDiscoveryGateway(this._client, {this.timeout = kGatewayTimeout});
+  @override
+  final sb.SupabaseClient _client;
+  @override
+  final Duration timeout;
+
+  @override
+  Future<Map<String, dynamic>> clubPublicProfile(String clubId) => _one('club_public_profile', {'p_club_id': clubId});
+
+  @override
+  Future<List<Map<String, dynamic>>> clubDirectory({String? search, String? city, int limit = 50, int offset = 0}) =>
+      _list('club_directory', {'p_search': search, 'p_city': city, 'p_limit': limit, 'p_offset': offset});
+
+  @override
+  Future<Map<String, dynamic>> postMatchSlot(Map<String, Object?> params) => _one('post_match_slot', params);
+
+  @override
+  Future<Map<String, dynamic>> withdrawMatchSlot(String slotId) => _one('withdraw_match_slot', {'p_slot_id': slotId});
+
+  @override
+  Future<List<Map<String, dynamic>>> myClubSlots(String clubId, {bool includeClosed = false}) =>
+      _list('my_club_slots', {'p_club_id': clubId, 'p_include_closed': includeClosed});
+
+  @override
+  Future<List<Map<String, dynamic>>> openMatchSlots(Map<String, Object?> params) => _list('open_match_slots', params);
+
+  @override
+  Future<List<Map<String, dynamic>>> playerRankings(Map<String, Object?> params) => _list('player_rankings', params);
+
+  @override
+  Future<Map<String, dynamic>> clubApplicantStats(String requestId) =>
+      _one('club_applicant_stats', {'p_request_id': requestId});
+}
+
+/// Migration 33 (the `CRICECO_PLAYER_HUNT` switch): Player Hunt and Playing
+/// Opportunities.
+class SupabaseHuntGateway with _RpcCalls implements HuntGateway {
+  SupabaseHuntGateway(this._client, {this.timeout = kGatewayTimeout});
+  @override
+  final sb.SupabaseClient _client;
+  @override
+  final Duration timeout;
+
+  @override
+  Future<Map<String, dynamic>> myListing() => _one('my_hunt_listing');
+
+  @override
+  Future<Map<String, dynamic>> setListing({required bool listed, String? role, String? city}) =>
+      _one('set_my_hunt_listing', {'p_listed': listed, 'p_role': role, 'p_city': city});
+
+  @override
+  Future<Map<String, dynamic>> publishPost(Map<String, Object?> params) => _one('publish_hunt_post', params);
+
+  @override
+  Future<void> closePost(String postId) => _void('close_hunt_post', {'p_post_id': postId});
+
+  @override
+  Future<List<Map<String, dynamic>>> clubPosts(String clubId) => _list('club_hunt_posts', {'p_club_id': clubId});
+
+  @override
+  Future<List<Map<String, dynamic>>> openPosts({String? role, String? city}) =>
+      _list('hunt_open_posts', {'p_role': role, 'p_city': city});
+
+  @override
+  Future<void> expressInterest(String postId) => _void('express_hunt_interest', {'p_post_id': postId});
+
+  @override
+  Future<void> withdrawInterest(String postId) => _void('withdraw_hunt_interest', {'p_post_id': postId});
+
+  @override
+  Future<List<Map<String, dynamic>>> clubInterests(String clubId, {String? postId}) =>
+      _list('club_hunt_interests', {'p_club_id': clubId, 'p_post_id': postId});
+
+  @override
+  Future<List<Map<String, dynamic>>> openPlayers({String? city, String? role}) =>
+      _list('hunt_open_players', {'p_city': city, 'p_role': role});
+
+  @override
+  Future<Map<String, dynamic>> invitePlayer({required String clubId, required String userId, String? postId}) =>
+      _one('invite_hunt_player', {'p_club_id': clubId, 'p_user_id': userId, 'p_post_id': postId});
+
+  @override
+  Future<List<Map<String, dynamic>>> clubInvites(String clubId) => _list('club_hunt_invites', {'p_club_id': clubId});
+
+  @override
+  Future<List<Map<String, dynamic>>> myInvites() => _list('my_hunt_invites');
+
+  @override
+  Future<Map<String, dynamic>> respondInvite(String inviteId, {required bool accept}) =>
+      _one('respond_hunt_invite', {'p_invite_id': inviteId, 'p_accept': accept});
+}
+
+/// Migration 35 (the `CRICECO_TOURNAMENTS` switch): tournaments, entries,
+/// the draw, the points table and the awards.
+class SupabaseTournamentGateway with _RpcCalls implements TournamentGateway {
+  SupabaseTournamentGateway(this._client, {this.timeout = kGatewayTimeout});
+  @override
+  final sb.SupabaseClient _client;
+  @override
+  final Duration timeout;
+
+  @override
+  Future<Map<String, dynamic>> createTournament(Map<String, Object?> params) => _one('create_tournament', params);
+
+  @override
+  Future<List<Map<String, dynamic>>> myHostedTournaments(String clubId) =>
+      _list('my_hosted_tournaments', {'p_club_id': clubId});
+
+  @override
+  Future<List<Map<String, dynamic>>> browseTournaments({String? city}) =>
+      _list('browse_tournaments', {'p_city': city});
+
+  @override
+  Future<Map<String, dynamic>> tournamentDetail(String tournamentId) =>
+      _one('tournament_detail', {'p_tournament_id': tournamentId});
+
+  @override
+  Future<Map<String, dynamic>> tournamentHubStats(String clubId) => _one('tournament_hub_stats', {'p_club_id': clubId});
+
+  @override
+  Future<List<Map<String, dynamic>>> tournamentTeams(String tournamentId) =>
+      _list('tournament_teams', {'p_tournament_id': tournamentId});
+
+  @override
+  Future<List<Map<String, dynamic>>> registrationSquad(String registrationId) =>
+      _list('tournament_registration_squad', {'p_registration_id': registrationId});
+
+  @override
+  Future<Map<String, dynamic>> submitRegistration(Map<String, Object?> params) =>
+      _one('submit_tournament_registration', params);
+
+  @override
+  Future<Map<String, dynamic>> decideRegistration(String registrationId, {required bool approve}) =>
+      _one('decide_tournament_registration', {'p_registration_id': registrationId, 'p_approve': approve});
+
+  @override
+  Future<Map<String, dynamic>> removeTeam(String registrationId) =>
+      _one('remove_tournament_team', {'p_registration_id': registrationId});
+
+  @override
+  Future<List<Map<String, dynamic>>> myRegistrations(String clubId, {String? status}) =>
+      _list('my_tournament_registrations', {'p_club_id': clubId, 'p_status': status});
+
+  @override
+  Future<Map<String, dynamic>> generateFixtures(String tournamentId) =>
+      _one('generate_tournament_fixtures', {'p_tournament_id': tournamentId});
+
+  @override
+  Future<List<Map<String, dynamic>>> tournamentFixtures(String tournamentId) =>
+      _list('tournament_fixtures', {'p_tournament_id': tournamentId});
+
+  @override
+  Future<List<Map<String, dynamic>>> pointsTable(String tournamentId) =>
+      _list('tournament_points_table', {'p_tournament_id': tournamentId});
+
+  @override
+  Future<List<Map<String, dynamic>>> awards(String tournamentId) =>
+      _list('tournament_awards', {'p_tournament_id': tournamentId});
 }
 
 Future<T> _guarded<T>(

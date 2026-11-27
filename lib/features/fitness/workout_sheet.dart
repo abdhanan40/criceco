@@ -3,10 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/config/backend_modules.dart';
-import '../../app/providers/core_providers.dart';
+import '../../app/session/account_error_text.dart';
 import '../../app/theme/tokens.dart';
 import '../../core/models/models.dart';
-import '../../core/utils/formatters.dart';
 import '../../shared/widgets/backend_pending.dart';
 import '../../shared/widgets/ce_buttons.dart';
 import '../../shared/widgets/ce_calendar.dart';
@@ -32,7 +31,8 @@ class _AddWorkoutSheet extends ConsumerStatefulWidget {
 }
 
 class _AddWorkoutSheetState extends ConsumerState<_AddWorkoutSheet> {
-  late final DateTime _today = CeFormat.dateOnly(ref.read(clockProvider).now());
+  // Today in Pakistan when workouts are saved on the server (as it checks).
+  late final DateTime _today = ref.read(workoutTodayProvider)();
   late DateTime _date = _today;
   late DateTime _month = _today;
   bool _pickerOpen = false;
@@ -58,18 +58,33 @@ class _AddWorkoutSheetState extends ConsumerState<_AddWorkoutSheet> {
     return _duration == null ? 'Enter minutes between 1 and ${WorkoutEntry.maxMinutes}' : null;
   }
 
-  bool _saved = false; // one save per sheet (rapid taps)
+  bool _saving = false; // one save at a time (rapid taps)
 
-  void _save() {
-    if (_saved || _duration == null) return;
-    _saved = true;
-    ref.read(playerWorkoutsProvider.notifier).add(
-          date: _date,
-          type: _type,
-          minutes: _duration!,
-          intensity: _intensity,
-          notes: _notes.text,
-        );
+  Future<void> _save() async {
+    final minutes = _duration;
+    if (_saving || minutes == null) return;
+    setState(() => _saving = true);
+    try {
+      await ref.read(playerWorkoutsProvider.notifier).save(
+            date: _date,
+            type: _type,
+            minutes: minutes,
+            intensity: _intensity,
+            notes: _notes.text,
+          );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      if (signOutIfNeeded(context, ref, e)) return;
+      showCeToast(
+        context,
+        e is ArgumentError
+            ? '${e.message}'
+            : accountErrorText(e, fallback: "Couldn't save the workout — please try again"),
+      );
+      return;
+    }
+    if (!mounted) return;
     Navigator.of(context).pop();
     showCeToast(context, 'Workout added');
   }
@@ -146,7 +161,7 @@ class _AddWorkoutSheetState extends ConsumerState<_AddWorkoutSheet> {
       Row(children: [
         Expanded(child: CeButton.soft(label: 'Cancel', onPressed: () => Navigator.of(context).pop())),
         const SizedBox(width: 8),
-        Expanded(child: CeButton(label: 'Save Workout', onPressed: _duration == null ? null : _save)),
+        Expanded(child: CeButton(label: 'Save Workout', onPressed: _duration == null || _saving ? null : _save)),
       ]),
     ]);
   }

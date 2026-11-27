@@ -122,12 +122,37 @@ class MatchSeekerListing {
     required this.format,
     required this.startsAt,
     required this.venue,
+    this.slotId,
+    this.customOvers,
+    this.clubName,
+    this.clubShortName,
+    this.clubCity,
+    this.clubWins = 0,
+    this.clubLosses = 0,
+    this.notes = '',
   });
   final String clubId;
+
+  /// The demo's sample rating; "—" on the server (no rating is stored).
   final String rating;
   final MatchFormat format;
   final DateTime startsAt;
   final String venue;
+
+  /// The server's open slot behind this listing (migration 32); `null` in
+  /// the demo.
+  final String? slotId;
+  final int? customOvers;
+
+  /// The posting club's public name, city and official record, as the
+  /// server sends them with the slot (`null` / 0 in the demo, whose club
+  /// profiles carry them).
+  final String? clubName;
+  final String? clubShortName;
+  final String? clubCity;
+  final int clubWins;
+  final int clubLosses;
+  final String notes;
 }
 
 /// A club's player requirement (Player Hunt → Find Players; Player → Open Matches).
@@ -145,10 +170,30 @@ class PlayerHuntPost {
     this.time,
     this.budget = HuntBudget.any,
     this.notes = '',
+    this.clubCity,
+    this.isMyClub = false,
+    this.interested = false,
+    this.interestCount,
+    this.isOpen = true,
   });
 
   static const minPlayers = 1;
   static const maxPlayers = 11;
+
+  /// The posting club's city (server posts, migration 33).
+  final String? clubCity;
+
+  /// A post of the signed-in owner's own club.
+  final bool isMyClub;
+
+  /// The signed-in player expressed interest in it (server posts).
+  final bool interested;
+
+  /// Players interested so far — only on the owner's own club's posts.
+  final int? interestCount;
+
+  /// Open (not closed, not past its date).
+  final bool isOpen;
 
   final String id;
   final String clubId;
@@ -173,6 +218,10 @@ class OpenPlayer {
     required this.availabilityLabel,
     required this.city,
     this.isMe = false,
+    this.isMember = false,
+    this.inviteStatus,
+    this.figures,
+    this.photoPath,
   });
   final String id;
   final String name;
@@ -180,4 +229,148 @@ class OpenPlayer {
   final String availabilityLabel; // "Available Now"
   final String city;
   final bool isMe;
+
+  /// Already an active member of the owner's club (server, migration 33).
+  final bool isMember;
+
+  /// The owner's club's latest invite to this player; `null` = none.
+  final HuntInviteStatus? inviteStatus;
+
+  /// The player's official figures — only when they share their stats.
+  final HuntPlayerFigures? figures;
+
+  /// The player's stored profile picture (`avatars` object), if any.
+  final String? photoPath;
+}
+
+/// Where a Player Hunt invite stands (migration 33). An invite waits 14 days.
+enum HuntInviteStatus {
+  pending('Invited'),
+  accepted('Accepted'),
+  declined('Declined'),
+  expired('Expired');
+
+  const HuntInviteStatus(this.label);
+  final String label;
+}
+
+/// A player's official career figures as Player Hunt shows them (only when
+/// the player shares their stats; migration 22's statistics).
+class HuntPlayerFigures {
+  const HuntPlayerFigures({
+    required this.matches,
+    required this.runs,
+    required this.wickets,
+    this.battingAverage,
+    this.strikeRate,
+    this.economy,
+  });
+  final int matches;
+  final int runs;
+  final int wickets;
+  final double? battingAverage;
+  final double? strikeRate;
+  final double? economy;
+}
+
+/// The signed-in player's own listing for other clubs (migration 33).
+class HuntListing {
+  const HuntListing({required this.listed, required this.visible, this.role, this.city});
+  final bool listed;
+
+  /// Listed AND the profile is public: clubs can see the player now.
+  final bool visible;
+  final HuntRole? role;
+  final String? city;
+}
+
+/// A player who tapped "I'm Interested" on one of the owner's posts.
+class HuntInterest {
+  const HuntInterest({
+    required this.id,
+    required this.postId,
+    required this.playerId,
+    required this.name,
+    required this.createdAt,
+    this.role,
+    this.city,
+    this.phone,
+    this.figures,
+    this.photoPath,
+  });
+  final String id;
+  final String postId;
+  final String playerId;
+  final String name;
+  final DateTime createdAt;
+  final HuntRole? role;
+  final String? city;
+
+  /// Only when the player shares their phone with clubs.
+  final String? phone;
+  final HuntPlayerFigures? figures;
+  final String? photoPath;
+}
+
+/// An invite the owner's club sent (Available Players).
+class ClubHuntInvite {
+  const ClubHuntInvite({
+    required this.id,
+    required this.playerId,
+    required this.name,
+    required this.status,
+    required this.createdAt,
+    this.role,
+    this.city,
+    this.postId,
+    this.expiresAt,
+    this.respondedAt,
+    this.phone,
+  });
+  final String id;
+  final String playerId;
+  final String name;
+  final HuntInviteStatus status;
+  final DateTime createdAt;
+  final HuntRole? role;
+  final String? city;
+  final String? postId;
+  final DateTime? expiresAt;
+  final DateTime? respondedAt;
+
+  /// Only once accepted, and only when the player shares it with clubs.
+  final String? phone;
+}
+
+/// An invite the signed-in player received (Playing Opportunities).
+/// Accepting means "I'm interested — contact me": it never joins the club.
+class PlayerHuntInvite {
+  const PlayerHuntInvite({
+    required this.id,
+    required this.clubId,
+    required this.clubName,
+    required this.status,
+    required this.createdAt,
+    this.clubShortName,
+    this.clubCity,
+    this.postRole,
+    this.postFormat,
+    this.postDate,
+    this.expiresAt,
+    this.respondedAt,
+  });
+  final String id;
+  final String clubId;
+  final String clubName;
+  final String? clubShortName;
+  final String? clubCity;
+  final HuntRole? postRole;
+  final MatchFormat? postFormat;
+  final DateTime? postDate;
+  final HuntInviteStatus status;
+  final DateTime createdAt;
+  final DateTime? expiresAt;
+  final DateTime? respondedAt;
+
+  String get displayClubName => (clubShortName?.trim().isNotEmpty ?? false) ? clubShortName!.trim() : clubName;
 }

@@ -11,6 +11,7 @@ import '../../../app/theme/tokens.dart';
 import '../../../app/theme/typography.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/pakistan_time.dart';
 import '../../../shared/media/photo_picker.dart';
 import '../../../shared/widgets/backend_pending.dart';
 import '../../../shared/widgets/ce_dashboard_hero.dart';
@@ -47,7 +48,7 @@ class PlayerDashboardScreen extends ConsumerWidget {
     final available = availability.status == PlayerAvailability.available;
     // Production builds: modules with no backend show no invented values.
     final modules = ref.watch(backendModulesProvider);
-    // Official match statistics (results switch); fitness has no backend yet.
+    // Official match statistics (results switch); fitness with the fitness switch.
     final statsOn = modules.has(BackendModule.matchStats);
     final fitnessOn = modules.has(BackendModule.playerStats);
     final availabilityOn = modules.has(BackendModule.availability);
@@ -158,9 +159,12 @@ class PlayerDashboardScreen extends ConsumerWidget {
               report: fitness,
               log: perf?.matchLog ?? const [],
               now: ref.read(clockProvider).now(),
-              nextMatch: next == null ? null : (startsAt: next.startsAt, opponent: next.opponentName),
+              nextMatch: next == null ? null : (startsAt: next.startsAt.inPakistan, opponent: next.opponentName),
               // A club owner sees their members' fitness (Members, Member Profile).
-              sharedWithClub: account?.memberships.firstOrNull?.clubName,
+              // With the server (M9), only while "Show my stats" is on.
+              sharedWithClub: ref.watch(fitnessBackendLiveProvider) && !(account?.settings.showStats ?? true)
+                  ? null
+                  : account?.memberships.firstOrNull?.clubName,
               workouts: workouts,
               onAddWorkout: () => showAddWorkoutSheet(context),
               onTap: () => showFitnessSheet(context, fitness,
@@ -287,8 +291,8 @@ class _NextMatchCard extends ConsumerWidget {
               ),
               const SizedBox(height: 8),
               Wrap(spacing: 10, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                _WhiteInfo(icon: 'calendar', text: CeFormat.dayDate(match.startsAt)),
-                _WhiteInfo(icon: 'clock', text: CeFormat.time(match.startsAt)),
+                _WhiteInfo(icon: 'calendar', text: CeFormat.dayDate(match.startsAt.inPakistan)),
+                _WhiteInfo(icon: 'clock', text: CeFormat.time(match.startsAt.inPakistan)),
                 _Tag('${match.format.display()} Match'),
                 if (match.matchType != null) _Tag(match.matchType!),
               ]),

@@ -190,6 +190,8 @@ class FakeMembershipDb implements MembershipGateway {
             'city': _club('${m['club_id']}')?['city'],
             'member_role': m['member_role'],
             'joined_at': m['joined_at'],
+            // Migration 31 (M5): the club's picture.
+            'club_logo_path': _club('${m['club_id']}')?['logo_path'],
           },
     ];
   }
@@ -219,6 +221,8 @@ class FakeMembershipDb implements MembershipGateway {
     return {
       'full_name': p['full_name'],
       'phone': p['phone'],
+      // Migration 31 (M5): the person's picture.
+      'avatar_path': p['avatar_path'],
       // The age only — never the date of birth (as club_join_requests).
       'applicant_age': _age(p['date_of_birth'] as String?),
       'city': db.currentAddresses[userId]?['city'],
@@ -325,6 +329,9 @@ class FakeTeamDb implements TeamGateway {
   final teams = <Map<String, dynamic>>[];
   final players = <Map<String, dynamic>>[];
   final calls = <String>[];
+
+  /// Every `save_team` call's parameters, in order.
+  final saveParams = <Map<String, Object?>>[];
   var _seq = 0;
 
   static GatewayConstraintException _err(String sqlState, String message) =>
@@ -395,6 +402,7 @@ class FakeTeamDb implements TeamGateway {
       'vice_captain_member_id': null,
       'status': 'active',
       'created_at': DateTime.utc(2026, 11, 16, 10, _seq).toIso8601String(),
+      'version': 1,
     };
     teams.add(row);
     return Map.of(row);
@@ -403,10 +411,14 @@ class FakeTeamDb implements TeamGateway {
   @override
   Future<Map<String, dynamic>> saveTeam(Map<String, Object?> params) async {
     final uid = _uid('saveTeam');
+    saveParams.add(Map.of(params));
     final t = teams.where((x) => x['id'] == params['p_team_id']).firstOrNull;
     if (t == null) throw _err('P0002', 'team: not found');
     if (!memberships._owns(uid, t['club_id'])) throw _err('42501', 'team: not allowed');
     if (t['status'] != 'active') throw _err('P0001', 'team: archived');
+    // M4 optimistic concurrency: a save from an older copy is refused.
+    final expected = params['p_expected_version'] as int?;
+    if (expected != null && expected != t['version']) throw _err('40001', 'team: changed elsewhere');
     final list = [for (final p in params['p_players'] as List) Map<String, Object?>.from(p as Map)];
     final ids = [for (final p in list) p['member_id'] as String];
     if (ids.toSet().length != ids.length) throw _err('22023', 'team: invalid');
@@ -431,7 +443,8 @@ class FakeTeamDb implements TeamGateway {
       ..['format'] = params['p_format']
       ..['custom_overs'] = params['p_custom_overs']
       ..['captain_member_id'] = captain
-      ..['vice_captain_member_id'] = vice;
+      ..['vice_captain_member_id'] = vice
+      ..['version'] = (t['version'] as int) + 1;
     players
       ..removeWhere((p) => p['team_id'] == t['id'])
       ..addAll([

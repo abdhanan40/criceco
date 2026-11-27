@@ -6,6 +6,7 @@ import '../../app/config/account_privacy.dart';
 import '../../app/config/auth_features.dart';
 import '../../app/config/backend_modules.dart';
 import '../../app/config/demo_mode.dart';
+import '../../app/config/profile_media.dart';
 import '../../app/router/routes.dart';
 import '../../app/session/account_error_text.dart';
 import '../../app/session/role_controller.dart';
@@ -162,7 +163,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             icon: 'key',
             title: 'Password & security',
             subtitle: canChangePassword
-                ? 'Change password, sign-in alerts'
+                // Sign-in alerts exist only in the demo (no server support).
+                ? (ref.watch(backendModulesProvider).isDemo
+                    ? 'Change password, sign-in alerts'
+                    : 'Change password, sign-in security')
                 : ref.watch(backendModulesProvider).isDemo
                     ? 'Sign-in alerts'
                     : 'Sign-in security',
@@ -224,13 +228,26 @@ class _PrivacySection extends ConsumerWidget {
   final bool open;
   final VoidCallback onToggle;
 
+  /// Saves a toggle; a refusal (M6: the server's) is shown, and the switch
+  /// keeps the stored value.
+  static Future<void> _save(BuildContext context, Future<void> Function() run) async {
+    try {
+      await run();
+    } catch (e) {
+      if (context.mounted) showCeToast(context, accountErrorText(e, fallback: "Couldn't save — please try again"));
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(currentAccountProvider.select((a) => a?.settings)) ?? const AccountSettings();
     final session = ref.read(sessionProvider.notifier);
     final modules = ref.watch(backendModulesProvider);
     final huntOn = modules.has(BackendModule.playerHunt);
-    final statsOn = modules.has(BackendModule.playerStats);
+    // "Show my stats" only where it is kept where it applies: the demo, or
+    // the server with the profile-media switch (migration 31's show_stats,
+    // which the owner's fitness view enforces).
+    final statsOn = modules.has(BackendModule.playerStats) && (modules.isDemo || ref.watch(profileMediaLiveProvider));
     final phone = ref.watch(accountControlsProvider).phoneSharing;
     return Semantics(
       container: true,
@@ -275,7 +292,9 @@ class _PrivacySection extends ConsumerWidget {
                         title: 'Public profile',
                         subtitle: 'Clubs can find you in Find Player',
                         value: s.publicProfile,
-                        onChanged: (v) => session.updateSettings((x) => x.copyWith(publicProfile: v)),
+                        // M6: saved on the server with the profile-media switch;
+                        // refused, the switch shows the stored value again.
+                        onChanged: (v) => _save(context, () => session.updateSettings((x) => x.copyWith(publicProfile: v))),
                       ),
                     if (statsOn)
                       CeToggleRow(
@@ -283,7 +302,7 @@ class _PrivacySection extends ConsumerWidget {
                         title: 'Show my stats',
                         subtitle: 'Owners can view your performance',
                         value: s.showStats,
-                        onChanged: (v) => session.updateSettings((x) => x.copyWith(showStats: v)),
+                        onChanged: (v) => _save(context, () => session.updateSettings((x) => x.copyWith(showStats: v))),
                       ),
                     if (phone == PhoneSharingMode.ownersSee)
                       const CeInfoNote(
@@ -414,8 +433,8 @@ class _SecuritySettingsScreenState extends ConsumerState<SecuritySettingsScreen>
   Widget build(BuildContext context) {
     final s = ref.watch(currentAccountProvider.select((a) => a?.settings)) ?? const AccountSettings();
     final session = ref.read(sessionProvider.notifier);
-    // Supabase builds: no password change or reset here (not configured on
-    // the backend); the sign-in toggles below stay.
+    // Password change works in every build (M6: Supabase re-checks the
+    // current password); "Forgot" needs the reset (the email-codes switch).
     final features = ref.watch(authFeaturesProvider);
     return Scaffold(
       appBar: const CeTopBar(title: 'Password & security', fallbackLocation: Routes.settings),

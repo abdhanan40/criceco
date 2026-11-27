@@ -2,12 +2,14 @@ import 'dart:ui' show Color;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/config/backend_config.dart';
 import '../../app/config/demo_mode.dart';
 import '../../app/providers/core_providers.dart';
 import '../../app/session/session_controller.dart';
 import '../../core/domain/fixture_engine.dart';
 import '../../core/models/models.dart';
 import '../../core/utils/validators.dart';
+import '../../data/repositories/repositories.dart';
 import '../../demo/demo_tournament_tools.dart';
 import '../../shared/state/selection_controller.dart';
 import '../club/club_providers.dart';
@@ -110,6 +112,15 @@ Map<String, String> validateTournamentInput(TournamentInput i, DateTime now) {
 
 enum FixturesOutcome { generated, alreadyGenerated, notEnoughTeams, notFound }
 
+/// A server provider that fails stays failed (its screen shows what it has):
+/// no automatic retry.
+Duration? _noRetry(int count, Object error) => null;
+
+/// `true` when the tournament screens use the server (migration 35, the
+/// tournaments switch): its functions decide, the in-app rules are only the
+/// form's first check.
+final tournamentsLiveProvider = Provider<bool>((ref) => ref.watch(tournamentBackendProvider) != null);
+
 class TournamentsController extends AsyncNotifier<List<Tournament>> {
   @override
   Future<List<Tournament>> build() async {
@@ -118,6 +129,9 @@ class TournamentsController extends AsyncNotifier<List<Tournament>> {
   }
 
   DateTime get _now => ref.read(clockProvider).now();
+
+  /// The server's functions; `null` in the demo and without the switch.
+  TournamentBackend? get _server => ref.read(tournamentBackendProvider);
 
   Tournament? byId(String id) => state.value?.where((t) => t.id == id).firstOrNull;
 
@@ -134,8 +148,84 @@ class TournamentsController extends AsyncNotifier<List<Tournament>> {
     return saved;
   }
 
+  /// Server: the list again (hosted + browse), keeping the entries, draw and
+  /// standings already loaded for a tournament until its detail is read
+  /// again. A failure keeps what is shown.
+  Future<void> reload() async {
+    if (_server == null) return;
+    try {
+      final fresh = await ref.read(tournamentRepositoryProvider).tournaments();
+      final old = {for (final t in state.value ?? const <Tournament>[]) t.id: t};
+      final ids = {for (final t in fresh) t.id};
+      state = AsyncData([
+        for (final t in fresh)
+          if (old[t.id] case final o?)
+            t.copyWith(joined: o.joined, pending: o.pending, fixtures: o.fixtures, standings: o.standings)
+          else
+            t,
+        for (final o in old.values)
+          if (!ids.contains(o.id)) o,
+      ]);
+    } on AccountException {
+      // Keep the list shown.
+    }
+  }
+
+  /// Server: one tournament with its entries (confirmed in approval order,
+  /// requests oldest first), its draw and its standings; the entries also
+  /// go to [tournamentRegistrationsProvider]. A tournament the server no
+  /// longer has is dropped.
+  Future<Tournament?> refreshDetail(String id) async {
+    final server = _server;
+    if (server == null) return byId(id);
+    final Tournament row;
+    final List<TournamentRegistration> regs;
+    final List<FixtureRound>? fixtures;
+    final Map<String, Standing> standings;
+    try {
+      final parts = await Future.wait<Object?>([
+        server.detail(id),
+        server.teams(id),
+        server.fixtures(id),
+        server.pointsTable(id),
+      ]);
+      row = parts[0]! as Tournament;
+      regs = parts[1]! as List<TournamentRegistration>;
+      fixtures = parts[2] as List<FixtureRound>?;
+      standings = parts[3]! as Map<String, Standing>;
+    } on TournamentRuleException catch (e) {
+      if (e.reason != 'not found') rethrow;
+      state = AsyncData([for (final t in state.value ?? const <Tournament>[]) if (t.id != id) t]);
+      return null;
+    }
+    TournamentEntrant entrant(TournamentRegistration r) =>
+        TournamentEntrant(id: r.id, displayName: r.clubName ?? r.teamName, clubId: r.clubId, city: r.clubCity);
+    final full = row.copyWith(
+      joined: [for (final r in regs) if (r.status == RegistrationStatus.approved) entrant(r)],
+      pending: [for (final r in regs) if (r.isPending) entrant(r)],
+      fixtures: fixtures,
+      standings: standings,
+    );
+    _put(full);
+    await ref.read(tournamentRegistrationsProvider.notifier)._merge(regs);
+    ref.invalidate(tournamentServerAwardsProvider(id));
+    return full;
+  }
+
+  /// [refreshDetail] after a change the server accepted: a failed reload
+  /// doesn't make the change look failed.
+  Future<void> _refreshQuietly(String id) async {
+    try {
+      await refreshDetail(id);
+    } on AccountException {
+      // The change is made; the screen catches up on its next load.
+    }
+    ref.invalidate(tournamentServerStatsProvider);
+  }
+
   /// Publish a tournament. The organizer is always the owner's own club
-  /// (fix: the prototype used the last-viewed club).
+  /// (fix: the prototype used the last-viewed club). On the server the
+  /// form's checks are repeated there; its row (and id) is what is listed.
   Future<Tournament> create(TournamentInput input) async {
     final club = ref.read(currentClubProvider);
     if (club == null) throw StateError('Only a club owner can host a tournament');
@@ -143,8 +233,9 @@ class TournamentsController extends AsyncNotifier<List<Tournament>> {
     final errors = validateTournamentInput(input, now);
     if (errors.isNotEmpty) throw ArgumentError(errors.values.first);
     await future;
+    final server = _server;
     final created = await ref.read(tournamentRepositoryProvider).create(Tournament(
-          id: 't_${now.microsecondsSinceEpoch}_${state.value?.length ?? 0}',
+          id: server != null ? '' : 't_${now.microsecondsSinceEpoch}_${state.value?.length ?? 0}',
           name: input.name.trim(),
           organizerClubId: club.id,
           city: input.city!,
@@ -162,6 +253,10 @@ class TournamentsController extends AsyncNotifier<List<Tournament>> {
           status: TournamentStatus.registrationOpen,
         ));
     _put(created);
+    if (server != null) {
+      ref.invalidate(tournamentServerStatsProvider);
+      return created;
+    }
     if (ref.read(demoModeProvider)) {
       final clubs = (await ref.read(clubDirectoryProvider.future)).values.toList();
       await const DemoTournamentEntries().seedRequests(
@@ -175,13 +270,28 @@ class TournamentsController extends AsyncNotifier<List<Tournament>> {
   }
 
   /// Organizer: build the bracket / league from the confirmed teams.
-  /// Registration closes once fixtures exist (the draw is fixed).
+  /// Registration closes once fixtures exist (the draw is fixed). On the
+  /// server the draw is made there (`generate_tournament_fixtures`, seeded in
+  /// approval order; requests still waiting are rejected) and read back.
   Future<FixturesOutcome> generateFixtures(String id) async {
     await future;
     final t = byId(id);
     if (t == null) return FixturesOutcome.notFound;
-    if (t.fixtures != null) return FixturesOutcome.alreadyGenerated;
+    if (t.hasFixtures) return FixturesOutcome.alreadyGenerated;
     if (!t.canGenerateFixtures) return FixturesOutcome.notEnoughTeams;
+    final server = _server;
+    if (server != null) {
+      final bool made;
+      try {
+        made = await server.generateFixtures(id);
+      } on TournamentRuleException catch (e) {
+        if (e.reason != 'not enough teams') rethrow;
+        await _refreshQuietly(id);
+        return FixturesOutcome.notEnoughTeams;
+      }
+      await _refreshQuietly(id);
+      return made ? FixturesOutcome.generated : FixturesOutcome.alreadyGenerated;
+    }
     final ids = [for (final e in t.joined) e.id];
     await save(t.copyWith(
       fixtures: FixtureEngine.generate(t.type, ids),
@@ -192,7 +302,10 @@ class TournamentsController extends AsyncNotifier<List<Tournament>> {
   }
 
   /// Records a fixture result (standings, next knockout round, champion).
+  /// Demo only: on the server results are read-only (a fixture's winner
+  /// comes from the trusted scorer), so nothing is recorded there.
   Future<Tournament?> recordResult(String id, int roundIdx, int matchIdx, String winnerId) async {
+    if (_server != null) return null;
     final t = byId(id);
     final fixtures = t?.fixtures;
     if (t == null || fixtures == null) return null;
@@ -203,10 +316,23 @@ class TournamentsController extends AsyncNotifier<List<Tournament>> {
   }
 
   /// Organizer: remove a confirmed team. Only before fixtures exist — the
-  /// draw would otherwise break.
+  /// draw would otherwise break. On the server (`remove_tournament_team`)
+  /// the entry becomes "removed", listed as Rejected.
   Future<bool> removeTeam(String id, String entrantId) async {
     final t = byId(id);
-    if (t == null || t.fixtures != null || !t.joined.any((e) => e.id == entrantId)) return false;
+    if (t == null || t.hasFixtures || !t.joined.any((e) => e.id == entrantId)) return false;
+    final server = _server;
+    if (server != null) {
+      try {
+        await ref.read(tournamentRegistrationsProvider.notifier)._upsert(await server.remove(entrantId));
+      } on TournamentRuleException catch (e) {
+        if (e.reason != 'fixtures generated' && e.reason != 'not approved') rethrow;
+        await _refreshQuietly(id);
+        return false;
+      }
+      await _refreshQuietly(id);
+      return true;
+    }
     await save(t.copyWith(
       joined: [for (final e in t.joined) if (e.id != entrantId) e],
       status: t.status == TournamentStatus.registrationFull ? TournamentStatus.registrationOpen : t.status,
@@ -241,6 +367,56 @@ class TournamentRegistrationsController extends AsyncNotifier<List<TournamentReg
   DateTime get _now => ref.read(clockProvider).now();
 
   TournamentRegistration? byId(String id) => state.value?.where((r) => r.id == id).firstOrNull;
+
+  TournamentBackend? get _server => ref.read(tournamentBackendProvider);
+
+  /// Server: the own club's entries again. A failure keeps what is shown;
+  /// squads already known stay.
+  Future<void> reload() async {
+    if (_server == null) return;
+    try {
+      final fresh = await ref.read(tournamentRepositoryProvider).registrations();
+      final mine = {for (final r in fresh) r.id};
+      final kept = [for (final r in state.value ?? const <TournamentRegistration>[]) if (!mine.contains(r.id)) r];
+      state = AsyncData(kept);
+      await _merge(fresh);
+    } on AccountException {
+      // Keep the list shown.
+    }
+  }
+
+  /// A server entry row: replaces the one with its id (keeping a squad
+  /// already known, and the club's name / city when the row has none).
+  Future<void> _upsert(TournamentRegistration r) => _merge([r]);
+
+  Future<void> _merge(List<TournamentRegistration> rows) async {
+    if (rows.isEmpty) return;
+    await future;
+    final list = [...?state.value];
+    for (final r in rows) {
+      final i = list.indexWhere((x) => x.id == r.id);
+      if (i == -1) {
+        list.add(r);
+        continue;
+      }
+      final old = list[i];
+      list[i] = TournamentRegistration(
+        id: r.id,
+        tournamentId: r.tournamentId,
+        clubId: r.clubId,
+        teamId: r.teamId,
+        teamName: r.teamName,
+        lineup: r.lineup ?? old.lineup,
+        status: r.status,
+        submittedAt: r.submittedAt,
+        decidedAt: r.decidedAt,
+        clubName: r.clubName ?? old.clubName,
+        clubCity: r.clubCity ?? old.clubCity,
+        removed: r.removed,
+      );
+    }
+    state = AsyncData(list);
+  }
 
   Future<TournamentRegistration> _store(TournamentRegistration r) async {
     final saved = await ref.read(tournamentRepositoryProvider).saveRegistration(r);
@@ -278,6 +454,23 @@ class TournamentRegistrationsController extends AsyncNotifier<List<TournamentReg
     if (lineup == null) return (registration: null, error: 'Please pick your team first');
     if (!draft.agreed) return (registration: null, error: 'Please agree to the tournament rules');
 
+    // The server checks it all again (11 + 4, availability on the start
+    // date, capacity, one entry per club and per player) and says why not.
+    final server = _server;
+    if (server != null) {
+      final TournamentRegistration reg;
+      try {
+        reg = await server.submit(tournamentId: t.id, clubId: club.id, lineup: lineup, agreedToRules: draft.agreed);
+      } on AccountException catch (e) {
+        return (registration: null, error: e.message);
+      }
+      await _upsert(reg);
+      ref.read(registrationDraftProvider(tournamentId).notifier).clear();
+      ref.invalidate(lineupDraftProvider(TournamentEntryTarget(tournamentId)));
+      await ref.read(tournamentsProvider.notifier)._refreshQuietly(t.id);
+      return (registration: byId(reg.id) ?? reg, error: null);
+    }
+
     final now = _now;
     final reg = await _store(TournamentRegistration(
       id: 'reg_${now.microsecondsSinceEpoch}_${state.value?.length ?? 0}',
@@ -301,6 +494,7 @@ class TournamentRegistrationsController extends AsyncNotifier<List<TournamentReg
   /// Another club applies to one of my tournaments (backend event; seeded by
   /// Demo Mode on publish).
   Future<TournamentRegistration?> receive(String tournamentId, {required String clubId, required String teamName}) async {
+    if (_server != null) return null; // Real clubs apply on the server.
     await future;
     final t = (await ref.read(tournamentsProvider.future)).where((x) => x.id == tournamentId).firstOrNull;
     if (t == null || t.organizerClubId == clubId || _hasActive(tournamentId, clubId)) return null;
@@ -325,11 +519,35 @@ class TournamentRegistrationsController extends AsyncNotifier<List<TournamentReg
 
   /// Organizer decision on a pending registration: approval moves the entry
   /// from pending to joined (§9); rejection drops it from pending.
+  ///
+  /// On the server (`decide_tournament_registration`, organizer only) its
+  /// refusals map to the same outcomes; any other is thrown
+  /// ([AccountException]).
   Future<RegistrationDecision> decide(String registrationId, {required bool approve}) async {
     await future;
     final r = byId(registrationId);
     if (r == null) return RegistrationDecision.notFound;
     if (!r.isPending) return RegistrationDecision.notPending;
+    final server = _server;
+    if (server != null) {
+      final tournaments = ref.read(tournamentsProvider.notifier);
+      try {
+        await _upsert(await server.decide(registrationId, approve: approve));
+      } on TournamentRuleException catch (e) {
+        final outcome = switch (e.reason) {
+          'not pending' => RegistrationDecision.notPending,
+          'registration full' => RegistrationDecision.full,
+          'fixtures generated' => RegistrationDecision.closed,
+          'registration not found' => RegistrationDecision.notFound,
+          _ => null,
+        };
+        if (outcome == null) rethrow;
+        await tournaments._refreshQuietly(r.tournamentId);
+        return outcome;
+      }
+      await tournaments._refreshQuietly(r.tournamentId);
+      return approve ? RegistrationDecision.approved : RegistrationDecision.rejected;
+    }
     final tournaments = ref.read(tournamentsProvider.notifier);
     await ref.read(tournamentsProvider.future);
     final t = tournaments.byId(r.tournamentId);
@@ -357,6 +575,7 @@ class TournamentRegistrationsController extends AsyncNotifier<List<TournamentReg
   }
 
   Future<void> _markRemoved(String registrationId) async {
+    if (_server != null) return; // The server's row says "removed".
     final r = byId(registrationId);
     if (r == null || r.status == RegistrationStatus.rejected) return;
     await _store(r.copyWith(status: RegistrationStatus.rejected, decidedAt: _now));
@@ -440,8 +659,31 @@ class TournamentHubStats {
   final int pendingRegistrations;
 }
 
-/// Tournament Center stats and hub badges (all derived).
+/// The server's Tournament Center counts (`tournament_hub_stats`); `null`
+/// in the demo, without the switch, and while loading or failed. Read again
+/// after every change made here and on every list sync.
+final tournamentServerStatsProvider = FutureProvider<TournamentServerStats?>(retry: _noRetry, (ref) async {
+  ref.watch(currentAccountProvider.select((a) => a?.id));
+  final server = ref.watch(tournamentBackendProvider);
+  if (server == null) return null;
+  return server.hubStats();
+});
+
+/// Tournament Center stats and hub badges: the server's counts when the
+/// tournaments switch is on (derived from what is loaded until they
+/// arrive), else derived.
 final tournamentHubStatsProvider = Provider<TournamentHubStats>((ref) {
+  if (ref.watch(tournamentsLiveProvider)) {
+    if (ref.watch(tournamentServerStatsProvider).value case final s?) {
+      return TournamentHubStats(
+        hosted: s.hosted,
+        open: s.open,
+        registered: s.registered,
+        approved: s.approved,
+        pendingRegistrations: s.pending,
+      );
+    }
+  }
   final now = ref.read(clockProvider).now();
   final mine = ref.watch(myRegistrationsProvider);
   return TournamentHubStats(
@@ -505,12 +747,33 @@ List<(TournamentEntrant, Standing)> standingsTable(Tournament t) {
 String entrantLabel(Tournament t, String? id) {
   if (id == null) return 'TBD';
   if (id == FixtureMatch.bye) return 'BYE';
-  return t.entrant(id)?.displayName ?? 'TBD';
+  return t.entrant(id)?.displayName ?? (id == t.winnerId ? t.winnerName : null) ?? 'TBD';
 }
 
-/// Tournament Dashboard awards, ranked over the confirmed teams' players:
-/// my registered squad, or another club's key players.
+/// The server's awards (`tournament_awards`): only from the official
+/// scorecards of fixtures linked to a match; `null` while there is none, in
+/// the demo, without the switch, and for a club that may not read them.
+/// Read again with the tournament's detail.
+final tournamentServerAwardsProvider =
+    FutureProvider.family<TournamentAwards?, String>(retry: _noRetry, (ref, id) async {
+  final server = ref.watch(tournamentBackendProvider);
+  if (server == null) return null;
+  try {
+    return await server.awards(id);
+  } on AccountException {
+    return null;
+  }
+});
+
+/// Tournament Dashboard awards.
+/// * Server (the tournaments switch): [tournamentServerAwardsProvider] —
+///   official results only, `null` (the empty state) until there are some.
+/// * Any other Supabase build: none — never invented.
+/// * The demo: ranked over the confirmed teams' players (my registered
+///   squad, or another club's key players) by `DemoTournamentAwards`.
 final tournamentAwardsProvider = Provider.family<TournamentAwards?, String>((ref, id) {
+  if (ref.watch(tournamentsLiveProvider)) return ref.watch(tournamentServerAwardsProvider(id)).value;
+  if (ref.watch(backendConfigProvider).isSupabase) return null;
   final t = ref.watch(tournamentProvider(id));
   if (t == null || t.joined.isEmpty) return null;
   final pool = {for (final p in ref.watch(clubPlayerPoolProvider).value ?? const <SquadPlayer>[]) p.id: p};
@@ -531,6 +794,49 @@ final tournamentAwardsProvider = Provider.family<TournamentAwards?, String>((ref
     }
   }
   return DemoTournamentAwards.compute(t.id, players);
+});
+
+/// Server: reads one tournament's detail (entries, draw, standings) when a
+/// screen keyed by it opens. Nothing to do in the demo.
+final tournamentDetailProvider =
+    FutureProvider.autoDispose.family<void, String>(retry: _noRetry, (ref, id) async {
+  if (ref.watch(tournamentBackendProvider) == null) return;
+  await ref.read(tournamentsProvider.future);
+  await ref.read(tournamentRegistrationsProvider.future);
+  await ref.read(tournamentsProvider.notifier).refreshDetail(id);
+});
+
+/// Server: reads the tournament list, the own club's entries and the hub
+/// counts again when a list screen ([screen]) opens — unless they are
+/// loading for the first time right now. Nothing to do in the demo.
+final tournamentsSyncProvider =
+    FutureProvider.autoDispose.family<void, String>(retry: _noRetry, (ref, screen) async {
+  if (ref.watch(tournamentBackendProvider) == null) return;
+  final listLoaded = ref.read(tournamentsProvider).hasValue;
+  final regsLoaded = ref.read(tournamentRegistrationsProvider).hasValue;
+  await Future.wait([
+    if (listLoaded) ref.read(tournamentsProvider.notifier).reload() else ref.read(tournamentsProvider.future),
+    if (regsLoaded)
+      ref.read(tournamentRegistrationsProvider.notifier).reload()
+    else
+      ref.read(tournamentRegistrationsProvider.future),
+  ]);
+  if (listLoaded || regsLoaded) ref.invalidate(tournamentServerStatsProvider);
+});
+
+/// Server: an entry's squad (`tournament_registration_squad`, the entering
+/// club's and the organizer's owners only); `null` in the demo (its
+/// registrations keep their squad), and when it can't be read.
+final registrationSquadProvider =
+    FutureProvider.autoDispose.family<Lineup?, String>(retry: _noRetry, (ref, registrationId) async {
+  final server = ref.watch(tournamentBackendProvider);
+  if (server == null) return null;
+  final r = ref.read(tournamentRegistrationsProvider.notifier).byId(registrationId);
+  try {
+    return await server.squad(registrationId, teamName: r?.teamName ?? '');
+  } on AccountException {
+    return null;
+  }
 });
 
 // ---------------------------------------------------------------------------

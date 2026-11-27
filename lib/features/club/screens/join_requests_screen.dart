@@ -359,7 +359,7 @@ class JoinRequestRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final r = request;
     final subtitle = switch (r.review) {
-      JoinRequestReview.pending => '${r.role.label} · ${r.appliedLabel}',
+      JoinRequestReview.pending => [?r.role?.label, r.appliedLabel].join(' · '),
       JoinRequestReview.approved =>
         'Approved as ${r.assignedRole?.label ?? 'Player'}${r.decidedAt == null ? '' : ' · ${CeFormat.dayMonth(r.decidedAt!)}'}',
       JoinRequestReview.declined => 'Declined${r.decidedAt == null ? '' : ' · ${CeFormat.dayMonth(r.decidedAt!)}'}',
@@ -369,7 +369,7 @@ class JoinRequestRow extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
       onTap: onOpen,
       child: Row(children: [
-        CeAvatar(r.name, size: 44),
+        CeAvatar(r.name, size: 44, photoPath: r.photoPath),
         const SizedBox(width: 12),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

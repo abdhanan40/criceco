@@ -6,6 +6,7 @@ import '../../../app/router/routes.dart';
 import '../../../app/theme/tokens.dart';
 import '../../../core/models/models.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/pakistan_time.dart';
 import '../../../shared/widgets/ce_buttons.dart';
 import '../../../shared/widgets/ce_feedback.dart';
 import '../../../shared/widgets/ce_icons.dart';
@@ -18,7 +19,7 @@ import '../widgets/lineup_widgets.dart';
 final _scheduled = Routes.matchManagement(MatchTab.scheduled);
 
 String _matchMeta(BookingContext c) {
-  final start = c.match.startsAt;
+  final start = c.match.startsAt?.inPakistan;
   return [
     if (start != null) CeFormat.dayDate(start),
     if (start != null) CeFormat.time(start),
